@@ -478,9 +478,13 @@ func checkCertificateHost(host string, certificate string, key string) bool {
 		log.Errorf("[CORE] Failed to parse certificate for host %v : %s", host, err)
 		return false
 	}
-	ok := x509cert.VerifyHostname(host)
-	if ok != nil {
-		log.Debugf("[CORE] Error: Hostname in route does not match with certificate hostname: %v", ok)
+	if len(x509cert.DNSNames) > 0 {
+		ok := x509cert.VerifyHostname(host)
+		if ok != nil {
+			log.Warningf("Hostname in virtualserver does not match with certificate hostname: %v", host)
+		}
+	} else {
+		log.Warningf("SAN is empty on the certificate. So skipping Hostname validation on cert for host %v", host)
 	}
 	return true
 }

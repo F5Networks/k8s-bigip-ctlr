@@ -248,6 +248,10 @@ Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ct
 
 ### **Upgrading from 2.10.1 to 2.11.0:**
 
+**_Functionality Change:_**
+
+* From 2.11, if TLSProfile has multiple domains in hosts parameter then traffic is handled for all those domains on virtualserver it attached to.  
+
 Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.11.0 to 2.11.1:**
@@ -263,3 +267,10 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 * Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12.Use networking.k8s.io/v1 API for ingress.
 * Refer [guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md) to migrate to next generation routes.
 * Deprecated CommonName support for host certificate verification in secrets, use subject alternative name(SAN) in certificates instead.
+
+### **Upgrading from 2.12.0 to 2.12.1:**
+* CIS is supporting new partition for GTM in as3 mode for CRDs. In CCCL mode there are no partition changes for GTM, common partition remains same
+   * In as3 mode, CIS will clear existing GTM objects in default partition and recreates them in new GTM partition 
+   * Format of the new GTM partition name - {defaultpartition_gtm}
+   * With EDNS and VS/TS/IngressLink resource partition change, sometimes CIS might come across 422 error 
+     * The root cause can be VS list is not refreshed in the GSLB server.

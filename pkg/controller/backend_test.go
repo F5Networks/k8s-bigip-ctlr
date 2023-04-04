@@ -229,8 +229,8 @@ var _ = Describe("Backend Tests", func() {
 				gtmConfig:          GTMConfig{},
 				defaultRouteDomain: 1,
 			}
-
-			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 
@@ -264,7 +264,8 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
 			decl := agent.createTenantAS3Declaration(config)
@@ -280,7 +281,8 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 
 			as3decl := agent.createTenantAS3Declaration(config)
 			var as3Config map[string]interface{}
@@ -324,15 +326,16 @@ var _ = Describe("Backend Tests", func() {
 			agent = newMockAgent(nil)
 			DEFAULT_PARTITION = "default"
 		})
-
-		It("Empty GTM Config", func() {
-			adc := as3ADC{}
-			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
-				gtmConfig: GTMConfig{},
-			}, adc)
-
-			Expect(len(adc)).To(BeZero(), "Invalid GTM Config")
-		})
+		// Commenting this test case
+		// with new GTM partition support we will not delete partition, instead we flush contents
+		//It("Empty GTM Config", func() {
+		//	adc := as3ADC{}
+		//	adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+		//		gtmConfig: GTMConfig{},
+		//	}, adc)
+		//
+		//	Expect(len(adc)).To(BeZero(), "Invalid GTM Config")
+		//})
 
 		It("Empty GTM Partition Config / Delete Case", func() {
 			adc := as3ADC{}
@@ -420,6 +423,12 @@ var _ = Describe("Backend Tests", func() {
 			val, ok := app["crd_service_address_1_2_3_4"]
 			Expect(ok).To(BeTrue())
 			Expect(val).NotTo(BeNil())
+		})
+		It("Test Deleted Partition", func() {
+			deletedPartition := getDeletedTenantDeclaration("test", "test")
+			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
+			deletedPartition = getDeletedTenantDeclaration("test", "default")
+			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})
 

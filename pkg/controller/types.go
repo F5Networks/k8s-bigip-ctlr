@@ -275,8 +275,9 @@ type (
 
 	// PartitionConfig contains ResourceMap and priority of partition
 	PartitionConfig struct {
-		ResourceMap ResourceMap
-		Priority    int
+		ResourceMap   ResourceMap
+		Priority      *int
+		PriorityMutex sync.RWMutex
 	}
 
 	// ResourceMap key is resource name, value is pointer to config. May be shared.
@@ -460,6 +461,8 @@ type (
 		Policy    string `json:"policy,omitempty"`
 		Drop      bool   `json:"drop,omitempty"`
 		Enabled   *bool  `json:"enabled,omitempty"`
+		Log       bool   `json:"log,omitempty"`
+		Message   string `json:"message,omitempty"`
 	}
 
 	// condition config for a Rule
@@ -777,12 +780,17 @@ type (
 		Enabled  *bool                   `json:"enabled,omitempty"`
 		Location string                  `json:"location,omitempty"`
 		Replace  *as3ActionReplaceMap    `json:"replace,omitempty"`
+		Write    *as3LogMessage          `json:"write,omitempty"`
 	}
 
 	as3ActionReplaceMap struct {
 		Value string `json:"value,omitempty"`
 		Name  string `json:"name,omitempty"`
 		Path  string `json:"path,omitempty"`
+	}
+
+	as3LogMessage struct {
+		Message string `json:"message,omitempty"`
 	}
 
 	// as3Condition maps to Policy_Condition in AS3 Resources

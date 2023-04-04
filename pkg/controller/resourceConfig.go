@@ -936,8 +936,11 @@ func (ctlr *Controller) handleVirtualServerTLS(
 			pl,
 			vs.Spec.Host,
 		)
-
-		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
+		if len(tls.Spec.Hosts) > 1 {
+			poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
+		} else {
+			poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
+		}
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
 		namespace:        vs.ObjectMeta.Namespace,
@@ -994,6 +997,13 @@ func ConvertStringToProfileRef(profileName, context, ns string) ProfileRef {
 	parts := strings.Split(profName, "/")
 	profRef := ProfileRef{Context: context, Namespace: ns, BigIPProfile: true}
 	switch len(parts) {
+	case 3:
+		// refernce to existing profile created using AS3 in Common(non-cis-managed) partition
+		if parts[1] == "Shared" {
+			profRef.Partition = parts[0] + "/" + parts[1]
+			profRef.Name = parts[2]
+		}
+
 	case 2:
 		profRef.Partition = parts[0]
 		profRef.Name = parts[1]
@@ -1106,7 +1116,8 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	_, ok := rs.ltmConfig[partition]
 	if !ok {
-		rs.ltmConfig[partition] = &PartitionConfig{make(ResourceMap), 0}
+		zero := 0
+		rs.ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 	}
 
 	return rs.ltmConfig[partition].ResourceMap
@@ -1150,12 +1161,17 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 	for prtn, partitionConfig := range rs.ltmConfig {
 		// copy only those partitions where virtual server exists otherwise remove from ltmConfig
 		if len(partitionConfig.ResourceMap) > 0 {
-			ltmConfig[prtn] = &PartitionConfig{make(ResourceMap), partitionConfig.Priority}
+			ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
 			for rsName, res := range partitionConfig.ResourceMap {
 				ltmConfig[prtn].ResourceMap[rsName] = res
 			}
 		} else {
-			deletePartitions = append(deletePartitions, prtn)
+			// Delete partition from ltmConfig only if the priority is 0 else don't delete it
+			partitionConfig.PriorityMutex.RLock()
+			if *(partitionConfig.Priority) == 0 {
+				deletePartitions = append(deletePartitions, prtn)
+			}
+			partitionConfig.PriorityMutex.RUnlock()
 		}
 	}
 	// delete the partitions if there are no virtuals in that partition
@@ -1169,7 +1185,9 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
 	for prtn, partitionConfig := range rs.ltmConfig {
-		ltmConfig[prtn] = &PartitionConfig{make(ResourceMap), partitionConfig.Priority}
+		partitionConfig.PriorityMutex.RLock()
+		ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
+		partitionConfig.PriorityMutex.RUnlock()
 		for rsName, res := range partitionConfig.ResourceMap {
 			copyRes := &ResourceConfig{}
 			copyRes.copyConfig(res)
@@ -1213,7 +1231,9 @@ func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
 // Update the tenant priority in ltmConfigCache
 func (rs *ResourceStore) updatePartitionPriority(partition string, priority int) {
 	if _, ok := rs.ltmConfig[partition]; ok {
-		rs.ltmConfig[partition].Priority = priority
+		rs.ltmConfig[partition].PriorityMutex.Lock()
+		*rs.ltmConfig[partition].Priority = priority
+		rs.ltmConfig[partition].PriorityMutex.Unlock()
 	}
 }
 
@@ -2090,7 +2110,7 @@ func (ctlr *Controller) handleRouteTLS(
 			rsCfg.IntDgMap,
 			servicePort,
 		)
-		if IsRoutePathBasedABDeployment(route) &&
+		if isRoutePathBasedABDeployment(route) &&
 			(route.Spec.TLS.Termination == TLSEdge ||
 				(route.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) != TLSAllowInsecure)) {
 			ctlr.HandlePathBasedABIRule(rsCfg, route.Spec.Host, string(route.Spec.TLS.Termination))

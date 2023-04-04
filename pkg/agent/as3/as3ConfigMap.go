@@ -84,6 +84,7 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			cfgmap := &AS3ConfigMap{
 				Name:      rscCfgMap.Name,
 				Namespace: rscCfgMap.Namespace,
+				Validated: true,
 			}
 			rscCfgMap.Data = am.getTenantObjects(tenants)
 			tenantMap, endPoints := am.processCfgMap(rscCfgMap)

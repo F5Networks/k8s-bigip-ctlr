@@ -37,7 +37,7 @@ const (
 	timeoutNill   = 0 * time.Second
 	timeoutSmall  = 3 * time.Second
 	timeoutMedium = 30 * time.Second
-	timeoutLarge  = 60 * time.Second
+	timeoutLarge  = 180 * time.Second
 )
 
 const (

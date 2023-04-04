@@ -55,9 +55,11 @@ var baseAS3Config = `{
 `
 
 var DEFAULT_PARTITION string
+var DEFAULT_GTM_PARTITION string
 
 func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
+	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
 	postMgr := NewPostManager(params.PostParams)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
@@ -218,6 +220,13 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
 	for rsConfig := range agent.postChan {
+		// For the very first post after starting controller, need not wait to post
+		if !agent.firstPost && agent.AS3PostDelay != 0 {
+			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
+			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", agent.AS3PostDelay)
+			_ = <-time.After(time.Duration(agent.AS3PostDelay) * time.Second)
+		}
+
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
 		// Otherwise, we will wait for retryWorker to complete its current iteration
 		agent.declUpdate.Lock()
@@ -251,12 +260,16 @@ func (agent *Agent) agentWorker() {
 		agent.tenantResponseMap = make(map[string]tenantResponse)
 
 		for tenant := range agent.incomingTenantDeclMap {
-			if _, ok := agent.tenantPriorityMap[tenant]; ok {
-				priorityTenants = append(priorityTenants, tenant)
-			} else {
-				updatedTenants = append(updatedTenants, tenant)
+			// CIS with AS3 doesnt allow write to Common partition.So objects in common partition
+			// should not be updated or deleted by CIS. So removing from tenant map
+			if tenant != "Common" {
+				if _, ok := agent.tenantPriorityMap[tenant]; ok {
+					priorityTenants = append(priorityTenants, tenant)
+				} else {
+					updatedTenants = append(updatedTenants, tenant)
+				}
+				agent.tenantResponseMap[tenant] = tenantResponse{}
 			}
-			agent.tenantResponseMap[tenant] = tenantResponse{}
 		}
 
 		// Update the priority tenants first
@@ -608,6 +621,16 @@ func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as
 
 func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
 	if len(config.gtmConfig) == 0 {
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+
+		tenantDecl := as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
+		}
+		adc[DEFAULT_GTM_PARTITION] = tenantDecl
+
 		return adc
 	}
 
@@ -688,36 +711,21 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	for tenant := range agent.cachedTenantDeclMap {
-		if _, ok := config.ltmConfig[tenant]; !ok {
-			// Remove Partition
-			adc[tenant] = as3Tenant{
-				"class": "Tenant",
-			}
+		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
+			// Remove partition
+			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
 		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
-		if partitionConfig.Priority > 0 {
-			agent.tenantPriorityMap[tenantName] = partitionConfig.Priority
+		partitionConfig.PriorityMutex.RLock()
+		if *(partitionConfig.Priority) > 0 {
+			agent.tenantPriorityMap[tenantName] = *(partitionConfig.Priority)
 		}
+		partitionConfig.PriorityMutex.RUnlock()
 		if len(partitionConfig.ResourceMap) == 0 {
-			if agent.Partition == tenantName {
-				// Flush Partition contents
-				sharedApp := as3Application{}
-				sharedApp["class"] = "Application"
-				sharedApp["template"] = "shared"
-
-				tenantDecl := as3Tenant{
-					"class":              "Tenant",
-					as3SharedApplication: sharedApp,
-				}
-				adc[tenantName] = tenantDecl
-			} else {
-				// Remove Partition
-				adc[tenantName] = as3Tenant{
-					"class": "Tenant",
-				}
-			}
+			// Remove partition
+			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName)
 			continue
 		}
 		// Create Shared as3Application object
@@ -747,6 +755,22 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		adc[tenantName] = tenantDecl
 	}
 	return adc
+}
+
+func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
+	if defaultPartition == tenant {
+		// Flush Partition contents
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+		return as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
+		}
+	}
+	return as3Tenant{
+		"class": "Tenant",
+	}
 }
 
 func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
@@ -1195,6 +1219,9 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		if v.Forward {
 			action.Type = "forward"
 		}
+		if v.Log {
+			action.Type = "log"
+		}
 		if v.Request {
 			action.Event = "request"
 		}
@@ -1209,6 +1236,11 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		}
 		if v.Location != "" {
 			action.Location = v.Location
+		}
+		if v.Log {
+			action.Write = &as3LogMessage{
+				Message: v.Message,
+			}
 		}
 		// Handle vsHostname rewrite.
 		if v.Replace && v.HTTPHost {
@@ -1727,4 +1759,8 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 			),
 		}
 	}
+}
+
+func (agent *Agent) isGTMTenant(partition string) bool {
+	return partition == DEFAULT_GTM_PARTITION
 }

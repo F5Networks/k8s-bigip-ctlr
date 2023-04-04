@@ -326,7 +326,6 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
-			break
 		}
 		if ctlr.initState {
 			break
@@ -395,7 +394,6 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
-			break
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
@@ -1032,7 +1030,6 @@ func (ctlr *Controller) processVirtualServers(
 				log.Debugf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.HostGroup == "" {
@@ -1055,6 +1052,8 @@ func (ctlr *Controller) processVirtualServers(
 			}
 		}
 	}
+	// Updating the virtual server IP Address status
+	virtual.Status.VSAddress = ip
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := ctlr.virtualPorts(virtual)
 
@@ -2039,7 +2038,6 @@ func (ctlr *Controller) processTransportServers(
 				log.Debugf("IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -2047,7 +2045,8 @@ func (ctlr *Controller) processTransportServers(
 		}
 		ip = virtual.Spec.VirtualServerAddress
 	}
-
+	// Updating the virtual server IP Address status
+	virtual.Status.VSAddress = ip
 	var rsName string
 	if virtual.Spec.VirtualServerName != "" {
 		rsName = formatCustomVirtualServerName(
@@ -2063,8 +2062,17 @@ func (ctlr *Controller) processTransportServers(
 
 	if isTSDeleted {
 		rsMap := ctlr.resources.getPartitionResourceMap(partition)
+		var hostnames []string
+		if _, ok := rsMap[rsName]; ok {
+			hostnames = rsMap[rsName].MetaData.hosts
+		}
+
 		ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 		ctlr.deleteVirtualServer(partition, rsName)
+		if len(hostnames) > 0 {
+			ctlr.ProcessAssociatedExternalDNS(hostnames)
+		}
+
 		return nil
 	}
 
@@ -2115,6 +2123,10 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
+
+	if len(rsCfg.MetaData.hosts) > 0 {
+		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
+	}
 
 	return nil
 }
@@ -2246,18 +2258,18 @@ func (ctlr *Controller) processLBServices(
 	svc *v1.Service,
 	isSVCDeleted bool,
 ) error {
-	if ctlr.ipamCli == nil {
-		log.Error("IPAM is not enabled, Unable to process Services of Type LoadBalancer")
-		return nil
-	}
 
 	ipamLabel, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]
 	if !ok {
-		log.Errorf("Not found %v in %v/%v. Unable to process.",
-			LBServiceIPAMLabelAnnotation,
+		log.Debugf("Service %v/%v does not have annotation %v, continuing.",
 			svc.Namespace,
 			svc.Name,
+			LBServiceIPAMLabelAnnotation,
 		)
+		return nil
+	}
+	if ctlr.ipamCli == nil {
+		log.Warningf("IPAM is not enabled, Unable to process Services of Type LoadBalancer")
 		return nil
 	}
 
@@ -2414,7 +2426,7 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; ok {
+	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
 		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
 			if processedWIP.UID != string(edns.UID) {
 				log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
@@ -2424,11 +2436,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	}
 
 	if isDelete {
-		if _, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; !ok {
+		if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
 			return
 		}
 
-		delete(ctlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs, edns.Spec.DomainName)
+		delete(ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -2458,7 +2470,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	partitions := ctlr.resources.getLTMPartitions()
 
 	for _, pl := range edns.Spec.Pools {
-		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + ctlr.Partition
+		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -2499,20 +2511,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 					if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 						if strings.HasSuffix(vsName, "_443") {
 							pool.Members[0] = fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, partition, vsName)
-							if partition != ctlr.Partition {
-								// Modify pool name to partition containing VS
-								pool.Name = edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + partition
-							}
 						}
 						continue
 					}
 					log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("/%v/Shared/%v",
 						partition, vsName))
-					// Modify pool name to partition containing VS
-					if partition != ctlr.Partition {
-						// Modify pool name to partition containing VS
-						pool.Name = edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + partition
-					}
 					pool.Members = append(
 						pool.Members,
 						fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, partition, vsName),
@@ -2564,13 +2567,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}
-	if _, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; !ok {
-		ctlr.resources.gtmConfig[DEFAULT_PARTITION] = GTMPartitionConfig{
+	if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
+		ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION] = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
 	}
 
-	ctlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs[wip.DomainName] = wip
+	ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
 	return
 }
 

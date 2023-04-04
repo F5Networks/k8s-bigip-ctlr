@@ -1,6 +1,29 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.12.1
+-------------
+
+Added Functionality
+```````````````````
+* Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+    * Support for WAF with A/B deployments in routes
+* CRD
+    * Support for ExternalIP update of associated services of Type LB in TS CR
+    * Support for new GTM partition in as3 mode
+        * CIS will create a new partition for GTM with partition name {defaultpartition_gtm} in as3 mode
+
+Bug Fixes
+````````````
+* `Issue 2725 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2725>`_: AS3 label not working with AS3 configmap when filter-tenants set to true.
+* `Issue 2793 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2793>`_: TLSProfile crd not working when the SSL profile is from Shared location.
+* `Issue 2797 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2797>`_: TLSProfile deletes a referenced SSL Profile when making changes or deleting a VS.
+* `Issue 2799 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2799>`_: VirtualServer deletes a referenced iRule when making changes or deleting a VS.
+* `Issue 2789 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2789>`_: AS3 Post delay - Not working as expected.
+* `Issue 2816 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2816>`_: Fix Error Not found cis.f5.com/ipamLabel
+* `Issue 2796 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2796>`_: EDNS not working when deployed before TS
+* `Issue 2790 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2790>`_: CIS sends multiple AS3 requests for a single VS
+
 2.12.0
 -------------
 

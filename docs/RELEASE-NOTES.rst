@@ -1,6 +1,21 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+**What’s new:**
+    * Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+
+    * Ingress
+        *
+    * CRD
+        *
+Bug Fixes
+````````````
+
 2.12.1
 -------------
 

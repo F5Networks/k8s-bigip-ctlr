@@ -12,9 +12,9 @@ Compatibility Matrix
 
 | CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version | OS Version |
 |-------------|----------------|--------------------|---------------------------------------------------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|------------|
-| v1.14.0       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  | Debian GNU/Linux 10.3 (bluster)|
-| v1.14.1       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
-| v1.14.2       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v1.14.0     | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  | Debian GNU/Linux 10.3 (bluster)|
+| v1.14.1     | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v1.14.2     | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux release 9.1 (Plow)|
 | v2.0        | v15.1          | v1.18              | v4.3                                                          | Yes |  - | v3.18      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
 | v2.1        | v15.1          | v1.18              | v4.4.5                                                        | Yes |  - | v3.20      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
 | v2.1.1      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.21      |             |            | v0.0.8  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
@@ -36,7 +36,8 @@ Compatibility Matrix
 | v2.10.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
 | v2.11.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.22 |Red Hat Enterprise Linux release 8.7 (Ootpa)|
 | v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.8      | v0.0.4     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|
-| v2.12.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.9      | v0.0.4     | v0.0.24 |Red Hat Enterprise Linux release 9.1 (Plow)|            
+| v2.12.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.9      | v0.0.4     | v0.0.24 |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v2.12.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.9      | v0.0.4     | v0.0.24 |Red Hat Enterprise Linux release 9.1 (Plow)|
 
 
 CIS Features and Examples

@@ -57,6 +57,54 @@ var K8SCoreServices = map[string]bool{
 	"antrea":                      true,
 }
 
+var OSCPCoreServices = map[string]bool{
+	"openshift":                          true,
+	"metrics":                            true,
+	"api":                                true,
+	"check-endpoints":                    true,
+	"oauth-openshift":                    true,
+	"cco-metrics":                        true,
+	"machine-approver":                   true,
+	"node-tuning-operator":               true,
+	"performance-addon-operator-service": true,
+	"cluster-storage-operator-metrics":   true,
+	"csi-snapshot-controller-operator-metrics": true,
+	"csi-snapshot-webhook":                     true,
+	"cluster-version-operator":                 true,
+	"downloads":                                true,
+	"controller-manager":                       true,
+	"dns-default":                              true,
+	"image-registry-operator":                  true,
+	"router-internal-default":                  true,
+	"apiserver":                                true,
+	"scheduler":                                true,
+	"cluster-autoscaler-operator":              true,
+	"cluster-baremetal-operator-service":       true,
+	"cluster-baremetal-webhook-service":        true,
+	"machine-api-controllers":                  true,
+	"machine-api-operator":                     true,
+	"machine-api-operator-webhook":             true,
+	"machine-config-controller":                true,
+	"machine-config-daemon":                    true,
+	"certified-operators":                      true,
+	"community-operators":                      true,
+	"marketplace-operator-metrics":             true,
+	"redhat-marketplace":                       true,
+	"redhat-operators":                         true,
+	"openshift-state-metrics":                  true,
+	"telemeter-client":                         true,
+	"thanos-querier":                           true,
+	"multus-admission-controller":              true,
+	"network-metrics-service":                  true,
+	"network-check-source":                     true,
+	"network-check-target":                     true,
+	"catalog-operator-metrics":                 true,
+	"olm-operator-metrics":                     true,
+	"packageserver-service":                    true,
+	"sdn":                                      true,
+	"sdn-controller":                           true,
+}
+
 // start the VirtualServer informer
 func (crInfr *CRInformer) start() {
 	var cacheSyncs []cache.InformerSynced
@@ -996,6 +1044,11 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[svc.Name]; ok {
+			return
+		}
+	}
 
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
@@ -1014,6 +1067,11 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
+	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[svc.Name]; ok {
+			return
+		}
 	}
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
@@ -1047,6 +1105,11 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[svc.Name]; ok {
+			return
+		}
+	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
 		namespace: svc.ObjectMeta.Namespace,
@@ -1063,6 +1126,11 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
 		return
+	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[eps.Name]; ok {
+			return
+		}
 	}
 	log.Debugf("Enqueueing Endpoints: %v", eps)
 	key := &rqKey{
@@ -1287,6 +1355,11 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 	for _, v := range labels {
 		if _, ok := K8SCoreServices[v]; ok {
 			return true
+		}
+		if ctlr.mode == OpenShiftMode {
+			if _, ok := OSCPCoreServices[v]; ok {
+				return true
+			}
 		}
 	}
 	return false

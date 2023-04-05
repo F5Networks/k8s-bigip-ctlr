@@ -78,6 +78,11 @@ func (ctlr *Controller) setInitialServiceCount() {
 			if _, ok := K8SCoreServices[svc.Name]; ok {
 				continue
 			}
+			if ctlr.mode == OpenShiftMode {
+				if _, ok := OSCPCoreServices[svc.Name]; ok {
+					continue
+				}
+			}
 			if svc.Spec.Type != v1.ServiceTypeExternalName {
 				svcCount++
 			}

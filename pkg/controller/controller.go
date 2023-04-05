@@ -28,7 +28,9 @@ import (
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -131,6 +133,7 @@ func NewController(params Params) *Controller {
 		vxlanMode:          params.VXLANMode,
 		StaticRoutingMode:  params.StaticRoutingMode,
 		OrchestrationCNI:   params.OrchestrationCNI,
+		multiClusterConfigs: clustermanager.NewMultiClusterConfig(),
 	}
 
 	log.Debug("Controller Created")

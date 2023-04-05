@@ -34,8 +34,10 @@ import (
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
@@ -81,6 +83,7 @@ type (
 		ipamHostSpecEmpty      bool
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
+		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		resourceContext
 	}
 	resourceContext struct {
@@ -420,6 +423,8 @@ type (
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
+		// stores valid multiClusterConfigs from extendendCM
+		multiClusterConfigs map[string]MultiClusterConfig
 	}
 
 	svcResourceCacheMeta struct {
@@ -1114,6 +1119,7 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
+		MultiClusterConfigs       []MultiClusterConfig `yaml:"multiClusterConfigs"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1159,6 +1165,12 @@ type (
 	AnnotationsUsed struct {
 		WAF              bool
 		AllowSourceRange bool
+	}
+	MultiClusterConfig struct {
+		ClusterName string `yaml:"clusterName"`
+		Secret      string `yaml:"secret"`
+		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
+		HACIS string `yaml:"highAvailabilityCIS"`
 	}
 )
 

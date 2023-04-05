@@ -220,6 +220,15 @@ func (ctlr *Controller) processResources() bool {
 		}
 	case K8sSecret:
 		secret := rKey.rsc.(*v1.Secret)
+		mcc := ctlr.getClusterForSecret(secret)
+		// TODO: Process all the resources again that refer to any resource running in the affected cluster?
+		if mcc != (MultiClusterConfig{}) {
+			err := ctlr.updateClusterConfigStore(secret, mcc, rscDelete)
+			if err != nil {
+				log.Warningf(err.Error())
+			}
+			break
+		}
 		switch ctlr.mode {
 		case OpenShiftMode:
 			routeGroup := ctlr.getRouteGroupForSecret(secret)

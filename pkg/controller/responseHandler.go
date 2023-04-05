@@ -21,21 +21,19 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 		rm.id = ctlr.requestQueue.Back().Value.(requestMeta).id + 1
 	}
 
-	metaPresent := false
 	for partition, partitionConfig := range config.ltmConfig {
 		rm.partitionMap[partition] = make(map[string]string)
 		for _, cfg := range partitionConfig.ResourceMap {
 			for key, val := range cfg.MetaData.baseResources {
 				rm.partitionMap[partition][key] = val
-				metaPresent = true
 			}
 		}
 	}
-	if metaPresent {
-		ctlr.requestQueue.Lock()
-		ctlr.requestQueue.PushBack(rm)
-		ctlr.requestQueue.Unlock()
-	}
+
+	ctlr.requestQueue.Lock()
+	ctlr.requestQueue.PushBack(rm)
+	ctlr.requestQueue.Unlock()
+
 	return rm.id
 }
 
@@ -134,11 +132,6 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					} else {
 						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 					}
-					//case IngressLink:
-					//	if _, found := rscUpdateMeta.failedTenants[partition]; !found {
-					//		// updating the tenant priority back to zero if it's not in failed tenants
-					//		ctlr.resources.updatePartitionPriority(partition, 0)
-					//	}
 				}
 			}
 		}

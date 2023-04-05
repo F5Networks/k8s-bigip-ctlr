@@ -103,7 +103,9 @@ func NewAgent(params AgentParams) *Agent {
 			vxlanPartition = cleanPath[:slashPos]
 		}
 	}
-
+	if params.StaticRoutingMode == true {
+		vxlanPartition = params.Partition
+	}
 	gs := globalSection{
 		LogLevel:       params.LogLevel,
 		VerifyInterval: params.VerifyInterval,

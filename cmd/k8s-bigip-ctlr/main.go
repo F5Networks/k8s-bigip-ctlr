@@ -193,7 +193,8 @@ var (
 	gtmCredsDir      *string
 
 	httpClientMetrics *bool
-
+	staticRoutingMode *bool
+	orchestrationCNI  *string
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -246,6 +247,8 @@ func _init() {
 		"Optional, address to serve http based informations (/metrics and /health).")
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
+	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
+	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
 	// Custom Resource
 	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
 		"Optional, flag to enbale ipv6 network support.")
@@ -518,12 +521,23 @@ func verifyArgs() error {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
 
+	if *staticRoutingMode == true {
+		if isNodePort || *poolMemberType == "nodeportlocal" {
+			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
+				"Must be in Cluster mode if using static route configuration.")
+		}
+		if len(*openshiftSDNName) > 0 || len(*flannelName) > 0 {
+			return fmt.Errorf("Cannot have openshift-sdn-name or flannel-name as static route processing doesnt require tunnel " +
+				"configuration.")
+		}
+	}
+
 	if len(*openshiftSDNName) > 0 && len(*flannelName) > 0 {
 		return fmt.Errorf("Cannot have both openshift-sdn-name and flannel-name specified.")
 	}
 
 	if flags.Changed("openshift-sdn-name") {
-		if len(*openshiftSDNName) == 0 {
+		if len(*openshiftSDNName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter openshift-sdn-name")
 		}
 		if isNodePort {
@@ -533,7 +547,7 @@ func verifyArgs() error {
 		vxlanMode = "maintain"
 		vxlanName = *openshiftSDNName
 	} else if flags.Changed("flannel-name") {
-		if len(*flannelName) == 0 {
+		if len(*flannelName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter flannel-name")
 		}
 		if isNodePort {
@@ -773,21 +787,22 @@ func initController(
 	}
 
 	agentParams := controller.AgentParams{
-		PostParams:     postMgrParams,
-		GTMParams:      GtmParams,
-		Partition:      (*bigIPPartitions)[0],
-		LogLevel:       *logLevel,
-		VerifyInterval: *verifyInterval,
-		VXLANName:      vxlanName,
-		PythonBaseDir:  *pythonBaseDir,
-		UserAgent:      userAgentInfo,
-		HttpAddress:    *httpAddress,
-		EnableIPV6:     *enableIPV6,
-		CCCLGTMAgent:   *ccclGtmAgent,
+		PostParams:        postMgrParams,
+		GTMParams:         GtmParams,
+		Partition:         (*bigIPPartitions)[0],
+		LogLevel:          *logLevel,
+		VerifyInterval:    *verifyInterval,
+		VXLANName:         vxlanName,
+		PythonBaseDir:     *pythonBaseDir,
+		UserAgent:         userAgentInfo,
+		HttpAddress:       *httpAddress,
+		EnableIPV6:        *enableIPV6,
+		CCCLGTMAgent:      *ccclGtmAgent,
+		StaticRoutingMode: *staticRoutingMode,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	if *openshiftSDNName != "" {
+	if *openshiftSDNName != "" || *staticRoutingMode == true {
 		agentParams.DisableARP = true
 	}
 
@@ -812,6 +827,8 @@ func initController(
 			Mode:               controller.ControllerMode(*controllerMode),
 			RouteSpecConfigmap: *routeSpecConfigmap,
 			RouteLabel:         *routeLabel,
+			StaticRoutingMode:  *staticRoutingMode,
+			OrchestrationCNI:   *orchestrationCNI,
 		},
 	)
 
@@ -894,7 +911,10 @@ func main() {
 			vxlanPartition = cleanPath[:slashPos]
 		}
 	}
-
+	if *staticRoutingMode == true {
+		//partition provide through args
+		vxlanPartition = (*bigIPPartitions)[0]
+	}
 	config, err := getKubeConfig()
 	if err != nil {
 		os.Exit(1)
@@ -968,7 +988,7 @@ func main() {
 	}
 	// When CIS configured in OCP cluster mode disable ARP in globalSection
 	disableARP := false
-	if *openshiftSDNName != "" {
+	if *openshiftSDNName != "" || *staticRoutingMode == true {
 		disableARP = true
 	}
 
@@ -1134,6 +1154,8 @@ func getAppManagerParams() appmanager.Params {
 		VXLANName:              vxlanName,
 		EventChan:              eventChan,
 		ConfigWriter:           getConfigWriter(),
+		StaticRoutingMode:      *staticRoutingMode,
+		OrchestrationCNI:       *orchestrationCNI,
 	}
 }
 

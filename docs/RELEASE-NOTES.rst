@@ -13,6 +13,7 @@ Added Functionality
         *
     * CRD
         *
+    * Static route support added for ovn-k8s,flannel and antrea CNI.
 Bug Fixes
 ````````````
 

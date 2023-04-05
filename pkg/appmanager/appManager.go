@@ -149,9 +149,11 @@ type Manager struct {
 	nplStoreMutex sync.Mutex
 	AgentName     string
 	//vxlan
-	vxlanName    string
-	vxlanMode    string
-	configWriter writer.Writer
+	vxlanName         string
+	vxlanMode         string
+	configWriter      writer.Writer
+	staticRoutingMode bool
+	orchestrationCNI  string
 }
 
 // Store of processed host-Path map
@@ -175,6 +177,17 @@ type NPLAnnotation struct {
 
 // List of NPL annotations
 type NPLAnnoations []NPLAnnotation
+
+// static route config section
+type routeSection struct {
+	Entries []routeConfig `json:"routes"`
+}
+
+type routeConfig struct {
+	Name    string `json:"name"`
+	Network string `json:"network"`
+	Gateway string `json:"gw"`
+}
 
 // Struct to allow NewManager to receive all or only specific parameters.
 type Params struct {
@@ -211,8 +224,10 @@ type Params struct {
 	DefaultRouteDomain int
 	PoolMemberType     string
 	//vxlan
-	VXLANName string
-	VXLANMode string
+	VXLANName         string
+	VXLANMode         string
+	StaticRoutingMode bool
+	OrchestrationCNI  string
 }
 
 // Configuration options for Routes in OpenShift
@@ -272,6 +287,10 @@ const (
 	hubModeInterval  = 30 * time.Second //Hubmode ConfigMap resync interval
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
 	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
+	// CNI
+	OVN_K8S                    = "ovn-k8s"
+	OVNK8sNodeSubnetAnnotation = "k8s.ovn.org/node-subnets"
+	OVNK8sNodeIPAnnotation     = "k8s.ovn.org/node-primary-ifaddr"
 )
 
 // Create and return a new app manager that meets the Manager interface
@@ -326,6 +345,8 @@ func NewManager(params *Params) *Manager {
 		vxlanMode:              params.VXLANMode,
 		eventChan:              params.EventChan,
 		configWriter:           params.ConfigWriter,
+		staticRoutingMode:      params.StaticRoutingMode,
+		orchestrationCNI:       params.OrchestrationCNI,
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -3550,7 +3571,9 @@ func (appMgr *Manager) setupNodeProcessing() error {
 	appMgr.ProcessNodeUpdate(nodeslist)
 	// adding the bigip_monitored_nodes	metrics
 	bigIPPrometheus.MonitoredNodes.WithLabelValues(appMgr.nodeLabelSelector).Set(float64(len(appMgr.oldNodes)))
-	if 0 != len(appMgr.vxlanMode) {
+	if appMgr.staticRoutingMode {
+		appMgr.processStaticRouteUpdate(nodes)
+	} else if 0 != len(appMgr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
 		tunnelName := appMgr.vxlanName
 		cleanPath := strings.TrimLeft(appMgr.vxlanName, "/")
@@ -3578,4 +3601,116 @@ func (appMgr *Manager) setupNodeProcessing() error {
 	}
 
 	return nil
+}
+
+func (appMgr *Manager) processStaticRouteUpdate(
+	nodes []interface{},
+) {
+	//if static-routing-mode process static routes
+	var addrType v1.NodeAddressType
+	if appMgr.useNodeInternal {
+		addrType = v1.NodeInternalIP
+	} else {
+		addrType = v1.NodeExternalIP
+	}
+
+	routes := routeSection{}
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
+		route := routeConfig{}
+		// For ovn-k8s get pod subnet and node ip from annotation
+		if appMgr.orchestrationCNI == OVN_K8S {
+			annotations := node.Annotations
+			if nodeSubnetAnn, ok := annotations[OVNK8sNodeSubnetAnnotation]; !ok {
+				log.Warningf("Node subnet annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+				continue
+			} else {
+				nodesubnet, err := parseNodeSubnet(nodeSubnetAnn, node.Name)
+				if err != nil {
+					log.Warningf("Node subnet annotation %v not properly configured for node %v:%v", OVNK8sNodeSubnetAnnotation, node.Name, err)
+					continue
+				}
+				route.Network = nodesubnet
+			}
+			if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
+				log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+				continue
+			} else {
+				nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
+				if err != nil {
+					log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
+					continue
+				}
+				route.Gateway = nodeIP
+				route.Name = fmt.Sprintf("k8s-route-%v", nodeIP)
+			}
+
+		} else {
+			podCIDR := node.Spec.PodCIDR
+			if podCIDR != "" {
+				route.Network = podCIDR
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-route-%v", addr.Address)
+					}
+				}
+			} else {
+				log.Debugf("podCIDR is not found on node %v so not adding the static route for node", node.Name)
+				continue
+			}
+		}
+		routes.Entries = append(routes.Entries, route)
+	}
+	doneCh, errCh, err := appMgr.configWriter.SendSection("static-routes", routes)
+
+	if nil != err {
+		log.Warningf("Failed to write static routes config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote static route config section: %v", routes)
+		case e := <-errCh:
+			log.Warningf("Failed to write static route config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
+		}
+	}
+}
+
+func parseNodeSubnet(ann, nodeName string) (string, error) {
+	var subnetDict map[string]interface{}
+	json.Unmarshal([]byte(ann), &subnetDict)
+	if nodeSubnet, ok := subnetDict["default"]; ok {
+		return nodeSubnet.(string), nil
+	}
+	err := fmt.Errorf("%s annotation for "+
+		"node '%s' has invalid format; cannot validate node subnet. "+
+		"Should be of the form: '{\"default\":\"<node-subnet>\"}'", OVNK8sNodeSubnetAnnotation, nodeName)
+	return "", err
+}
+
+func parseNodeIP(ann, nodeName string) (string, error) {
+	var IPDict map[string]interface{}
+	json.Unmarshal([]byte(ann), &IPDict)
+	if IP, ok := IPDict["ipv4"]; ok {
+		ipmask := IP.(string)
+		nodeip := strings.Split(ipmask, "/")[0]
+		return nodeip, nil
+	}
+	err := fmt.Errorf("%s annotation for "+
+		"node '%s' has invalid format; cannot validate node IP. "+
+		"Should be of the form: '{\"ipv4\":\"<node-ip>\"}'", OVNK8sNodeIPAnnotation, nodeName)
+	return "", err
 }

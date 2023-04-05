@@ -24,4 +24,9 @@ const (
 	HTTPS = "https"
 
 	defaultRouteGroupName string = "defaultRouteGroup"
+
+	// CNI
+	OVN_K8S                    = "ovn-k8s"
+	OVNK8sNodeSubnetAnnotation = "k8s.ovn.org/node-subnets"
+	OVNK8sNodeIPAnnotation     = "k8s.ovn.org/node-primary-ifaddr"
 )

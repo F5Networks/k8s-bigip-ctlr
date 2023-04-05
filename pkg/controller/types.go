@@ -79,6 +79,8 @@ type (
 		requestQueue           *requestQueue
 		namespaceLabel         string
 		ipamHostSpecEmpty      bool
+		StaticRoutingMode      bool
+		OrchestrationCNI       string
 		resourceContext
 	}
 	resourceContext struct {
@@ -113,6 +115,8 @@ type (
 		Mode               ControllerMode
 		RouteSpecConfigmap string
 		RouteLabel         string
+		StaticRoutingMode  bool
+		OrchestrationCNI   string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -294,6 +298,16 @@ type (
 	// key is namespace/pod. stores list of npl annotation on pod
 	NPLStore map[string]NPLAnnoations
 
+	// static route config
+	routeSection struct {
+		Entries []routeConfig `json:"routes"`
+	}
+
+	routeConfig struct {
+		Name    string `json:"name"`
+		Network string `json:"network"`
+		Gateway string `json:"gw"`
+	}
 	// GTMConfig key is domainName and value is WideIP
 
 	WideIPs struct {
@@ -655,16 +669,17 @@ type (
 		PostParams PostParams
 		GTMParams  GTMParams
 		// VxlnParams      VXLANParams
-		Partition      string
-		LogLevel       string
-		VerifyInterval int
-		VXLANName      string
-		PythonBaseDir  string
-		UserAgent      string
-		HttpAddress    string
-		EnableIPV6     bool
-		DisableARP     bool
-		CCCLGTMAgent   bool
+		Partition         string
+		LogLevel          string
+		VerifyInterval    int
+		VXLANName         string
+		PythonBaseDir     string
+		UserAgent         string
+		HttpAddress       string
+		EnableIPV6        bool
+		DisableARP        bool
+		CCCLGTMAgent      bool
+		StaticRoutingMode bool
 	}
 
 	PostManager struct {

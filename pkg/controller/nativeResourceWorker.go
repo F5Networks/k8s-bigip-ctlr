@@ -408,7 +408,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 
 			out:
 				for _, container := range pod.Spec.Containers {
-					if container.LivenessProbe == nil {
+					if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
 						continue
 					}
 					for _, cPort := range container.Ports {
@@ -660,7 +660,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		for _, container := range pod.Spec.Containers {
 			for _, cPort := range container.Ports {
 				if cPort.ContainerPort == servicePort.IntVal {
-					if container.LivenessProbe == nil {
+					if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
 						break out
 					} else {
 						var scheme v1.URIScheme

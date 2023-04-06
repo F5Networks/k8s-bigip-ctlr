@@ -4,18 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	routeapi "github.com/openshift/api/route/v1"
 
@@ -967,7 +966,11 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
-
+		// Get Multicluster kube-config
+		err := ctlr.readMultiClusterConfigFromGlobalCM(es.MultiClusterConfigs)
+		if err != nil {
+			return err, false
+		}
 		// Get the base route config from the Global ConfigMap
 		ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
 		var partition string
@@ -1847,4 +1850,136 @@ func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
 		}
 	}
 	return ""
+}
+
+// fetch cluster name for given secret if it holds kubeconfig of the cluster.
+func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfig {
+	for _, mcc := range ctlr.resources.multiClusterConfigs {
+		// Skip empty/nil configs processing
+		if mcc == (MultiClusterConfig{}) {
+			continue
+		}
+		// Check if the secret holds the kubeconfig for a cluster by checking if it's referred in the multicluster config
+		// if so then return the cluster name associated with the secret
+		if mcc.Secret == (secret.Namespace + "/" + secret.Name) {
+			return mcc
+		}
+	}
+	return MultiClusterConfig{}
+}
+
+// readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
+func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs []MultiClusterConfig) error {
+	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
+		log.Infof("No multi cluster config provided.")
+		return nil
+	}
+	currentClusterSecretKeys := make(map[string]struct{})
+	for _, mcc := range multiClusterConfigs {
+
+		// Store the cluster keys which will be used to detect deletion of a cluster later
+		currentClusterSecretKeys[mcc.ClusterName] = struct{}{}
+
+		// Both cluster name and secret are mandatory
+		if mcc.ClusterName == "" || mcc.Secret == "" {
+			log.Warningf("clusterName or secret not provided in multiClusterConfig")
+			continue
+		}
+
+		// Check if secret is in the desired format of <namespace>/<secret name>
+		splits := strings.Split(mcc.Secret, "/")
+		if len(splits) != 2 {
+			log.Warningf("secret: %s should be in the format namespace/secret-name", mcc.Secret)
+			continue
+		}
+		secretNamespace := splits[0]
+		secretName := splits[1]
+
+		// Update the new valid cluster config to the multiClusterConfigs cache if not already present
+		if _, ok := ctlr.resources.multiClusterConfigs[mcc.ClusterName]; !ok {
+			ctlr.resources.multiClusterConfigs[mcc.ClusterName] = mcc
+		}
+
+		// If cluster config has been processed already and kubeclient has been created then skip it
+		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName]; ok {
+			// Skip processing the cluster config as it's already processed
+			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
+			// combination of cluster name and secret name
+			continue
+		}
+
+		// Fetch the secret containing kubeconfig creds
+		comInf, ok := ctlr.getNamespacedCommonInformer(secretNamespace)
+		if !ok {
+			log.Warningf("informer not found for namespace: %v", secretNamespace)
+		}
+		obj, exist, err := comInf.secretsInformer.GetIndexer().GetByKey(mcc.Secret)
+		if err != nil {
+			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+				mcc.Secret, mcc.ClusterName, err)
+		}
+		var kubeConfigSecret *v1.Secret
+		if !exist {
+			log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", mcc.Secret, mcc.ClusterName)
+			// During start up the informers may not be updated so, try to fetch secret using kubeClient
+			kubeConfigSecret, err = ctlr.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName, metav1.GetOptions{})
+			if err != nil {
+				log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+					mcc.Secret, mcc.ClusterName, err)
+				continue
+			}
+		}
+		// Fetch the kubeconfig data from the secret
+		if kubeConfigSecret == nil {
+			kubeConfigSecret = obj.(*v1.Secret)
+		}
+		// Update the clusterKubeConfig
+		err = ctlr.updateClusterConfigStore(kubeConfigSecret, mcc, false)
+		if err != nil {
+			log.Warningf(err.Error())
+			continue
+		}
+	}
+	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store
+	for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+		if _, ok := currentClusterSecretKeys[clusterName]; !ok {
+			// Delete config from the cached valid mutiClusterConfig data
+			delete(ctlr.resources.multiClusterConfigs, clusterName)
+			// Delegate the deletion of cluster from the clusterConfig store to updateClusterConfigStore so that any
+			// additional operations (if any) can be performed
+			_ = ctlr.updateClusterConfigStore(nil, MultiClusterConfig{ClusterName: clusterName}, true)
+		}
+	}
+	return nil
+}
+
+// updateClusterConfigStore updates the clusterKubeConfigs store with the latest config and updated kubeclient for the cluster
+func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc MultiClusterConfig, deleted bool) error {
+	if !deleted && (kubeConfigSecret == nil || mcc == (MultiClusterConfig{})) {
+		return fmt.Errorf("no secret or MulticlusterConfig specified")
+	}
+	// if secret associated with a cluster kubeconfig is deleted then remove it from clusterKubeConfig store
+	if deleted {
+		// Delete kubeclients from multicluster config store
+		delete(ctlr.multiClusterConfigs.ClusterConfigs, mcc.ClusterName)
+		return nil
+	}
+	// Extract the kubeconfig from the secret
+	kubeConfig, ok := kubeConfigSecret.Data["kubeconfig"]
+	if !ok {
+		return fmt.Errorf("no kubeconfig data found in the secret: %s for the cluster: %s", mcc.Secret,
+			mcc.ClusterName)
+	}
+	// Create kube client using the provided kubeconfig for the respective cluster
+	kubeClient, err := clustermanager.CreateKubeClientFromKubeConfig(&kubeConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubeClient from kube-config fetched from secret %s for the "+
+			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
+	}
+	// Update the clusteKubeConfig store
+	ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName] = clustermanager.ClusterConfig{
+		HACIS:      strings.ToLower(mcc.HACIS),
+		KubeClient: kubeClient,
+	}
+	return nil
 }

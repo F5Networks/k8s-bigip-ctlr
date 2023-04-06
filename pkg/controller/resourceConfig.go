@@ -60,6 +60,7 @@ func (rs *ResourceStore) Init() {
 	rs.svcResourceCache = make(map[string]map[string]svcResourceCacheMeta)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
+	rs.multiClusterConfigs = make(map[string]MultiClusterConfig)
 }
 
 const (

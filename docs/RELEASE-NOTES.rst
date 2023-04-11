@@ -17,6 +17,7 @@ Added Functionality
     * Static route support added for ovn-k8s,flannel and antrea CNI.
 Bug Fixes
 ````````````
+* `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal
 
 2.12.1
 -------------

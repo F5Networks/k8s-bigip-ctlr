@@ -3328,7 +3328,12 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 			if pods != nil {
 				for _, portSpec := range service.Spec.Ports {
 					podPort := portSpec.TargetPort
-					members = append(members, appMgr.getEndpointsForNPL(podPort, pods)...)
+					for _, newMember := range appMgr.getEndpointsForNPL(podPort, pods) {
+						if _, ok := uniqueMembersMap[newMember]; !ok {
+							uniqueMembersMap[newMember] = struct{}{}
+							members = append(members, newMember)
+						}
+					}
 				}
 			}
 		} else { // Controller is in NodePort mode.
@@ -3450,17 +3455,24 @@ func (appMgr *Manager) GetServicesForPod(pod *v1.Pod) []*v1.Service {
 func (appMgr *Manager) GetPodsForService(namespace, serviceName string) []*v1.Pod {
 	svcKey := namespace + "/" + serviceName
 	crInf, ok := appMgr.getNamespaceInformer(namespace)
-	if !ok {
+	if !ok && !appMgr.hubMode {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-	svc, found, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	var svc interface{}
+	var err error
+	var found bool
+	if appMgr.hubMode {
+		svc, err = appMgr.kubeClient.CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	} else {
+		svc, found, err = crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+		if !found {
+			log.Errorf("Error: Service %v not found", svcKey)
+			return nil
+		}
+	}
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
-		return nil
-	}
-	if !found {
-		log.Errorf("Error: Service %v not found", svcKey)
 		return nil
 	}
 	annotations := svc.(*v1.Service).Annotations
@@ -3480,7 +3492,19 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) []*v1.Po
 		return nil
 	}
 	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
-	podList, err := listerscorev1.NewPodLister(crInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
+	var podList []*v1.Pod
+	if appMgr.hubMode {
+		var pods *v1.PodList
+		pods, err = appMgr.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelmap).String(),
+		})
+		for _, obj := range pods.Items {
+			pod := obj
+			podList = append(podList, &pod)
+		}
+	} else {
+		podList, err = listerscorev1.NewPodLister(crInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
+	}
 	if err != nil {
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
 		return nil
@@ -3497,7 +3521,22 @@ func (appMgr *Manager) getEndpointsForNPL(
 	for _, pod := range pods {
 		anns, found := appMgr.nplStore[pod.Namespace+"/"+pod.Name]
 		if !found {
-			continue
+			if appMgr.hubMode {
+				ann := pod.GetAnnotations()
+				var annotations []NPLAnnotation
+				if val, ok := ann[NPLPodAnnotation]; ok {
+					if err := json.Unmarshal([]byte(val), &annotations); err != nil {
+						log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", err)
+						continue
+					}
+					anns = annotations
+				} else {
+					log.Debugf("key: %s, NPL annotation not found for Pod", pod.Name)
+					continue
+				}
+			} else {
+				continue
+			}
 		}
 		var podPort int32
 		//Support for named targetPort

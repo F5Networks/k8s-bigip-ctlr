@@ -10,6 +10,7 @@ Added Functionality
     * Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
         * Fix issue with liveness probe in NextGen
         * Skip processing OSCP system services to enhance performance
+        * NextGen Route controller takes precedence over Legacy Route deployment parameters
     * Ingress
         *
     * CRD

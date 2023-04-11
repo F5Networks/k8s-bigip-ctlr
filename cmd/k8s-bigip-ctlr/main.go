@@ -331,7 +331,8 @@ func _init() {
 	namespaceLabel = kubeFlags.String("namespace-label", "",
 		"Optional, used to watch for namespaces with this label")
 	manageRoutes = kubeFlags.Bool("manage-routes", false,
-		"Optional, specify whether or not to manage Route resources")
+		"Optional, specify whether or not to manage Legacy Route resources  "+
+			"Please use controller-mode option for NextGen Route Controller ")
 	manageIngress = kubeFlags.Bool("manage-ingress", true,
 		"Optional, specify whether or not to manage Ingress resources")
 	manageConfigMaps = kubeFlags.Bool("manage-configmaps", true,
@@ -561,7 +562,7 @@ func verifyArgs() error {
 	if *hubMode && !(*manageConfigMaps) {
 		return fmt.Errorf("Hubmode is supported only for configmaps")
 	}
-	if *manageRoutes {
+	if *manageRoutes && *controllerMode == "" {
 		if len(*routeVserverAddr) == 0 {
 			return fmt.Errorf("Missing required parameter route-vserver-addr")
 		}
@@ -1042,7 +1043,7 @@ func main() {
 
 	// creates the clientset
 	appMgrParms.KubeClient = kubeClient
-	if *manageRoutes {
+	if *manageRoutes && *controllerMode == "" {
 		var rclient *routeclient.RouteV1Client
 		rclient, err = routeclient.NewForConfig(config)
 		if nil != err {

@@ -16,6 +16,7 @@ Added Functionality
     * CRD
         *
     * Static route support added for ovn-k8s,flannel and antrea CNI.
+    * Support for operator in openshift 4.12
 Bug Fixes
 ````````````
 * `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal

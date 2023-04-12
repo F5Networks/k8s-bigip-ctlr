@@ -84,19 +84,21 @@ type (
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
+		multiClusterResources  *MultiClusterResourceStore
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue      workqueue.RateLimitingInterface
-		routeClientV1      routeclient.RouteV1Interface
-		comInformers       map[string]*CommonInformer
-		nrInformers        map[string]*NRInformer
-		crInformers        map[string]*CRInformer
-		nsInformers        map[string]*NSInformer
-		routeSpecCMKey     string
-		routeLabel         string
-		namespaceLabelMode bool
-		processedHostPath  *ProcessedHostPath
+		resourceQueue            workqueue.RateLimitingInterface
+		routeClientV1            routeclient.RouteV1Interface
+		comInformers             map[string]*CommonInformer
+		nrInformers              map[string]*NRInformer
+		crInformers              map[string]*CRInformer
+		nsInformers              map[string]*NSInformer
+		comMultiClusterInformers map[string]map[string]*MultiClusterCommonInformer
+		routeSpecCMKey           string
+		routeLabel               string
+		namespaceLabelMode       bool
+		processedHostPath        *ProcessedHostPath
 	}
 
 	// Params defines parameters
@@ -154,14 +156,16 @@ type (
 
 	NSInformer struct {
 		stopCh     chan struct{}
+		cluster    string
 		nsInformer cache.SharedIndexInformer
 	}
 	rqKey struct {
-		namespace string
-		kind      string
-		rscName   string
-		rsc       interface{}
-		event     string
+		namespace   string
+		kind        string
+		rscName     string
+		rsc         interface{}
+		event       string
+		clusterName string
 	}
 
 	metaData struct {
@@ -175,12 +179,12 @@ type (
 		httpTraffic   string
 	}
 
-	// Virtual Server Key - unique server is Name + Port
-	serviceKey struct {
-		ServiceName string
-		ServicePort int32
-		Namespace   string
-	}
+	//// Virtual Server Key - unique server is Name + Port
+	//serviceKey struct {
+	//	ServiceName string
+	//	ServicePort int32
+	//	Namespace   string
+	//}
 
 	// Virtual server config
 	Virtual struct {
@@ -291,7 +295,7 @@ type (
 	ResourceMap map[string]*ResourceConfig
 
 	// PoolMemberCache key is namespace/service
-	PoolMemberCache map[string]poolMembersInfo
+	PoolMemberCache map[MultiClusterServiceKey]poolMembersInfo
 	// Store of CustomProfiles
 	CustomProfileStore struct {
 		sync.Mutex
@@ -368,17 +372,18 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name              string             `json:"name"`
-		Partition         string             `json:"-"`
-		ServiceName       string             `json:"-"`
-		ServiceNamespace  string             `json:"-"`
-		ServicePort       intstr.IntOrString `json:"-"`
-		Balance           string             `json:"loadBalancingMethod,omitempty"`
-		Members           []PoolMember       `json:"members"`
-		NodeMemberLabel   string             `json:"-"`
-		MonitorNames      []MonitorName      `json:"monitors,omitempty"`
-		ReselectTries     int32              `json:"reselectTries,omitempty"`
-		ServiceDownAction string             `json:"serviceDownAction,omitempty"`
+		Name                 string                         `json:"name"`
+		MultiClusterServices []MultiClusterServiceReference `json:"_"`
+		Partition            string                         `json:"-"`
+		ServiceName          string                         `json:"-"`
+		ServiceNamespace     string                         `json:"-"`
+		ServicePort          intstr.IntOrString             `json:"-"`
+		Balance              string                         `json:"loadBalancingMethod,omitempty"`
+		Members              []PoolMember                   `json:"members"`
+		NodeMemberLabel      string                         `json:"-"`
+		MonitorNames         []MonitorName                  `json:"monitors,omitempty"`
+		ReselectTries        int32                          `json:"reselectTries,omitempty"`
+		ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -419,7 +424,7 @@ type (
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
-		svcResourceCache          map[string]map[string]svcResourceCacheMeta
+		svcResourceCache          map[MultiClusterServiceKey]map[string]svcResourceCacheMeta
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
@@ -1166,16 +1171,55 @@ type (
 		WAF              bool
 		AllowSourceRange bool
 	}
-	MultiClusterConfig struct {
-		ClusterName string `yaml:"clusterName"`
-		Secret      string `yaml:"secret"`
-		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
-		HACIS string `yaml:"highAvailabilityCIS"`
-	}
 )
 
 type TLSVersion string
 
 const (
 	TLSVerion1_3 TLSVersion = "1.3"
+)
+
+type (
+	MultiClusterConfig struct {
+		ClusterName string `yaml:"clusterName"`
+		Secret      string `yaml:"secret"`
+		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
+		HACIS string `yaml:"highAvailabilityCIS"`
+	}
+
+	MultiClusterResourceStore struct {
+		rscSvcMap      map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig
+		svcResourceMap map[MultiClusterServiceKey]ResourceKey
+		clusterSvcMap  map[string]map[MultiClusterServiceKey]struct{}
+		sync.Mutex
+	}
+	MultiClusterServiceKey struct {
+		serviceName string
+		clusterName string
+		namespace   string
+	}
+	MultiClusterServiceConfig struct {
+		svcPort intstr.IntOrString
+	}
+	ResourceKey struct {
+		rscName   string
+		namespace string
+	}
+
+	MultiClusterCommonInformer struct {
+		namespace    string
+		clusterName  string
+		stopCh       chan struct{}
+		svcInformer  cache.SharedIndexInformer
+		epsInformer  cache.SharedIndexInformer
+		podInformer  cache.SharedIndexInformer
+		nodeInformer cache.SharedIndexInformer
+	}
+
+	MultiClusterServiceReference struct {
+		ClusterName string             `json:"clusterName"`
+		SvcName     string             `json:"svcName"`
+		Namespace   string             `json:"namespace"`
+		ServicePort intstr.IntOrString `json:"servicePort"`
+	}
 )

@@ -1387,7 +1387,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers["default"] = &CRInformer{}
 			mockCtlr.comInformers["default"] = &CommonInformer{}
-			mockCtlr.resources.poolMemCache = make(map[string]poolMembersInfo)
+			mockCtlr.resources.poolMemCache = make(map[MultiClusterServiceKey]poolMembersInfo)
 			mockCtlr.resources.ltmConfig = LTMConfig{}
 			mockCtlr.oldNodes = []Node{{Name: "node-1", Addr: "10.10.10.1"}, {Name: "node-2", Addr: "10.10.10.2"}}
 		})
@@ -1407,7 +1407,12 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 			memberMap[portRef{name: "https", port: 443}] = members
-			mockCtlr.resources.poolMemCache["default/svc-1"] = poolMembersInfo{
+			svcKey := MultiClusterServiceKey{
+				serviceName: "svc-1",
+				namespace:   "default",
+				clusterName: "",
+			}
+			mockCtlr.resources.poolMemCache[svcKey] = poolMembersInfo{
 				svcType:   "Nodeport",
 				portSpec:  []v1.ServicePort{{Name: "https", Port: 443, NodePort: 32443, TargetPort: intstr.FromInt(443), Protocol: "TCP"}},
 				memberMap: memberMap,

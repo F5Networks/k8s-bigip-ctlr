@@ -97,6 +97,9 @@ const (
 	LBServicePolicyNameAnnotation = "cis.f5.com/policyName"
 	LegacyHealthMonitorAnnotation = "virtual-server.f5.com/health"
 
+	//Multicluster annotations
+	MultiClusterServiceAnnotation = "virtual-server.f5.com/serviceMapping"
+
 	//Antrea NodePortLocal support
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
 	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
@@ -115,24 +118,24 @@ const (
 func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
-		namespaces:         make(map[string]bool),
-		resources:          NewResourceStore(),
-		Agent:              params.Agent,
-		PoolMemberType:     params.PoolMemberType,
-		UseNodeInternal:    params.UseNodeInternal,
-		Partition:          params.Partition,
-		initState:          true,
-		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
-		shareNodes:         params.ShareNodes,
-		eventNotifier:      apm.NewEventNotifier(nil),
-		defaultRouteDomain: params.DefaultRouteDomain,
-		mode:               params.Mode,
-		namespaceLabel:     params.NamespaceLabel,
-		nodeLabelSelector:  params.NodeLabelSelector,
-		vxlanName:          params.VXLANName,
-		vxlanMode:          params.VXLANMode,
-		StaticRoutingMode:  params.StaticRoutingMode,
-		OrchestrationCNI:   params.OrchestrationCNI,
+		namespaces:          make(map[string]bool),
+		resources:           NewResourceStore(),
+		Agent:               params.Agent,
+		PoolMemberType:      params.PoolMemberType,
+		UseNodeInternal:     params.UseNodeInternal,
+		Partition:           params.Partition,
+		initState:           true,
+		dgPath:              strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
+		shareNodes:          params.ShareNodes,
+		eventNotifier:       apm.NewEventNotifier(nil),
+		defaultRouteDomain:  params.DefaultRouteDomain,
+		mode:                params.Mode,
+		namespaceLabel:      params.NamespaceLabel,
+		nodeLabelSelector:   params.NodeLabelSelector,
+		vxlanName:           params.VXLANName,
+		vxlanMode:           params.VXLANMode,
+		StaticRoutingMode:   params.StaticRoutingMode,
+		OrchestrationCNI:    params.OrchestrationCNI,
 		multiClusterConfigs: clustermanager.NewMultiClusterConfig(),
 	}
 
@@ -141,6 +144,7 @@ func NewController(params Params) *Controller {
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
 	ctlr.comInformers = make(map[string]*CommonInformer)
+	ctlr.comMultiClusterInformers = make(map[string]map[string]*MultiClusterCommonInformer)
 	ctlr.nrInformers = make(map[string]*NRInformer)
 	ctlr.crInformers = make(map[string]*CRInformer)
 	ctlr.nsInformers = make(map[string]*NSInformer)
@@ -192,6 +196,24 @@ func NewController(params Params) *Controller {
 		log.Error("Failed to Setup Informers")
 	}
 
+	// get kube client for external clusters
+	ctlr.getMultiClusterConfigFromGlobalCM()
+	if len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
+
+		if ctlr.namespaceLabel != "" {
+			if err4 := ctlr.setupMultiClusterNamespaceLabeledInformers(); err4 != nil {
+				log.Error("Failed to setup multi cluster namespaceLabel informers")
+			}
+		}
+
+		// setup only common informers for other clusters
+		// CIS will only watch for service/pod/endpoint/nodes update from other clusters
+		// native/custom resources will be configured in the primary and secondary cluster only
+		if err5 := ctlr.setupMultiClusterInformers(); err5 != nil {
+			log.Error("Failed to setup multi cluster informers")
+		}
+	}
+
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
@@ -210,6 +232,10 @@ func NewController(params Params) *Controller {
 	go ctlr.responseHandler(ctlr.Agent.respChan)
 
 	go ctlr.Start()
+
+	if len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
+		go ctlr.startMultiClusterInformers()
+	}
 
 	go ctlr.setOtherSDNType()
 
@@ -424,6 +450,33 @@ func (ctlr *Controller) Start() {
 	ctlr.Stop()
 }
 
+// start multi cluster informers
+func (ctlr *Controller) startMultiClusterInformers() {
+
+	var refClusters map[string]string
+	switch ctlr.mode {
+	case OpenShiftMode, KubernetesMode:
+		// get the cluster reference information from the route annotations
+		// for the referred clusters only start the informers
+		// rest of other clusters informers will not be started until any route has external service reference
+		refClusters, _ = ctlr.getRouteSvcClusters()
+		// nrInformers only with openShiftMode
+	default:
+		// need to implement this logic when Custom Resources are supported in multi cluster mode
+		//clusters, _ = ctlr.getCustomResourceClusters()
+
+	}
+	for _, cls := range refClusters {
+		if ctlr.comMultiClusterInformers != nil {
+			if _, ok := ctlr.comMultiClusterInformers[cls]; ok {
+				for _, clsSet := range ctlr.comMultiClusterInformers[cls] {
+					clsSet.start()
+				}
+			}
+		}
+	}
+}
+
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	switch ctlr.mode {
@@ -445,6 +498,13 @@ func (ctlr *Controller) Stop() {
 	}
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.stop()
+	}
+
+	// stop multi cluster informers
+	for _, mulComInformers := range ctlr.comMultiClusterInformers {
+		for _, inf := range mulComInformers {
+			inf.stop()
+		}
 	}
 
 	ctlr.Agent.Stop()

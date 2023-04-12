@@ -919,6 +919,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
 		// Get Multicluster kube-config
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.MultiClusterConfigs)
+		ctlr.updateMultiClusterInformers()
 		if err != nil {
 			return err, false
 		}
@@ -1853,12 +1854,17 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 		if !ok {
 			log.Warningf("informer not found for namespace: %v", secretNamespace)
 		}
-		obj, exist, err := comInf.secretsInformer.GetIndexer().GetByKey(mcc.Secret)
-		if err != nil {
-			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
-				mcc.Secret, mcc.ClusterName, err)
-		}
+		var obj interface{}
+		var exist bool
+		var err error
 		var kubeConfigSecret *v1.Secret
+		if comInf != nil && comInf.secretsInformer != nil {
+			obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(mcc.Secret)
+			if err != nil {
+				log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+					mcc.Secret, mcc.ClusterName, err)
+			}
+		}
 		if !exist {
 			log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", mcc.Secret, mcc.ClusterName)
 			// During start up the informers may not be updated so, try to fetch secret using kubeClient
@@ -1922,4 +1928,70 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 		KubeClient: kubeClient,
 	}
 	return nil
+}
+
+func (ctlr *Controller) getMultiClusterConfigFromGlobalCM() (error, bool) {
+	splits := strings.Split(ctlr.routeSpecCMKey, "/")
+	ns, cmName := splits[0], splits[1]
+	cm, err := ctlr.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
+	}
+	ersData := cm.Data
+	es := extendedSpec{}
+	//log.Debugf("GCM: %v", cm.Data)
+	err = yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
+	if err != nil {
+		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
+	}
+	// Get multi cluster kube-config
+	err = ctlr.readMultiClusterConfigFromGlobalCM(es.MultiClusterConfigs)
+	if err != nil {
+		return err, false
+	}
+	return nil, true
+}
+
+func (ctlr *Controller) getRouteSvcClusters() (map[string]string, error) {
+
+	if len(ctlr.multiClusterConfigs.ClusterConfigs) == 0 {
+		return nil, nil
+	}
+
+	allClusters := make(map[string]string)
+	watchngNss := make([]string, 0)
+	if ctlr.watchingAllNamespaces() {
+		watchngNss = append(watchngNss, "")
+	} else {
+		watchngNss = ctlr.getWatchingNamespaces()
+	}
+
+out:
+	for _, ns := range watchngNss {
+		if inf, ok := ctlr.nrInformers[ns]; ok {
+			routes := inf.routeInformer.GetIndexer().List()
+			for _, rt := range routes {
+				if len(allClusters) == len(ctlr.multiClusterConfigs.ClusterConfigs) {
+					break out
+				}
+				route := rt.(*routeapi.Route)
+				if annotation := route.Annotations[MultiClusterServiceAnnotation]; annotation != "" {
+					var clsSvcRef []MultiClusterServiceReference
+					err := json.Unmarshal([]byte(annotation), &clsSvcRef)
+					if err == nil {
+						for _, ref := range clsSvcRef {
+							if _, present := ctlr.multiClusterConfigs.ClusterConfigs[ref.Cluster]; present {
+								allClusters[ref.Cluster] = ""
+							}
+						}
+					} else {
+						log.Debugf("unable to read service mapping annotation from route %v/%v",
+							route.Namespace, route.Name)
+					}
+				}
+			}
+		}
+
+	}
+	return allClusters, nil
 }

@@ -1771,7 +1771,7 @@ var _ = Describe("Worker Tests", func() {
 					"1",
 					labels,
 				)
-				mockCtlr.enqueueDeletedNamespace(ns)
+				mockCtlr.enqueueDeletedNamespace(ns, "")
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
 				_, ok := mockCtlr.nsInformers[namespace]
@@ -3247,7 +3247,7 @@ extendedRouteSpec:
 					"1",
 					labels,
 				)
-				mockCtlr.enqueueDeletedNamespace(ns)
+				mockCtlr.enqueueDeletedNamespace(ns, "")
 				mockCtlr.processResources()
 
 				_, ok := mockCtlr.nsInformers[namespace]

@@ -87,16 +87,18 @@ type (
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue      workqueue.RateLimitingInterface
-		routeClientV1      routeclient.RouteV1Interface
-		comInformers       map[string]*CommonInformer
-		nrInformers        map[string]*NRInformer
-		crInformers        map[string]*CRInformer
-		nsInformers        map[string]*NSInformer
-		routeSpecCMKey     string
-		routeLabel         string
-		namespaceLabelMode bool
-		processedHostPath  *ProcessedHostPath
+		resourceQueue            workqueue.RateLimitingInterface
+		routeClientV1            routeclient.RouteV1Interface
+		comInformers             map[string]*CommonInformer
+		nrInformers              map[string]*NRInformer
+		crInformers              map[string]*CRInformer
+		nsInformers              map[string]*NSInformer
+		nsMultiClustersInformers map[string]*NSInformer
+		comMultiClusterInformers map[string]map[string]*MultiClusterCommonInformer
+		routeSpecCMKey           string
+		routeLabel               string
+		namespaceLabelMode       bool
+		processedHostPath        *ProcessedHostPath
 	}
 
 	// Params defines parameters
@@ -154,6 +156,7 @@ type (
 
 	NSInformer struct {
 		stopCh     chan struct{}
+		cluster    string
 		nsInformer cache.SharedIndexInformer
 	}
 	rqKey struct {
@@ -162,6 +165,7 @@ type (
 		rscName   string
 		rsc       interface{}
 		event     string
+		cluster   string
 	}
 
 	metaData struct {
@@ -1166,16 +1170,43 @@ type (
 		WAF              bool
 		AllowSourceRange bool
 	}
-	MultiClusterConfig struct {
-		ClusterName string `yaml:"clusterName"`
-		Secret      string `yaml:"secret"`
-		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
-		HACIS string `yaml:"highAvailabilityCIS"`
-	}
 )
 
 type TLSVersion string
 
 const (
 	TLSVerion1_3 TLSVersion = "1.3"
+)
+
+type (
+	MultiClusterConfig struct {
+		ClusterName string `yaml:"clusterName"`
+		Secret      string `yaml:"secret"`
+		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
+		HACIS string `yaml:"highAvailabilityCIS"`
+	}
+
+	MultiClusterCommonInformer struct {
+		namespace    string
+		cluster      string
+		stopCh       chan struct{}
+		svcInformer  cache.SharedIndexInformer
+		epsInformer  cache.SharedIndexInformer
+		podInformer  cache.SharedIndexInformer
+		nodeInformer cache.SharedIndexInformer
+	}
+	MultiClusterNSInformer struct {
+		namespace    string
+		cluster      string
+		stopCh       chan struct{}
+		svcInformer  cache.SharedIndexInformer
+		epsInformer  cache.SharedIndexInformer
+		podInformer  cache.SharedIndexInformer
+		nodeInformer cache.SharedIndexInformer
+	}
+
+	MultiClusterServiceReference struct {
+		Cluster     string `json:"cluster"`
+		ServiceName string `json:"serviceName"`
+	}
 )

@@ -3744,7 +3744,7 @@ func (appMgr *Manager) processStaticRouteUpdate(
 					continue
 				}
 				route.Gateway = nodeIP
-				route.Name = fmt.Sprintf("k8s-route-%v", nodeIP)
+				route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
 			}
 
 		} else {
@@ -3755,7 +3755,7 @@ func (appMgr *Manager) processStaticRouteUpdate(
 				for _, addr := range nodeAddrs {
 					if addr.Type == addrType {
 						route.Gateway = addr.Address
-						route.Name = fmt.Sprintf("k8s-route-%v", addr.Address)
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
 					}
 				}
 			} else {

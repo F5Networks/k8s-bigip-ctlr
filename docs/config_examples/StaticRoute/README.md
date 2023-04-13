@@ -12,7 +12,7 @@ Support for CIS to configure static routes in BIG-IP with node subnets assigned 
 
 ## cis-deployment-ovn-k8s.yaml
 
-By deploying this yaml file in your cluster, cis will be configured with static route enabled for ovn-k8s environment
+By deploying this yaml file in your cluster, cis will be configured with static route enabled for ovn-k8s environment.Route will be configured with name in the format ``k8s-<nodename>-<nodeip>`` as shown below.
 
 ### BIGIP-Config:
 

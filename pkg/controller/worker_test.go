@@ -1527,6 +1527,12 @@ var _ = Describe("Worker Tests", func() {
 							" /Common/external",
 						},
 					},
+					IRuleList: cisapiv1.IRuleListSpec{
+						Secure: []string{
+							"/Common/SampleIrule2",
+							"/Common/SampleIrule1",
+						},
+					},
 					Profiles: cisapiv1.ProfileSpec{
 						TCP: cisapiv1.ProfileTCP{
 							Client: "/Common/f5-tcp-lan",
@@ -1750,6 +1756,8 @@ var _ = Describe("Worker Tests", func() {
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses)).To(Equal(1))
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses[0]).To(Equal("10.16.0.1"))
+				//check irules
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.IRules)).To(Equal(4), "irules not propely attached")
 				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
 					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
 						Expect(len(rule.Actions)).To(Equal(3))

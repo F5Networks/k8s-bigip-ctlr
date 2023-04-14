@@ -1850,7 +1850,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}
-	var iRule string
+	var iRule []string
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP
 	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
@@ -1864,7 +1864,11 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 
 	switch rsCfg.MetaData.Protocol {
 	case "https":
-		iRule = plc.Spec.IRules.Secure
+		if len(plc.Spec.IRuleList.Secure) > 0 {
+			iRule = plc.Spec.IRuleList.Secure
+		} else if plc.Spec.IRules.Secure != "" {
+			iRule = append(iRule, plc.Spec.IRules.Secure)
+		}
 		if len(plc.Spec.Profiles.HTTP2) > 0 {
 			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 				Name:         plc.Spec.Profiles.HTTP2,
@@ -1873,16 +1877,20 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			})
 		}
 	case "http":
-		iRule = plc.Spec.IRules.InSecure
+		if len(plc.Spec.IRuleList.InSecure) > 0 {
+			iRule = plc.Spec.IRuleList.InSecure
+		} else if plc.Spec.IRules.InSecure != "" {
+			iRule = append(iRule, plc.Spec.IRules.InSecure)
+		}
 	}
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":
-			rsCfg.Virtual.IRules = []string{iRule}
+			rsCfg.Virtual.IRules = iRule
 		case "high":
-			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+			rsCfg.Virtual.IRules = append(iRule, rsCfg.Virtual.IRules...)
 		default:
-			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule...)
 		}
 	}
 	// set snat as specified by user in the policy
@@ -1919,16 +1927,20 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 		})
 	}
 
-	var iRule string
-	iRule = plc.Spec.IRules.InSecure
+	var iRule []string
+	if len(plc.Spec.IRuleList.InSecure) > 0 {
+		iRule = plc.Spec.IRuleList.InSecure
+	} else if plc.Spec.IRules.InSecure != "" {
+		iRule = append(iRule, plc.Spec.IRules.InSecure)
+	}
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":
-			rsCfg.Virtual.IRules = []string{iRule}
+			rsCfg.Virtual.IRules = iRule
 		case "high":
-			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+			rsCfg.Virtual.IRules = append(iRule, rsCfg.Virtual.IRules...)
 		default:
-			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule...)
 		}
 	}
 	// set snat as specified by user or else use auto as default

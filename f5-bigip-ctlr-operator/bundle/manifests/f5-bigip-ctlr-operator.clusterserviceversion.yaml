@@ -56,7 +56,7 @@ metadata:
     operators.operatorframework.io/project_layout: helm.sdk.operatorframework.io/v1
     repository: https://github.com/F5Networks/k8s-bigip-ctlr
     support: F5 Operators Team <f5_cis_operators@f5.com>
-  name: f5-bigip-ctlr-operator.v1.13.0
+  name: f5-bigip-ctlr-operator.v1.14.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -392,4 +392,4 @@ spec:
   minKubeVersion: 1.13.0
   provider:
     name: F5 Networks Inc.
-  version: 1.13.0
+  version: 1.14.0

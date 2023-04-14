@@ -115,6 +115,8 @@ Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k
 * Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedSpec through ConfigMap.
 * Global ConfigMap can be set using CIS deployment argument --route-spec-configmap="namespace/configmap-name"
 * Controller mode should be set to Openshift to enable multiple VIP support(--controller-mode="openshift")
+* NextGen Route controller deployment parameters (--controller-mode="openshift") takes precedence over legacy route deployment parameters (--manage-routes)
+* Recommendation is to avoid using legacy Route deployment parameters while using NextGen Route controller.
 
 ## Extended Spec ConfigMap:
 

@@ -25,7 +25,9 @@ spec:
       server: /Common/f5-tcp-wan
     udp: /Common/udp
     http: /Common/http
-    http2: /Common/http2
+    http2:
+      client: /Common/Samplehttp2Client
+      server: /Common/Samplehttp2Server
     profileL4: /Common/security-fastL4
     profileMultiplex: /Common/oneconnect
     logProfiles:

@@ -560,6 +560,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
 	}
 
+	if len(vs.Spec.Profiles.HTTP2.Client) > 0 || len(vs.Spec.Profiles.HTTP2.Server) > 0 {
+		rsCfg.Virtual.HTTP2.Client = vs.Spec.Profiles.HTTP2.Client
+		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
+	}
+
 	if vs.Spec.DOS != "" {
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
@@ -1843,6 +1848,8 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.HTTP2.Client = plc.Spec.Profiles.HTTP2.Client
+	rsCfg.Virtual.HTTP2.Server = plc.Spec.Profiles.HTTP2.Server
 	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
@@ -1868,13 +1875,6 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			iRule = plc.Spec.IRuleList.Secure
 		} else if plc.Spec.IRules.Secure != "" {
 			iRule = append(iRule, plc.Spec.IRules.Secure)
-		}
-		if len(plc.Spec.Profiles.HTTP2) > 0 {
-			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name:         plc.Spec.Profiles.HTTP2,
-				Context:      "http2",
-				BigIPProfile: true,
-			})
 		}
 	case "http":
 		if len(plc.Spec.IRuleList.InSecure) > 0 {

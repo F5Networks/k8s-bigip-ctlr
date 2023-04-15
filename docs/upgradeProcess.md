@@ -276,3 +276,7 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
    * Format of the new GTM partition name - {defaultpartition_gtm}
    * With EDNS and VS/TS/IngressLink resource partition change, sometimes CIS might come across 422 error 
      * The root cause can be VS list is not refreshed in the GSLB server.
+
+### **Upgrading from 2.12.1 to 2.13.0:**
+* CIS extended to leverage server-side http2 profile on virtual Server which requires modification in the existing Policy CRD in case of using http2 functionality.
+  * Please change the PolicyCRD accordingly with this [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)

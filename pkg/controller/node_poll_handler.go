@@ -59,7 +59,7 @@ func (ctlr *Controller) SetupNodeProcessing() error {
 
 		// Register vxMgr to watch for node updates to process fdb records
 		vxMgr.ProcessNodeUpdate(nodeslist)
-		if ctlr.Agent.EventChan != nil {
+		if ctlr.Agent.EventChan != nil && !ctlr.Agent.disableARP {
 			// It handles arp entries related to PoolMembers
 			vxMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
 		}

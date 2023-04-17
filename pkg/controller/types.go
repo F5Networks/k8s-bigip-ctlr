@@ -674,6 +674,7 @@ type (
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
 		ccclGTMAgent       bool
+		disableARP         bool
 	}
 
 	AgentParams struct {

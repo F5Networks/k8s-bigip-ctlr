@@ -80,6 +80,7 @@ func NewAgent(params AgentParams) *Agent {
 		userAgent:             params.UserAgent,
 		HttpAddress:           params.HttpAddress,
 		ccclGTMAgent:          params.CCCLGTMAgent,
+		disableARP:            params.DisableARP,
 	}
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
@@ -295,7 +296,10 @@ func (agent *Agent) postTenantsDeclaration(decl as3Declaration, rsConfig Resourc
 
 	agent.publishConfig(cfg)
 
-	go agent.updatePoolMembers(rsConfig)
+	// Don't update ARPs if disableARP is set to true
+	if !agent.disableARP {
+		go agent.updateARPsForPoolMembers(rsConfig)
+	}
 
 	agent.updateTenantResponse(true)
 
@@ -359,7 +363,7 @@ func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl i
 	}
 }
 
-func (agent *Agent) updatePoolMembers(rsConfig ResourceConfigRequest) {
+func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts

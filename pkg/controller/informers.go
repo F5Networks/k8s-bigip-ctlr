@@ -563,9 +563,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.svcInformer != nil {
 		comInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, "") },
 			},
 		)
 	}
@@ -573,9 +573,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.epsInformer != nil {
 		comInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, "") },
 			},
 		)
 	}
@@ -602,9 +602,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.podInformer != nil {
 		comInf.podInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, "") },
 			},
 		)
 	}
@@ -612,9 +612,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.nodeInformer != nil {
 		comInf.nodeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing() },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing() },
-				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing() },
+				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing("") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing("") },
+				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing("") },
 			},
 		)
 	}
@@ -1038,7 +1038,7 @@ func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueService(obj interface{}) {
+func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -1052,16 +1052,17 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Create,
+		namespace:   svc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     svc.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Create,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
+func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
 	// Ignore K8S Core Services
@@ -1079,27 +1080,29 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
 		log.Debugf("Enqueueing Old Service: %v", svc)
 		key := &rqKey{
-			namespace: svc.ObjectMeta.Namespace,
-			kind:      Service,
-			rscName:   svc.ObjectMeta.Name,
-			rsc:       obj,
-			event:     Delete,
+			namespace:   svc.ObjectMeta.Namespace,
+			kind:        Service,
+			rscName:     svc.ObjectMeta.Name,
+			rsc:         obj,
+			event:       Delete,
+			clusterName: clusterName,
 		}
 		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing Updated Service: %v", curSvc)
 	key := &rqKey{
-		namespace: curSvc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   curSvc.ObjectMeta.Name,
-		rsc:       cur,
-		event:     Create,
+		namespace:   curSvc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     curSvc.ObjectMeta.Name,
+		rsc:         cur,
+		event:       Create,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedService(obj interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -1112,16 +1115,17 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   svc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     svc.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
+func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string, clusterName string) {
 	eps := obj.(*corev1.Endpoints)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
@@ -1134,11 +1138,12 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	}
 	log.Debugf("Enqueueing Endpoints: %v", eps)
 	key := &rqKey{
-		namespace: eps.ObjectMeta.Namespace,
-		kind:      Endpoints,
-		rscName:   eps.ObjectMeta.Name,
-		rsc:       obj,
-		event:     event,
+		namespace:   eps.ObjectMeta.Namespace,
+		kind:        Endpoints,
+		rscName:     eps.ObjectMeta.Name,
+		rsc:         obj,
+		event:       event,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
@@ -1237,7 +1242,7 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueuePod(obj interface{}) {
+func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
@@ -1245,16 +1250,17 @@ func (ctlr *Controller) enqueuePod(obj interface{}) {
 	}
 	log.Debugf("Enqueueing pod: %v", pod)
 	key := &rqKey{
-		namespace: pod.ObjectMeta.Namespace,
-		kind:      Pod,
-		rscName:   pod.ObjectMeta.Name,
-		rsc:       obj,
+		namespace:   pod.ObjectMeta.Namespace,
+		kind:        Pod,
+		rscName:     pod.ObjectMeta.Name,
+		rsc:         obj,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
@@ -1262,11 +1268,12 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
 	}
 	log.Debugf("Enqueueing pod: %v", pod)
 	key := &rqKey{
-		namespace: pod.ObjectMeta.Namespace,
-		kind:      Pod,
-		rscName:   pod.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   pod.ObjectMeta.Namespace,
+		kind:        Pod,
+		rscName:     pod.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }

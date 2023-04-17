@@ -141,6 +141,10 @@ func (ctlr *Controller) processResources() bool {
 			}]; ok {
 				break
 			}
+		} else {
+			// remove existing route -> service and service -> route mapping
+			// while route is getting processed above mapping will be reprocessed
+			ctlr.deleteResourceExternalClusterSvcReference(rKey.namespace, rKey.rscName)
 		}
 
 		if rscDelete {
@@ -159,6 +163,9 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
+		}
+		if rKey.event != Create {
+			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 
 	case ConfigMap:
@@ -331,7 +338,7 @@ func (ctlr *Controller) processResources() bool {
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 
-		_ = ctlr.processService(svc, nil, rscDelete)
+		_ = ctlr.processService(svc, nil, rscDelete, rKey.clusterName)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
@@ -344,9 +351,20 @@ func (ctlr *Controller) processResources() bool {
 		if ctlr.initState {
 			break
 		}
+		if rKey.event == Delete && rKey.clusterName != "" {
+			svcKey := MultiClusterServiceKey{
+				serviceName: svc.Name,
+				namespace:   svc.Namespace,
+				clusterName: rKey.clusterName,
+			}
+			if rsc, ok := ctlr.multiClusterResources.svcResourceMap[svcKey]; ok {
+				ctlr.deleteResourceExternalClusterSvcReference(rsc.namespace, rsc.rscName)
+			}
+		}
+
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc, false)
+			ctlr.updatePoolMembersForRoutes(svc, false, svc.ClusterName)
 		default:
 			virtuals := ctlr.getVirtualServersForService(svc)
 			// If nil No Virtuals are effected with the change in service.
@@ -399,7 +417,7 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 
-		_ = ctlr.processService(svc, ep, rscDelete)
+		_ = ctlr.processService(svc, ep, rscDelete, "")
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
@@ -411,7 +429,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc, true)
+			ctlr.updatePoolMembersForRoutes(svc, true, "")
 		default:
 			// once we fetch the VS, just update the endpoints instead of processing them entirely
 			ctlr.updatePoolMembersForVirtuals(svc)
@@ -424,7 +442,7 @@ func (ctlr *Controller) processResources() bool {
 		if nil == svc {
 			break
 		}
-		_ = ctlr.processService(svc, nil, false)
+		_ = ctlr.processService(svc, nil, false, "")
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
@@ -436,7 +454,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc, false)
+			ctlr.updatePoolMembersForRoutes(svc, false, rKey.clusterName)
 		default:
 			virtuals := ctlr.getVirtualServersForService(svc)
 			for _, virtual := range virtuals {
@@ -595,8 +613,11 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 func (ctlr *Controller) updatePoolMembersForVirtuals(svc *v1.Service) {
 
 	namespace := svc.Namespace
-	svcName := svc.Name
-	svcDepRscKey := namespace + "_" + svcName
+	svcDepRscKey := MultiClusterServiceKey{
+		clusterName: "",
+		serviceName: svc.Name,
+		namespace:   svc.Namespace,
+	}
 	partition := ctlr.Partition
 
 	for rsName, rsMeta := range ctlr.getSvcDepResources(svcDepRscKey) {
@@ -1802,7 +1823,11 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 
 	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := pool.ServiceNamespace + "/" + svcName
+		svcKey := MultiClusterServiceKey{
+			serviceName: pool.ServiceName,
+			namespace:   pool.ServiceNamespace,
+			clusterName: "",
+		}
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
 		if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == namespace {
@@ -1838,9 +1863,11 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 	namespace string,
 ) {
 	for index, pool := range rsCfg.Pools {
-		svcName := pool.ServiceName
-		svcKey := pool.ServiceNamespace + "/" + svcName
-
+		svcKey := MultiClusterServiceKey{
+			serviceName: pool.Name,
+			namespace:   pool.ServiceNamespace,
+			clusterName: "",
+		}
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
 
 		if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == namespace {
@@ -1857,7 +1884,7 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 		}
 		//check if endpoints are found
 		if rsCfg.Pools[index].Members == nil {
-			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", svcName, pool.ServicePort.IntVal)
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", pool.ServiceName, pool.ServicePort.IntVal)
 		}
 	}
 }
@@ -1876,7 +1903,11 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 
 	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := pool.ServiceNamespace + "/" + svcName
+		svcKey := MultiClusterServiceKey{
+			serviceName: pool.ServiceName,
+			namespace:   pool.ServiceNamespace,
+			clusterName: "",
+		}
 		poolMemInfo := ctlr.resources.poolMemCache[svcKey]
 		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
 			log.Debugf("Requested service backend %s is of type NodePort is not valid for nodeportlocal mode.",
@@ -2385,9 +2416,14 @@ func (ctlr *Controller) processService(
 	svc *v1.Service,
 	eps *v1.Endpoints,
 	isSVCDeleted bool,
+	clusterName string,
 ) error {
 	namespace := svc.Namespace
-	svcKey := svc.Namespace + "/" + svc.Name
+	svcKey := MultiClusterServiceKey{
+		serviceName: svc.Name,
+		namespace:   svc.Namespace,
+		clusterName: clusterName,
+	}
 	if isSVCDeleted {
 		delete(ctlr.resources.poolMemCache, svcKey)
 		return nil
@@ -2400,7 +2436,7 @@ func (ctlr *Controller) processService(
 			return fmt.Errorf("unable to process Service: %v", svcKey)
 		}
 		epInf := comInf.epsInformer
-		item, found, _ := epInf.GetIndexer().GetByKey(svcKey)
+		item, found, _ := epInf.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
 		if !found {
 			return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
 		}

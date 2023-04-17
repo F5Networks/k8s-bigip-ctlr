@@ -349,6 +349,22 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		allowSourceRange = rsCfg.Virtual.AllowSourceRange
 	}
 
+	//check for external service reference annotation
+	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+		if ctlr.multiClusterResources != nil {
+			// only process if route key is not present. else skip the processing
+			// on route update we are clearing the resource service
+			// if event comes from route then we will read and populate data, else we will skip processing
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[ResourceKey{
+				rscName:   route.Name,
+				namespace: route.Namespace,
+				rscType:   Route,
+			}]; !ok {
+				ctlr.processResourceExternalClusterServices(route.Namespace, route.Name, annotation, Route)
+			}
+		}
+	}
+
 	backendSvcs := GetRouteBackends(route)
 
 	for _, bs := range backendSvcs {
@@ -366,6 +382,26 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
+		}
+
+		if ctlr.multiClusterResources != nil {
+			var multiClusterServices []MultiClusterServiceReference
+			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[ResourceKey{
+				rscName:   route.Name,
+				namespace: route.Namespace,
+				rscType:   Route,
+			}]; ok {
+				for svc, config := range svcs {
+					multiClusterServices = append(multiClusterServices, MultiClusterServiceReference{
+						svc.clusterName,
+						svc.serviceName,
+						svc.namespace,
+						config.svcPort,
+					})
+
+				}
+				pool.MultiClusterServices = multiClusterServices
+			}
 		}
 
 		// Handle Route health monitors
@@ -776,25 +812,24 @@ func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Servi
 	return nil
 }
 
-func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool) {
+func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool, clusterName string) {
 	namespace := svc.Namespace
-	for _, portStruct := range getBasicVirtualPorts() {
-		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
-		if !ok {
-			continue
-		}
-		extdSpec, partition := ctlr.resources.getExtendedRouteSpec(routeGroup)
-		if extdSpec == nil {
-			continue
-		}
-		rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-		rsCfg := ctlr.getVirtualServer(partition, rsName)
+	routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
+	if !ok {
+		return
+	}
+	svcDepRscKey := MultiClusterServiceKey{
+		serviceName: svc.Name,
+		namespace:   svc.Namespace,
+		clusterName: clusterName,
+	}
+	for rsName, rsMeta := range ctlr.getSvcDepResources(svcDepRscKey) {
+		rsCfg := ctlr.getVirtualServer(rsMeta.partition, rsName)
 		if rsCfg == nil {
 			continue
 		}
 		freshRsCfg := &ResourceConfig{}
 		freshRsCfg.copyConfig(rsCfg)
-
 		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
 			if ctlr.PoolMemberType == NodePort {
 				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
@@ -806,7 +841,7 @@ func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHe
 			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
 			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
 		}
-		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
+		_ = ctlr.resources.setResourceConfig(rsMeta.partition, rsName, freshRsCfg)
 	}
 }
 
@@ -919,6 +954,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
 		// Get Multicluster kube-config
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.MultiClusterConfigs)
+		ctlr.stopDeletedGlobalCMMultiClusterInformers()
 		if err != nil {
 			return err, false
 		}
@@ -1853,12 +1889,17 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 		if !ok {
 			log.Warningf("informer not found for namespace: %v", secretNamespace)
 		}
-		obj, exist, err := comInf.secretsInformer.GetIndexer().GetByKey(mcc.Secret)
-		if err != nil {
-			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
-				mcc.Secret, mcc.ClusterName, err)
-		}
+		var obj interface{}
+		var exist bool
+		var err error
 		var kubeConfigSecret *v1.Secret
+		if comInf != nil && comInf.secretsInformer != nil {
+			obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(mcc.Secret)
+			if err != nil {
+				log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+					mcc.Secret, mcc.ClusterName, err)
+			}
+		}
 		if !exist {
 			log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", mcc.Secret, mcc.ClusterName)
 			// During start up the informers may not be updated so, try to fetch secret using kubeClient

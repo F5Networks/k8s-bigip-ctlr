@@ -529,4 +529,7 @@ const DefaultIngressClass = "ingressclass.kubernetes.io/is-default-class"
 const NodePortLocal = "nodeportlocal"
 const NodePort = "nodeport"
 
+// Multicluster annotations
+const MultiClusterServicesAnnotation = "virtual-server.f5.com/multiClusterServices"
+
 //const DefaultSslServerCAName = "openshift_route_cluster_default-ca"

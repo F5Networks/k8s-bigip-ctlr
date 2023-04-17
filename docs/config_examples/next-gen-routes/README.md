@@ -72,7 +72,8 @@ extendedRouteSpec:
 For every EDNS resource created, CIS will add VS having matching domain as the Wide IP pool member.
 
 ### Policy CR support for routes
-Policy CR integration with nextGenRoutes extends so many BIG-IP features to the Openshift routes, i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange, etc.
+Policy CR integration with nextGenRoutes extends so many BIG-IP features to the Openshift routes, i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange, etc.</br>
+_**NOTE:** Policy CR should be created in a namespace which CIS is monitoring._
 
 ### WAF precedence 
 WAF can be specified either in route annotations or in policy CR.
@@ -129,7 +130,9 @@ Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k
 * Global ConfigMap provides control to the admin to create and maintain the resource configuration centrally. 
 * RBAC can be used to restrict modification of global ConfigMap by users with tenant level access.
 * If any specific tenant requires modify access for routeconfig of their namespace, the admin can grant access by setting **allowOverride** to true in the extendedRouteSpec of the namespace.
-* Base route configuration can be defined in Global ConfigMap. This cannot be overridden from local ConfigMap. This is an alternative to CIS deployment arguments.
+* Base route configuration can be defined in Global ConfigMap. This cannot be overridden from local ConfigMap. This is an alternative to CIS deployment arguments.</br>
+
+_**NOTE:** Global ConfigMap should be created in a namespace which CIS is monitoring._
 
 ### Local ConfigMap
 
@@ -386,11 +389,11 @@ spec:
 
 ![partition config](bigip-config.png?raw=true "BIGIP config")
 
-You can observe tenant1 vserverName and vserverAddr are overrided by config provided in local ConfigMap.
+You can observe tenant1 vserverName and vserverAddr are overridden by config provided in local ConfigMap.
 
 **Usecase2: Routes in same namespace**
   
-Routes in same namepsace are grouped under single virtualserver on BIG-IP.
+Routes in same namespace are grouped under single virtualserver on BIG-IP.
 
 1) Create routes in tenant1 namespace:
 ```
@@ -646,8 +649,11 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
 
 ## FAQ
  
-### Is exteneded confiMap mandatory?
+### Is extended configMap mandatory?
 Yes. CIS fails to start without `--route-spec-configmap` value provided. CIS logs `invalid value provided for --route-spec-configmap` and exits
+### Can extended configMap be created in any namespace?
+No. Extended configmap can only be created in a namespace which CIS is watching.</br>
+_**NOTE:** CIS watches only those namespaces which are specified through --namespace or --namespace-label as CIS config parameters, if not specified then it watches all the namespaces._
 ### What happens if ConfigMap is not created or deleted?
 If referenced ConfigMap with --route-spec-configmap is not created, CIS logs below error and doesn't process any routes.
 ```
@@ -685,7 +691,8 @@ Yes you can continue using the rewriteAppRoot in route annotations.
 ### Any changes in RBAC? 
 No.
 ### How do I use policy CR with routes?
-You can define the policy CR in Extended ConfigMap [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy).
+You can define the policy CR in Extended ConfigMap [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy). </br>
+Make sure that Policy CR is created in a namespace which CIS is monitoring.
 
 
 

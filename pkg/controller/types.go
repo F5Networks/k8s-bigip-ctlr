@@ -206,6 +206,7 @@ type (
 		ProfileDOS                 string                `json:"profileDOS,omitempty"`
 		ProfileBotDefense          string                `json:"profileBotDefense,omitempty"`
 		TCP                        ProfileTCP            `json:"tcp,omitempty"`
+		HTTP2                      ProfileHTTP2          `json:"http2,omitempty"`
 		Mode                       string                `json:"mode,omitempty"`
 		TranslateServerAddress     bool                  `json:"translateServerAddress"`
 		TranslateServerPort        bool                  `json:"translateServerPort"`
@@ -221,6 +222,11 @@ type (
 	Virtuals []Virtual
 
 	ProfileTCP struct {
+		Client string `json:"client,omitempty"`
+		Server string `json:"server,omitempty"`
+	}
+
+	ProfileHTTP2 struct {
 		Client string `json:"client,omitempty"`
 		Server string `json:"server,omitempty"`
 	}
@@ -787,6 +793,11 @@ type (
 	}
 
 	as3ProfileTCP struct {
+		Ingress *as3ResourcePointer `json:"ingress,omitempty"`
+		Egress  *as3ResourcePointer `json:"egress,omitempty"`
+	}
+
+	as3ProfileHTTP2 struct {
 		Ingress *as3ResourcePointer `json:"ingress,omitempty"`
 		Egress  *as3ResourcePointer `json:"egress,omitempty"`
 	}

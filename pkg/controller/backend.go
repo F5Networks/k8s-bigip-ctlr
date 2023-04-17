@@ -1020,6 +1020,36 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 	}
 
+	if cfg.MetaData.Protocol == "https" {
+		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
+			if cfg.Virtual.HTTP2.Client == "" {
+				log.Errorf("[AS3] resetting ProfileHTTP2 as client profile doesnt co-exist with HTTP2 Server Profile, Please include client HTTP2 Profile ")
+			}
+			if cfg.Virtual.HTTP2.Server == "" {
+				svc.ProfileHTTP2 = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+				}
+			}
+			if cfg.Virtual.HTTP2.Client == "" && cfg.Virtual.HTTP2.Server != "" {
+				svc.ProfileHTTP2 = as3ProfileHTTP2{
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+					},
+				}
+			}
+			if cfg.Virtual.HTTP2.Client != "" && cfg.Virtual.HTTP2.Server != "" {
+				svc.ProfileHTTP2 = as3ProfileHTTP2{
+					Ingress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+					},
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+					},
+				}
+			}
+		}
+	}
+
 	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
 		if cfg.Virtual.TCP.Client == "" {
 			log.Errorf("[AS3] resetting ProfileTCP as client profile doesnt co-exist with TCP Server Profile, Please include client TCP Profile ")
@@ -1063,14 +1093,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
-		case "http2":
-			if !profile.BigIPProfile {
-				svc.ProfileHTTP2 = name
-			} else {
-				svc.ProfileHTTP2 = &as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", profile.Name),
-				}
-			}
 		case "http":
 			if !profile.BigIPProfile {
 				svc.ProfileHTTP = name

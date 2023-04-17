@@ -561,6 +561,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
 	}
 
+	if len(vs.Spec.Profiles.HTTP2.Client) > 0 || len(vs.Spec.Profiles.HTTP2.Server) > 0 {
+		rsCfg.Virtual.HTTP2.Client = vs.Spec.Profiles.HTTP2.Client
+		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
+	}
+
 	if vs.Spec.DOS != "" {
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
@@ -1844,6 +1849,8 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.HTTP2.Client = plc.Spec.Profiles.HTTP2.Client
+	rsCfg.Virtual.HTTP2.Server = plc.Spec.Profiles.HTTP2.Server
 	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
@@ -1851,7 +1858,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}
-	var iRule string
+	var iRule []string
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP
 	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
@@ -1865,25 +1872,26 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 
 	switch rsCfg.MetaData.Protocol {
 	case "https":
-		iRule = plc.Spec.IRules.Secure
-		if len(plc.Spec.Profiles.HTTP2) > 0 {
-			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name:         plc.Spec.Profiles.HTTP2,
-				Context:      "http2",
-				BigIPProfile: true,
-			})
+		if len(plc.Spec.IRuleList.Secure) > 0 {
+			iRule = plc.Spec.IRuleList.Secure
+		} else if plc.Spec.IRules.Secure != "" {
+			iRule = append(iRule, plc.Spec.IRules.Secure)
 		}
 	case "http":
-		iRule = plc.Spec.IRules.InSecure
+		if len(plc.Spec.IRuleList.InSecure) > 0 {
+			iRule = plc.Spec.IRuleList.InSecure
+		} else if plc.Spec.IRules.InSecure != "" {
+			iRule = append(iRule, plc.Spec.IRules.InSecure)
+		}
 	}
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":
-			rsCfg.Virtual.IRules = []string{iRule}
+			rsCfg.Virtual.IRules = iRule
 		case "high":
-			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+			rsCfg.Virtual.IRules = append(iRule, rsCfg.Virtual.IRules...)
 		default:
-			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule...)
 		}
 	}
 	// set snat as specified by user in the policy
@@ -1920,16 +1928,20 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 		})
 	}
 
-	var iRule string
-	iRule = plc.Spec.IRules.InSecure
+	var iRule []string
+	if len(plc.Spec.IRuleList.InSecure) > 0 {
+		iRule = plc.Spec.IRuleList.InSecure
+	} else if plc.Spec.IRules.InSecure != "" {
+		iRule = append(iRule, plc.Spec.IRules.InSecure)
+	}
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":
-			rsCfg.Virtual.IRules = []string{iRule}
+			rsCfg.Virtual.IRules = iRule
 		case "high":
-			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+			rsCfg.Virtual.IRules = append(iRule, rsCfg.Virtual.IRules...)
 		default:
-			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule...)
 		}
 	}
 	// set snat as specified by user or else use auto as default

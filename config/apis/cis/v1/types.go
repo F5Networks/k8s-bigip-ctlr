@@ -276,6 +276,7 @@ type PolicySpec struct {
 	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
 	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
 	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
+	IRuleList   IRuleListSpec `json:"iRuleList,omitempty"`
 	Profiles    ProfileSpec   `json:"profiles,omitempty"`
 	SNAT        string        `json:"snat,omitempty"`
 }
@@ -299,18 +300,29 @@ type LtmIRulesSpec struct {
 	Priority string `json:"priority,omitempty"`
 }
 
+type IRuleListSpec struct {
+	Secure   []string `json:"secure,omitempty"`
+	InSecure []string `json:"insecure,omitempty"`
+	Priority string   `json:"priority,omitempty"`
+}
+
 type ProfileSpec struct {
-	TCP                ProfileTCP `json:"tcp,omitempty"`
-	UDP                string     `json:"udp,omitempty"`
-	HTTP               string     `json:"http,omitempty"`
-	HTTP2              string     `json:"http2,omitempty"`
-	RewriteProfile     string     `json:"rewriteProfile,omitempty"`
-	PersistenceProfile string     `json:"persistenceProfile,omitempty"`
-	LogProfiles        []string   `json:"logProfiles,omitempty"`
-	ProfileL4          string     `json:"profileL4,omitempty"`
-	ProfileMultiplex   string     `json:"profileMultiplex,omitempty"`
+	TCP                ProfileTCP   `json:"tcp,omitempty"`
+	UDP                string       `json:"udp,omitempty"`
+	HTTP               string       `json:"http,omitempty"`
+	HTTP2              ProfileHTTP2 `json:"http2,omitempty"`
+	RewriteProfile     string       `json:"rewriteProfile,omitempty"`
+	PersistenceProfile string       `json:"persistenceProfile,omitempty"`
+	LogProfiles        []string     `json:"logProfiles,omitempty"`
+	ProfileL4          string       `json:"profileL4,omitempty"`
+	ProfileMultiplex   string       `json:"profileMultiplex,omitempty"`
 }
 type ProfileTCP struct {
+	Client string `json:"client,omitempty"`
+	Server string `json:"server,omitempty"`
+}
+
+type ProfileHTTP2 struct {
 	Client string `json:"client,omitempty"`
 	Server string `json:"server,omitempty"`
 }

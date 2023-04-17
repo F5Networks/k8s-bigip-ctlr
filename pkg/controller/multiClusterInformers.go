@@ -27,92 +27,94 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func (comInfr *MultiClusterCommonInformer) start() {
+func (poolInfr *MultiClusterPoolInformer) start() {
 	var cacheSyncs []cache.InformerSynced
-	if comInfr.svcInformer != nil {
-		go comInfr.svcInformer.Run(comInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, comInfr.svcInformer.HasSynced)
+	if poolInfr.svcInformer != nil {
+		go poolInfr.svcInformer.Run(poolInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, poolInfr.svcInformer.HasSynced)
 	}
-	if comInfr.epsInformer != nil {
-		go comInfr.epsInformer.Run(comInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, comInfr.epsInformer.HasSynced)
+	if poolInfr.epsInformer != nil {
+		go poolInfr.epsInformer.Run(poolInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, poolInfr.epsInformer.HasSynced)
 	}
-	if comInfr.podInformer != nil {
-		go comInfr.podInformer.Run(comInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, comInfr.podInformer.HasSynced)
+	if poolInfr.podInformer != nil {
+		go poolInfr.podInformer.Run(poolInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, poolInfr.podInformer.HasSynced)
 	}
-	if comInfr.nodeInformer != nil {
-		go comInfr.nodeInformer.Run(comInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, comInfr.nodeInformer.HasSynced)
+	if poolInfr.nodeInformer != nil {
+		go poolInfr.nodeInformer.Run(poolInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, poolInfr.nodeInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
-		comInfr.stopCh,
+		poolInfr.stopCh,
 		cacheSyncs...,
 	)
 }
 
-func (comInfr *MultiClusterCommonInformer) stop() {
-	close(comInfr.stopCh)
+func (poolInfr *MultiClusterPoolInformer) stop() {
+	close(poolInfr.stopCh)
 }
 
-func (ctlr *Controller) getNamespacedClusterCommonInformer(
+func (ctlr *Controller) getMultiClusterNamespacedPoolInformer(
 	namespace string,
-	cluster string,
-) (*MultiClusterCommonInformer, bool) {
+	clusterName string,
+) (*MultiClusterPoolInformer, bool) {
 	if ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
 
-	if ctlr.comMultiClusterInformers == nil {
-		log.Debugf("informer not found for cluster %v", cluster)
+	if ctlr.multiClusterPoolInformers == nil {
+		log.Debugf("informer not found for cluster %v", clusterName)
 		return nil, false
 	}
 
-	if _, ok := ctlr.comMultiClusterInformers[cluster]; ok {
-		comInf, found := ctlr.comMultiClusterInformers[cluster][namespace]
-		return comInf, found
+	if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
+		poolInf, found := ctlr.multiClusterPoolInformers[clusterName][namespace]
+		return poolInf, found
 	}
 	return nil, false
 }
 
 func (ctlr *Controller) addMultiClusterNamespacedInformers(
-	cluster string,
+	clusterName string,
 	namespace string,
 	restClientV1 rest.Interface,
 	startInformer bool,
 ) error {
 
 	// add common informers  in all modes
-	if _, found := ctlr.comMultiClusterInformers[cluster]; !found {
-		ctlr.comMultiClusterInformers[cluster] = make(map[string]*MultiClusterCommonInformer)
-		comInf := ctlr.newMultiClusterNamespacedCommonRscInformer(namespace, cluster, restClientV1)
-		ctlr.addMultiClusterCommonRscEventHandlers(comInf)
-		ctlr.comMultiClusterInformers[cluster][namespace] = comInf
+	if _, found := ctlr.multiClusterPoolInformers[clusterName]; !found {
+		ctlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+		poolInfr := ctlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClientV1,
+			ctlr.nodeLabelSelector)
+		ctlr.addMultiClusterPoolEventHandlers(poolInfr)
+		ctlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
 		if startInformer {
-			comInf.start()
+			poolInfr.start()
 		}
 	}
 
 	return nil
 }
 
-func (ctlr *Controller) newMultiClusterNamespacedCommonRscInformer(
+func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 	namespace string,
-	cluster string,
+	clusterName string,
 	restClientv1 rest.Interface,
-) *MultiClusterCommonInformer {
-	log.Debugf("Creating Common Resource Informers for Namespace: %v", namespace)
+	labelSelector string,
+) *MultiClusterPoolInformer {
+	log.Debugf("Creating multi cluster pool Informers for Namespace: %v", namespace)
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.nodeLabelSelector
+		options.LabelSelector = labelSelector
 	}
 	resyncPeriod := 0 * time.Second
-	comInf := &MultiClusterCommonInformer{
+	comInf := &MultiClusterPoolInformer{
 		namespace:   namespace,
-		clusterName: cluster,
+		clusterName: clusterName,
 		stopCh:      make(chan struct{}),
 		svcInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -168,42 +170,42 @@ func (ctlr *Controller) newMultiClusterNamespacedCommonRscInformer(
 	return comInf
 }
 
-func (ctlr *Controller) addMultiClusterCommonRscEventHandlers(comInf *MultiClusterCommonInformer) {
-	if comInf.svcInformer != nil {
-		comInf.svcInformer.AddEventHandler(
+func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPoolInformer) {
+	if poolInf.svcInformer != nil {
+		poolInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, comInf.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, comInf.clusterName) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, comInf.clusterName) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, poolInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, poolInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, poolInf.clusterName) },
 			},
 		)
 	}
 
-	if comInf.epsInformer != nil {
-		comInf.epsInformer.AddEventHandler(
+	if poolInf.epsInformer != nil {
+		poolInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create, comInf.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update, comInf.clusterName) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, comInf.clusterName) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create, poolInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update, poolInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, poolInf.clusterName) },
 			},
 		)
 	}
-	if comInf.podInformer != nil {
-		comInf.podInformer.AddEventHandler(
+	if poolInf.podInformer != nil {
+		poolInf.podInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, comInf.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, comInf.clusterName) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, comInf.clusterName) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, poolInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, poolInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, poolInf.clusterName) },
 			},
 		)
 	}
 
-	if comInf.nodeInformer != nil {
-		comInf.nodeInformer.AddEventHandler(
+	if poolInf.nodeInformer != nil {
+		poolInf.nodeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing(comInf.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing(comInf.clusterName) },
-				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(comInf.clusterName) },
+				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing(poolInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing(poolInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(poolInf.clusterName) },
 			},
 		)
 	}
@@ -218,13 +220,13 @@ func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
 	}
 
 	// remove the informers for clusters whose config has been removed
-	for clusterName, clsSet := range ctlr.comMultiClusterInformers {
+	for clusterName, clsSet := range ctlr.multiClusterPoolInformers {
 		// if cluster config not present in global CM remove the informer
 		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; !ok {
-			for _, nsComInf := range clsSet {
-				nsComInf.stop()
+			for _, nsPoolInf := range clsSet {
+				nsPoolInf.stop()
 			}
-			delete(ctlr.comMultiClusterInformers, clusterName)
+			delete(ctlr.multiClusterPoolInformers, clusterName)
 		}
 	}
 
@@ -234,10 +236,10 @@ func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
 func (ctlr *Controller) stopMultiClusterInformers(clusterName string) error {
 
 	// remove the informers for clusters whose config has been removed
-	if clsSet, ok := ctlr.comMultiClusterInformers[clusterName]; ok {
-		for _, nsComInf := range clsSet {
-			nsComInf.stop()
-			delete(ctlr.comMultiClusterInformers, clusterName)
+	if clsSet, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
+		for _, nsPoolInf := range clsSet {
+			nsPoolInf.stop()
+			delete(ctlr.multiClusterPoolInformers, clusterName)
 		}
 	}
 

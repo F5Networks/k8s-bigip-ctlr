@@ -1038,7 +1038,7 @@ func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueService(obj interface{}, cluster string) {
+func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -1057,12 +1057,12 @@ func (ctlr *Controller) enqueueService(obj interface{}, cluster string) {
 		rscName:     svc.ObjectMeta.Name,
 		rsc:         obj,
 		event:       Create,
-		clusterName: cluster,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, cluster string) {
+func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
 	// Ignore K8S Core Services
@@ -1085,7 +1085,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, cluster stri
 			rscName:     svc.ObjectMeta.Name,
 			rsc:         obj,
 			event:       Delete,
-			clusterName: cluster,
+			clusterName: clusterName,
 		}
 		ctlr.resourceQueue.Add(key)
 	}
@@ -1097,12 +1097,12 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, cluster stri
 		rscName:     curSvc.ObjectMeta.Name,
 		rsc:         cur,
 		event:       Create,
-		clusterName: cluster,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedService(obj interface{}, cluster string) {
+func (ctlr *Controller) enqueueDeletedService(obj interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -1115,11 +1115,12 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}, cluster string) {
 	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   svc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     svc.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
@@ -1241,7 +1242,7 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueuePod(obj interface{}, cluster string) {
+func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
@@ -1253,13 +1254,13 @@ func (ctlr *Controller) enqueuePod(obj interface{}, cluster string) {
 		kind:        Pod,
 		rscName:     pod.ObjectMeta.Name,
 		rsc:         obj,
-		clusterName: cluster,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedPod(obj interface{}, cluster string) {
+func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
@@ -1272,7 +1273,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, cluster string) {
 		rscName:     pod.ObjectMeta.Name,
 		rsc:         obj,
 		event:       Delete,
-		clusterName: cluster,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }

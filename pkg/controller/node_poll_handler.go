@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func (ctlr *Controller) SetupNodeProcessing(cluster string) error {
+func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	//when there is update from node informer get list of nodes from nodeinformer cache
 	ns := ""
 	if ctlr.watchingAllNamespaces() {
@@ -27,14 +27,14 @@ func (ctlr *Controller) SetupNodeProcessing(cluster string) error {
 	}
 
 	var nodes []interface{}
-	var appInf interface{}
+	var poolInf interface{}
 
-	if cluster == "" {
-		appInf, _ = ctlr.getNamespacedCommonInformer(ns)
-		nodes = appInf.(*CommonInformer).nodeInformer.GetIndexer().List()
+	if clusterName == "" {
+		poolInf, _ = ctlr.getNamespacedCommonInformer(ns)
+		nodes = poolInf.(*CommonInformer).nodeInformer.GetIndexer().List()
 	} else {
-		appInf, _ = ctlr.getNamespacedClusterCommonInformer(ns, cluster)
-		nodes = appInf.(*MultiClusterCommonInformer).nodeInformer.GetIndexer().List()
+		poolInf, _ = ctlr.getMultiClusterNamespacedPoolInformer(ns, clusterName)
+		nodes = poolInf.(*MultiClusterPoolInformer).nodeInformer.GetIndexer().List()
 	}
 
 	var nodeslist []v1.Node

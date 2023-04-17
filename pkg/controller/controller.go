@@ -143,7 +143,7 @@ func NewController(params Params) *Controller {
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
 	ctlr.comInformers = make(map[string]*CommonInformer)
-	ctlr.comMultiClusterInformers = make(map[string]map[string]*MultiClusterCommonInformer)
+	ctlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
 	ctlr.nrInformers = make(map[string]*NRInformer)
 	ctlr.crInformers = make(map[string]*CRInformer)
 	ctlr.nsInformers = make(map[string]*NSInformer)
@@ -451,8 +451,8 @@ func (ctlr *Controller) Stop() {
 	}
 
 	// stop multi cluster informers
-	for _, mulComInformers := range ctlr.comMultiClusterInformers {
-		for _, inf := range mulComInformers {
+	for _, poolInformers := range ctlr.multiClusterPoolInformers {
+		for _, inf := range poolInformers {
 			inf.stop()
 		}
 	}

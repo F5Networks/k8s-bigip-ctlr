@@ -88,17 +88,17 @@ type (
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue            workqueue.RateLimitingInterface
-		routeClientV1            routeclient.RouteV1Interface
-		comInformers             map[string]*CommonInformer
-		nrInformers              map[string]*NRInformer
-		crInformers              map[string]*CRInformer
-		nsInformers              map[string]*NSInformer
-		comMultiClusterInformers map[string]map[string]*MultiClusterCommonInformer
-		routeSpecCMKey           string
-		routeLabel               string
-		namespaceLabelMode       bool
-		processedHostPath        *ProcessedHostPath
+		resourceQueue             workqueue.RateLimitingInterface
+		routeClientV1             routeclient.RouteV1Interface
+		comInformers              map[string]*CommonInformer
+		nrInformers               map[string]*NRInformer
+		crInformers               map[string]*CRInformer
+		nsInformers               map[string]*NSInformer
+		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
+		routeSpecCMKey            string
+		routeLabel                string
+		namespaceLabelMode        bool
+		processedHostPath         *ProcessedHostPath
 	}
 
 	// Params defines parameters
@@ -178,13 +178,6 @@ type (
 		Protocol      string
 		httpTraffic   string
 	}
-
-	//// Virtual Server Key - unique server is Name + Port
-	//serviceKey struct {
-	//	ServiceName string
-	//	ServicePort int32
-	//	Namespace   string
-	//}
 
 	// Virtual server config
 	Virtual struct {
@@ -1204,9 +1197,10 @@ type (
 	ResourceKey struct {
 		rscName   string
 		namespace string
+		rscType   string
 	}
 
-	MultiClusterCommonInformer struct {
+	MultiClusterPoolInformer struct {
 		namespace    string
 		clusterName  string
 		stopCh       chan struct{}

@@ -76,6 +76,7 @@ const (
 	Route = "Route"
 
 	NodePort = "nodeport"
+	Cluster  = "cluster"
 
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
@@ -117,6 +118,7 @@ const (
 func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
+<<<<<<< HEAD
 		namespaces:         make(map[string]bool),
 		resources:          NewResourceStore(),
 		Agent:              params.Agent,
@@ -137,6 +139,28 @@ func NewController(params Params) *Controller {
 		StaticRoutingMode:  params.StaticRoutingMode,
 		OrchestrationCNI:   params.OrchestrationCNI,
 		multiClusterConfigs: clustermanager.NewMultiClusterConfig(),
+=======
+		namespaces:            make(map[string]bool),
+		resources:             NewResourceStore(),
+		Agent:                 params.Agent,
+		PoolMemberType:        params.PoolMemberType,
+		UseNodeInternal:       params.UseNodeInternal,
+		Partition:             params.Partition,
+		initState:             true,
+		dgPath:                strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
+		shareNodes:            params.ShareNodes,
+		eventNotifier:         apm.NewEventNotifier(nil),
+		defaultRouteDomain:    params.DefaultRouteDomain,
+		mode:                  params.Mode,
+		namespaceLabel:        params.NamespaceLabel,
+		nodeLabelSelector:     params.NodeLabelSelector,
+		vxlanName:             params.VXLANName,
+		vxlanMode:             params.VXLANMode,
+		StaticRoutingMode:     params.StaticRoutingMode,
+		OrchestrationCNI:      params.OrchestrationCNI,
+		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
+		multiClusterResources: newMultiClusterResourceStore(),
+>>>>>>> 9110d075 (Multi cluster informers (#2840))
 	}
 
 	log.Debug("Controller Created")
@@ -144,6 +168,7 @@ func NewController(params Params) *Controller {
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
 	ctlr.comInformers = make(map[string]*CommonInformer)
+	ctlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
 	ctlr.nrInformers = make(map[string]*NRInformer)
 	ctlr.crInformers = make(map[string]*CRInformer)
 	ctlr.nsInformers = make(map[string]*NSInformer)
@@ -433,6 +458,13 @@ func (ctlr *Controller) Stop() {
 	}
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.stop()
+	}
+
+	// stop multi cluster informers
+	for _, poolInformers := range ctlr.multiClusterPoolInformers {
+		for _, inf := range poolInformers {
+			inf.stop()
+		}
 	}
 
 	ctlr.Agent.Stop()

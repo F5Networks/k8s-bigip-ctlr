@@ -16,7 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func (ctlr *Controller) SetupNodeProcessing() error {
+func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	//when there is update from node informer get list of nodes from nodeinformer cache
 	ns := ""
 	if ctlr.watchingAllNamespaces() {
@@ -27,8 +27,18 @@ func (ctlr *Controller) SetupNodeProcessing() error {
 			break
 		}
 	}
-	appInf, _ := ctlr.getNamespacedCommonInformer(ns)
-	nodes := appInf.nodeInformer.GetIndexer().List()
+
+	var nodes []interface{}
+	var poolInf interface{}
+
+	if clusterName == "" {
+		poolInf, _ = ctlr.getNamespacedCommonInformer(ns)
+		nodes = poolInf.(*CommonInformer).nodeInformer.GetIndexer().List()
+	} else {
+		poolInf, _ = ctlr.getMultiClusterNamespacedPoolInformer(ns, clusterName)
+		nodes = poolInf.(*MultiClusterPoolInformer).nodeInformer.GetIndexer().List()
+	}
+
 	var nodeslist []v1.Node
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
@@ -100,6 +110,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								vs.ObjectMeta.Name,
 								vs,
 								Update,
+								"",
 							}
 							ctlr.resourceQueue.Add(qKey)
 						}
@@ -114,6 +125,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								vs.ObjectMeta.Name,
 								vs,
 								Update,
+								"",
 							}
 							ctlr.resourceQueue.Add(qKey)
 						}
@@ -128,6 +140,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								il.ObjectMeta.Name,
 								il,
 								Update,
+								"",
 							}
 							ctlr.resourceQueue.Add(qKey)
 						}
@@ -147,6 +160,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								virtual.ObjectMeta.Name,
 								virtual,
 								Update,
+								"",
 							}
 							ctlr.resourceQueue.Add(qKey)
 						}
@@ -157,6 +171,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								virtual.ObjectMeta.Name,
 								virtual,
 								Update,
+								"",
 							}
 							ctlr.resourceQueue.Add(qKey)
 						}
@@ -167,6 +182,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								ingressLink.ObjectMeta.Name,
 								ingressLink,
 								Update,
+								"",
 							}
 							ctlr.resourceQueue.Add(qKey)
 						}

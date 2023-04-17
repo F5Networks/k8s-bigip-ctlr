@@ -47,6 +47,16 @@ func NewResourceStore() *ResourceStore {
 	return &rs
 }
 
+func newMultiClusterResourceStore() *MultiClusterResourceStore {
+	var rs MultiClusterResourceStore
+
+	rs.rscSvcMap = make(map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	rs.svcResourceMap = make(map[MultiClusterServiceKey]ResourceKey)
+	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]struct{})
+
+	return &rs
+}
+
 // Init is Receiver to initialize the object.
 func (rs *ResourceStore) Init() {
 	rs.ltmConfig = make(LTMConfig)
@@ -57,7 +67,7 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
-	rs.svcResourceCache = make(map[string]map[string]svcResourceCacheMeta)
+	rs.svcResourceCache = make(map[MultiClusterServiceKey]map[string]svcResourceCacheMeta)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 	rs.multiClusterConfigs = make(map[string]MultiClusterConfig)
@@ -375,13 +385,18 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 	return AS3NameFormatter(policyName)
 }
 
-func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]svcResourceCacheMeta {
+func (ctlr *Controller) getSvcDepResources(svcDepRscKey MultiClusterServiceKey) map[string]svcResourceCacheMeta {
 	return ctlr.resources.svcResourceCache[svcDepRscKey]
 }
 
 func (ctlr *Controller) updateSvcDepResources(rsName string, rsCfg *ResourceConfig) {
 	for _, pool := range rsCfg.Pools {
-		svcDepRscKey := pool.ServiceNamespace + "_" + pool.ServiceName
+		svcDepRscKey := MultiClusterServiceKey{
+			serviceName: pool.ServiceName,
+			clusterName: "",
+			namespace:   pool.ServiceNamespace,
+		}
+
 		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
 			if _, found := resources[rsName]; !found {
 				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
@@ -400,7 +415,11 @@ func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfi
 	}
 
 	for _, pool := range rsCfg.Pools {
-		svcDepRscKey := pool.ServiceNamespace + "_" + pool.ServiceName
+		svcDepRscKey := MultiClusterServiceKey{
+			serviceName: pool.ServiceName,
+			clusterName: "",
+			namespace:   pool.ServiceNamespace,
+		}
 		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
 			if _, found := resources[rsName]; found {
 				delete(ctlr.resources.svcResourceCache[svcDepRscKey], rsName)

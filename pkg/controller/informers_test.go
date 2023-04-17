@@ -426,7 +426,7 @@ var _ = Describe("Informers Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				nil,
 			)
-			mockCtlr.enqueueService(svc)
+			mockCtlr.enqueueService(svc, "")
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Service  Failed")
@@ -438,7 +438,7 @@ var _ = Describe("Informers Tests", func() {
 				v1.ServiceTypeNodePort,
 				nil,
 			)
-			mockCtlr.enqueueUpdatedService(svc, newSVC)
+			mockCtlr.enqueueUpdatedService(svc, newSVC, "")
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Service  Failed")
@@ -446,22 +446,22 @@ var _ = Describe("Informers Tests", func() {
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Service  Failed")
 
-			mockCtlr.enqueueDeletedService(newSVC)
+			mockCtlr.enqueueDeletedService(newSVC, "")
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Service  Failed")
 
-			mockCtlr.enqueueService(svc)
+			mockCtlr.enqueueService(svc, "")
 			Expect(mockCtlr.processResources()).To(Equal(true))
 
 			svc.Name = "kube-dns"
-			mockCtlr.enqueueDeletedService(svc)
+			mockCtlr.enqueueDeletedService(svc, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Service")
 
-			mockCtlr.enqueueUpdatedService(svc, svc)
+			mockCtlr.enqueueUpdatedService(svc, svc, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Service")
 
-			mockCtlr.enqueueService(svc)
+			mockCtlr.enqueueService(svc, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Service")
 		})
 
@@ -480,16 +480,16 @@ var _ = Describe("Informers Tests", func() {
 					},
 				},
 			)
-			mockCtlr.enqueueEndpoints(eps, Create)
+			mockCtlr.enqueueEndpoints(eps, Create, "")
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Endpoints Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Endpoints  Failed")
 
-			mockCtlr.enqueueEndpoints(eps, Create)
+			mockCtlr.enqueueEndpoints(eps, Create, "")
 			Expect(mockCtlr.processResources()).To(Equal(true))
 
 			eps.Name = "kube-dns"
-			mockCtlr.enqueueEndpoints(eps, Create)
+			mockCtlr.enqueueEndpoints(eps, Create, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Endpoint")
 		})
 
@@ -502,24 +502,28 @@ var _ = Describe("Informers Tests", func() {
 				80,
 				label1,
 			)
-			mockCtlr.enqueuePod(pod)
+			mockCtlr.enqueuePod(pod, "")
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Pod Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Pod Failed")
 
-			mockCtlr.enqueueDeletedPod(pod)
+			mockCtlr.enqueueDeletedPod(pod, "")
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Pod Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Pod Failed")
 
-			mockCtlr.enqueuePod(pod)
+			mockCtlr.enqueuePod(pod, "")
 			Expect(mockCtlr.processResources()).To(Equal(true))
 
 			pod.Labels["app"] = "kube-dns"
-			mockCtlr.enqueuePod(pod)
+			mockCtlr.enqueuePod(pod, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
+<<<<<<< HEAD
 			// Verify CIS handles DeletedFinalStateUnknown pod object
 			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: pod})
+=======
+			mockCtlr.enqueueDeletedPod(pod, "")
+>>>>>>> 9110d075 (Multi cluster informers (#2840))
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
 
 			// Verify CIS handles DeletedFinalStateUnknown pod object in case it doesn't have any pod Obj referenced

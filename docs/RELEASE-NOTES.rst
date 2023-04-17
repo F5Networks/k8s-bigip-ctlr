@@ -12,6 +12,7 @@ Added Functionality
         * Skip processing OSCP system services to enhance performance
         * NextGen Route controller takes precedence over Legacy Route deployment parameters
         * Add Support of server-side http2 profile
+        * Support Auto LastHop from policy
     * Ingress
         *
     * CRD

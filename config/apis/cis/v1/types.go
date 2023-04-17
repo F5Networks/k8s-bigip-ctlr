@@ -279,6 +279,7 @@ type PolicySpec struct {
 	IRuleList   IRuleListSpec `json:"iRuleList,omitempty"`
 	Profiles    ProfileSpec   `json:"profiles,omitempty"`
 	SNAT        string        `json:"snat,omitempty"`
+	AutoLastHop string        `json:"autoLastHop,omitempty"`
 }
 
 type L7PolicySpec struct {

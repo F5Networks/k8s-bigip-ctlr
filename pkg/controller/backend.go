@@ -1135,6 +1135,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	}
 	//set HttpMrfRoutingEnabled
 	svc.HttpMrfRoutingEnabled = cfg.Virtual.HttpMrfRoutingEnabled
+	svc.AutoLastHop = cfg.Virtual.AutoLastHop
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

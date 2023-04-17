@@ -1538,8 +1538,11 @@ var _ = Describe("Worker Tests", func() {
 							Client: "/Common/f5-tcp-lan",
 							Server: "/Common/f5-tcp-wan",
 						},
-						HTTP:  "/Common/http",
-						HTTP2: "/Common/http2",
+						HTTP: "/Common/http",
+						HTTP2: cisapiv1.ProfileHTTP2{
+							Client: "/Common/http2",
+							Server: "/Common/http2server",
+						},
 						LogProfiles: []string{
 							"/Common/Log all requests", "/Common/local-dos"},
 						ProfileL4:        " /Common/security-fastL4",
@@ -2952,8 +2955,11 @@ extendedRouteSpec:
 								Client: "/Common/f5-tcp-lan",
 								Server: "/Common/f5-tcp-wan",
 							},
-							HTTP:  "/Common/http",
-							HTTP2: "/Common/http2",
+							HTTP: "/Common/http",
+							HTTP2: cisapiv1.ProfileHTTP2{
+								Client: "/Common/http2",
+								Server: "/Common/http2server",
+							},
 							LogProfiles: []string{
 								"/Common/Log all requests", "/Common/local-dos"},
 							ProfileL4:        " /Common/security-fastL4",

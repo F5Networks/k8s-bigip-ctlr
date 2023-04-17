@@ -11,15 +11,22 @@ Added Functionality
         * Fix issue with liveness probe in NextGen
         * Skip processing OSCP system services to enhance performance
         * NextGen Route controller takes precedence over Legacy Route deployment parameters
+        * Add Support of server-side http2 profile
     * Ingress
         *
     * CRD
         * Support for configuring multiple iRules with policyCR
+        * Add Support of ServerSide HTTP2 Profile in Policy CR and VS CR
     * Static route support added for ovn-k8s,flannel and antrea CNI.
     * Support for operator in openshift 4.12
 Bug Fixes
 ````````````
 * `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal
+
+Upgrade notes
+``````````````
+* Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
+
 
 2.12.1
 -------------

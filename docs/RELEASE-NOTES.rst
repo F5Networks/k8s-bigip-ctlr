@@ -14,7 +14,7 @@ Added Functionality
     * Ingress
         *
     * CRD
-        *
+        * Support for configuring multiple iRules with policyCR
     * Static route support added for ovn-k8s,flannel and antrea CNI.
     * Support for operator in openshift 4.12
 Bug Fixes

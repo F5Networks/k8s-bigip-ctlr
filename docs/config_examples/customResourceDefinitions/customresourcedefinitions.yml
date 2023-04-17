@@ -798,6 +798,22 @@ spec:
                     priority:
                       type: string
                       enum: [ low, high ]
+                iRuleList:
+                  type: object
+                  properties:
+                    insecure:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    secure:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    priority:
+                      type: string
+                      enum: [ low, high ]
                 profiles:
                   type: object
                   properties:

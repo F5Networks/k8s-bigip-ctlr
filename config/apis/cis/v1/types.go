@@ -276,6 +276,7 @@ type PolicySpec struct {
 	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
 	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
 	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
+	IRuleList   IRuleListSpec `json:"iRuleList,omitempty"`
 	Profiles    ProfileSpec   `json:"profiles,omitempty"`
 	SNAT        string        `json:"snat,omitempty"`
 }
@@ -297,6 +298,12 @@ type LtmIRulesSpec struct {
 	Secure   string `json:"secure,omitempty"`
 	InSecure string `json:"insecure,omitempty"`
 	Priority string `json:"priority,omitempty"`
+}
+
+type IRuleListSpec struct {
+	Secure   []string `json:"secure,omitempty"`
+	InSecure []string `json:"insecure,omitempty"`
+	Priority string   `json:"priority,omitempty"`
 }
 
 type ProfileSpec struct {

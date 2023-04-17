@@ -53,7 +53,7 @@ const (
 // nextGenResourceWorker starts the Custom Resource Worker.
 func (ctlr *Controller) nextGenResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
-	ctlr.setInitialServiceCount()
+	ctlr.setInitialResourceCount()
 	ctlr.migrateIPAM()
 	if ctlr.mode == OpenShiftMode {
 		ctlr.processGlobalExtendedRouteConfig()
@@ -88,7 +88,69 @@ func (ctlr *Controller) setInitialServiceCount() {
 			}
 		}
 	}
-	ctlr.initialSvcCount = svcCount
+	ctlr.initialResourceCount = svcCount
+}
+
+func (ctlr *Controller) setInitialResourceCount() {
+	var rscCount int
+	for _, ns := range ctlr.getWatchingNamespaces() {
+		switch ctlr.mode {
+		case OpenShiftMode:
+			nrInf, found := ctlr.getNamespacedNativeInformer(ns)
+			if !found {
+				continue
+			}
+			routes, err := nrInf.routeInformer.GetIndexer().ByIndex("namespace", ns)
+			if err != nil {
+				continue
+			}
+			rscCount += len(routes)
+		default:
+			crInf, found := ctlr.getNamespacedCRInformer(ns)
+			if !found {
+				continue
+			}
+			vs, err := crInf.vsInformer.GetIndexer().ByIndex("namespace", ns)
+			if err != nil {
+				continue
+			}
+			rscCount += len(vs)
+			ts, err := crInf.tsInformer.GetIndexer().ByIndex("namespace", ns)
+			if err != nil {
+				continue
+			}
+			rscCount += len(ts)
+			il, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", ns)
+			if err != nil {
+				continue
+			}
+			rscCount += len(il)
+		}
+		comInf, found := ctlr.getNamespacedCommonInformer(ns)
+		if !found {
+			continue
+		}
+		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
+		if err != nil {
+			continue
+		}
+		for _, obj := range services {
+			svc := obj.(*v1.Service)
+			if _, ok := K8SCoreServices[svc.Name]; ok {
+				continue
+			}
+			if ctlr.mode == OpenShiftMode {
+				if _, ok := OSCPCoreServices[svc.Name]; ok {
+					continue
+				}
+			}
+			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+				rscCount++
+			}
+		}
+	}
+
+	ctlr.initialResourceCount = rscCount
 }
 
 // processResources gets resources from the resourceQueue and processes the resource
@@ -107,15 +169,15 @@ func (ctlr *Controller) processResources() bool {
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 
-	// During Init time, just accumulate all the poolMembers by processing only services
+	// During Init time, just process all the resources
 	if ctlr.initState && rKey.kind != Namespace {
-		if rKey.kind != Service {
-			ctlr.resourceQueue.AddRateLimited(key)
+		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service || rKey.kind == IngressLink || rKey.kind == Route {
+			ctlr.initialResourceCount--
+			if ctlr.initialResourceCount <= 0 {
+				ctlr.initState = false
+			}
+		} else {
 			return true
-		}
-		ctlr.initialSvcCount--
-		if ctlr.initialSvcCount <= 0 {
-			ctlr.initState = false
 		}
 	}
 
@@ -337,6 +399,18 @@ func (ctlr *Controller) processResources() bool {
 		}
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
+		if ctlr.initState && svc.Spec.Type != v1.ServiceTypeLoadBalancer {
+			break
+		}
+		svcKey := MultiClusterServiceKey{
+			serviceName: svc.Name,
+			namespace:   svc.Namespace,
+			clusterName: rKey.clusterName,
+		}
+		// Don't process the service as it's not used by any resource
+		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+			break
+		}
 
 		_ = ctlr.processService(svc, nil, rscDelete, rKey.clusterName)
 
@@ -348,15 +422,7 @@ func (ctlr *Controller) processResources() bool {
 				isRetryableError = true
 			}
 		}
-		if ctlr.initState {
-			break
-		}
 		if rKey.event == Delete && rKey.clusterName != "" {
-			svcKey := MultiClusterServiceKey{
-				serviceName: svc.Name,
-				namespace:   svc.Namespace,
-				clusterName: rKey.clusterName,
-			}
 			if rsc, ok := ctlr.multiClusterResources.svcResourceMap[svcKey]; ok {
 				ctlr.deleteResourceExternalClusterSvcReference(rsc.namespace, rsc.rscName)
 			}
@@ -364,7 +430,7 @@ func (ctlr *Controller) processResources() bool {
 
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc, false, svc.ClusterName)
+			ctlr.updatePoolMembersForService(svcKey, rscDelete)
 		default:
 			virtuals := ctlr.getVirtualServersForService(svc)
 			// If nil No Virtuals are effected with the change in service.
@@ -416,8 +482,16 @@ func (ctlr *Controller) processResources() bool {
 		if nil == svc {
 			break
 		}
-
-		_ = ctlr.processService(svc, ep, rscDelete, "")
+		svcKey := MultiClusterServiceKey{
+			serviceName: svc.Name,
+			namespace:   svc.Namespace,
+			clusterName: rKey.clusterName,
+		}
+		// Don't process the service as it's not used by any resource
+		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+			break
+		}
+		_ = ctlr.processService(svc, ep, rscDelete, rKey.clusterName)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
@@ -442,7 +516,16 @@ func (ctlr *Controller) processResources() bool {
 		if nil == svc {
 			break
 		}
-		_ = ctlr.processService(svc, nil, false, "")
+		svcKey := MultiClusterServiceKey{
+			serviceName: svc.Name,
+			namespace:   svc.Namespace,
+			clusterName: rKey.clusterName,
+		}
+		// Don't process the service as it's not used by any resource
+		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+			break
+		}
+		_ = ctlr.processService(svc, nil, false, rKey.clusterName)
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
@@ -570,6 +653,11 @@ func (ctlr *Controller) processResources() bool {
 		ctlr.resourceQueue.AddRateLimited(key)
 	} else {
 		ctlr.resourceQueue.Forget(key)
+	}
+
+	// we have processed the resource but as controller is still in init state do not post the config
+	if ctlr.initState {
+		return true
 	}
 
 	if ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
@@ -1095,26 +1183,26 @@ func (ctlr *Controller) processVirtualServers(
 	// vsMap holds Resource Configs of current virtuals temporarily
 	vsMap := make(ResourceMap)
 	processingError := false
-	for _, portStruct := range portStructs {
+	for _, portS := range portStructs {
 		// TODO: Add Route Domain
 		var rsName string
 		if virtual.Spec.VirtualServerName != "" {
 			rsName = formatCustomVirtualServerName(
 				virtual.Spec.VirtualServerName,
-				portStruct.port,
+				portS.port,
 			)
 		} else {
 			rsName = formatVirtualServerName(
 				ip,
-				portStruct.port,
+				portS.port,
 			)
 		}
 
 		// Delete rsCfg if no corresponding virtuals exist
 		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
-			(portStruct.protocol == HTTP && !doVSHandleHTTP(virtuals, virtual)) ||
-			(isVSDeleted && portStruct.protocol == HTTPS && !doVSUseSameHTTPSPort(virtuals, virtual)) {
+			(portS.protocol == HTTP && !doVSHandleHTTP(virtuals, virtual)) ||
+			(isVSDeleted && portS.protocol == HTTPS && !doVSUseSameHTTPSPort(virtuals, virtual)) {
 			var hostnames []string
 			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 
@@ -1134,13 +1222,13 @@ func (ctlr *Controller) processVirtualServers(
 		rsCfg.MetaData.ResourceType = VirtualServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
-		rsCfg.MetaData.Protocol = portStruct.protocol
+		rsCfg.MetaData.Protocol = portS.protocol
 		rsCfg.MetaData.httpTraffic = virtual.Spec.HTTPTraffic
 		rsCfg.Virtual.HttpMrfRoutingEnabled = virtual.Spec.HttpMrfRoutingEnabled
 		rsCfg.MetaData.baseResources = make(map[string]string)
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
-			portStruct.port,
+			portS.port,
 		)
 		//set additionalVirtualAddresses if present
 		if len(virtual.Spec.AdditionalVirtualServerAddresses) > 0 {
@@ -1182,7 +1270,7 @@ func (ctlr *Controller) processVirtualServers(
 			}
 
 			log.Debugf("Processing Virtual Server %s for port %v",
-				vrt.ObjectMeta.Name, portStruct.port)
+				vrt.ObjectMeta.Name, portS.port)
 			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = VirtualServer
 			err := ctlr.prepareRSConfigFromVirtualServer(
 				rsCfg,
@@ -1228,14 +1316,14 @@ func (ctlr *Controller) processVirtualServers(
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
 
-		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
-		} else if ctlr.PoolMemberType == NodePortLocal {
-			//supported with antrea cni.
-			ctlr.updatePoolMembersForNPL(rsCfg, virtual.ObjectMeta.Namespace)
-		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
-		}
+		//if ctlr.PoolMemberType == NodePort {
+		//	ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+		//} else if ctlr.PoolMemberType == NodePortLocal {
+		//	//supported with antrea cni.
+		//	ctlr.updatePoolMembersForNPL(rsCfg, virtual.ObjectMeta.Namespace)
+		//} else {
+		//	ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
+		//}
 	}
 
 	if !processingError {
@@ -1808,6 +1896,143 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 	return ip
 }
 
+func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKey, rsKey ResourceKey, svcPort intstr.IntOrString, poolName, partition, rsName, path string) {
+	poolId := PoolIdentifier{
+		poolName:  poolName,
+		partition: partition,
+		rsName:    rsName,
+		path:      path,
+		rsKey:     rsKey,
+	}
+	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName]; !ok {
+		ctlr.multiClusterResources.clusterSvcMap[key.clusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig][]PoolIdentifier)
+	}
+	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key]; !ok {
+		ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key] = make(map[MultiClusterServiceConfig][]PoolIdentifier)
+	}
+	poolIds, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][MultiClusterServiceConfig{svcPort: svcPort}]
+	if !ok {
+		ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][MultiClusterServiceConfig{svcPort: svcPort}] = []PoolIdentifier{}
+	}
+	poolIds = append(poolIds, poolId)
+}
+
+func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKey, rscDelete bool) (error, bool) {
+	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
+		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
+			for _, poolIds := range svcPorts {
+				for _, poolId := range poolIds {
+					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName)
+					if rsCfg == nil {
+						continue
+					}
+					freshRsCfg := &ResourceConfig{}
+					freshRsCfg.copyConfig(rsCfg)
+					for _, pool := range rsCfg.Pools {
+						if pool.Name == poolId.poolName && pool.Partition == poolId.partition {
+							ctlr.updatePoolMembersForResources(&pool)
+						}
+						if len(pool.Members) > 0 {
+							rsCfg.MetaData.Active = true
+						}
+					}
+					_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
+				}
+			}
+		}
+	}
+	return nil, false
+}
+
+func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
+	// for local cluster
+	svcKey := MultiClusterServiceKey{
+		serviceName: pool.ServiceName,
+		namespace:   pool.ServiceNamespace,
+		clusterName: "",
+	}
+	comInf, ok := ctlr.getNamespacedCommonInformer(svcKey.namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", svcKey.namespace)
+		return
+	}
+	svcInf := comInf.svcInformer
+	item, found, _ := svcInf.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+	if !found {
+		log.Errorf("Service '%v' not found!", svcKey)
+		return
+	}
+	svc, _ := item.(*v1.Service)
+	_ = ctlr.processService(svc, nil, false, "")
+
+	var members []PoolMember
+	members = ctlr.getPoolMembers(svcKey, *pool)
+	if len(members) > 0 {
+		pool.Members = append(pool.Members, members...)
+	}
+	// For multiCluster services
+	for _, mcs := range pool.MultiClusterServices {
+		var otherMembers []PoolMember
+		if _, ok = ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok {
+			mSvcKey := MultiClusterServiceKey{
+				mcs.SvcName,
+				mcs.ClusterName,
+				mcs.Namespace,
+			}
+			mSvcInf := comInf.svcInformer
+			mItem, mFound, _ := mSvcInf.GetIndexer().GetByKey(mcs.Namespace + "/" + mcs.SvcName)
+			if !mFound {
+				log.Errorf("Service '%v' not found!", svcKey)
+				return
+			}
+			mSvc, _ := mItem.(*v1.Service)
+			_ = ctlr.processService(mSvc, nil, false, mSvc.ClusterName)
+			otherMembers = ctlr.getPoolMembers(mSvcKey, *pool)
+			if len(otherMembers) > 0 {
+				pool.Members = append(pool.Members, otherMembers...)
+			}
+		}
+	}
+}
+
+func (ctlr *Controller) getPoolMembers(mSvcKey MultiClusterServiceKey, pool Pool) []PoolMember {
+	var poolMembers []PoolMember
+	poolMemInfo, ok := ctlr.resources.poolMemCache[mSvcKey]
+	if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == mSvcKey.namespace {
+		log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", mSvcKey, pool.ServicePort.IntVal)
+		return poolMembers
+	}
+
+	if !(poolMemInfo.svcType == v1.ServiceTypeNodePort ||
+		poolMemInfo.svcType == v1.ServiceTypeLoadBalancer) {
+		log.Errorf("Requested service backend %s not of NodePort or LoadBalancer type",
+			mSvcKey)
+		return poolMembers
+	}
+	switch ctlr.PoolMemberType {
+	case NodePort:
+		for _, svcPort := range poolMemInfo.portSpec {
+			// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
+			if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
+				poolMembers = ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
+			}
+		}
+	case Cluster:
+		for ref, mems := range poolMemInfo.memberMap {
+			if ref.name != pool.ServicePort.StrVal && ref.port != pool.ServicePort.IntVal {
+				continue
+			}
+			poolMembers = append(poolMembers, mems...)
+		}
+	case NodePortLocal:
+	}
+	//check if endpoints are found
+	if pool.Members == nil {
+		log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", mSvcKey, pool.ServicePort.IntVal)
+	}
+	return poolMembers
+}
+
 // updatePoolMembersForNodePort updates the pool with pool members for a
 // service created in nodeport mode.
 func (ctlr *Controller) updatePoolMembersForNodePort(
@@ -2160,11 +2385,11 @@ func (ctlr *Controller) processTransportServers(
 
 	ctlr.updateSvcDepResources(rsName, rsCfg)
 
-	if ctlr.PoolMemberType == NodePort {
-		ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
-	} else {
-		ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
-	}
+	//if ctlr.PoolMemberType == NodePort {
+	//	ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+	//} else {
+	//	ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
+	//}
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
@@ -2395,14 +2620,14 @@ func (ctlr *Controller) processLBServices(
 
 		ctlr.updateSvcDepResources(rsName, rsCfg)
 
-		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
-		} else if ctlr.PoolMemberType == NodePortLocal {
-			//supported with antrea cni.
-			ctlr.updatePoolMembersForNPL(rsCfg, svc.Namespace)
-		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
-		}
+		//if ctlr.PoolMemberType == NodePort {
+		//	ctlr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
+		//} else if ctlr.PoolMemberType == NodePortLocal {
+		//	//supported with antrea cni.
+		//	ctlr.updatePoolMembersForNPL(rsCfg, svc.Namespace)
+		//} else {
+		//	ctlr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
+		//}
 
 		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
@@ -3029,6 +3254,11 @@ func (ctlr *Controller) processIngressLink(
 			ServicePort:      svcPort,
 			ServiceNamespace: svc.ObjectMeta.Namespace,
 		}
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
+		}
 		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
 		rsCfg.Monitors = append(
 			rsCfg.Monitors,
@@ -3047,14 +3277,14 @@ func (ctlr *Controller) processIngressLink(
 
 		ctlr.updateSvcDepResources(rsName, rsCfg)
 
-		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)
-		} else if ctlr.PoolMemberType == NodePortLocal {
-			//supported with antrea cni.
-			ctlr.updatePoolMembersForNPL(rsCfg, ingLink.ObjectMeta.Namespace)
-		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, ingLink.ObjectMeta.Namespace)
-		}
+		//if ctlr.PoolMemberType == NodePort {
+		//	ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)
+		//} else if ctlr.PoolMemberType == NodePortLocal {
+		//	//supported with antrea cni.
+		//	ctlr.updatePoolMembersForNPL(rsCfg, ingLink.ObjectMeta.Namespace)
+		//} else {
+		//	ctlr.updatePoolMembersForCluster(rsCfg, ingLink.ObjectMeta.Namespace)
+		//}
 	}
 
 	return nil

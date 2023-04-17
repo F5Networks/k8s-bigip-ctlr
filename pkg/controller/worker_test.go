@@ -107,6 +107,7 @@ var _ = Describe("Worker Tests", func() {
 		}
 		mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 		mockCtlr.resources = NewResourceStore()
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 			mockCtlr.kubeCRClient,
 			namespace,
@@ -3310,7 +3311,7 @@ extendedRouteSpec:
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
-				mockCtlr.resourceQueue.Get()
+				//mockCtlr.resourceQueue.Get()
 				routeGroup := "default"
 
 				mockCtlr.initState = false

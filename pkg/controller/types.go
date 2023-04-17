@@ -63,7 +63,7 @@ type (
 		nodeLabelSelector      string
 		vxlanMode              string
 		vxlanName              string
-		initialSvcCount        int
+		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
 		Agent                  *Agent
@@ -1180,10 +1180,18 @@ type (
 		HACIS string `yaml:"highAvailabilityCIS"`
 	}
 
+	PoolIdentifier struct {
+		poolName  string
+		partition string
+		rsName    string
+		path      string
+		rsKey     ResourceKey
+	}
+
 	MultiClusterResourceStore struct {
 		rscSvcMap      map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig
 		svcResourceMap map[MultiClusterServiceKey]ResourceKey
-		clusterSvcMap  map[string]map[MultiClusterServiceKey]struct{}
+		clusterSvcMap  map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig][]PoolIdentifier
 		sync.Mutex
 	}
 	MultiClusterServiceKey struct {

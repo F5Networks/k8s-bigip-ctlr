@@ -35,6 +35,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
 		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath

@@ -145,13 +145,13 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
-		for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
-			if ctlr.PoolMemberType == NodePort {
-				ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
-			} else {
-				ctlr.updatePoolMembersForCluster(rsCfg, namespace)
-			}
-		}
+		//for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
+		//	if ctlr.PoolMemberType == NodePort {
+		//		ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
+		//	} else {
+		//		ctlr.updatePoolMembersForCluster(rsCfg, namespace)
+		//	}
+		//}
 	}
 
 	if !processingError {
@@ -383,14 +383,19 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 		}
-
+		rsKey := ResourceKey{
+			rscName:   route.Name,
+			namespace: route.Namespace,
+			rscType:   Route,
+		}
+		ctlr.updatePoolIdentifierForService(MultiClusterServiceKey{
+			clusterName: "",
+			serviceName: bs.Name,
+			namespace:   pool.ServiceNamespace,
+		}, rsKey, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
 		if ctlr.multiClusterResources != nil {
 			var multiClusterServices []MultiClusterServiceReference
-			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[ResourceKey{
-				rscName:   route.Name,
-				namespace: route.Namespace,
-				rscType:   Route,
-			}]; ok {
+			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsKey]; ok {
 				for svc, config := range svcs {
 					multiClusterServices = append(multiClusterServices, MultiClusterServiceReference{
 						svc.clusterName,
@@ -398,10 +403,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 						svc.namespace,
 						config.svcPort,
 					})
-
+					ctlr.updatePoolIdentifierForService(svc, rsKey, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
 				}
 				pool.MultiClusterServices = multiClusterServices
 			}
+		}
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
 		}
 
 		// Handle Route health monitors

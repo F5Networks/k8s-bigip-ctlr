@@ -51,7 +51,7 @@ func newMultiClusterResourceStore() *MultiClusterResourceStore {
 
 	rs.rscSvcMap = make(map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig)
 	rs.svcResourceMap = make(map[MultiClusterServiceKey]ResourceKey)
-	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]struct{})
+	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig][]PoolIdentifier)
 
 	return &rs
 }
@@ -494,6 +494,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			Balance:           pl.Balance,
 			ReselectTries:     pl.ReselectTries,
 			ServiceDownAction: pl.ServiceDownAction,
+		}
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
 		}
 		if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
@@ -1684,6 +1689,11 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ReselectTries:     vs.Spec.Pool.ReselectTries,
 		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
 	}
+	// Update the pool Members
+	ctlr.updatePoolMembersForResources(&pool)
+	if len(pool.Members) > 0 {
+		rsCfg.MetaData.Active = true
+	}
 	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName, Reference: vs.Spec.Pool.Monitor.Reference})
 	} else if vs.Spec.Pool.Monitor.Type != "" {
@@ -1805,7 +1815,11 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		ServicePort:      svcPort.TargetPort,
 		NodeMemberLabel:  "",
 	}
-
+	// Update the pool Members
+	ctlr.updatePoolMembersForResources(&pool)
+	if len(pool.Members) > 0 {
+		rsCfg.MetaData.Active = true
+	}
 	// Health Monitor Annotation
 	hmStr, found := svc.Annotations[HealthMonitorAnnotation]
 	var monitor Monitor

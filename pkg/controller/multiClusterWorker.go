@@ -37,9 +37,9 @@ func (ctlr *Controller) processResourceExternalClusterServices(namespace string,
 				}
 
 				if ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] == nil {
-					ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]struct{})
+					ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig][]PoolIdentifier)
 				}
-				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey] = struct{}{}
+				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey] = make(map[MultiClusterServiceConfig][]PoolIdentifier)
 
 				// update the multi cluster resource map
 				ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)

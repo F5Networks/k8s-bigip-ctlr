@@ -2966,6 +2966,7 @@ extendedRouteSpec:
 							ProfileMultiplex: "/Common/oneconnect",
 							UDP:              "/Common/udp",
 						},
+						AutoLastHop: "default",
 					},
 				}
 
@@ -3097,6 +3098,8 @@ extendedRouteSpec:
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AutoLastHop).
+					To(Equal("default"), "auto last hop not processed")
 			})
 
 			It("Process Re-encrypt Route", func() {

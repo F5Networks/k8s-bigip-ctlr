@@ -7,7 +7,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 ### Policy Components
 
 | Parameter   | Type   | Required | Default | Description                                                                                                                                                                           |
-| ----------- | ------ | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|-------------| ------ | -------- |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | l7Policies  | Object | Optional | N/A     | BIG-IP l7Policies in Policy CR.                                                                                                                                                       |
 | l3Policies  | Object | Optional | N/A     | BIG-IP l3Policies in Policy CR.                                                                                                                                                       |
 | ltmPolicies | Object | Optional | N/A     | BIG-IP LTM Policies in Policy CR.                                                                                                                                                     |
@@ -16,6 +16,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 |
 | tcp         | Object | Optional | N/A     | BIG-IP TCP client and server profiles in Policy CR.                                                                                                                                   |
 | snat        | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
+| autoLastHop    | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
 
 ### L7 Policy Components
 

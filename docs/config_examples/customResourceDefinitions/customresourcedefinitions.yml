@@ -867,6 +867,9 @@ spec:
                         type: string
                         pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([-A-z0-9._\s]+\/?)*$'
                       type: array
+                autoLastHop:
+                  type: string
+                  enum: [ default, auto, disable ]
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'

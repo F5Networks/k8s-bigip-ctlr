@@ -217,6 +217,7 @@ type (
 		AllowSourceRange           []string              `json:"allowSourceRange,omitempty"`
 		HttpMrfRoutingEnabled      bool                  `json:"httpMrfRoutingEnabled,omitempty"`
 		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
+		AutoLastHop                string                `json:"lastHop,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -903,6 +904,7 @@ type (
 		Class                  string               `json:"class,omitempty"`
 		VirtualAddresses       []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
 		VirtualPort            int                  `json:"virtualPort,omitempty"`
+		AutoLastHop            string               `json:"lastHop,omitempty"`
 		SNAT                   as3MultiTypeParam    `json:"snat,omitempty"`
 		PolicyEndpoint         as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
 		ClientTLS              as3MultiTypeParam    `json:"clientTLS,omitempty"`

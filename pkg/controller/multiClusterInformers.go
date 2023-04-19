@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"k8s.io/client-go/rest"
+	"sort"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
@@ -40,10 +41,6 @@ func (poolInfr *MultiClusterPoolInformer) start() {
 	if poolInfr.podInformer != nil {
 		go poolInfr.podInformer.Run(poolInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, poolInfr.podInformer.HasSynced)
-	}
-	if poolInfr.nodeInformer != nil {
-		go poolInfr.nodeInformer.Run(poolInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, poolInfr.nodeInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
@@ -86,15 +83,15 @@ func (ctlr *Controller) addMultiClusterNamespacedInformers(
 	// add common informers  in all modes
 	if _, found := ctlr.multiClusterPoolInformers[clusterName]; !found {
 		ctlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
-		poolInfr := ctlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClientV1,
-			ctlr.nodeLabelSelector)
+	}
+	if _, found := ctlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+		poolInfr := ctlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClientV1)
 		ctlr.addMultiClusterPoolEventHandlers(poolInfr)
 		ctlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
 		if startInformer {
 			poolInfr.start()
 		}
 	}
-
 	return nil
 }
 
@@ -102,14 +99,10 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 	namespace string,
 	clusterName string,
 	restClientv1 rest.Interface,
-	labelSelector string,
 ) *MultiClusterPoolInformer {
 	log.Debugf("Creating multi cluster pool Informers for Namespace: %v", namespace)
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
-	}
-	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = labelSelector
 	}
 	resyncPeriod := 0 * time.Second
 	comInf := &MultiClusterPoolInformer{
@@ -124,17 +117,6 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 				everything,
 			),
 			&corev1.Service{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
-		nodeInformer: cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"nodes",
-				"",
-				nodeOptions,
-			),
-			&corev1.Node{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
@@ -199,16 +181,6 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 			},
 		)
 	}
-
-	if poolInf.nodeInformer != nil {
-		poolInf.nodeInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing(poolInf.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing(poolInf.clusterName) },
-				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(poolInf.clusterName) },
-			},
-		)
-	}
 }
 
 // whenever global configmap is modified check for removed cluster configs
@@ -242,22 +214,40 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string) error {
 			delete(ctlr.multiClusterPoolInformers, clusterName)
 		}
 	}
-
+	if _, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
+		delete(ctlr.multiClusterNodeInformers, clusterName)
+	}
 	return nil
 }
 
 // setup multi cluster informer
-func (ctlr *Controller) setupAndStartMultiClusterInformers(clusterName string) error {
-	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey) error {
+	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[svcKey.clusterName]; ok {
 		restClient := config.KubeClient.CoreV1().RESTClient()
-		for n := range ctlr.namespaces {
-			if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {
-				log.Errorf("unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
+		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, true); err != nil {
+			log.Errorf("unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
+			return err
+		}
+		if _, ok2 := ctlr.multiClusterNodeInformers[svcKey.clusterName]; !ok2 {
+			nodeInf := ctlr.getNodeInformer(svcKey.clusterName)
+			ctlr.addNodeEventUpdateHandler(&nodeInf)
+			nodeInf.start()
+			ctlr.multiClusterNodeInformers[svcKey.clusterName] = &nodeInf
+			nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
+			var nodesList []corev1.Node
+			for _, obj := range nodesIntfc {
+				node := obj.(*corev1.Node)
+				nodesList = append(nodesList, *node)
+			}
+			sort.Sort(NodeList(nodesList))
+			nodes, err := ctlr.getNodes(nodesList)
+			if err != nil {
 				return err
 			}
+			nodeInf.oldNodes = nodes
 		}
 	} else {
-		return fmt.Errorf("cluster config not found for cluster: %v", clusterName)
+		return fmt.Errorf("cluster config not found for cluster: %v", svcKey.clusterName)
 	}
 	return nil
 }

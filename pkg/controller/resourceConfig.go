@@ -48,11 +48,8 @@ func NewResourceStore() *ResourceStore {
 
 func newMultiClusterResourceStore() *MultiClusterResourceStore {
 	var rs MultiClusterResourceStore
-
-	rs.rscSvcMap = make(map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig)
-	rs.svcResourceMap = make(map[MultiClusterServiceKey]ResourceKey)
-	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig][]PoolIdentifier)
-
+	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	return &rs
 }
 

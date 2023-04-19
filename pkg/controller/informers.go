@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
@@ -181,10 +182,6 @@ func (comInfr *CommonInformer) start() {
 	if comInfr.podInformer != nil {
 		go comInfr.podInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.podInformer.HasSynced)
-	}
-	if comInfr.nodeInformer != nil {
-		go comInfr.nodeInformer.Run(comInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, comInfr.nodeInformer.HasSynced)
 	}
 	if comInfr.secretsInformer != nil {
 		go comInfr.secretsInformer.Run(comInfr.stopCh)
@@ -422,6 +419,47 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 	return nrInformer
 }
 
+func (ctlr *Controller) getNodeInformer(clusterName string) NodeInformer {
+	resyncPeriod := 0 * time.Second
+	var restClientv1 rest.Interface
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = ctlr.nodeLabelSelector
+	}
+	if clusterName == "" {
+		restClientv1 = ctlr.kubeClient.CoreV1().RESTClient()
+	} else {
+		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+			restClientv1 = config.KubeClient.CoreV1().RESTClient()
+		}
+	}
+	return NodeInformer{stopCh: make(chan struct{}),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"nodes",
+				"",
+				nodeOptions,
+			),
+			&corev1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		clusterName: clusterName,
+	}
+}
+
+func (ctlr *Controller) addNodeEventUpdateHandler(nodeInformer *NodeInformer) {
+	if nodeInformer.nodeInformer != nil {
+		nodeInformer.nodeInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+			},
+		)
+	}
+}
+
 func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	namespace string,
 ) *CommonInformer {
@@ -433,9 +471,6 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = ctlr.customResourceSelector.String()
-	}
-	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.nodeLabelSelector
 	}
 	comInf := &CommonInformer{
 		namespace: namespace,
@@ -470,17 +505,6 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 				everything,
 			),
 			&corev1.Secret{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
-		nodeInformer: cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"nodes",
-				"",
-				nodeOptions,
-			),
-			&corev1.Node{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
@@ -605,16 +629,6 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, "") },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, "") },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, "") },
-			},
-		)
-	}
-
-	if comInf.nodeInformer != nil {
-		comInf.nodeInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing("") },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing("") },
-				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing("") },
 			},
 		)
 	}
@@ -1287,6 +1301,17 @@ func (nsInfr *NSInformer) start() {
 
 func (nsInfr *NSInformer) stop() {
 	close(nsInfr.stopCh)
+}
+
+func (nodeInfr *NodeInformer) start() {
+	if nodeInfr.nodeInformer != nil {
+		log.Infof("Starting %v Node Informer", nodeInfr.clusterName)
+		go nodeInfr.nodeInformer.Run(nodeInfr.stopCh)
+	}
+}
+
+func (nodeInfr *NodeInformer) stop() {
+	close(nodeInfr.stopCh)
 }
 
 func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {

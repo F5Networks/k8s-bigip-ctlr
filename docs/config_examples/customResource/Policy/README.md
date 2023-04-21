@@ -75,6 +75,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | persistenceProfile | String         | Optional | VirtualServer uses `cookie` TransportServer uses `source-address` | CIS uses the AS3 default persistence profile. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP Persistence profiles and custom Persistence profiles.            |
 | profileMultiplex   | String         | Optional | N/A                                                               | CIS uses the AS3 default profileMultiplex profile. Allowed values are existing BIG-IP profileMultiplex profiles.                                                                                                                           |
 | profileL4          | String         | Optional | basic                                                             | The default value is `basic` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles. |
+| httpMrfRoutingEnabled    | Boolean | Optional | N/A     | Reference to Http mrf router on BIGIP.|
 
 ### TCP Profile Components
 

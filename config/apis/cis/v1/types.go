@@ -51,7 +51,7 @@ type VirtualServerSpec struct {
 	BotDefense                       string           `json:"botDefense,omitempty"`
 	Profiles                         ProfileSpec      `json:"profiles,omitempty"`
 	AllowSourceRange                 []string         `json:"allowSourceRange,omitempty"`
-	HttpMrfRoutingEnabled            bool             `json:"httpMrfRoutingEnabled,omitempty"`
+	HttpMrfRoutingEnabled            *bool            `json:"httpMrfRoutingEnabled,omitempty"`
 	Partition                        string           `json:"partition,omitempty"`
 }
 
@@ -308,15 +308,16 @@ type IRuleListSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                ProfileTCP   `json:"tcp,omitempty"`
-	UDP                string       `json:"udp,omitempty"`
-	HTTP               string       `json:"http,omitempty"`
-	HTTP2              ProfileHTTP2 `json:"http2,omitempty"`
-	RewriteProfile     string       `json:"rewriteProfile,omitempty"`
-	PersistenceProfile string       `json:"persistenceProfile,omitempty"`
-	LogProfiles        []string     `json:"logProfiles,omitempty"`
-	ProfileL4          string       `json:"profileL4,omitempty"`
-	ProfileMultiplex   string       `json:"profileMultiplex,omitempty"`
+	TCP                   ProfileTCP   `json:"tcp,omitempty"`
+	UDP                   string       `json:"udp,omitempty"`
+	HTTP                  string       `json:"http,omitempty"`
+	HTTP2                 ProfileHTTP2 `json:"http2,omitempty"`
+	RewriteProfile        string       `json:"rewriteProfile,omitempty"`
+	PersistenceProfile    string       `json:"persistenceProfile,omitempty"`
+	LogProfiles           []string     `json:"logProfiles,omitempty"`
+	ProfileL4             string       `json:"profileL4,omitempty"`
+	ProfileMultiplex      string       `json:"profileMultiplex,omitempty"`
+	HttpMrfRoutingEnabled *bool        `json:"httpMrfRoutingEnabled,omitempty"`
 }
 type ProfileTCP struct {
 	Client string `json:"client,omitempty"`

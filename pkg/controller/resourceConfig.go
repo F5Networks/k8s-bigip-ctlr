@@ -49,11 +49,8 @@ func NewResourceStore() *ResourceStore {
 
 func newMultiClusterResourceStore() *MultiClusterResourceStore {
 	var rs MultiClusterResourceStore
-
-	rs.rscSvcMap = make(map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig)
-	rs.svcResourceMap = make(map[MultiClusterServiceKey]ResourceKey)
-	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]struct{})
-
+	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	return &rs
 }
 
@@ -497,7 +494,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		backendSvcs := ctlr.GetPoolBackends(&pl)
 		for _, SvcBackend := range backendSvcs {
 			poolName := ctlr.framePoolNameForVs(vs.Namespace, pl, vs.Spec.Host, SvcBackend)
-
 			if _, ok := framedPools[poolName]; ok {
 				// Pool with same name framed earlier, so skipping this pool
 				log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
@@ -522,6 +518,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				Balance:           pl.Balance,
 				ReselectTries:     pl.ReselectTries,
 				ServiceDownAction: pl.ServiceDownAction,
+			}
+			// Update the pool Members
+			ctlr.updatePoolMembersForResources(&pool)
+			if len(pool.Members) > 0 {
+				rsCfg.MetaData.Active = true
 			}
 			if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
 				ctlr.createVirtualServerMonitor(pl.Monitor, &pool, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
@@ -1858,6 +1859,13 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ReselectTries:     vs.Spec.Pool.ReselectTries,
 		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
 	}
+
+	// Update the pool Members
+	ctlr.updatePoolMembersForResources(&pool)
+	if len(pool.Members) > 0 {
+		rsCfg.MetaData.Active = true
+	}
+
 	if !reflect.DeepEqual(vs.Spec.Pool.Monitor, cisapiv1.Monitor{}) {
 		ctlr.createTransportServerMonitor(vs.Spec.Pool.Monitor, &pool, rsCfg, vs.Spec.Pool.ServicePort,
 			vs.ObjectMeta.Namespace, vs.ObjectMeta.Name)
@@ -1944,7 +1952,11 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		ServicePort:      svcPort.TargetPort,
 		NodeMemberLabel:  "",
 	}
-
+	// Update the pool Members
+	ctlr.updatePoolMembersForResources(&pool)
+	if len(pool.Members) > 0 {
+		rsCfg.MetaData.Active = true
+	}
 	// Health Monitor Annotation
 	hmStr, found := svc.Annotations[HealthMonitorAnnotation]
 	var monitor Monitor

@@ -169,6 +169,7 @@ func NewController(params Params) *Controller {
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
 	ctlr.comInformers = make(map[string]*CommonInformer)
 	ctlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
+	ctlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
 	ctlr.nrInformers = make(map[string]*NRInformer)
 	ctlr.crInformers = make(map[string]*CRInformer)
 	ctlr.nsInformers = make(map[string]*NSInformer)
@@ -394,6 +395,9 @@ func (ctlr *Controller) setupInformers() error {
 			return err
 		}
 	}
+	nodeInf := ctlr.getNodeInformer("")
+	ctlr.nodeInformer = &nodeInf
+	ctlr.addNodeEventUpdateHandler(ctlr.nodeInformer)
 	return nil
 }
 
@@ -407,6 +411,9 @@ func (ctlr *Controller) Start() {
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.start()
 	}
+
+	// start nodeinformer in all modes
+	ctlr.nodeInformer.start()
 
 	// start comInformers for all modes
 	for _, inf := range ctlr.comInformers {
@@ -459,6 +466,8 @@ func (ctlr *Controller) Stop() {
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.stop()
 	}
+	// stop node Informer
+	ctlr.nodeInformer.stop()
 
 	// stop multi cluster informers
 	for _, poolInformers := range ctlr.multiClusterPoolInformers {

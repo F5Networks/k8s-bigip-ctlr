@@ -108,6 +108,7 @@ var _ = Describe("Worker Tests", func() {
 		}
 		mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 		mockCtlr.resources = NewResourceStore()
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 			mockCtlr.kubeCRClient,
 			namespace,
@@ -904,11 +905,11 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mems := mockCtlr.getEndpointsForNodePort(nodePort, "")
+			mems := mockCtlr.getEndpointsForNodePort(nodePort, "", "")
 			Expect(mems).To(Equal(members), "Wrong set of Endpoints for NodePort")
-			mems = mockCtlr.getEndpointsForNodePort(nodePort, "worker=true")
+			mems = mockCtlr.getEndpointsForNodePort(nodePort, "worker=true", "")
 			Expect(mems).To(Equal(members[:2]), "Wrong set of Endpoints for NodePort")
-			mems = mockCtlr.getEndpointsForNodePort(nodePort, "invalid label")
+			mems = mockCtlr.getEndpointsForNodePort(nodePort, "invalid label", "")
 			Expect(len(mems)).To(Equal(0), "Wrong set of Endpoints for NodePort")
 		})
 
@@ -1440,7 +1441,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers["default"] = &CRInformer{}
 			mockCtlr.comInformers["default"] = &CommonInformer{}
-			mockCtlr.resources.poolMemCache = make(map[MultiClusterServiceKey]poolMembersInfo)
+			mockCtlr.resources.poolMemCache = make(map[MultiClusterServiceKey]*poolMembersInfo)
 			mockCtlr.resources.ltmConfig = LTMConfig{}
 			mockCtlr.oldNodes = []Node{{Name: "node-1", Addr: "10.10.10.1"}, {Name: "node-2", Addr: "10.10.10.2"}}
 		})
@@ -1465,7 +1466,7 @@ var _ = Describe("Worker Tests", func() {
 				namespace:   "default",
 				clusterName: "",
 			}
-			mockCtlr.resources.poolMemCache[svcKey] = poolMembersInfo{
+			mockCtlr.resources.poolMemCache[svcKey] = &poolMembersInfo{
 				svcType:   "Nodeport",
 				portSpec:  []v1.ServicePort{{Name: "https", Port: 443, NodePort: 32443, TargetPort: intstr.FromInt(443), Protocol: "TCP"}},
 				memberMap: memberMap,
@@ -3601,7 +3602,7 @@ extendedRouteSpec:
 				_, ok := mockCtlr.nsInformers[namespace]
 				Expect(ok).To(Equal(false), "Namespace not deleted")
 
-				mockCtlr.Agent.retryFailedTenant()
+				// mockCtlr.Agent.retryFailedTenant()
 				//time.Sleep(1 * time.Microsecond)
 			})
 			It("Process Edge Route", func() {
@@ -3653,7 +3654,7 @@ extendedRouteSpec:
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
-				mockCtlr.resourceQueue.Get()
+				//mockCtlr.resourceQueue.Get()
 				routeGroup := "default"
 
 				mockCtlr.initState = false

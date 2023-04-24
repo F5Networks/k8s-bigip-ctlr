@@ -21,6 +21,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			vs = test.NewVirtualServer(
 				"SampleVS",
@@ -199,6 +200,7 @@ var _ = Describe("Resource Config Tests", func() {
 		//partition := "test"
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
@@ -717,6 +719,7 @@ var _ = Describe("Resource Config Tests", func() {
 		var mockCtlr *mockController
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
@@ -1112,6 +1115,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 
 			rsCfg = &ResourceConfig{}

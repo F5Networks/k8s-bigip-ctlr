@@ -23,6 +23,7 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
@@ -35,6 +36,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
 		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -76,7 +78,7 @@ var _ = Describe("Routes", func() {
 
 		It("Base Route", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
-			mockCtlr.resources = NewResourceStore()
+
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
@@ -91,7 +93,7 @@ var _ = Describe("Routes", func() {
 		})
 		It("Passthrough Route", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
-			mockCtlr.resources = NewResourceStore()
+
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
@@ -201,7 +203,7 @@ var _ = Describe("Routes", func() {
 			cmName := "escm"
 			cmNamespace := "system"
 			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -400,7 +402,7 @@ var _ = Describe("Routes", func() {
 			cmName := "escm"
 			cmNamespace := "kube-system"
 			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+
 			data = make(map[string]string)
 			mockCtlr.Partition = "default"
 			cm = test.NewConfigMap(
@@ -762,7 +764,7 @@ extendedRouteSpec:
 
 		It("Check Route A/B Deploy", func() {
 			routeGroup := "default"
-			mockCtlr.resources = NewResourceStore()
+
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: true,
 				global: &ExtendedRouteGroupSpec{
@@ -968,6 +970,7 @@ extendedRouteSpec:
 					},
 				},
 			}
+			mockCtlr.resources.poolMemCache = make(PoolMemberCache)
 			namespace := "default"
 			data := make(map[string][]byte)
 			data["tls.key"] = []byte{}
@@ -1160,7 +1163,7 @@ extendedRouteSpec:
 
 		It("Verify Routes with WAF", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
-			mockCtlr.resources = NewResourceStore()
+
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
@@ -1251,7 +1254,7 @@ extendedRouteSpec:
 			cmName := "escm"
 			cmNamespace := "system"
 			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -1602,7 +1605,7 @@ extendedRouteSpec:
 			Expect(ok).To(BeTrue())
 
 			routeGroup := "default"
-			mockCtlr.resources = NewResourceStore()
+
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: false,
 				global: &ExtendedRouteGroupSpec{
@@ -1665,6 +1668,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
@@ -1697,7 +1701,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			cmName := "escm"
 			cmNamespace := "system"
 			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -1745,6 +1749,7 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 	})
 	Describe("Extended Spec ConfigMap", func() {
@@ -1754,7 +1759,7 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 			cmName := "escm"
 			cmNamespace := "system"
 			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,

@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"sync"
 
@@ -63,7 +64,8 @@ type (
 		nodeLabelSelector      string
 		vxlanMode              string
 		vxlanName              string
-		initialSvcCount        int
+		vxlanMgr               *vxlan.VxlanMgr
+		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
 		Agent                  *Agent
@@ -94,7 +96,9 @@ type (
 		nrInformers               map[string]*NRInformer
 		crInformers               map[string]*CRInformer
 		nsInformers               map[string]*NSInformer
+		nodeInformer              *NodeInformer
 		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
+		multiClusterNodeInformers map[string]*NodeInformer
 		routeSpecCMKey            string
 		routeLabel                string
 		namespaceLabelMode        bool
@@ -143,7 +147,6 @@ type (
 		plcInformer     cache.SharedIndexInformer
 		podInformer     cache.SharedIndexInformer
 		secretsInformer cache.SharedIndexInformer
-		nodeInformer    cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
@@ -152,6 +155,13 @@ type (
 		stopCh        chan struct{}
 		routeInformer cache.SharedIndexInformer
 		cmInformer    cache.SharedIndexInformer
+	}
+
+	NodeInformer struct {
+		stopCh       chan struct{}
+		nodeInformer cache.SharedIndexInformer
+		clusterName  string
+		oldNodes     []Node
 	}
 
 	NSInformer struct {
@@ -288,7 +298,7 @@ type (
 	ResourceMap map[string]*ResourceConfig
 
 	// PoolMemberCache key is namespace/service
-	PoolMemberCache map[MultiClusterServiceKey]poolMembersInfo
+	PoolMemberCache map[MultiClusterServiceKey]*poolMembersInfo
 	// Store of CustomProfiles
 	CustomProfileStore struct {
 		sync.Mutex
@@ -1180,10 +1190,17 @@ type (
 		HACIS string `yaml:"highAvailabilityCIS"`
 	}
 
+	PoolIdentifier struct {
+		poolName  string
+		partition string
+		rsName    string
+		path      string
+		rsKey     resourceRef
+	}
+
 	MultiClusterResourceStore struct {
-		rscSvcMap      map[ResourceKey]map[MultiClusterServiceKey]MultiClusterServiceConfig
-		svcResourceMap map[MultiClusterServiceKey]ResourceKey
-		clusterSvcMap  map[string]map[MultiClusterServiceKey]struct{}
+		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
+		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
 		sync.Mutex
 	}
 	MultiClusterServiceKey struct {
@@ -1194,20 +1211,14 @@ type (
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
 	}
-	ResourceKey struct {
-		rscName   string
-		namespace string
-		rscType   string
-	}
 
 	MultiClusterPoolInformer struct {
-		namespace    string
-		clusterName  string
-		stopCh       chan struct{}
-		svcInformer  cache.SharedIndexInformer
-		epsInformer  cache.SharedIndexInformer
-		podInformer  cache.SharedIndexInformer
-		nodeInformer cache.SharedIndexInformer
+		namespace   string
+		clusterName string
+		stopCh      chan struct{}
+		svcInformer cache.SharedIndexInformer
+		epsInformer cache.SharedIndexInformer
+		podInformer cache.SharedIndexInformer
 	}
 
 	MultiClusterServiceReference struct {

@@ -221,6 +221,8 @@ func (ctlr *Controller) processResources() bool {
 			delete(ctlr.resources.processedNativeResources, resourceKey)
 			// Delete the route entry from hostPath Map
 			ctlr.deleteHostPathMapEntry(route)
+		}
+		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 		}

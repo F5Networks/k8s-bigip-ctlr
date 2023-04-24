@@ -4,18 +4,19 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
-	routeapi "github.com/openshift/api/route/v1"
-	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/util/workqueue"
 	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	routeapi "github.com/openshift/api/route/v1"
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/workqueue"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
@@ -1749,14 +1750,15 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid VS")
 				vs.Spec.VirtualServerAddress = "10.8.0.1"
 				// set HttpMrfRoutingEnabled to true
-				vs.Spec.HttpMrfRoutingEnabled = true
+				httpMrfRoutingEnabled := true
+				vs.Spec.HttpMrfRoutingEnabled = &httpMrfRoutingEnabled
 				// set additionalVirtualServerAddresses on virtual.
 				vs.Spec.AdditionalVirtualServerAddresses = append(vs.Spec.AdditionalVirtualServerAddresses, "10.16.0.1")
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
 				rsname := "crd_10_8_0_1_443"
-				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
+				Expect(*mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses)).To(Equal(1))
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses[0]).To(Equal("10.16.0.1"))
 				//check irules
@@ -1803,6 +1805,9 @@ var _ = Describe("Worker Tests", func() {
 				go mockCtlr.Agent.retryWorker()
 
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				httpMrfRouterEnabled := true
+				httpMrfRouterDisabled := false
+				policy.Spec.Profiles.HttpMrfRoutingEnabled = &httpMrfRouterEnabled
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
 
@@ -1856,14 +1861,19 @@ var _ = Describe("Worker Tests", func() {
 				_, status := mockCtlr.requestIP("test", host, key)
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "VS not Processed")
+				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
+					To(BeTrue(), "http mrf route not processed correctly")
 
 				mockCtlr.deleteVirtualServer(vs)
 				mockCtlr.processResources()
 				vs.Spec.VirtualServerAddress = "10.10.10.1"
+				vs.Spec.HttpMrfRoutingEnabled = &httpMrfRouterDisabled
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "VS not Processed")
+				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
+					To(BeFalse(), "http mrf route not processed correctly")
 
 				mockCtlr.deleteVirtualServer(vs)
 				mockCtlr.processResources()
@@ -1872,6 +1882,7 @@ var _ = Describe("Worker Tests", func() {
 
 				vs.Spec.HostGroup = "hg"
 				vs.Spec.VirtualServerAddress = ""
+				vs.Spec.HttpMrfRoutingEnabled = &httpMrfRouterEnabled
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
@@ -1902,6 +1913,8 @@ var _ = Describe("Worker Tests", func() {
 				_, status = mockCtlr.requestIP("test", "", key)
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
+				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
+					To(BeTrue(), "http mrf route not processed correctly")
 
 				rscUpdateMeta := resourceStatusMeta{
 					0,
@@ -2927,7 +2940,6 @@ extendedRouteSpec:
 				}
 
 				//Policy
-
 				policy = &cisapiv1.Policy{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "policy",
@@ -3043,6 +3055,8 @@ extendedRouteSpec:
 				go mockCtlr.Agent.retryWorker()
 
 				routeGroup := "default"
+				httpMrfRoutingEnabled := true
+				policy.Spec.Profiles.HttpMrfRoutingEnabled = &httpMrfRoutingEnabled
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
 
@@ -3094,12 +3108,17 @@ extendedRouteSpec:
 				if ok {
 					delete(route1.Annotations, LegacyHealthMonitorAnnotation)
 				}
+				route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyRedirect
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AutoLastHop).
 					To(Equal("default"), "auto last hop not processed")
+				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
+					To(Equal(true), "http mrf route not processed")
+				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.HttpMrfRoutingEnabled).
+					To(Equal(false), "http mrf route not processed")
 			})
 
 			It("Process Re-encrypt Route", func() {
@@ -3114,8 +3133,6 @@ extendedRouteSpec:
 					Sections:  make(map[string]interface{}),
 				}
 				mockCtlr.Agent.ConfigWriter = writer
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
 
 				routeGroup := "default"
 				mockCtlr.addPolicy(policy)
@@ -3191,6 +3208,8 @@ extendedRouteSpec:
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
+					To(BeNil(), "http mrf route processed incorrectly")
 
 				route1.Spec.TLS.Certificate = ""
 				route1.Spec.TLS.Key = ""

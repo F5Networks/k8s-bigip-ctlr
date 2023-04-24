@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -90,6 +91,11 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+		if rsCfg.MetaData.Protocol == "http" {
+			// for unsecured vs, disable mrf router always
+			enabled := false
+			rsCfg.Virtual.HttpMrfRoutingEnabled = &enabled
+		}
 
 		// deletion ; update /health /app/path1
 

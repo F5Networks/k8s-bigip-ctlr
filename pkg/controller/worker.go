@@ -1106,7 +1106,9 @@ func (ctlr *Controller) processVirtualServers(
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.MetaData.httpTraffic = virtual.Spec.HTTPTraffic
-		rsCfg.Virtual.HttpMrfRoutingEnabled = virtual.Spec.HttpMrfRoutingEnabled
+		if virtual.Spec.HttpMrfRoutingEnabled != nil {
+			rsCfg.Virtual.HttpMrfRoutingEnabled = virtual.Spec.HttpMrfRoutingEnabled
+		}
 		rsCfg.MetaData.baseResources = make(map[string]string)
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,

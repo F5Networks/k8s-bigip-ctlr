@@ -19,6 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
 	"net"
@@ -1854,6 +1855,9 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
 	rsCfg.Virtual.AutoLastHop = plc.Spec.AutoLastHop
+	if rsCfg.Virtual.HttpMrfRoutingEnabled == nil && plc.Spec.Profiles.HttpMrfRoutingEnabled != nil {
+		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
+	}
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

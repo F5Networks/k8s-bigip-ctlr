@@ -212,7 +212,7 @@ type (
 		PersistenceProfile         string                `json:"persistenceProfile,omitempty"`
 		TLSTermination             string                `json:"-"`
 		AllowSourceRange           []string              `json:"allowSourceRange,omitempty"`
-		HttpMrfRoutingEnabled      bool                  `json:"httpMrfRoutingEnabled,omitempty"`
+		HttpMrfRoutingEnabled      *bool                 `json:"httpMrfRoutingEnabled,omitempty"`
 		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
 		AutoLastHop                string                `json:"lastHop,omitempty"`
 	}

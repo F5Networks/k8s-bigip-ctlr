@@ -384,13 +384,11 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	}
 	//check for external service reference annotation
 	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
-		if ctlr.multiClusterResources != nil {
-			// only process if route key is not present. else skip the processing
-			// on route update we are clearing the resource service
-			// if event comes from route then we will read and populate data, else we will skip processing
-			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-				ctlr.processResourceExternalClusterServices(rsRef, annotation)
-			}
+		// only process if route key is not present. else skip the processing
+		// on route update we are clearing the resource service
+		// if event comes from route then we will read and populate data, else we will skip processing
+		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+			ctlr.processResourceExternalClusterServices(rsRef, annotation)
 		}
 	}
 
@@ -412,6 +410,20 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 		}
+		var multiClusterServices []MultiClusterServiceReference
+		if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+			for svc, config := range svcs {
+				multiClusterServices = append(multiClusterServices, MultiClusterServiceReference{
+					svc.clusterName,
+					svc.serviceName,
+					svc.namespace,
+					config.svcPort,
+				})
+				// update the clusterSvcMap
+				ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+			}
+			pool.MultiClusterServices = multiClusterServices
+		}
 		// update the multicluster resource serviceMap with local cluster services
 		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
 			ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
@@ -424,22 +436,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
 		// update the clusterSvcMap
 		ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
-		if ctlr.multiClusterResources != nil {
-			var multiClusterServices []MultiClusterServiceReference
-			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
-				for svc, config := range svcs {
-					multiClusterServices = append(multiClusterServices, MultiClusterServiceReference{
-						svc.clusterName,
-						svc.serviceName,
-						svc.namespace,
-						config.svcPort,
-					})
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
-				}
-				pool.MultiClusterServices = multiClusterServices
-			}
-		}
+
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {

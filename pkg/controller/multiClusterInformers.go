@@ -232,6 +232,7 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 			nodeInf := ctlr.getNodeInformer(svcKey.clusterName)
 			ctlr.addNodeEventUpdateHandler(&nodeInf)
 			nodeInf.start()
+			time.Sleep(100 * time.Millisecond)
 			ctlr.multiClusterNodeInformers[svcKey.clusterName] = &nodeInf
 			nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
 			var nodesList []corev1.Node

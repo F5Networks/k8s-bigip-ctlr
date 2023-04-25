@@ -11,10 +11,6 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 		return
 	}
 
-	if ctlr.multiClusterResources == nil {
-		ctlr.multiClusterResources = newMultiClusterResourceStore()
-	}
-
 	var clusterSvcs []MultiClusterServiceReference
 	err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 	if err == nil {
@@ -45,11 +41,11 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 					ctlr.setupAndStartMultiClusterInformers(svcKey)
 				}
 			} else {
-				log.Debugf("invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
+				log.Warningf("invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
 			}
 		}
 	} else {
-		log.Debugf("unable to read service mapping for resource %v", rscKey)
+		log.Warningf("unable to read service mapping for resource %v", rscKey)
 	}
 }
 
@@ -65,11 +61,6 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcReference(mSvcKey MultiC
 }
 
 func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey resourceRef) {
-
-	if ctlr.multiClusterResources == nil {
-		return
-	}
-
 	ctlr.multiClusterResources.Lock()
 	defer ctlr.multiClusterResources.Unlock()
 	// remove resource and service mapping
@@ -106,10 +97,6 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 // when route is processed check for the clusters whose services references are removed
 // if any cluster is present with no references of services, stop the cluster informers
 func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
-
-	if ctlr.multiClusterResources == nil {
-		return
-	}
 
 	ctlr.multiClusterResources.Lock()
 	defer ctlr.multiClusterResources.Unlock()

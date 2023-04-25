@@ -37,7 +37,7 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	}
 	if clusterName == "" {
 		nodesIntfc = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
-		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
+		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(nodesIntfc)))
 	} else {
 		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 			nodesIntfc = nodeInf.nodeInformer.GetIndexer().List()
@@ -101,22 +101,23 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
 			log.Debugf("Processing Node Updates")
+			// Update node cache
+			ctlr.oldNodes = newNodes
 			if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
 				ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 			}
-			// Update node cache
-			ctlr.oldNodes = newNodes
 		}
 	} else {
 		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 			// Compare last set of nodes with new one
 			if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
 				log.Debugf("Processing Node Updates")
+				// Update node cache
+				nodeInf.oldNodes = newNodes
 				if ctlr.multiClusterResources.clusterSvcMap != nil {
 					if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
 						ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 					}
-					nodeInf.oldNodes = newNodes
 				}
 			}
 		}
@@ -134,24 +135,13 @@ func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 // Return a copy of the node cache
 func (ctlr *Controller) getNodesFromCache(clusterName string) []Node {
 	var nodes []Node
-	var err error
 	if clusterName == "" {
 		nodes = make([]Node, len(ctlr.oldNodes))
 		copy(nodes, ctlr.oldNodes)
 	} else {
 		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-			nodeObjs := nodeInf.nodeInformer.GetIndexer().List()
-			var nodesList []v1.Node
-			for _, obj := range nodeObjs {
-				node := obj.(*v1.Node)
-				nodesList = append(nodesList, *node)
-			}
-			sort.Sort(NodeList(nodesList))
-			nodes, err = ctlr.getNodes(nodesList)
-			nodeInf.oldNodes = nodes
-			if nil != err {
-				log.Warningf("Unable to get list of nodes, err=%+v", err)
-			}
+			nodes = make([]Node, len(nodeInf.oldNodes))
+			copy(nodes, nodeInf.oldNodes)
 		}
 	}
 	return nodes

@@ -3,15 +3,16 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
+	"strings"
+	"time"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	v1 "k8s.io/api/core/v1"
-	"reflect"
-	"sort"
-	"strings"
-	"time"
 )
 
 func (ctlr *Controller) SetupNodeProcessing() error {
@@ -259,6 +260,15 @@ func (ctlr *Controller) getNodesWithLabel(
 	return nodes
 }
 
+func ciliumPodCidr(annotation map[string]string) string {
+	if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation13]; ok {
+		return subnet
+	} else if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation12]; ok {
+		return subnet
+	}
+	return ""
+}
+
 func (ctlr *Controller) processStaticRouteUpdate(
 	nodes []interface{},
 ) {
@@ -311,6 +321,22 @@ func (ctlr *Controller) processStaticRouteUpdate(
 				route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
 			}
 
+		} else if ctlr.OrchestrationCNI == CILIUM_K8S {
+			nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
+			if nodesubnet == "" {
+				log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
+				continue
+			} else {
+				route.Network = nodesubnet
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+					}
+				}
+
+			}
 		} else {
 			//For k8s CNI like flannel, antrea etc we can get subnet from node spec
 			podCIDR := node.Spec.PodCIDR

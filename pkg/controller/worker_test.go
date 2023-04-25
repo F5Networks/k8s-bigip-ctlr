@@ -1800,6 +1800,92 @@ var _ = Describe("Worker Tests", func() {
 				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
 
 			})
+
+			It("test Virtual Server with http profile analytics from policy", func() {
+
+				crInf := mockCtlr.newNamespacedCustomResourceInformer(namespace)
+				nrInf := mockCtlr.newNamespacedNativeResourceInformer(namespace)
+				crInf.start()
+				nrInf.start()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.setInitialServiceCount()
+				mockCtlr.migrateIPAM()
+
+				policy.Spec.AnalyticsProfiles = cisapiv1.AnalyticsProfiles{
+					HTTPAnalyticsProfile: cisapiv1.HTTPAnalyticsProfile{
+						BigIP: "/Common/test",
+					},
+				}
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				mockCtlr.addTLSProfile(tlsSecretProf)
+				mockCtlr.processResources()
+
+				mockCtlr.addSecret(secret)
+				mockCtlr.processResources()
+				vs.Spec.VirtualServerAddress = "10.8.0.1"
+				vs.Spec.HTTPTraffic = TLSRedirectInsecure
+				vs.Spec.VirtualServerHTTPPort = 80
+
+				mockCtlr.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				// Should process VS now
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not Processed")
+
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+
+				// only secured vs should have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTPS
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+
+				// only unsecured vs should have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTP
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+
+				// both vs should have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = ""
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+
+				// both vs should not have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = ""
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+
+			})
+
 			It("Virtual Server with IPAM", func() {
 				go mockCtlr.Agent.agentWorker()
 				go mockCtlr.Agent.retryWorker()
@@ -3119,6 +3205,116 @@ extendedRouteSpec:
 					To(Equal(true), "http mrf route not processed")
 				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.HttpMrfRoutingEnabled).
 					To(Equal(false), "http mrf route not processed")
+			})
+			It("Test http profile analytics with routes", func() {
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+				mockCtlr.Agent.ccclGTMAgent = false
+
+				routeGroup := "default"
+				policy.Spec.AnalyticsProfiles = cisapiv1.AnalyticsProfiles{
+					HTTPAnalyticsProfile: cisapiv1.HTTPAnalyticsProfile{
+						BigIP: "/Common/test",
+					},
+				}
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				labels := make(map[string]string)
+				labels["app"] = "UpdatePoolHealthMonitors"
+				svc.Spec.Selector = labels
+				pod := &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pod",
+						Labels:    labels,
+						Namespace: namespace,
+					},
+				}
+				Handler := v1.Handler{
+					Exec: &v1.ExecAction{
+						Command: nil,
+					},
+				}
+				cnt := v1.Container{
+					LivenessProbe: &v1.Probe{
+
+						TimeoutSeconds:   10,
+						PeriodSeconds:    10,
+						SuccessThreshold: 1,
+						Handler:          Handler,
+					},
+					Ports: []v1.ContainerPort{
+						v1.ContainerPort{
+							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
+				}
+				pod.Spec.Containers = append(pod.Spec.Containers, cnt)
+
+				mockCtlr.addPod(pod)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+				route1.Spec.TLS.Termination = TLSReencrypt
+				route1.Spec.Host = "test.com"
+				_, ok := route1.Annotations[LegacyHealthMonitorAnnotation]
+				if ok {
+					delete(route1.Annotations, LegacyHealthMonitorAnnotation)
+				}
+				route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyRedirect
+				mockCtlr.addRoute(route1)
+				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+
+				// only secured vs should have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTPS
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+
+				// only unsecured vs should have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTP
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+
+				// both vs should have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = ""
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+
+				// both vs should not have http analytics profile
+				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = ""
+				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+					To(BeEmpty(), "http profile analytics not processed correctly")
 			})
 
 			It("Process Re-encrypt Route", func() {

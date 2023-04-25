@@ -12,8 +12,9 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | l3Policies  | Object | Optional | N/A     | BIG-IP l3Policies in Policy CR.                                                                                                                                                       |
 | ltmPolicies | Object | Optional | N/A     | BIG-IP LTM Policies in Policy CR.                                                                                                                                                     |
 | iRules      | Object | Optional | N/A     | BIG-IP iRules in Policy CR.                                                                                                                                                           |
- | iRuleList  |  Object | Optional | N/A    |  List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                             |
-| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 |
+ | iRuleList  |  Object | Optional | N/A    | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
+| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 
+| analyticsProfiles    | Object | Optional | N/A     | Configures different analytics profiles on BIGIP virtual server.                                                                                                                      |
 | tcp         | Object | Optional | N/A     | BIG-IP TCP client and server profiles in Policy CR.                                                                                                                                   |
 | snat        | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
 | autoLastHop    | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
@@ -83,3 +84,16 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | --------- | ------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | client    | String | Required | N/A Custom\_TCP | CIS uses the AS3 default TCP client profile. Allowed values are existing BIG-IP TCP Client profiles.                             |
 | server    | String | Optional | N/A             | Allowed values are existing BIG-IP TCP Server profiles. **Note: Server TCP Profile can only be used along with Client profile.** |
+
+### Analytics Profiles Components
+
+| Parameter | Type   | Required | Default         | Description                                                                                                                      |
+| --------- | ------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| http    | Object | Optional | N/A  | CIS will configure http analytics profile on virtual server.
+
+### HTTP Analytics Profile Components
+
+| Parameter | Type   | Required | Default         | Description                                                                                                                      |
+| --------- | ------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| bigip    | String | Optional | N/A  | Reference to existing http analytics profile on BIGIP
+| apply    | String | Optional | N/A  | allowed values are [http, https , both] 

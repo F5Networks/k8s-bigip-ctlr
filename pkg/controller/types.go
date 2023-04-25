@@ -215,9 +215,19 @@ type (
 		HttpMrfRoutingEnabled      *bool                 `json:"httpMrfRoutingEnabled,omitempty"`
 		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
 		AutoLastHop                string                `json:"lastHop,omitempty"`
+		AnalyticsProfiles          AnalyticsProfiles     `json:"analyticsProfiles,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
+
+	AnalyticsProfiles struct {
+		HTTPAnalyticsProfile HTTPAnalyticsProfile `json:"http,omitempty"`
+	}
+
+	HTTPAnalyticsProfile struct {
+		BigIP string `json:"bigip,omitempty"`
+		Apply string `json:"apply,omitempty"`
+	}
 
 	ProfileTCP struct {
 		Client string `json:"client,omitempty"`
@@ -922,6 +932,7 @@ type (
 		ProfileBotDefense      as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
 		HttpMrfRoutingEnabled  bool                 `json:"httpMrfRoutingEnabled,omitempty"`
 		IpIntelligencePolicy   as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
+		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

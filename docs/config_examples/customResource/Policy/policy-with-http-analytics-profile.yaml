@@ -1,0 +1,20 @@
+# valid values for apply are [http, https, both]
+# if no value is specified for apply, then analytics profile will be applied for http and https VS
+# analyticsProfiles is supported in Virtual Server custom resource and NextGen routes
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy1
+  namespace: test
+spec:
+  analyticsProfiles:
+    http:
+      bigip: /Common/analytics
+      apply: http
+  iRuleList: {}
+  iRules: {}
+  l3Policies: {}
+  l7Policies: {}
+  profiles: {}

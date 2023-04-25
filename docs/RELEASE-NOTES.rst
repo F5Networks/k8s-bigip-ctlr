@@ -14,12 +14,14 @@ Added Functionality
         * Add Support of server-side http2 profile
         * Support setting Auto-LastHop option from policy CR
         * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only)
+        * Support for setting http analytics profile from policy CR
     * Ingress
         *
     * CRD
         * Support for configuring multiple iRules with policyCR
         * Add Support of ServerSide HTTP2 Profile in Policy CR and VS CR
         * Support setting http mrf router option from policy CR(applicable only to VS cr)
+        * Support for setting http analytics profile from policy CR
     * Static route support added for ovn-k8s,flannel and antrea CNI.
     * Support for operator in openshift 4.12
 Bug Fixes

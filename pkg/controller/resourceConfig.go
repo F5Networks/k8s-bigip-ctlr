@@ -1859,6 +1859,16 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
 	}
 
+	if plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP != "" &&
+		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
+		//  Apply : both or empty -> analytics will be applied for both HTTP and HTTPS
+		if plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply == "both" ||
+			plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply == "" ||
+			rsCfg.MetaData.Protocol == plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply {
+			rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP
+		}
+	}
+
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}

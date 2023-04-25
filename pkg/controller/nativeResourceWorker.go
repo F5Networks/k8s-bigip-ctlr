@@ -1913,6 +1913,17 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs []MultiClusterConfig) error {
 	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
 		log.Infof("No multi cluster config provided.")
+		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
+		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
+			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
+				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
+			}
+		}
+		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
+			for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+				delete(ctlr.resources.multiClusterConfigs, clusterName)
+			}
+		}
 		return nil
 	}
 	currentClusterSecretKeys := make(map[string]struct{})

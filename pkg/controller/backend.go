@@ -1142,6 +1142,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		svc.HttpMrfRoutingEnabled = *cfg.Virtual.HttpMrfRoutingEnabled
 	}
 	svc.AutoLastHop = cfg.Virtual.AutoLastHop
+
+	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP != "" {
+		svc.HttpAnalyticsProfile = &as3ResourcePointer{
+			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP,
+		}
+	}
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

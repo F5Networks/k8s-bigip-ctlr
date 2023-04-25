@@ -869,6 +869,19 @@ spec:
                       type: array
                     httpMrfRoutingEnabled:
                       type: boolean
+                analyticsProfiles: 
+                  type: object
+                  properties:
+                    http:
+                      type: object
+                      properties:
+                        apply:
+                          type: string
+                          enum: [http, https, both]
+                        bigip:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+
                 autoLastHop:
                   type: string
                   enum: [ default, auto, disable ]

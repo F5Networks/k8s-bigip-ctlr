@@ -272,14 +272,24 @@ type ExternalDNSList struct {
 }
 
 type PolicySpec struct {
-	L7Policies  L7PolicySpec  `json:"l7Policies,omitempty"`
-	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
-	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
-	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
-	IRuleList   IRuleListSpec `json:"iRuleList,omitempty"`
-	Profiles    ProfileSpec   `json:"profiles,omitempty"`
-	SNAT        string        `json:"snat,omitempty"`
-	AutoLastHop string        `json:"autoLastHop,omitempty"`
+	L7Policies        L7PolicySpec      `json:"l7Policies,omitempty"`
+	L3Policies        L3PolicySpec      `json:"l3Policies,omitempty"`
+	LtmPolicies       LtmIRulesSpec     `json:"ltmPolicies,omitempty"`
+	IRules            LtmIRulesSpec     `json:"iRules,omitempty"`
+	IRuleList         IRuleListSpec     `json:"iRuleList,omitempty"`
+	Profiles          ProfileSpec       `json:"profiles,omitempty"`
+	AnalyticsProfiles AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
+	SNAT              string            `json:"snat,omitempty"`
+	AutoLastHop       string            `json:"autoLastHop,omitempty"`
+}
+
+type AnalyticsProfiles struct {
+	HTTPAnalyticsProfile HTTPAnalyticsProfile `json:"http,omitempty"`
+}
+
+type HTTPAnalyticsProfile struct {
+	BigIP string `json:"bigip,omitempty"`
+	Apply string `json:"apply,omitempty"`
 }
 
 type L7PolicySpec struct {

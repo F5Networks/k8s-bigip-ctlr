@@ -292,6 +292,22 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 	return poolName
 }
 
+func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host string, cxt SvcBackendCxt) string {
+	poolName := pool.Name
+	if poolName == "" || pool.AlternateBackends != nil {
+		targetPort := pool.ServicePort
+		svcNamespace := ns
+		if cxt.SvcNamespace != "" {
+			svcNamespace = cxt.SvcNamespace
+		}
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort)
+		}
+		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host)
+	}
+	return poolName
+}
+
 // format the pool name for an VirtualServer
 func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string) string {
 	servicePort := fetchPortString(port)
@@ -441,89 +457,92 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-
-		poolName := ctlr.framePoolName(vs.Namespace, pl, vs.Spec.Host)
-		//check for custom monitor
-		var monitorName string
-		if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
-			monitorName = pl.Monitor.Name
-		} else {
-			monitorName = pl.Name + "-monitor"
-		}
-
-		if _, ok := framedPools[poolName]; ok {
-			// Pool with same name framed earlier, so skipping this pool
-			log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
-			continue
-		}
-		framedPools[poolName] = struct{}{}
-		targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = pl.ServicePort
-		}
-		svcNamespace := vs.Namespace
-		if pl.ServiceNamespace != "" {
-			svcNamespace = pl.ServiceNamespace
-		}
-		pool := Pool{
-			Name:              poolName,
-			Partition:         rsCfg.Virtual.Partition,
-			ServiceName:       pl.Service,
-			ServiceNamespace:  svcNamespace,
-			ServicePort:       targetPort,
-			NodeMemberLabel:   pl.NodeMemberLabel,
-			Balance:           pl.Balance,
-			ReselectTries:     pl.ReselectTries,
-			ServiceDownAction: pl.ServiceDownAction,
-		}
-		if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
-		} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
-			if pl.Name == "" {
-				monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
+		//Fetch service backends with weights for pool
+		backendSvcs := ctlr.GetPoolBackends(&pl)
+		for _, SvcBackend := range backendSvcs {
+			poolName := ctlr.framePoolNameForVs(vs.Namespace, pl, vs.Spec.Host, SvcBackend)
+			//check for custom monitor
+			var monitorName string
+			if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
+				monitorName = pl.Monitor.Name
+			} else {
+				monitorName = pl.Name + "-monitor"
 			}
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-			monitor := Monitor{
-				Name:       monitorName,
-				Partition:  rsCfg.Virtual.Partition,
-				Type:       pl.Monitor.Type,
-				Interval:   pl.Monitor.Interval,
-				Send:       pl.Monitor.Send,
-				Recv:       pl.Monitor.Recv,
-				Timeout:    pl.Monitor.Timeout,
-				TargetPort: pl.Monitor.TargetPort,
+
+			if _, ok := framedPools[poolName]; ok {
+				// Pool with same name framed earlier, so skipping this pool
+				log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
+				continue
 			}
-			monitors = append(monitors, monitor)
-		} else if pl.Monitors != nil {
-			for _, monitor := range pl.Monitors {
-				if monitor.Name != "" && monitor.Reference == BIGIP {
-					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
-				} else {
-					var formatPort intstr.IntOrString
-					if monitor.TargetPort != 0 {
-						formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+			framedPools[poolName] = struct{}{}
+			targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
+			if (intstr.IntOrString{}) == targetPort {
+				targetPort = pl.ServicePort
+			}
+			svcNamespace := vs.Namespace
+			if SvcBackend.SvcNamespace != "" {
+				svcNamespace = SvcBackend.SvcNamespace
+			}
+			pool := Pool{
+				Name:              poolName,
+				Partition:         rsCfg.Virtual.Partition,
+				ServiceName:       SvcBackend.Name,
+				ServiceNamespace:  svcNamespace,
+				ServicePort:       targetPort,
+				NodeMemberLabel:   pl.NodeMemberLabel,
+				Balance:           pl.Balance,
+				ReselectTries:     pl.ReselectTries,
+				ServiceDownAction: pl.ServiceDownAction,
+			}
+			if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
+			} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+				if pl.Name == "" {
+					monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
+				}
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+				monitor := Monitor{
+					Name:       monitorName,
+					Partition:  rsCfg.Virtual.Partition,
+					Type:       pl.Monitor.Type,
+					Interval:   pl.Monitor.Interval,
+					Send:       pl.Monitor.Send,
+					Recv:       pl.Monitor.Recv,
+					Timeout:    pl.Monitor.Timeout,
+					TargetPort: pl.Monitor.TargetPort,
+				}
+				monitors = append(monitors, monitor)
+			} else if pl.Monitors != nil {
+				for _, monitor := range pl.Monitors {
+					if monitor.Name != "" && monitor.Reference == BIGIP {
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
 					} else {
-						formatPort = pl.ServicePort
+						var formatPort intstr.IntOrString
+						if monitor.TargetPort != 0 {
+							formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+						} else {
+							formatPort = pl.ServicePort
+						}
+						if monitor.Name == "" {
+							monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, monitor.Type, formatPort, vs.Spec.Host, pl.Path)
+						}
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+						monitor := Monitor{
+							Name:       monitorName,
+							Partition:  rsCfg.Virtual.Partition,
+							Type:       monitor.Type,
+							Interval:   monitor.Interval,
+							Send:       monitor.Send,
+							Recv:       monitor.Recv,
+							Timeout:    monitor.Timeout,
+							TargetPort: monitor.TargetPort,
+						}
+						rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 					}
-					if monitor.Name == "" {
-						monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, vs.Spec.Host, pl.Path)
-					}
-					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-					monitor := Monitor{
-						Name:       monitorName,
-						Partition:  rsCfg.Virtual.Partition,
-						Type:       monitor.Type,
-						Interval:   monitor.Interval,
-						Send:       monitor.Send,
-						Recv:       monitor.Recv,
-						Timeout:    monitor.Timeout,
-						TargetPort: monitor.TargetPort,
-					}
-					rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 				}
 			}
+			pools = append(pools, pool)
 		}
-		pools = append(pools, pool)
 	}
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
@@ -936,16 +955,41 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
-
-		poolName := ctlr.framePoolName(
-			vs.ObjectMeta.Namespace,
-			pl,
-			vs.Spec.Host,
-		)
-		if len(tls.Spec.Hosts) > 1 {
-			poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
-		} else {
-			poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
+		poolBackends := ctlr.GetPoolBackends(&pl)
+		for _, backend := range poolBackends {
+			poolName := ctlr.framePoolNameForVs(
+				vs.ObjectMeta.Namespace,
+				pl,
+				vs.Spec.Host,
+				backend,
+			)
+			if len(tls.Spec.Hosts) > 1 {
+				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
+			} else {
+				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
+			}
+		}
+		//Handle AB datagroup for virtualserver
+		if rsCfg.Virtual.VirtualAddress.Port == httpsPort || (rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure) {
+			ctlr.updateDataGroupForABVirtualServer(&pl,
+				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+				rsCfg.Virtual.Partition,
+				vs.Namespace,
+				rsCfg.IntDgMap,
+				pl.ServicePort,
+				vs.Spec.Host,
+				tls.Spec.TLS.Termination,
+			)
+			//path based AB deployment not supported for passthrough
+			if isVsPathBasedABDeployment(&pl) &&
+				(tls.Spec.TLS.Termination == TLSEdge ||
+					(tls.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
+				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
+			}
+			// handle AB traffic for edge termination with allow
+			if isVSABDeployment(&pl) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
+				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
+			}
 		}
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
@@ -2180,4 +2224,30 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route) string {
 		sslProfileOption = InvalidSSLOption
 	}
 	return sslProfileOption
+}
+
+// return the services associated with a virtualserver pool (svc names + weight)
+func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
+	numOfBackends := 1
+	if pool.AlternateBackends != nil {
+		numOfBackends += len(pool.AlternateBackends)
+	}
+	sbcs := make([]SvcBackendCxt, numOfBackends)
+
+	beIdx := 0
+	sbcs[beIdx].Name = pool.Service
+
+	sbcs[beIdx].Weight = int(pool.Weight)
+	if pool.ServiceNamespace != "" {
+		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
+	}
+	if pool.AlternateBackends != nil {
+		for _, svc := range pool.AlternateBackends {
+			beIdx = beIdx + 1
+			sbcs[beIdx].Name = svc.Service
+			sbcs[beIdx].Weight = int(svc.Weight)
+			sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
+		}
+	}
+	return sbcs
 }

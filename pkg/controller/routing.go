@@ -83,49 +83,56 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			uri = vs.Spec.Host + vs.Spec.RewriteAppRoot
 			path = vs.Spec.RewriteAppRoot
 		}
-
-		poolName := ctlr.framePoolName(
-			vs.ObjectMeta.Namespace,
-			pl,
-			vs.Spec.Host,
-		)
-		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
-		var err error
-		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, false)
-		if nil != err {
-			log.Errorf("Error configuring rule: %v", err)
-			return nil
+		poolBackends := ctlr.GetPoolBackends(&pl)
+		skipPool := false
+		if pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0 {
+			skipPool = true
 		}
-		if pl.HostRewrite != "" {
-			hostRewriteActions, err := getHostRewriteActions(
-				pl.HostRewrite,
-				len(rl.Actions),
+		for _, backend := range poolBackends {
+			poolName := ctlr.framePoolNameForVs(
+				vs.ObjectMeta.Namespace,
+				pl,
+				vs.Spec.Host,
+				backend,
 			)
+			ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
+			var err error
+			rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, skipPool)
 			if nil != err {
 				log.Errorf("Error configuring rule: %v", err)
 				return nil
 			}
-			rl.Actions = append(rl.Actions, hostRewriteActions...)
-		}
-		if pl.Rewrite != "" {
-			rewriteActions, err := getRewriteActions(
-				path,
-				pl.Rewrite,
-				len(rl.Actions),
-			)
-			if nil != err {
-				log.Errorf("Error configuring rule: %v", err)
-				return nil
+			if pl.HostRewrite != "" {
+				hostRewriteActions, err := getHostRewriteActions(
+					pl.HostRewrite,
+					len(rl.Actions),
+				)
+				if nil != err {
+					log.Errorf("Error configuring rule: %v", err)
+					return nil
+				}
+				rl.Actions = append(rl.Actions, hostRewriteActions...)
 			}
-			rl.Actions = append(rl.Actions, rewriteActions...)
-		}
+			if pl.Rewrite != "" {
+				rewriteActions, err := getRewriteActions(
+					path,
+					pl.Rewrite,
+					len(rl.Actions),
+				)
+				if nil != err {
+					log.Errorf("Error configuring rule: %v", err)
+					return nil
+				}
+				rl.Actions = append(rl.Actions, rewriteActions...)
+			}
 
-		if pl.Path == "/" {
-			redirects = append(redirects, rl)
-		} else if true == strings.HasPrefix(uri, "*.") {
-			wildcards[uri] = rl
-		} else {
-			rlMap[uri] = rl
+			if pl.Path == "/" {
+				redirects = append(redirects, rl)
+			} else if true == strings.HasPrefix(uri, "*.") {
+				wildcards[uri] = rl
+			} else {
+				rlMap[uri] = rl
+			}
 		}
 	}
 
@@ -1120,7 +1127,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	path := route.Spec.Path
 	tls := route.Spec.TLS
 	if tls != nil {
-		// We don't support path-based A/B for pass-thru and re-encrypt
+		// We don't support path-based A/B for pass-thru
 		switch tls.Termination {
 		case routeapi.TLSTerminationPassthrough:
 			path = ""
@@ -1172,13 +1179,21 @@ func isRoutePathBasedABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0 && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 
+func isVSABDeployment(pool *cisapiv1.Pool) bool {
+	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0
+}
+
+func isVsPathBasedABDeployment(pool *cisapiv1.Pool) bool {
+	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
+}
+
 // return the services associated with a route (names + weight)
-func GetRouteBackends(route *routeapi.Route) []RouteBackendCxt {
+func GetRouteBackends(route *routeapi.Route) []SvcBackendCxt {
 	numOfBackends := 1
 	if route.Spec.AlternateBackends != nil {
 		numOfBackends += len(route.Spec.AlternateBackends)
 	}
-	rbcs := make([]RouteBackendCxt, numOfBackends)
+	rbcs := make([]SvcBackendCxt, numOfBackends)
 
 	beIdx := 0
 	rbcs[beIdx].Name = route.Spec.To.Name
@@ -1199,4 +1214,70 @@ func GetRouteBackends(route *routeapi.Route) []RouteBackendCxt {
 	}
 
 	return rbcs
+}
+
+// updateDataGroupForABVirtualServer updates the data group map based on alternativeBackends of route.
+func (ctlr *Controller) updateDataGroupForABVirtualServer(
+	pool *cisapiv1.Pool,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port intstr.IntOrString,
+	host string,
+	termination string,
+) {
+	if !isVSABDeployment(pool) {
+		return
+	}
+
+	weightTotal := 0
+	backends := ctlr.GetPoolBackends(pool)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+		if svc.SvcNamespace != "" {
+			namespace = svc.SvcNamespace
+		}
+	}
+
+	path := pool.Path
+	// We don't support path-based A/B for pass-thru
+	switch termination {
+	case TLSPassthrough:
+		path = ""
+	}
+	if path == "/" {
+		path = ""
+	}
+	key := host + path
+
+	if weightTotal == 0 {
+		// If all services have 0 weight, 503 will be returned
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0
+		for _, be := range backends {
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+			poolName := formatPoolName(
+				namespace,
+				be.Name,
+				port,
+				"",
+				host,
+			)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
+	}
 }

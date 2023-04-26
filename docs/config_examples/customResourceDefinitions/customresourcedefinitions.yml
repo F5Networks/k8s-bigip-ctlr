@@ -135,6 +135,28 @@ spec:
                       service:
                         type: string
                         pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                      weight:
+                        type: integer
+                        minimum: 0
+                        maximum: 256
+                      alternateBackends:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            service:
+                              type: string
+                              pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                            serviceNamespace:
+                              type: string
+                              pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                            weight:
+                              type: integer
+                              minimum: 0
+                              maximum: 256
+                          required:
+                            - service
+                            - weight
                       loadBalancingMethod:
                         type: string
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'

@@ -793,6 +793,13 @@ func filterVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
 				isValidVirtual = true
 				break
 			}
+			// check if svc matches ab
+			for _, ab := range pool.AlternateBackends {
+				if ab.Service == svcName {
+					isValidVirtual = true
+					break
+				}
+			}
 		}
 		if !isValidVirtual {
 			continue

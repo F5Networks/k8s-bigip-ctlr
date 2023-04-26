@@ -393,7 +393,17 @@ type (
 		MonitorNames      []MonitorName      `json:"monitors,omitempty"`
 		ReselectTries     int32              `json:"reselectTries,omitempty"`
 		ServiceDownAction string             `json:"serviceDownAction,omitempty"`
+		Weight            int32              `json:"weight,omitempty"`
+		AlternateBackends []AlternateBackend `json:"alternateBackends"`
 	}
+
+	// AlternateBackends lists backend svc of A/B
+	AlternateBackend struct {
+		Service          string `json:"service"`
+		ServiceNamespace string `json:"serviceNamespace,omitempty"`
+		Weight           int32  `json:"weight,omitempty"`
+	}
+
 	// Pools is slice of pool
 	Pools []Pool
 
@@ -649,11 +659,12 @@ type (
 )
 
 type (
-	Services        []*v1.Service
-	NodeList        []v1.Node
-	RouteBackendCxt struct {
-		Weight int
-		Name   string
+	Services      []*v1.Service
+	NodeList      []v1.Node
+	SvcBackendCxt struct {
+		Weight       int
+		Name         string
+		SvcNamespace string `json:"svcNamespace,omitempty"`
 	}
 )
 

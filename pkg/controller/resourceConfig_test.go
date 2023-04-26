@@ -261,6 +261,47 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 
+		It("Validate Resource Config from a AB Deployment VirtualServer", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					Pools: []cisapiv1.Pool{
+						{
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+							Weight: 70,
+							AlternateBackends: []cisapiv1.AlternateBackend{
+								{
+									Service:          "svc1-b",
+									ServiceNamespace: "test2",
+									Weight:           30,
+								},
+							},
+						},
+					},
+				},
+			)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(len(rsCfg.Pools)).To(Equal(2), "AB pool not processed")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+			Expect(rsCfg.Pools[1].ServiceNamespace).To(Equal("test2"), "Incorrect namespace defined for pool")
+		})
 		It("Validate Virtual server config with multiple monitors(tcp and http)", func() {
 			rsCfg.MetaData.ResourceType = VirtualServer
 			rsCfg.Virtual.Enabled = true

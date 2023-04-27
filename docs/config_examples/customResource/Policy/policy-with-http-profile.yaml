@@ -1,0 +1,19 @@
+# Example of policyCR with the http profile
+# CIS now allows for greater control over which Virtual Server(secured, unsecured or both) HTTP profile is applied on.
+# HTTP profile field supports two parameters: bigip and apply
+# bigip: specifies BIG-IP reference for the HTTP profile. By default, it's empty.
+# apply: determines on which Virtual Server(secured, unsecured or both) the HTTP profile is applied on. By default, it's applied on both the Virtual servers(secured and unsecured VS)
+# valid values for apply are [http, https, both]
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy1
+  namespace: test
+spec:
+  profiles:
+    http:
+      bigip: /Common/http
+      # if no apply field is specified, or it's set to both then http profile is applied on both secure and unsecure VS
+      # else if apply is set to http or https then profile is applied only on the respective VS

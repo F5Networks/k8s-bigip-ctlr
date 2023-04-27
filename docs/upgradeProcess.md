@@ -280,3 +280,8 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 ### **Upgrading from 2.12.1 to 2.13.0:**
 * CIS extended to leverage server-side http2 profile on virtual Server which requires modification in the existing Policy CRD in case of using http2 functionality.
   * Please change the PolicyCRD accordingly with this [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
+* CIS now allows for greater control over which Virtual Server(secured, unsecured or both) HTTP profile is applied, which requires modifying the existing Policy CRD if an HTTP profile is in use.
+  * HTTP profile field in policyCR has been updated with two parameters: bigip and apply
+  * bigip: specify the HTTP profile reference. By default, it's empty.
+  * apply: determines on which Virtual Server(secured, unsecured or both) the HTTP profile is applied on. By default, it's applied on both the Virtual servers(secured and unsecured VS)
+  * Please change the PolicyCRD accordingly with the [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy) for http profile.

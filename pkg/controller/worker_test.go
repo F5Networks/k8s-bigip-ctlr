@@ -34,6 +34,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// checks if the specified profile is applied on Virtual Server
+func checkProfileOnVS(rsConfig *ResourceConfig, profName string, context string) bool {
+	if rsConfig == nil || &rsConfig.Virtual == nil {
+		return false
+	}
+	for _, prof := range rsConfig.Virtual.Profiles {
+		if prof.Name == profName && prof.Context == context {
+			return true
+		}
+	}
+	return false
+}
+
 var _ = Describe("Worker Tests", func() {
 	var mockCtlr *mockController
 	var vrt1 *cisapiv1.VirtualServer
@@ -1539,7 +1552,7 @@ var _ = Describe("Worker Tests", func() {
 							Client: "/Common/f5-tcp-lan",
 							Server: "/Common/f5-tcp-wan",
 						},
-						HTTP: "/Common/http",
+						HTTP: cisapiv1.ProfileHTTP{BigIP: "/Common/http"},
 						HTTP2: cisapiv1.ProfileHTTP2{
 							Client: "/Common/http2",
 							Server: "/Common/http2server",
@@ -1801,7 +1814,7 @@ var _ = Describe("Worker Tests", func() {
 
 			})
 
-			It("test Virtual Server with http profile analytics from policy", func() {
+			It("test Virtual Server with httpProfile and http analytics profile from policy", func() {
 
 				crInf := mockCtlr.newNamespacedCustomResourceInformer(namespace)
 				nrInf := mockCtlr.newNamespacedNativeResourceInformer(namespace)
@@ -1824,6 +1837,7 @@ var _ = Describe("Worker Tests", func() {
 						BigIP: "/Common/test",
 					},
 				}
+				policy.Spec.Profiles.HTTP = cisapiv1.ProfileHTTP{BigIP: "/Common/http"}
 
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
@@ -1847,42 +1861,67 @@ var _ = Describe("Worker Tests", func() {
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				// verify httpProfile is applied on both the Virtual server
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeTrue(), "http profile not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeTrue(), "http profile not processed correctly")
 
-				// only secured vs should have http analytics profile
+				// only secured vs should have httpProfile and http analytics profile
 				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTPS
+				policy.Spec.Profiles.HTTP.Apply = HTTPS
 				mockCtlr.enqueuePolicy(policy, Update)
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(BeEmpty(), "http profile analytics not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeFalse(), "http profile not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeTrue(), "http profile not processed correctly")
 
-				// only unsecured vs should have http analytics profile
+				// only unsecured vs should have httpProfile and http analytics profile
 				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTP
+				policy.Spec.Profiles.HTTP.Apply = HTTP
 				mockCtlr.enqueuePolicy(policy, Update)
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(BeEmpty(), "http profile analytics not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeTrue(), "http profile not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeFalse(), "http profile not processed correctly")
 
-				// both vs should have http analytics profile
+				// both vs should have httpProfile and http analytics profile
 				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = ""
+				policy.Spec.Profiles.HTTP.Apply = ""
 				mockCtlr.enqueuePolicy(policy, Update)
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeTrue(), "http profile not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeTrue(), "http profile not processed correctly")
 
-				// both vs should not have http analytics profile
+				// both vs should not have httpProfile and http analytics profile
 				policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = ""
+				policy.Spec.Profiles.HTTP.BigIP = ""
 				mockCtlr.enqueuePolicy(policy, Update)
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(BeEmpty(), "http profile analytics not processed correctly")
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 					To(BeEmpty(), "http profile analytics not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeFalse(), "http profile not processed correctly")
+				Expect(checkProfileOnVS(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"],
+					policy.Spec.Profiles.HTTP.BigIP, "http")).To(BeFalse(), "http profile not processed correctly")
 
 			})
 
@@ -3053,7 +3092,7 @@ extendedRouteSpec:
 								Client: "/Common/f5-tcp-lan",
 								Server: "/Common/f5-tcp-wan",
 							},
-							HTTP: "/Common/http",
+							HTTP: cisapiv1.ProfileHTTP{BigIP: "/Common/http"},
 							HTTP2: cisapiv1.ProfileHTTP2{
 								Client: "/Common/http2",
 								Server: "/Common/http2server",

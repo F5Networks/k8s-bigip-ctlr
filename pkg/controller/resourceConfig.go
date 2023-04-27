@@ -1876,12 +1876,17 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP
 	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
-	if len(plc.Spec.Profiles.HTTP) > 0 {
-		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:         plc.Spec.Profiles.HTTP,
-			Context:      "http",
-			BigIPProfile: true,
-		})
+	// If Apply: both or empty, HTTPProfile is applied on both HTTP and HTTPS Virtual Servers else if
+	// Apply: http/https, HTTPProfile is applied on the respective HTTP or HTTPs Virtual Server
+	if plc.Spec.Profiles.HTTP.BigIP != "" && (rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
+		if (plc.Spec.Profiles.HTTP.Apply == "" || plc.Spec.Profiles.HTTP.Apply == "both") ||
+			(rsCfg.MetaData.Protocol == plc.Spec.Profiles.HTTP.Apply) {
+			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+				Name:         plc.Spec.Profiles.HTTP.BigIP,
+				Context:      "http",
+				BigIPProfile: true,
+			})
+		}
 	}
 
 	switch rsCfg.MetaData.Protocol {

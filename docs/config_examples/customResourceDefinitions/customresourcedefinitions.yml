@@ -839,8 +839,14 @@ spec:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     http:
-                      type: string
-                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                      type: object
+                      properties:
+                        apply:
+                          type: string
+                          enum: [ http, https, both ]
+                        bigip:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     http2:
                       type: object
                       properties:

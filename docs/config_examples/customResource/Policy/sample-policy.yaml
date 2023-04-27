@@ -24,7 +24,8 @@ spec:
       client: /Common/f5-tcp-lan
       server: /Common/f5-tcp-wan
     udp: /Common/udp
-    http: /Common/http
+    http:
+      bigip: /Common/http
     http2:
       client: /Common/Samplehttp2Client
       server: /Common/Samplehttp2Server

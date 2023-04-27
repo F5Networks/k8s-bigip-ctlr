@@ -320,7 +320,7 @@ type IRuleListSpec struct {
 type ProfileSpec struct {
 	TCP                   ProfileTCP   `json:"tcp,omitempty"`
 	UDP                   string       `json:"udp,omitempty"`
-	HTTP                  string       `json:"http,omitempty"`
+	HTTP                  ProfileHTTP  `json:"http,omitempty"`
 	HTTP2                 ProfileHTTP2 `json:"http2,omitempty"`
 	RewriteProfile        string       `json:"rewriteProfile,omitempty"`
 	PersistenceProfile    string       `json:"persistenceProfile,omitempty"`
@@ -337,6 +337,11 @@ type ProfileTCP struct {
 type ProfileHTTP2 struct {
 	Client string `json:"client,omitempty"`
 	Server string `json:"server,omitempty"`
+}
+
+type ProfileHTTP struct {
+	BigIP string `json:"bigip,omitempty"`
+	Apply string `json:"apply,omitempty"`
 }
 
 // +genclient

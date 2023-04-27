@@ -1225,6 +1225,6 @@ type (
 		ClusterName string             `json:"clusterName"`
 		SvcName     string             `json:"svcName"`
 		Namespace   string             `json:"namespace"`
-		ServicePort intstr.IntOrString `json:"servicePort"`
+		ServicePort intstr.IntOrString `json:"port"`
 	}
 )

@@ -1967,7 +1967,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
 		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
-				for poolId, _ := range poolIds {
+				for poolId := range poolIds {
 					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName)
 					if rsCfg == nil {
 						continue
@@ -2044,7 +2044,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		_ = ctlr.processService(svc, nil, "")
 	}
 	var poolMembers []PoolMember
-	poolMembers = append(poolMembers, ctlr.getPoolMembers(svcKey, *pool)...)
+	poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, pool.ServicePort, pool.NodeMemberLabel)...)
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
 		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok {
@@ -2066,13 +2066,13 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			if mSvc != nil {
 				_ = ctlr.processService(mSvc, nil, mSvcKey.clusterName)
 			}
-			poolMembers = append(poolMembers, ctlr.getPoolMembers(mSvcKey, *pool)...)
+			poolMembers = append(poolMembers, ctlr.getPoolMembersForService(mSvcKey, mcs.ServicePort, pool.NodeMemberLabel)...)
 		}
 	}
 	pool.Members = poolMembers
 }
 
-func (ctlr *Controller) getPoolMembers(mSvcKey MultiClusterServiceKey, pool Pool) []PoolMember {
+func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
 	var poolMembers []PoolMember
 	poolMemInfo, ok := ctlr.resources.poolMemCache[mSvcKey]
 	switch ctlr.PoolMemberType {
@@ -2085,39 +2085,35 @@ func (ctlr *Controller) getPoolMembers(mSvcKey MultiClusterServiceKey, pool Pool
 		}
 		for _, svcPort := range poolMemInfo.portSpec {
 			// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
-			if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
-				mems := ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel, mSvcKey.clusterName)
+			// also we need to match the resource service port with service's actual port
+			if (servicePort.StrVal != "" && svcPort.Name == servicePort.StrVal) || svcPort.TargetPort == servicePort || svcPort.Port == servicePort.IntVal {
+				mems := ctlr.getEndpointsForNodePort(svcPort.NodePort, nodeMemberLabel, mSvcKey.clusterName)
 				poolMembers = append(poolMembers, mems...)
 			}
 		}
 	case Cluster:
-		if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == mSvcKey.namespace {
-			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", mSvcKey, pool.ServicePort.IntVal)
+		if !ok || len(poolMemInfo.memberMap) == 0 {
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
 			return poolMembers
 		}
 		for ref, mems := range poolMemInfo.memberMap {
-			if ref.name != pool.ServicePort.StrVal && ref.port != pool.ServicePort.IntVal {
+			if ref.name != servicePort.StrVal && ref.port != servicePort.IntVal {
 				continue
 			}
 			poolMembers = append(poolMembers, mems...)
 		}
 	case NodePortLocal:
-		svcName := pool.ServiceName
-		svcKey := MultiClusterServiceKey{
-			serviceName: pool.ServiceName,
-			namespace:   pool.ServiceNamespace,
-			clusterName: "",
-		}
 		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
 			log.Debugf("Requested service backend %s is of type NodePort is not valid for nodeportlocal mode.",
-				svcKey)
+				mSvcKey)
 			return poolMembers
 		}
-		pods := ctlr.GetPodsForService(svcKey.namespace, svcName, true)
+		pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
 				// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
-				if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
+				// also we need to match the resource service port with service's actual port
+				if (servicePort.StrVal != "" && svcPort.Name == servicePort.StrVal) || svcPort.TargetPort == servicePort || svcPort.Port == servicePort.IntVal {
 					podPort := svcPort.TargetPort
 					mems := ctlr.getEndpointsForNPL(podPort, pods)
 					poolMembers = append(poolMembers, mems...)
@@ -2127,7 +2123,7 @@ func (ctlr *Controller) getPoolMembers(mSvcKey MultiClusterServiceKey, pool Pool
 	}
 	//check if endpoints are found
 	if len(poolMembers) == 0 {
-		log.Errorf("Pool Members could not be fetched for service %v with targetPort %v", mSvcKey, pool.ServicePort.IntVal)
+		log.Errorf("Pool Members could not be fetched for service %v with targetPort %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
 	}
 	return poolMembers
 }

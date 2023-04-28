@@ -19,6 +19,7 @@ Added Functionality
         *
     * CRD
         * Support for configuring multiple iRules with policyCR
+        * Add Support for AB deployment with VS CR
         * Add Support of ServerSide HTTP2 Profile in Policy CR and VS CR
         * Support setting http mrf router option from policy CR(applicable only to VS cr)
         * Support for setting http analytics profile from policy CR

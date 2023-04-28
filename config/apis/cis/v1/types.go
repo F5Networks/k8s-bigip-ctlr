@@ -80,6 +80,15 @@ type Pool struct {
 	ReselectTries     int32              `json:"reselectTries,omitempty"`
 	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
 	HostRewrite       string             `json:"hostRewrite,omitempty"`
+	Weight            int32              `json:"weight,omitempty"`
+	AlternateBackends []AlternateBackend `json:"alternateBackends"`
+}
+
+// AlternateBackends lists backend svc of A/B
+type AlternateBackend struct {
+	Service          string `json:"service"`
+	ServiceNamespace string `json:"serviceNamespace,omitempty"`
+	Weight           int32  `json:"weight,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

@@ -177,6 +177,7 @@ var (
 	vxlanMode        string
 	openshiftSDNName *string
 	flannelName      *string
+	ciliumTunnelName *string
 
 	routeVserverAddr *string
 	routeLabel       *string
@@ -382,10 +383,12 @@ func _init() {
 	openshiftSDNName = vxlanFlags.String("openshift-sdn-name", "",
 		"Must be provided for BigIP SDN integration, "+
 			"full path of BigIP OpenShift SDN VxLAN Tunnel")
+	ciliumTunnelName = vxlanFlags.String("cilium-name", "",
+		"Must be provided for BIGIP Cilium Integration, "+
+			"full path of BigIP Cilium VxLAN Tunnel")
 	flannelName = vxlanFlags.String("flannel-name", "",
 		"Must be provided for BigIP Flannel integration, "+
 			"full path of BigIP Flannel VxLAN Tunnel")
-
 	vxlanFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", vxlanFlags.FlagUsagesWrapped(width))
 	}
@@ -479,6 +482,23 @@ func hasCommonPartition(partitions []string) bool {
 	return false
 }
 
+func verifyTunnelArgs() error {
+	var tunnelArgNames []string
+	if *openshiftSDNName != "" {
+		tunnelArgNames = append(tunnelArgNames, "openshift-sdn-name")
+	}
+	if *ciliumTunnelName != "" {
+		tunnelArgNames = append(tunnelArgNames, "cilium-name")
+	}
+	if *flannelName != "" {
+		tunnelArgNames = append(tunnelArgNames, "flannel-name")
+	}
+	if len(tunnelArgNames) > 1 {
+		return fmt.Errorf("Cannot have %v specified", strings.Join(tunnelArgNames, ","))
+	}
+	return nil
+}
+
 func verifyArgs() error {
 	*logLevel = strings.ToUpper(*logLevel)
 	logErr := initLogger(*logLevel, *logFile)
@@ -527,14 +547,15 @@ func verifyArgs() error {
 			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
 				"Must be in Cluster mode if using static route configuration.")
 		}
-		if len(*openshiftSDNName) > 0 || len(*flannelName) > 0 {
-			return fmt.Errorf("Cannot have openshift-sdn-name or flannel-name as static route processing doesnt require tunnel " +
+		if len(*openshiftSDNName) > 0 || len(*ciliumTunnelName) > 0 || len(*flannelName) > 0 {
+			return fmt.Errorf("Cannot have openshift-sdn-name or cilium-name or flannel-name as static route processing doesnt require tunnel " +
 				"configuration.")
 		}
 	}
-
-	if len(*openshiftSDNName) > 0 && len(*flannelName) > 0 {
-		return fmt.Errorf("Cannot have both openshift-sdn-name and flannel-name specified.")
+	//Verify Tunnel parameters list provided
+	err := verifyTunnelArgs()
+	if nil != err {
+		return fmt.Errorf("%v", err)
 	}
 
 	if flags.Changed("openshift-sdn-name") {
@@ -547,16 +568,22 @@ func verifyArgs() error {
 		}
 		vxlanMode = "maintain"
 		vxlanName = *openshiftSDNName
-	} else if flags.Changed("flannel-name") {
-		if len(*flannelName) == 0 && *staticRoutingMode == false {
+	} else if flags.Changed("flannel-name") || flags.Changed("cilium-name") {
+		if flags.Changed("flannel-name") && len(*flannelName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter flannel-name")
 		}
+		if flags.Changed("cilium-name") && len(*ciliumTunnelName) == 0 && *staticRoutingMode == false {
+			return fmt.Errorf("Missing required parameter cilium-name")
+		}
 		if isNodePort {
-			return fmt.Errorf("Cannot run NodePort mode while supplying flannel-name. " +
+			return fmt.Errorf("Cannot run NodePort mode while supplying cilium-name or flannel-name. " +
 				"Must be in Cluster mode if using VXLAN.")
 		}
 		vxlanMode = "maintain"
 		vxlanName = *flannelName
+		if len(*ciliumTunnelName) > 0 {
+			vxlanName = *ciliumTunnelName
+		}
 	}
 
 	if *hubMode && !(*manageConfigMaps) {
@@ -803,7 +830,7 @@ func initController(
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	if *openshiftSDNName != "" || *staticRoutingMode == true {
+	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" {
 		agentParams.DisableARP = true
 	}
 
@@ -819,6 +846,7 @@ func initController(
 			PoolMemberType:     *poolMemberType,
 			VXLANName:          vxlanName,
 			VXLANMode:          vxlanMode,
+			CiliumTunnelName:   *ciliumTunnelName,
 			UseNodeInternal:    *useNodeInternal,
 			NodePollInterval:   *nodePollInterval,
 			NodeLabelSelector:  *nodeLabelSelector,
@@ -894,7 +922,7 @@ func main() {
 
 	// If running with Flannel, create an event channel that the appManager
 	// uses to send endpoints to the VxlanManager
-	if len(*flannelName) > 0 {
+	if len(*ciliumTunnelName) > 0 || len(*flannelName) > 0 {
 		eventChan = make(chan interface{})
 	}
 
@@ -1153,6 +1181,7 @@ func getAppManagerParams() appmanager.Params {
 		Agent:                  *agent,
 		VXLANMode:              vxlanMode,
 		VXLANName:              vxlanName,
+		CiliumTunnelName:       *ciliumTunnelName,
 		EventChan:              eventChan,
 		ConfigWriter:           getConfigWriter(),
 		StaticRoutingMode:      *staticRoutingMode,
@@ -1338,6 +1367,8 @@ func getSDNType(config *rest.Config) string {
 				return "openshiftSDN"
 			}
 			sdnType = setSDNTypeForOpenshift(rconfigclient)
+		} else if len(*ciliumTunnelName) > 0 {
+			sdnType = "cilium"
 		} else if len(*flannelName) > 0 {
 			sdnType = "flannel"
 		} else {

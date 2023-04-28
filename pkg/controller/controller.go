@@ -129,6 +129,7 @@ func NewController(params Params) *Controller {
 		nodeLabelSelector:  params.NodeLabelSelector,
 		vxlanName:          params.VXLANName,
 		vxlanMode:          params.VXLANMode,
+		ciliumTunnelName:   params.CiliumTunnelName,
 		StaticRoutingMode:  params.StaticRoutingMode,
 		OrchestrationCNI:   params.OrchestrationCNI,
 	}

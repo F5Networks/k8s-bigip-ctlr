@@ -25,8 +25,9 @@ Added Functionality
         * Add Support of ServerSide HTTP2 Profile in Policy CR and VS CR
         * Support setting http mrf router option from policy CR(applicable only to VS cr)
         * Support for setting http analytics profile from policy CR
-    * Static route support added for ovn-k8s,flannel and antrea CNI.
+    * Static route support added for ovn-k8s,flannel, cilium and antrea CNI.
     * Support for operator in openshift 4.12
+    * Add --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
 Bug Fixes
 ````````````
 * `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal

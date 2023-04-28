@@ -89,23 +89,23 @@ var _ = Describe("VxlanMgr Tests", func() {
 			Sections:  make(map[string]interface{}),
 		}
 
-		vxMgr, err := NewVxlanMgr("", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("", "vxlan500", "", true, mock, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(vxMgr).To(BeNil())
 
-		vxMgr, err = NewVxlanMgr("gobbledy-goo", "vxlan500", true, mock, nil)
+		vxMgr, err = NewVxlanMgr("gobbledy-goo", "vxlan500", "", true, mock, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(vxMgr).To(BeNil())
 
-		vxMgr, err = NewVxlanMgr("maintain", "", true, mock, nil)
+		vxMgr, err = NewVxlanMgr("maintain", "", "", true, mock, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(vxMgr).To(BeNil())
 
-		vxMgr, err = NewVxlanMgr("maintain", "vxlan500", true, nil, nil)
+		vxMgr, err = NewVxlanMgr("maintain", "vxlan500", "", true, nil, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(vxMgr).To(BeNil())
 
-		vxMgr, err = NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err = NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(vxMgr).ToNot(BeNil())
 	})
@@ -116,7 +116,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 			Sections:  make(map[string]interface{}),
 		}
 
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
 			vxMgr.ProcessNodeUpdate(struct{}{})
@@ -130,7 +130,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 			Sections:  make(map[string]interface{}),
 		}
 
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
 			vxMgr.ProcessNodeUpdate(struct{}{})
@@ -146,7 +146,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 
 		nodeList := getNodeList()
 
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
 			vxMgr.ProcessNodeUpdate(nodeList)
@@ -268,7 +268,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 
 		nodeList := getNodeList()
 
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
 			vxMgr.ProcessNodeUpdate(nodeList)
@@ -284,7 +284,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 
 		nodeList := getNodeList()
 
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
 			vxMgr.ProcessNodeUpdate(nodeList)
@@ -300,7 +300,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 
 		nodeList := getNodeList()
 
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
 			vxMgr.ProcessNodeUpdate(nodeList)
@@ -315,7 +315,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		}
 		fakeClient := fake.NewSimpleClientset()
 		eventChan := make(chan interface{})
-		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, eventChan)
+		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", "", true, mock, eventChan)
 		Expect(err).ToNot(HaveOccurred())
 		vxMgr.useNodeInt = true
 

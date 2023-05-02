@@ -48,7 +48,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 	annotationsUsed := &AnnotationsUsed{}
 	var policySSLProfiles rgPlcSSLProfiles
-	err, plc := ctlr.getRouteGroupPolicy(extdSpec)
+	plc, err := ctlr.getRouteGroupPolicy(extdSpec)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// deletion ; update /health /app/path1
 
-		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, plc, annotationsUsed, extdSpec.AllowOverride)
+		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, plc, annotationsUsed, extdSpec)
 
 		if err != nil {
 			processingError = true
@@ -257,21 +257,36 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string,
 }
 
 func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
-	au *AnnotationsUsed, allowOverride string) error {
-	if plc != nil {
-		err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+	au *AnnotationsUsed, extdSpec *ExtendedRouteGroupSpec) error {
+	var policy *cisapiv1.Policy
+	if extdSpec.HTTPServerPolicyCR != "" && rsCfg.MetaData.Protocol == HTTP {
+		// GetPolicy
+		splits := strings.Split(extdSpec.HTTPServerPolicyCR, "/")
+		if len(splits) != 2 {
+			return fmt.Errorf("Policy %s not in the format <namespace>/<policy-name>", extdSpec.HTTPServerPolicyCR)
+		}
+		var err error
+		policy, err = ctlr.getPolicy(splits[0], splits[1])
+		if err != nil {
+			return err
+		}
+	} else {
+		policy = plc
+	}
+	if policy != nil {
+		err := ctlr.handleVSResourceConfigForPolicy(rsCfg, policy)
 		if err != nil {
 			return err
 		}
 
 		// If allowOverride is true and routes use WAF annotation then WAF specified in policy CR is deprioritized
-		if allowOverride, err := strconv.ParseBool(allowOverride); err == nil && allowOverride && au.WAF {
+		if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride && au.WAF {
 			rsCfg.Virtual.WAF = ""
 		}
 
 		// If allowOverride is true and routes use allow-source-range annotation then allow-source-range specified
 		// in policy CR is deprioritized
-		if allowOverride, err := strconv.ParseBool(allowOverride); err == nil && allowOverride &&
+		if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride &&
 			au.AllowSourceRange {
 			rsCfg.Virtual.AllowSourceRange = nil
 		}
@@ -279,27 +294,16 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc 
 	return nil
 }
 
-func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (error, *cisapiv1.Policy) {
+func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
 	policy := extdSpec.Policy
 	if policy != "" {
 		splits := strings.Split(policy, "/")
-		policyNamespace := splits[0]
-		comInf, ok := ctlr.getNamespacedCommonInformer(policyNamespace)
-		if !ok {
-			return fmt.Errorf("Informer not found for namespace: %v", policyNamespace), nil
+		if len(splits) != 2 {
+			return nil, fmt.Errorf("Policy %v not in the format <namespace>/<policy-name>", policy)
 		}
-		obj, exist, err := comInf.plcInformer.GetIndexer().GetByKey(policy)
-		if err != nil {
-			return fmt.Errorf("Error while fetching Policy: %v: %v", policy, err), nil
-		}
-		if !exist {
-			return fmt.Errorf("Policy Not Found: %v", policy), nil
-		}
-		plc := obj.(*cisapiv1.Policy)
-		return nil, plc
+		return ctlr.getPolicy(splits[0], splits[1])
 	}
 	return nil, nil
-
 }
 
 // gets the target port for the route
@@ -1778,15 +1782,15 @@ func (ctlr *Controller) getRouteGroupForCustomPolicy(policy string) []string {
 		if extdSpec.override {
 			// continue if extended spec is not set
 			if extdSpec.local == nil {
-				if extdSpec.global != nil && extdSpec.global.Policy == policy {
+				if extdSpec.global != nil && (extdSpec.global.Policy == policy || extdSpec.global.HTTPServerPolicyCR == policy) {
 					routeGroups = append(routeGroups, rg)
 				}
 				continue
 			}
-			if extdSpec.local.Policy == policy {
+			if extdSpec.local.Policy == policy || extdSpec.local.HTTPServerPolicyCR == policy {
 				routeGroups = append(routeGroups, rg)
 			}
-			if extdSpec.local.Policy == "" && extdSpec.global.Policy == policy {
+			if extdSpec.local.Policy == "" && (extdSpec.global.Policy == policy || extdSpec.global.HTTPServerPolicyCR == policy) {
 				routeGroups = append(routeGroups, rg)
 			} else {
 				continue
@@ -1794,11 +1798,11 @@ func (ctlr *Controller) getRouteGroupForCustomPolicy(policy string) []string {
 		} else {
 			//handle policycr for defaultRouteGroup
 			if rg == defaultRouteGroupName {
-				if extdSpec.defaultrg.Policy == policy {
+				if extdSpec.defaultrg.Policy == policy || extdSpec.defaultrg.HTTPServerPolicyCR == policy {
 					routeGroups = append(routeGroups, rg)
 				}
 			} else {
-				if extdSpec.global.Policy == policy {
+				if extdSpec.global.Policy == policy || extdSpec.global.HTTPServerPolicyCR == policy {
 					routeGroups = append(routeGroups, rg)
 				}
 			}

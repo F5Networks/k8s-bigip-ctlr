@@ -7,8 +7,5 @@ metadata:
   namespace: default
 spec:
   iRuleList:
-    insecure: # To add custom irules for insecure VS
-    - /Common/customirule1
-    secure: # To add custom irules for secure VS
     - /Common/customirule1
     - /Common/customirule2

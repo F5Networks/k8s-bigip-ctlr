@@ -281,15 +281,14 @@ type ExternalDNSList struct {
 }
 
 type PolicySpec struct {
-	L7Policies        L7PolicySpec      `json:"l7Policies,omitempty"`
-	L3Policies        L3PolicySpec      `json:"l3Policies,omitempty"`
-	LtmPolicies       LtmIRulesSpec     `json:"ltmPolicies,omitempty"`
-	IRules            LtmIRulesSpec     `json:"iRules,omitempty"`
-	IRuleList         IRuleListSpec     `json:"iRuleList,omitempty"`
-	Profiles          ProfileSpec       `json:"profiles,omitempty"`
-	AnalyticsProfiles AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
-	SNAT              string            `json:"snat,omitempty"`
-	AutoLastHop       string            `json:"autoLastHop,omitempty"`
+	L7Policies  L7PolicySpec  `json:"l7Policies,omitempty"`
+	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
+	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
+	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
+	IRuleList   []string      `json:"iRuleList,omitempty"`
+	Profiles    ProfileSpec   `json:"profiles,omitempty"`
+	SNAT        string        `json:"snat,omitempty"`
+	AutoLastHop string        `json:"autoLastHop,omitempty"`
 }
 
 type SSLProfiles struct {
@@ -298,12 +297,7 @@ type SSLProfiles struct {
 }
 
 type AnalyticsProfiles struct {
-	HTTPAnalyticsProfile HTTPAnalyticsProfile `json:"http,omitempty"`
-}
-
-type HTTPAnalyticsProfile struct {
-	BigIP string `json:"bigip,omitempty"`
-	Apply string `json:"apply,omitempty"`
+	HTTPAnalyticsProfile string `json:"http,omitempty"`
 }
 
 type L7PolicySpec struct {
@@ -325,12 +319,6 @@ type LtmIRulesSpec struct {
 	Priority string `json:"priority,omitempty"`
 }
 
-type IRuleListSpec struct {
-	Secure   []string `json:"secure,omitempty"`
-	InSecure []string `json:"insecure,omitempty"`
-	Priority string   `json:"priority,omitempty"`
-}
-
 type ProfileSpec struct {
 	TCP                   ProfileTCP   `json:"tcp,omitempty"`
 	UDP                   string       `json:"udp,omitempty"`
@@ -343,6 +331,7 @@ type ProfileSpec struct {
 	ProfileMultiplex      string       `json:"profileMultiplex,omitempty"`
 	HttpMrfRoutingEnabled *bool        `json:"httpMrfRoutingEnabled,omitempty"`
 	SSLProfiles           SSLProfiles  `json:"sslProfiles,omitempty"`
+	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
 }
 type ProfileTCP struct {
 	Client string `json:"client,omitempty"`

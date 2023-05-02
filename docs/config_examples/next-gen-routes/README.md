@@ -184,18 +184,24 @@ Base route configuration can be defined in Global ConfigMap. This cannot be over
 
 ### Route Group Parameters
 
-| Parameter | Required | Description | Default                                                | ConfigMap |
-| --------- | -------- | ----------- |--------------------------------------------------------| --------- |
-| allowOverride | Optional | Allow users to override the namespace config | false                                                  | Global ConfigMap only |
-| bigIpPartition | Optional | Partition for creating the virtual server | Partition which is defined in CIS deployment parameter | Global ConfigMap only |
-| namespaceLabel | Mandatory | namespace-label to group the routes* | -                                                      | Global ConfigMap only |
-| policyCR | Optional | Name of Policy CR to attach profiles/policies defined in it. | -                                                      | Local and Global ConfigMap |
-| namespace | Mandatory | namespace to group the routes | -                                                      | Local and Global ConfigMap |
-| vsAddress | Mandatory | BigIP Virtual Server IP Address | -                                                      | Local and Global ConfigMap |
-| vsName | Optional | Name of BigIP Virtual Server | auto                                                   | Local and Global ConfigMap |
+| Parameter          | Required | Description                                                             | Default                                                | ConfigMap |
+|--------------------| -------- |-------------------------------------------------------------------------|--------------------------------------------------------| --------- |
+| allowOverride      | Optional | Allow users to override the namespace config                            | false                                                  | Global ConfigMap only |
+| bigIpPartition     | Optional | Partition for creating the virtual server                               | Partition which is defined in CIS deployment parameter | Global ConfigMap only |
+| namespaceLabel     | Mandatory | namespace-label to group the routes*                                    | -                                                      | Global ConfigMap only |
+| policyCR           | Optional | Name of Policy CR to attach profiles/policies defined in it.            | -                                                      | Local and Global ConfigMap |
+| httpServerPolicyCR | Optional | Name of Policy CR to attach profiles/policies defined in it to HTTP VS. | -                                                      | Local and Global ConfigMap |
+| namespace          | Mandatory | namespace to group the routes                                           | -                                                      | Local and Global ConfigMap |
+| vsAddress          | Mandatory | BigIP Virtual Server IP Address                                         | -                                                      | Local and Global ConfigMap |
+| vsName             | Optional | Name of BigIP Virtual Server                                            | auto                                                   | Local and Global ConfigMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter.
             2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended ConfigMap.
+
+### Usage of policyCR and httpServerPolicyCR
+* If only policyCR is used in a route group, then profiles/policies specified in it are applied to both HTTP and HTTPS virtual servers.
+* If only httpServerPolicyCR is used in a route group, then profiles/policies specified in it are applied to only HTTP virtual server.
+* If both policyCR and httpServerPolicyCR are used in a route group, then profiles/policies specified in policyCR are applied to HTTPS virtual server and profiles/policies specified in httpServerPolicyCR are applied to HTTP virtual server.
 
 
 ## Example Global & Local ConfigMap with namespace parameter
@@ -211,6 +217,7 @@ data:
       allowOverride: true
       bigIpPartition: tenant1
       policyCR: default/sample-policy
+      httpServerPolicyCR: default/sample-policy-2
     - namespace: tenant2
       vserverAddr: 10.8.3.132
       vserverName: routetenant2
@@ -620,22 +627,23 @@ spec:
 
 ## Legacy vs next generation routes feature comparison
 
-| Features | Legacy Routes | Next-gen Routes |
-| ------ | ------ | ------ |
-| Insecure | YES | YES | 
-| Secure | YES | YES | 
-| Health Monitors | YES | YES |
-| WAF | YES | YES |
-| iRules | YES | YES |
-| Multiple VIP | NO | YES |
-| Multiple Partition | NO | YES |
-| SSL Profiles | YES | YES | 
-| Load Balancing Method | YES | YES | 
-| allow-source-range | YES | YES | 
-| URL-rewrite | YES | YES | 
-| App-rewrite | YES | YES |
-| A/B Deployment | YES | YES | 
-| Policy CR | NO | YES | 
+| Features              | Legacy Routes | Next-gen Routes |
+|-----------------------|---------------| ------ |
+| Insecure              | YES           | YES | 
+| Secure                | YES           | YES | 
+| Health Monitors       | YES           | YES |
+| WAF                   | YES           | YES |
+| iRules                | YES           | YES |
+| iRuleList             | NO            | YES |
+| Multiple VIP          | NO            | YES |
+| Multiple Partition    | NO            | YES |
+| SSL Profiles          | YES           | YES | 
+| Load Balancing Method | YES           | YES | 
+| allow-source-range    | YES           | YES | 
+| URL-rewrite           | YES           | YES | 
+| App-rewrite           | YES           | YES |
+| A/B Deployment        | YES           | YES | 
+| Policy CR             | NO            | YES | 
 
 Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details.
 
@@ -693,6 +701,14 @@ No.
 ### How do I use policy CR with routes?
 You can define the policy CR in Extended ConfigMap [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy). </br>
 Make sure that Policy CR is created in a namespace which CIS is monitoring.
+### How do I apply different policies/profiles to HTTP and HTTPS virtual servers?
+You can use both PolicyCR and httpServerPolicyCR in route group to apply different policies/profiles to HTTP and HTTPS VS.</br>
+If only policyCR is used in a route group, then profiles/policies specified in it are applied to both HTTP and HTTPS virtual servers.</br>
+If only httpServerPolicyCR is used in a route group, then profiles/policies specified in it are applied to only HTTP virtual server.</br>
+If both policyCR and httpServerPolicyCR are used in a route group, then profiles/policies specified in policyCR are applied to HTTPS virtual server and profiles/policies specified in httpServerPolicyCR are applied to HTTP virtual server.</br>
+To use the httpServerPolicyCR in Extended ConfigMap, please refer to [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/configmap). </br>
+Make sure that both policyCR and httpServerPolicyCR are created in a namespace which CIS is monitoring.
+
 
 
 

@@ -339,6 +339,15 @@ func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
 	}
 }
 
+func (m *mockController) updateConfigMap(cm *v1.ConfigMap) {
+	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
+	cusInf.cmInformer.GetStore().Update(cm)
+
+	if m.resourceQueue != nil {
+		m.enqueueConfigmap(cm, Update)
+	}
+}
+
 func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
 	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Delete(cm)

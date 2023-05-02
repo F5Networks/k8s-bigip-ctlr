@@ -1764,17 +1764,6 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			return false
 		}
 	}
-
-	// Validate the route service exists or not
-	err, _ := ctlr.getServicePort(route)
-	if err != nil {
-		message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
-			route.Name)
-		log.Errorf(message)
-		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
-			"ServiceNotFound", message, v1.ConditionFalse)
-		return false
-	}
 	return true
 }
 

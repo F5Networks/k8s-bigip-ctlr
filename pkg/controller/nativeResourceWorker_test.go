@@ -289,7 +289,6 @@ var _ = Describe("Routes", func() {
 			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
-			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
 			Expect(mockCtlr.checkValidRoute(route1, rgPlcSSLProfiles{})).To(BeFalse())
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
 			Expect(mockCtlr.checkValidRoute(route2, rgPlcSSLProfiles{})).To(BeFalse())
@@ -304,17 +303,12 @@ var _ = Describe("Routes", func() {
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
-			route3 = mockCtlr.fetchRoute(rskey3)
 			Expect(route1.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route2.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route1.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route2.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route1.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ExtendedValidationFailed"), "Incorrect route admit reason")
 			Expect(route2.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("HostAlreadyClaimed"), "incorrect the route admit reason")
-			// checkValidRoute should fail with ServiceNotFound error
-			Expect(route3.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
-			Expect(route3.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
-			Expect(route3.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ServiceNotFound"), "Incorrect route admit reason")
 			// Check valid route with app root annotation
 			annotations[resource.F5VsAppRootAnnotation] = ""
 			spec6 := routeapi.RouteSpec{

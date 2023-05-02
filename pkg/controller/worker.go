@@ -503,7 +503,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc, true, "")
+			ctlr.updatePoolMembersForService(svcKey)
 		default:
 			// once we fetch the VS, just update the endpoints instead of processing them entirely
 			ctlr.updatePoolMembersForVirtuals(svc)
@@ -537,7 +537,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc, false, rKey.clusterName)
+			ctlr.updatePoolMembersForService(svcKey)
 		default:
 			virtuals := ctlr.getVirtualServersForService(svc)
 			for _, virtual := range virtuals {
@@ -1976,11 +1976,22 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 					freshRsCfg.copyConfig(rsCfg)
 					for index, pool := range freshRsCfg.Pools {
 						if pool.Name == poolId.poolName && pool.Partition == poolId.partition {
+							if pool.ServicePort.IntVal == 0 && poolId.rsKey.kind == Route {
+								// this case happens when a route does not contain a target port and service is created after route creation
+								if routeGroup, found := ctlr.resources.invertedNamespaceLabelMap[poolId.rsKey.namespace]; found {
+									// update the poolMem cache, clusterSvcResource & resource-svc maps
+									ctlr.deleteResourceExternalClusterSvcRouteReference(poolId.rsKey)
+									ctlr.processRoutes(routeGroup, false)
+									return
+								}
+							}
 							ctlr.updatePoolMembersForResources(&pool)
 							if len(pool.Members) > 0 {
 								freshRsCfg.MetaData.Active = true
-								freshRsCfg.Pools[index] = pool
+							} else {
+								freshRsCfg.MetaData.Active = false
 							}
+							freshRsCfg.Pools[index] = pool
 						}
 					}
 					_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
@@ -2040,11 +2051,11 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if err != nil {
 		log.Errorf("%v", err)
 	}
+	var poolMembers []PoolMember
 	if svc != nil {
 		_ = ctlr.processService(svc, nil, "")
+		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, pool.ServicePort, pool.NodeMemberLabel)...)
 	}
-	var poolMembers []PoolMember
-	poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, pool.ServicePort, pool.NodeMemberLabel)...)
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
 		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok {
@@ -2065,8 +2076,8 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			}
 			if mSvc != nil {
 				_ = ctlr.processService(mSvc, nil, mSvcKey.clusterName)
+				poolMembers = append(poolMembers, ctlr.getPoolMembersForService(mSvcKey, mcs.ServicePort, pool.NodeMemberLabel)...)
 			}
-			poolMembers = append(poolMembers, ctlr.getPoolMembersForService(mSvcKey, mcs.ServicePort, pool.NodeMemberLabel)...)
 		}
 	}
 	pool.Members = poolMembers

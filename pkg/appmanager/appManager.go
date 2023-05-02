@@ -20,15 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
@@ -339,6 +340,10 @@ const (
 	OVN_K8S                    = "ovn-k8s"
 	OVNK8sNodeSubnetAnnotation = "k8s.ovn.org/node-subnets"
 	OVNK8sNodeIPAnnotation     = "k8s.ovn.org/node-primary-ifaddr"
+
+	CILIUM_K8S                      = "cilium-k8s"
+	CiliumK8sNodeSubnetAnnotation12 = "io.cilium.network.ipv4-pod-cidr"
+	CiliumK8sNodeSubnetAnnotation13 = "network.cilium.io/ipv4-pod-cidr"
 )
 
 // Create and return a new app manager that meets the Manager interface
@@ -3695,6 +3700,15 @@ func (appMgr *Manager) setupNodeProcessing() error {
 	return nil
 }
 
+func ciliumPodCidr(annotation map[string]string) string {
+	if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation13]; ok {
+		return subnet
+	} else if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation12]; ok {
+		return subnet
+	}
+	return ""
+}
+
 func (appMgr *Manager) processStaticRouteUpdate(
 	nodes []interface{},
 ) {
@@ -3745,6 +3759,23 @@ func (appMgr *Manager) processStaticRouteUpdate(
 				}
 				route.Gateway = nodeIP
 				route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+			}
+
+		} else if appMgr.orchestrationCNI == CILIUM_K8S {
+			nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
+			if nodesubnet == "" {
+				log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
+				continue
+			} else {
+				route.Network = nodesubnet
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+					}
+				}
+
 			}
 
 		} else {

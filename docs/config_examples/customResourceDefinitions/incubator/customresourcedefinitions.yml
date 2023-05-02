@@ -59,6 +59,15 @@ spec:
                         server:
                           type: string
                           pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    http2:
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -126,6 +135,28 @@ spec:
                       service:
                         type: string
                         pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                      weight:
+                        type: integer
+                        minimum: 0
+                        maximum: 256
+                      alternateBackends:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            service:
+                              type: string
+                              pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                            serviceNamespace:
+                              type: string
+                              pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                            weight:
+                              type: integer
+                              minimum: 0
+                              maximum: 256
+                          required:
+                            - service
+                            - weight
                       loadBalancingMethod:
                         type: string
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'
@@ -798,6 +829,22 @@ spec:
                     priority:
                       type: string
                       enum: [ low, high ]
+                iRuleList:
+                  type: object
+                  properties:
+                    insecure:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    secure:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    priority:
+                      type: string
+                      enum: [ low, high ]
                 profiles:
                   type: object
                   properties:
@@ -817,8 +864,14 @@ spec:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     http2:
-                      type: string
-                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     persistenceProfile:
                       type: string
                       pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
@@ -836,6 +889,38 @@ spec:
                         type: string
                         pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([-A-z0-9._\s]+\/?)*$'
                       type: array
+                    httpMrfRoutingEnabled:
+                      type: boolean
+                    sslProfiles:
+                      type: object
+                      properties:
+                        clientProfiles:
+                          items:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          type: array
+                        serverProfiles:
+                          items:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          type: array
+
+                analyticsProfiles: 
+                  type: object
+                  properties:
+                    http:
+                      type: object
+                      properties:
+                        apply:
+                          type: string
+                          enum: [http, https, both]
+                        bigip:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+
+                autoLastHop:
+                  type: string
+                  enum: [ default, auto, disable ]
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'

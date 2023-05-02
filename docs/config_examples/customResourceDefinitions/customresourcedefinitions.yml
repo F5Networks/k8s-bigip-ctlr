@@ -891,6 +891,20 @@ spec:
                       type: array
                     httpMrfRoutingEnabled:
                       type: boolean
+                    sslProfiles:
+                      type: object
+                      properties:
+                        clientProfiles:
+                          items:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          type: array
+                        serverProfiles:
+                          items:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          type: array
+
                 analyticsProfiles: 
                   type: object
                   properties:

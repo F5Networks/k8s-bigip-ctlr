@@ -1124,6 +1124,13 @@ type (
 		tlsCipher                TLSCipher
 	}
 
+	rgPlcSSLProfiles struct {
+		plcNamespace string
+		plcName      string
+		clientSSLs   []string
+		serverSSLs   []string
+	}
+
 	poolPathRef struct {
 		path           string
 		poolName       string

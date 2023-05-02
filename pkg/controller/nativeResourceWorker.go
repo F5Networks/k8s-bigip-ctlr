@@ -47,7 +47,22 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		}
 	}
 	annotationsUsed := &AnnotationsUsed{}
-	routes := ctlr.getGroupedRoutes(routeGroup, annotationsUsed)
+	var policySSLProfiles rgPlcSSLProfiles
+	err, plc := ctlr.getRouteGroupPolicy(extdSpec)
+	if err != nil {
+		return err
+	}
+	if plc != nil && len(plc.Spec.Profiles.SSLProfiles.ClientProfiles) > 0 {
+		policySSLProfiles.clientSSLs = plc.Spec.Profiles.SSLProfiles.ClientProfiles
+		policySSLProfiles.serverSSLs = plc.Spec.Profiles.SSLProfiles.ServerProfiles
+		plcName := strings.Split(extdSpec.Policy, "/")
+		if len(plcName) == 2 {
+			policySSLProfiles.plcNamespace = plcName[0]
+			policySSLProfiles.plcName = plcName[1]
+		}
+	}
+
+	routes := ctlr.getGroupedRoutes(routeGroup, annotationsUsed, policySSLProfiles)
 
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
@@ -99,7 +114,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// deletion ; update /health /app/path1
 
-		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec, annotationsUsed)
+		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, plc, annotationsUsed, extdSpec.AllowOverride)
 
 		if err != nil {
 			processingError = true
@@ -120,7 +135,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 			if isSecureRoute(rt) {
 				//TLS Logic
-				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort)
+				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, policySSLProfiles)
 				if !processed {
 					// Processing failed
 					// Stop processing further routes
@@ -209,7 +224,8 @@ func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig, wafDisab
 	}
 }
 
-func (ctlr *Controller) getGroupedRoutes(routeGroup string, annotationsUsed *AnnotationsUsed) []*routeapi.Route {
+func (ctlr *Controller) getGroupedRoutes(routeGroup string,
+	annotationsUsed *AnnotationsUsed, policySSLProfiles rgPlcSSLProfiles) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
 	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
@@ -219,7 +235,7 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, annotationsUsed *Ann
 		ctlr.TeemData.Unlock()
 		for _, route := range orderedRoutes {
 			// TODO: add combinations for a/b - svc weight ; valid svcs or not
-			if ctlr.checkValidRoute(route) {
+			if ctlr.checkValidRoute(route, policySSLProfiles) {
 				var key string
 				if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
 					key = route.Spec.Host + "/"
@@ -240,43 +256,50 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, annotationsUsed *Ann
 	return assocRoutes
 }
 
-func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extdSpec *ExtendedRouteGroupSpec,
-	au *AnnotationsUsed) error {
+func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
+	au *AnnotationsUsed, allowOverride string) error {
+	if plc != nil {
+		err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+		if err != nil {
+			return err
+		}
+
+		// If allowOverride is true and routes use WAF annotation then WAF specified in policy CR is deprioritized
+		if allowOverride, err := strconv.ParseBool(allowOverride); err == nil && allowOverride && au.WAF {
+			rsCfg.Virtual.WAF = ""
+		}
+
+		// If allowOverride is true and routes use allow-source-range annotation then allow-source-range specified
+		// in policy CR is deprioritized
+		if allowOverride, err := strconv.ParseBool(allowOverride); err == nil && allowOverride &&
+			au.AllowSourceRange {
+			rsCfg.Virtual.AllowSourceRange = nil
+		}
+	}
+	return nil
+}
+
+func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (error, *cisapiv1.Policy) {
 	policy := extdSpec.Policy
 	if policy != "" {
 		splits := strings.Split(policy, "/")
 		policyNamespace := splits[0]
 		comInf, ok := ctlr.getNamespacedCommonInformer(policyNamespace)
 		if !ok {
-			return fmt.Errorf("Informer not found for namespace: %v", policyNamespace)
+			return fmt.Errorf("Informer not found for namespace: %v", policyNamespace), nil
 		}
 		obj, exist, err := comInf.plcInformer.GetIndexer().GetByKey(policy)
 		if err != nil {
-			return fmt.Errorf("Error while fetching Policy: %v: %v", policy, err)
+			return fmt.Errorf("Error while fetching Policy: %v: %v", policy, err), nil
 		}
 		if !exist {
-			return fmt.Errorf("Policy Not Found: %v", policy)
+			return fmt.Errorf("Policy Not Found: %v", policy), nil
 		}
 		plc := obj.(*cisapiv1.Policy)
-		if plc != nil {
-			err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
-			if err != nil {
-				return err
-			}
-			// If allowOverride is true and routes use WAF annotation then WAF specified in policy CR is deprioritized
-			if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride && au.WAF {
-				rsCfg.Virtual.WAF = ""
-			}
-
-			// If allowOverride is true and routes use allow-source-range annotation then allow-source-range specified
-			// in policy CR is deprioritized
-			if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride &&
-				au.AllowSourceRange {
-				rsCfg.Virtual.AllowSourceRange = nil
-			}
-		}
+		return nil, plc
 	}
-	return nil
+	return nil, nil
+
 }
 
 // gets the target port for the route
@@ -1564,7 +1587,7 @@ func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
 	return obj.(*routeapi.Route)
 }
 
-func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
+func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rgPlcSSLProfiles) bool {
 	// Validate the hostpath
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
@@ -1583,10 +1606,16 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 			return false
 		}
 	}
-	sslProfileOption := ctlr.getSSLProfileOption(route)
+	sslProfileOption := ctlr.getSSLProfileOption(route, plcSSLProfiles)
 	switch sslProfileOption {
 	case "":
 		break
+	case PolicySSLOption:
+		if len(plcSSLProfiles.serverSSLs) == 0 && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing server SSL profile in the policy %v/%v", plcSSLProfiles.plcNamespace, plcSSLProfiles.plcName)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
 	case AnnotationSSLOption:
 		if _, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile in the annotation")

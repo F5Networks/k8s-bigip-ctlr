@@ -288,17 +288,17 @@ var _ = Describe("Routes", func() {
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
-			Expect(mockCtlr.checkValidRoute(route1)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route1, rgPlcSSLProfiles{})).To(BeFalse())
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
-			Expect(mockCtlr.checkValidRoute(route2)).To(BeFalse())
-			Expect(mockCtlr.checkValidRoute(route3)).To(BeFalse())
-			Expect(mockCtlr.checkValidRoute(route4)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route2, rgPlcSSLProfiles{})).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route3, rgPlcSSLProfiles{})).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route4, rgPlcSSLProfiles{})).To(BeFalse())
 			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{Reference: BIGIP}
-			Expect(mockCtlr.checkValidRoute(route5)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route5, rgPlcSSLProfiles{})).To(BeFalse())
 			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{Reference: BIGIP, ClientSSL: "/Common/clientSSL"}
-			Expect(mockCtlr.checkValidRoute(route5)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route5, rgPlcSSLProfiles{})).To(BeFalse())
 			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
-			Expect(mockCtlr.checkValidRoute(route5)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route5, rgPlcSSLProfiles{})).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
@@ -325,7 +325,7 @@ var _ = Describe("Routes", func() {
 			}
 			route6 := test.NewRoute("route6", "1", "default", spec6, annotations)
 			mockCtlr.addRoute(route6)
-			Expect(mockCtlr.checkValidRoute(route6)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route6, rgPlcSSLProfiles{})).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			rskey6 := fmt.Sprintf("%v/%v", route6.Namespace, route6.Name)
 			route6 = mockCtlr.fetchRoute(rskey6)
@@ -343,7 +343,7 @@ var _ = Describe("Routes", func() {
 			}
 			route7 := test.NewRoute("route7", "1", "default", spec7, annotations)
 			mockCtlr.addRoute(route7)
-			Expect(mockCtlr.checkValidRoute(route7)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route7, rgPlcSSLProfiles{})).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			rskey7 := fmt.Sprintf("%v/%v", route7.Namespace, route7.Name)
 			route7 = mockCtlr.fetchRoute(rskey7)
@@ -364,7 +364,7 @@ var _ = Describe("Routes", func() {
 			}
 			route8 := test.NewRoute("route8", "1", "default", spec8, wafAnnotation)
 			mockCtlr.addRoute(route8)
-			Expect(mockCtlr.checkValidRoute(route8)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route8, rgPlcSSLProfiles{})).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			rskey8 := fmt.Sprintf("%v/%v", route8.Namespace, route8.Name)
 			route8 = mockCtlr.fetchRoute(rskey8)
@@ -385,7 +385,7 @@ var _ = Describe("Routes", func() {
 			}
 			route9 := test.NewRoute("route9", "1", "default", spec9, sourceRangeAnnotation)
 			mockCtlr.addRoute(route9)
-			Expect(mockCtlr.checkValidRoute(route9)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route9, rgPlcSSLProfiles{})).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			rskey9 := fmt.Sprintf("%v/%v", route9.Namespace, route9.Name)
 			route9 = mockCtlr.fetchRoute(rskey9)
@@ -920,14 +920,91 @@ extendedRouteSpec:
 			ps.port = DEFAULT_HTTPS_PORT
 			rsCfg.IntDgMap = make(InternalDataGroupMap)
 			rsCfg.IRulesMap = make(IRulesMap)
+			clientSSLs := []string{"\\Common\\clientssl"}
+			sslProfiles := rgPlcSSLProfiles{
+				clientSSLs: clientSSLs,
+			}
+
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			foo := test.NewService("bar", "1", routeGroup, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", routeGroup, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			route3 := test.NewRoute("route1", "1", routeGroup, spec2, nil)
+			mockCtlr.addRoute(route3)
+			// server ssl profile missing in policy. invalid route
+			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeFalse())
+			sslProfiles.serverSSLs = []string{"\\Common\\plc-serverssl"}
+			//  valid route
+			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeTrue())
+			sslProfiles.clientSSLs = []string{}
+			// server client profile missing in policy and no profile annotations invalid route
+			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeFalse())
+			annotations := make(map[string]string)
+			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			route3.Annotations = annotations
+			// with annotations added route should get processed
+			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeTrue())
+			delete(annotations, resource.F5ServerSslProfileAnnotation)
+			// invalid
+			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeFalse())
+			sslProfiles.clientSSLs = []string{"\\Common\\plc-clientssl"}
+			// with ssl profile added route should get processed
+			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeTrue())
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 443}, ps)).To(BeNil())
+
+			checkSSLProfiles := func(profiles ProfileRefs, profile string, ctxt string) bool {
+				for _, v := range profiles {
+					if v.Name == profile && v.Context == ctxt {
+						return true
+					}
+				}
+				return false
+			}
+
+			// missing client ssl profile
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route3,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{clientSSLs: []string{"\\Common\\plc-serverssl"}})).To(BeFalse())
+
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route3,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443},
+				sslProfiles)).To(BeTrue())
+			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\plc-serverssl", "serverside")).To(BeTrue())
+			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\plc-clientssl", "clientside")).To(BeTrue())
+
+			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			route3.Annotations = annotations
+			rsCfg.Virtual.Profiles = ProfileRefs{}
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route3,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeTrue())
+			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\serverssl", "serverside")).To(BeFalse())
+			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\clientssl", "clientside")).To(BeFalse())
 
 			//for edge route, and big ip reference in global config map - It should pass
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route1,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeTrue())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeTrue())
 
 			//for edge route and global config map without client ssl profile - It should fail
 			route1.Annotations = serverSSLAnnotation
@@ -935,7 +1012,8 @@ extendedRouteSpec:
 				rsCfg,
 				route1,
 				extdSpec1.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeFalse())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeFalse())
 
 			//for re-encrypt route, and big ip reference in global config map - It should pass
 			route2.Annotations = annotation1
@@ -943,7 +1021,8 @@ extendedRouteSpec:
 				rsCfg,
 				route2,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeTrue())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeTrue())
 
 			//for re encrypt route and global config map without server ssl profile - It should fail
 			route2.Annotations = clientSSLAnnotation
@@ -951,7 +1030,8 @@ extendedRouteSpec:
 				rsCfg,
 				route2,
 				extdSpec2.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeFalse())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeFalse())
 		})
 
 		It("Verify NextGenRoutes K8S Secret as TLS certs", func() {
@@ -1060,7 +1140,8 @@ extendedRouteSpec:
 				rsCfg,
 				route1,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeTrue())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeTrue())
 
 			//for edge route and global config map without client ssl profile - It should fail
 			route1.Annotations = serverSSLAnnotation
@@ -1068,7 +1149,8 @@ extendedRouteSpec:
 				rsCfg,
 				route1,
 				extdSpec1.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeFalse())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeFalse())
 
 			//for re-encrypt route, and k8s secret as TLS certs in global config map - It should pass
 			route2.Annotations = annotation1
@@ -1076,7 +1158,8 @@ extendedRouteSpec:
 				rsCfg,
 				route2,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeTrue())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeTrue())
 
 			//for re encrypt route and global config map without server ssl profile - It should fail
 			route2.Annotations = clientSSLAnnotation
@@ -1084,7 +1167,8 @@ extendedRouteSpec:
 				rsCfg,
 				route2,
 				extdSpec2.VServerAddr,
-				intstr.IntOrString{IntVal: 443})).To(BeFalse())
+				intstr.IntOrString{IntVal: 443},
+				rgPlcSSLProfiles{})).To(BeFalse())
 
 			// Verify that getRouteGroupForSecret fetches the z routeGroup on k8s secret update
 			// Prepare extdSpecMap that holds all the

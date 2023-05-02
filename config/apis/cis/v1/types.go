@@ -292,6 +292,11 @@ type PolicySpec struct {
 	AutoLastHop       string            `json:"autoLastHop,omitempty"`
 }
 
+type SSLProfiles struct {
+	ClientProfiles []string `json:"clientProfiles,omitempty"`
+	ServerProfiles []string `json:"serverProfiles,omitempty"`
+}
+
 type AnalyticsProfiles struct {
 	HTTPAnalyticsProfile HTTPAnalyticsProfile `json:"http,omitempty"`
 }
@@ -337,6 +342,7 @@ type ProfileSpec struct {
 	ProfileL4             string       `json:"profileL4,omitempty"`
 	ProfileMultiplex      string       `json:"profileMultiplex,omitempty"`
 	HttpMrfRoutingEnabled *bool        `json:"httpMrfRoutingEnabled,omitempty"`
+	SSLProfiles           SSLProfiles  `json:"sslProfiles,omitempty"`
 }
 type ProfileTCP struct {
 	Client string `json:"client,omitempty"`

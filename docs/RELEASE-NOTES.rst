@@ -15,6 +15,7 @@ Added Functionality
         * Support setting Auto-LastHop option from policy CR
         * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only)
         * Support for setting http analytics profile from policy CR
+        * Support for setting client and server ssl profiles from policy CR
     * Ingress
         *
     * CRD

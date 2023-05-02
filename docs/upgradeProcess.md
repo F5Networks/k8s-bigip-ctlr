@@ -280,3 +280,7 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 ### **Upgrading from 2.12.1 to 2.13.0:**
 * CIS extended to leverage server-side http2 profile on virtual Server which requires modification in the existing Policy CRD in case of using http2 functionality.
   * Please change the PolicyCRD accordingly with this [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
+* In NextGen mode CIS supports setting client and server ssl profiles from policy
+  * This setting is exclusive for NextGen mode and not applicable for CRD resources
+  * Policy level ssl profiles will have the highest precedence and will override route level profiles
+  * In CRD mode CIS will process ssl profiles from tls profile

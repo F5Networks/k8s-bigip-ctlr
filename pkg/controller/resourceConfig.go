@@ -107,6 +107,7 @@ const (
 
 // constants for SSL options
 const (
+	PolicySSLOption           = "policySSL"
 	AnnotationSSLOption       = "annotation"
 	RouteCertificateSSLOption = "routeCertificate"
 	DefaultSSLOption          = "defaultSSL"
@@ -2052,7 +2053,8 @@ func (ctlr *Controller) handleRouteTLS(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	vServerAddr string,
-	servicePort intstr.IntOrString) bool {
+	servicePort intstr.IntOrString,
+	policySSLProfiles rgPlcSSLProfiles) bool {
 
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS
@@ -2060,10 +2062,21 @@ func (ctlr *Controller) handleRouteTLS(
 	}
 	var tlsReferenceType string
 	bigIPSSLProfiles := BigIPSSLProfiles{}
-	sslProfileOption := ctlr.getSSLProfileOption(route)
+	sslProfileOption := ctlr.getSSLProfileOption(route, policySSLProfiles)
 	switch sslProfileOption {
 	case "":
 		break
+	case PolicySSLOption:
+		tlsReferenceType = BIGIP
+
+		bigIPSSLProfiles.clientSSLs = policySSLProfiles.clientSSLs
+
+		if route.Spec.TLS.Termination == TLSReencrypt {
+			if len(policySSLProfiles.serverSSLs) == 0 {
+				return false
+			}
+			bigIPSSLProfiles.serverSSLs = policySSLProfiles.serverSSLs
+		}
 	case AnnotationSSLOption:
 		if clientSSL, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
 			if len(strings.Split(clientSSL, "/")) > 1 {
@@ -2207,12 +2220,14 @@ func (ctlr *Controller) handleRouteTLS(
 getSSLProfileOption returns which ssl profile option to be used for the route
 Examples: annotation, routeCertificate, defaultSSL, invalid
 */
-func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route) string {
+func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfiles rgPlcSSLProfiles) string {
 	sslProfileOption := ""
 	if route == nil || route.Spec.TLS == nil || route.Spec.TLS.Termination == routeapi.TLSTerminationPassthrough {
 		return sslProfileOption
 	}
-	if _, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+	if len(plcSSLProfiles.clientSSLs) > 0 {
+		sslProfileOption = PolicySSLOption
+	} else if _, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
 		sslProfileOption = AnnotationSSLOption
 	} else if route.Spec.TLS != nil && route.Spec.TLS.Key != "" && route.Spec.TLS.Certificate != "" {
 		sslProfileOption = RouteCertificateSSLOption

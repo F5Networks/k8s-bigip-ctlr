@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/miekg/dns"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -32,7 +32,14 @@ func (appMgr *Manager) checkV1Ingress(
 		// Not watching this namespace
 		return false, nil
 	}
-
+	partition := DEFAULT_PARTITION
+	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
+		if _, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; !ok {
+			log.Warningf("%v annotation should be provided with %v in ingress %s/%s", F5VsBindAddrAnnotation, F5VsPartitionAnnotation, ing.Namespace, ing.Name)
+			return false, nil
+		}
+		partition = p
+	}
 	bindAddr := ""
 	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
 		bindAddr = addr
@@ -55,7 +62,7 @@ func (appMgr *Manager) checkV1Ingress(
 			return false, nil
 		}
 		var rsType int
-		rsName := FormatIngressVSName(bindAddr, portStruct.port)
+		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
 		// If rsCfg is nil, delete any resources tied to this Ingress
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service
@@ -93,12 +100,12 @@ func (appMgr *Manager) checkV1Ingress(
 			appRootMap := ParseAppRootURLRewriteAnnotations(appRoot)
 			if rsType == SingleServiceIngressType {
 				if len(appRootMap) > 1 {
-					log.Warning("Single service ingress does not support multiple app-root annotation values, not processing")
+					log.Warningf("Single service ingress does not support multiple app-root annotation values for single service ingress %s/%s, not processing", ing.Namespace, ing.Name)
 				} else {
 					if _, ok := appRootMap["single"]; ok {
 						validateAppRootAnnotations(rsType, appRootMap)
 					} else {
-						log.Warningf("[CORE] App root annotation: %s does not support targeted values for single service ingress, not processing", appRoot)
+						log.Warningf("[CORE] App root annotation: %s does not support targeted values for single service ingress %s/%s, not processing", appRoot, ing.Namespace, ing.Name)
 					}
 				}
 			} else {
@@ -121,7 +128,7 @@ func (appMgr *Manager) checkV1Ingress(
 				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
-					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
+					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
 					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
 				return false, nil
 			}
@@ -144,12 +151,16 @@ func (appMgr *Manager) checkV1SingleServivceIngress(
 	ing *netv1.Ingress,
 ) bool {
 	bindAddr := ""
+	partition := DEFAULT_PARTITION
 	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
 		bindAddr = addr
 	}
+	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
+		partition = p
+	}
 	// Depending on the Ingress, we may loop twice here, once for http and once for https
 	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
-		rsName := FormatIngressVSName(bindAddr, portStruct.port)
+		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
 		// If we have a config for this IP:Port, and either that config or the current config
 		// is for a single service ingress, then we don't allow the new Ingress to share the VS
 		// It doesn't make sense for single service Ingresses to share a VS
@@ -158,7 +169,7 @@ func (appMgr *Manager) checkV1SingleServivceIngress(
 				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
-					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
+					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
 					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
 				return false
 			}
@@ -284,7 +295,7 @@ func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string
 			if len(netIPs) > 1 {
 				log.Warningf(
 					"Resolved multiple IP addresses for host '%s', "+
-						"choosing first resolved address.", host)
+						"choosing first resolved address for ingress %s/%s.", host, ing.Namespace, ing.Name)
 			}
 			ipAddress = netIPs[0].String()
 		}
@@ -620,12 +631,16 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
+					if strings.ContainsAny(path.Path, "*") {
+						log.Errorf("[CORE] Ingress path should not contain wildcard character '*' for ingress %s/%s", ing.Namespace, ing.Name)
+						continue
+					}
 					exists := false
 					for _, pl := range pools {
 						if path.Backend.Service.Port.Name != "" {
 							backendPort, err := GetServicePort(ns, path.Backend.Service.Name, svcIndexer, path.Backend.Service.Port.Name, ResourceTypeIngress)
 							if err != nil {
-								log.Warningf("[CORE] Error fetching service port: %v", err)
+								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 								continue
 							}
 							//Assigning backendPort to find existing pool entries
@@ -652,7 +667,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 					} else if path.Backend.Service.Port.Name != "" {
 						backendPort, err = GetServicePort(ns, path.Backend.Service.Name, svcIndexer, path.Backend.Service.Port.Name, ResourceTypeIngress)
 						if err != nil {
-							log.Warningf("[CORE] Error fetching service port: %v", err)
+							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 							continue
 						}
 						//Assigning backendPort to find existing pool entries
@@ -690,7 +705,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 		} else if ing.Spec.DefaultBackend.Service.Port.Name != "" {
 			backendPort, err = GetServicePort(ns, ing.Spec.DefaultBackend.Service.Name, svcIndexer, ing.Spec.DefaultBackend.Service.Port.Name, ResourceTypeIngress)
 			if err != nil {
-				log.Warningf("[CORE] Error fetching service port: %v", err)
+				log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 			}
 		}
 		pool := Pool{
@@ -725,7 +740,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	resources.Lock()
 	defer resources.Unlock()
 	// Check to see if we already have any Ingresses for this IP:Port
-	if oldCfg, exists := resources.GetByName(cfg.Virtual.Name); exists {
+	if oldCfg, exists := resources.GetByName(cfg.GetNameRef()); exists {
 		// If we do, use an existing config
 		cfg.CopyConfig(oldCfg)
 
@@ -804,6 +819,19 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	for _, policy := range cfg.Policies {
 		sort.Sort(sort.Reverse(&policy.Rules))
 	}
+
+	if appMgr.resources.TranslateAddress == nil {
+		appMgr.resources.TranslateAddress = make(map[string]map[NameRef][]string)
+	}
+	if _, ok := appMgr.resources.TranslateAddress[ing.Namespace]; !ok {
+		appMgr.resources.TranslateAddress[ing.Namespace] = make(map[NameRef][]string)
+	}
+	nameRef := cfg.GetNameRef()
+	if transAdd, ok := ing.ObjectMeta.Annotations[F5VSTranslateServerAddress]; ok {
+		appMgr.resources.TranslateAddress[ing.Namespace][nameRef] = append(appMgr.resources.TranslateAddress[ing.Namespace][nameRef], transAdd)
+	} else {
+		appMgr.resources.TranslateAddress[ing.Namespace][nameRef] = append(appMgr.resources.TranslateAddress[ing.Namespace][nameRef], "")
+	}
 	return &cfg, false
 }
 
@@ -838,7 +866,7 @@ func (appMgr *Manager) handleV1IngressTls(
 		// If annotation is set, use that profiles.
 		if len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
 			if profiles, err := appMgr.getProfilesFromAnnotations(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], ing); err != nil {
-				msg := "Unable to parse bigip clientssl profile JSON array " + ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation] + ": " + err.Error()
+				msg := "Unable to parse bigip clientssl profile JSON array " + ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation] + " for ingress " + ing.Namespace + "/" + ing.Name + ": " + err.Error()
 				log.Errorf("[CORE] %s", msg)
 				appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
 			} else {
@@ -851,7 +879,7 @@ func (appMgr *Manager) handleV1IngressTls(
 				secret := appMgr.rsrcSSLCtxt[tls.SecretName]
 				if secret == nil {
 					// No secret, Hence we won't process this ingress
-					msg := "No Secret with name " + tls.SecretName + " in namespace " + ing.ObjectMeta.Namespace + ", "
+					msg := "No Secret with name " + tls.SecretName + " in namespace " + ing.ObjectMeta.Namespace + " for ingress " + ing.Name + ", "
 					log.Errorf("[CORE] %s", msg)
 					appMgr.recordV1IngressEvent(ing, "SecretNotFound", msg)
 					profRef := ConvertStringToProfileRef(
@@ -862,7 +890,7 @@ func (appMgr *Manager) handleV1IngressTls(
 				var err error
 				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
-					log.Warningf("[CORE] %v", err)
+					log.Warningf("[CORE] Error creating ssl profiles for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 					continue
 				}
 				updateState = updateState || cpUpdated
@@ -906,27 +934,42 @@ func (appMgr *Manager) handleV1IngressTls(
 		// State 2, set HTTP redirect iRule
 		log.Debugf("[CORE] TLS: Applying HTTP redirect iRule.")
 		ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
-		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
-			httpRedirectIRule(httpsPort, DEFAULT_PARTITION, appMgr.TeemData.Agent))
-		appMgr.addInternalDataGroup(HttpsRedirectDgName, DEFAULT_PARTITION)
-		ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
+		appMgr.addIRule(ruleName, rsCfg.Virtual.Partition,
+			httpRedirectIRule(httpsPort, rsCfg.Virtual.Partition, appMgr.TeemData.Agent))
+		appMgr.addInternalDataGroup(HttpsRedirectDgName, rsCfg.Virtual.Partition)
+		ruleName = JoinBigipPath(rsCfg.Virtual.Partition, ruleName)
 		rsCfg.Virtual.AddIRule(ruleName)
 		if nil != ing.Spec.DefaultBackend {
 			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
 				ing.Spec.DefaultBackend.Service.Name, "\\*", "/")
 		}
+		defaultHttpPort := false
 		for _, rul := range ing.Spec.Rules {
 			if nil != rul.HTTP {
 				host := rul.Host
 				if port, ok := ing.ObjectMeta.Annotations[F5VsHttpPortAnnotation]; ok {
 					p, err := strconv.Atoi(port)
-					if err == nil && p != int(DEFAULT_HTTP_PORT) {
-						host = host + ":" + port
+					if err == nil {
+						if p != int(DEFAULT_HTTP_PORT) {
+							host = host + ":" + port
+						} else {
+							defaultHttpPort = true
+						}
 					}
+				} else {
+					//when no annotation set.default port is 80
+					defaultHttpPort = true
 				}
 				for _, path := range rul.HTTP.Paths {
 					svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
 						path.Backend.Service.Name, host, path.Path)
+					//for default port 80, when host header is sent as host or host:port
+					//needs to be redirected in sslRedirect scenario
+					if defaultHttpPort {
+						defaultHost := host + ":" + strconv.Itoa(int(DEFAULT_HTTP_PORT))
+						svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
+							path.Backend.Service.Name, defaultHost, path.Path)
+					}
 				}
 			}
 		}
@@ -956,7 +999,6 @@ func prepareV1IngressSSLContext(appMgr *Manager, ing *netv1.Ingress) {
 }
 
 func (appMgr *Manager) handleSingleServiceV1IngressHealthMonitors(
-	rsName,
 	poolName string,
 	cfg *ResourceConfig,
 	ing *netv1.Ingress,
@@ -972,7 +1014,7 @@ func (appMgr *Manager) handleSingleServiceV1IngressHealthMonitors(
 	htpMap["*"] = ruleItem
 
 	err := appMgr.assignHealthMonitorsByPathForV1Ingress(
-		rsName, ing, htpMap, monitors)
+		ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("[CORE] %s", err.Error())
 		appMgr.recordV1IngressEvent(ing, "MonitorError", err.Error())
@@ -989,11 +1031,10 @@ func (appMgr *Manager) handleSingleServiceV1IngressHealthMonitors(
 		}
 	}
 
-	appMgr.notifyUnusedHealthMonitorRulesForV1Ingress(rsName, ing, htpMap)
+	appMgr.notifyUnusedHealthMonitorRulesForV1Ingress(ing, htpMap)
 }
 
 func (appMgr *Manager) handleMultiServiceV1IngressHealthMonitors(
-	rsName string,
 	cfg *ResourceConfig,
 	ing *netv1.Ingress,
 	monitors AnnotationHealthMonitors,
@@ -1021,8 +1062,8 @@ func (appMgr *Manager) handleMultiServiceV1IngressHealthMonitors(
 			pathItem, found := ruleItem[pathKey]
 			if found {
 				msg := fmt.Sprintf(
-					"Health Monitor path '%v' already exists for host '%v'",
-					path, rule.Host)
+					"Health Monitor path '%s' already exists for host '%s' in ingress '%s'/'%s'",
+					path.Path, rule.Host, ing.Namespace, ing.Name)
 				log.Warningf("[CORE] %s", msg)
 				appMgr.recordV1IngressEvent(ing, "DuplicatePath", msg)
 			} else {
@@ -1039,14 +1080,14 @@ func (appMgr *Manager) handleMultiServiceV1IngressHealthMonitors(
 			if key == "*" {
 				continue
 			}
-			msg := "Health Monitor rule for host " + key + " conflicts with rule for all hosts."
+			msg := "Health Monitor rule for host " + key + " conflicts with rule for all hosts in ingress " + ing.Namespace + "/" + ing.Name
 			log.Warningf("[CORE] %s", msg)
 			appMgr.recordV1IngressEvent(ing, "DuplicatePath", msg)
 		}
 	}
 
 	err := appMgr.assignHealthMonitorsByPathForV1Ingress(
-		rsName, ing, htpMap, monitors)
+		ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("[CORE] %s", err.Error())
 		appMgr.recordV1IngressEvent(ing, "MonitorError", err.Error())
@@ -1088,11 +1129,10 @@ func (appMgr *Manager) handleMultiServiceV1IngressHealthMonitors(
 		}
 	}
 
-	appMgr.notifyUnusedHealthMonitorRulesForV1Ingress(rsName, ing, htpMap)
+	appMgr.notifyUnusedHealthMonitorRulesForV1Ingress(ing, htpMap)
 }
 
 func (appMgr *Manager) notifyUnusedHealthMonitorRulesForV1Ingress(
-	rsName string,
 	ing *netv1.Ingress,
 	htpMap HostToPathMap,
 ) {
@@ -1122,7 +1162,6 @@ func (appMgr *Manager) getProfilesFromAnnotations(profstr string, ing *netv1.Ing
 }
 
 func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
-	rsName string,
 	ing *netv1.Ingress, // used in Ingress case for logging events
 	rulesMap HostToPathMap,
 	monitors AnnotationHealthMonitors,
@@ -1132,7 +1171,7 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 	for _, mon := range monitors {
 		slashPos := strings.Index(mon.Path, "/")
 		if slashPos == -1 {
-			return fmt.Errorf("Health Monitor path '%v' is not valid.", mon.Path)
+			return fmt.Errorf("health monitor path '%v' is not valid for ingress %s/%s", mon.Path, ing.Namespace, ing.Name)
 		}
 
 		host := mon.Path[:slashPos]
@@ -1142,7 +1181,7 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 			pm, found = rulesMap["*"]
 		}
 		if false == found {
-			msg := "Rule not found for Health Monitor host " + host
+			msg := "Rule not found for Health Monitor host " + host + " in ingress " + ing.Namespace + "/" + ing.Namespace
 			appMgr.processedResourcesMutex.Lock()
 			if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, ing.Namespace, ing.Name)]; !ok {
 				log.Warningf("[CORE] %s", msg)
@@ -1155,7 +1194,7 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 		}
 		ruleData, found := pm[path]
 		if false == found {
-			msg := "Rule not found for Health Monitor path " + mon.Path
+			msg := "Rule not found for Health Monitor path " + mon.Path + " in ingress " + ing.Namespace + "/" + ing.Namespace
 			appMgr.processedResourcesMutex.Lock()
 			if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, ing.Namespace, ing.Name)]; !ok {
 				log.Warningf("[CORE] %s", msg)
@@ -1169,4 +1208,45 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 		ruleData.HealthMon = mon
 	}
 	return nil
+}
+
+func (appMgr *Manager) removeOldVIngressObjects(ing *netv1.Ingress) {
+	bindAddr := ""
+	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
+		bindAddr = addr
+	}
+	partition := DEFAULT_PARTITION
+	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
+		partition = p
+	}
+	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
+		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
+		if nil == ing.Spec.Rules { //single-service
+			serviceName := ing.Spec.DefaultBackend.Service.Name
+			servicePort := ing.Spec.DefaultBackend.Service.Port.Number
+			sKey := ServiceKey{ServiceName: serviceName, ServicePort: servicePort, Namespace: ing.ObjectMeta.Namespace}
+			if _, ok := appMgr.resources.Get(sKey, rsName); ok {
+				appMgr.resources.Delete(sKey, rsName)
+			}
+		} else { //multi-service
+			_, keys := appMgr.resources.GetAllWithName(rsName)
+			for _, key := range keys {
+				appMgr.resources.Delete(key, rsName)
+			}
+		}
+	}
+	var vsCount int
+	for nameRef, _ := range appMgr.resources.RsMap {
+		if nameRef.Partition == partition {
+			vsCount++
+		}
+	}
+	if vsCount == 0 {
+		redirectDG := NameRef{Name: HttpsRedirectDgName, Partition: partition}
+		if _, ok := appMgr.intDgMap[redirectDG]; ok {
+			delete(appMgr.intDgMap, redirectDG)
+		}
+	}
+	appMgr.syncIRules()
+	appMgr.deployResource()
 }

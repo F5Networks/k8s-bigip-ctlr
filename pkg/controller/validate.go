@@ -19,8 +19,8 @@ package controller
 import (
 	"fmt"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func (ctlr *Controller) checkValidVirtualServer(
@@ -31,7 +31,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	vsName := vsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
-	crInf, ok := ctlr.getNamespacedInformer(vsNamespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", vsNamespace)
 		return false
@@ -42,6 +42,12 @@ func (ctlr *Controller) checkValidVirtualServer(
 		log.Infof("VirtualServer %s is invalid", vsName)
 		return false
 	}
+	// Check if HTTPTraffic is set for insecure VS
+	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
+		log.Errorf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
+		return false
+	}
+
 	bindAddr := vsResource.Spec.VirtualServerAddress
 	if ctlr.ipamCli == nil {
 
@@ -70,7 +76,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	vsName := tsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
-	crInf, ok := ctlr.getNamespacedInformer(vsNamespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", vsNamespace)
 		return false
@@ -117,7 +123,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	ilName := il.ObjectMeta.Name
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
 
-	crInf, ok := ctlr.getNamespacedInformer(ilNamespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ilNamespace)
 		return false

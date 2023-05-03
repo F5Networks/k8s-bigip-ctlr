@@ -10,28 +10,36 @@ Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master
 Compatibility Matrix
 -------------
 
-| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version |
-|-------------|----------------|--------------------|---------------------------------------------------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|
-| v1.14       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |
-| v2.0        | v15.1          | v1.18              | v4.3                                                          | Yes |  - | v3.18      |             |            | v0.0.7  |
-| v2.1        | v15.1          | v1.18              | v4.4.5                                                        | Yes |  - | v3.20      |             |            | v0.0.7  |
-| v2.1.1      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.21      |             |            | v0.0.8  |
-| v2.2.0      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.23      |             |            | v0.0.9  |
-| v2.2.1      | v15.1          | v1.18              | v4.6.4                                                        | Yes |  - | v3.24      |             |            | v0.0.10 |
-| v2.2.2      | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.11 |
-| v2.3        | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.12 |
-| v2.4.0      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.2      |            | v0.0.13 |
-| v2.4.1      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.3      |            | v0.0.14 |
-| v2.5.0      | v16.0          | v1.21              | v4.7.13                                                       | Yes |  - | v3.28      | v0.1.4      |            | v0.0.14 |
-| v2.6.0      | v16.0          | v1.21              | v4.8.12 (OpenShift SDN and OVN- Kubernetes with HyperOverlay) | Yes | Yes | v3.28     | v0.1.5      |            | v0.0.16 |
-| v2.7.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.17 |
-| v2.7.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.18 |
-| v2.8.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.19 |
-| v2.8.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.7      | v0.0.1     | v0.0.19 |
-| v2.9.0      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |
-| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |
-| v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |       
+| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version | OS Version |
+|-------------|----------------|--------------------|---------------------------------------------------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|------------|
+| v1.14.0     | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  | Debian GNU/Linux 10.3 (bluster)|
+| v1.14.1     | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v1.14.2     | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v2.0        | v15.1          | v1.18              | v4.3                                                          | Yes |  - | v3.18      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
+| v2.1        | v15.1          | v1.18              | v4.4.5                                                        | Yes |  - | v3.20      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
+| v2.1.1      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.21      |             |            | v0.0.8  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
+| v2.2.0      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.23      |             |            | v0.0.9  |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.2.1      | v15.1          | v1.18              | v4.6.4                                                        | Yes |  - | v3.24      |             |            | v0.0.10 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.2.2      | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.11 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.3        | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.12 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.4.0      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.2      |            | v0.0.13 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.4.1      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.3      |            | v0.0.14 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.5.0      | v16.0          | v1.21              | v4.7.13                                                       | Yes |  - | v3.28      | v0.1.4      |            | v0.0.14 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.6.0      | v16.0          | v1.21              | v4.8.12 (OpenShift SDN and OVN- Kubernetes with HyperOverlay) | Yes | Yes | v3.28     | v0.1.5      |            | v0.0.16 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.7.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.17 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.7.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.18 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.8.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.19 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.8.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.7      | v0.0.1     | v0.0.19 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.9.0      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
+| v2.10.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
+| v2.11.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.22 |Red Hat Enterprise Linux release 8.7 (Ootpa)|
+| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.8      | v0.0.4     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v2.12.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.9      | v0.0.4     | v0.0.24 |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v2.12.1     | v16.0          | v1.24              | v4.12.0*                                                      | Yes | Yes | v3.41     | v0.1.9      | v0.0.4     | v0.0.24 |Red Hat Enterprise Linux release 9.1 (Plow)|
 
+Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
 CIS Features and Examples
 -------------
@@ -212,7 +220,7 @@ Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.8.1 to 2.9.0:**
 
-Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)
+Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
 
 **_Functionality Change:_**
 
@@ -226,8 +234,53 @@ Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.9.0 to 2.9.1:**
 
-Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)
+Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.9.1 to 2.10.0:**
 
-Refer Release Notes for [CIS v2.10.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)
+Refer Release Notes for [CIS v2.10.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+### **Upgrading from 2.10.0 to 2.10.1:**
+
+Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+**_Functionality Change:_**
+
+* Either secure or insecure virtual server added as EDNS pool member with Ingresslink, instead of both.
+
+### **Upgrading from 2.10.1 to 2.11.0:**
+
+**_Functionality Change:_**
+
+* From 2.11, if TLSProfile has multiple domains in hosts parameter then traffic is handled for all those domains on virtualserver it attached to.  
+
+Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+### **Upgrading from 2.11.0 to 2.11.1:**
+
+Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+**_Configuration Change:_**
+* Add pattern definition in CR schema to align with F5 BIGIP object naming convention.
+* RBAC changes to read the openshift network config
+* Moving to CIS > 2.11.1 requires an update to RBAC and CR schema definition. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
+
+### **Upgrading from 2.11.1 to 2.12.0:**
+* Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12.Use networking.k8s.io/v1 API for ingress.
+* Refer [guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md) to migrate to next generation routes.
+* Deprecated CommonName support for host certificate verification in secrets, use subject alternative name(SAN) in certificates instead.
+
+### **Upgrading from 2.12.0 to 2.12.1:**
+* CIS is supporting new partition for GTM in as3 mode for CRDs. In CCCL mode there are no partition changes for GTM, common partition remains same
+   * In as3 mode, CIS will clear existing GTM objects in default partition and recreates them in new GTM partition 
+   * Format of the new GTM partition name - {defaultpartition_gtm}
+   * With EDNS and VS/TS/IngressLink resource partition change, sometimes CIS might come across 422 error 
+     * The root cause can be VS list is not refreshed in the GSLB server.
+
+### **Upgrading from 2.12.1 to 2.13.0:**
+* CIS extended to leverage server-side http2 profile on virtual Server which requires modification in the existing Policy CRD in case of using http2 functionality.
+  * Please change the PolicyCRD accordingly with this [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
+* In NextGen mode CIS supports setting client and server ssl profiles from policy
+  * This setting is exclusive for NextGen mode and not applicable for CRD resources
+  * Policy level ssl profiles will have the highest precedence and will override route level profiles
+  * In CRD mode CIS will process ssl profiles from tls profile

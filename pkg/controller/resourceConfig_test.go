@@ -4,9 +4,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -105,7 +105,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
-			name := formatMonitorName(namespace, "svc1", "http", 80, "foo.com", "path")
+			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")
 			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
@@ -203,7 +203,8 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			_ = mockCtlr.addNamespacedInformers(namespace, false)
 
 			rsCfg = &ResourceConfig{}
@@ -227,8 +228,9 @@ var _ = Describe("Resource Config Tests", func() {
 					Host: "test.com",
 					Pools: []cisapiv1.Pool{
 						{
-							Path:    "/foo",
-							Service: "svc1",
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -255,8 +257,51 @@ var _ = Describe("Resource Config Tests", func() {
 			)
 			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 
+		It("Validate Resource Config from a AB Deployment VirtualServer", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					Pools: []cisapiv1.Pool{
+						{
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+							Weight: 70,
+							AlternateBackends: []cisapiv1.AlternateBackend{
+								{
+									Service:          "svc1-b",
+									ServiceNamespace: "test2",
+									Weight:           30,
+								},
+							},
+						},
+					},
+				},
+			)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(len(rsCfg.Pools)).To(Equal(2), "AB pool not processed")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+			Expect(rsCfg.Pools[1].ServiceNamespace).To(Equal("test2"), "Incorrect namespace defined for pool")
+		})
 		It("Validate Virtual server config with multiple monitors(tcp and http)", func() {
 			rsCfg.MetaData.ResourceType = VirtualServer
 			rsCfg.Virtual.Enabled = true
@@ -322,8 +367,9 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.TransportServerSpec{
 					Pool: cisapiv1.Pool{
-						Service:     "svc1",
-						ServicePort: 80,
+						Service:          "svc1",
+						ServicePort:      intstr.IntOrString{IntVal: 80},
+						ServiceNamespace: "test",
 						Monitor: cisapiv1.Monitor{
 							Type:     "tcp",
 							Timeout:  10,
@@ -334,6 +380,7 @@ var _ = Describe("Resource Config Tests", func() {
 			)
 			err := mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
 		})
 
 		It("Prepare Resource Config from a TransportServer", func() {
@@ -343,7 +390,7 @@ var _ = Describe("Resource Config Tests", func() {
 				cisapiv1.TransportServerSpec{
 					Pool: cisapiv1.Pool{
 						Service:     "svc1",
-						ServicePort: 80,
+						ServicePort: intstr.IntOrString{IntVal: 80},
 						Monitors: []cisapiv1.Monitor{
 							{
 								Type:       "tcp",
@@ -443,7 +490,8 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg3.Virtual.Name = formatCustomVirtualServerName("My_VS3", 80)
 
 			ltmConfig := make(LTMConfig)
-			ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			ltmConfig["default"].ResourceMap[rsCfg.Virtual.Name] = rsCfg
 			ltmConfig["default"].ResourceMap[rsCfg2.Virtual.Name] = rsCfg2
 			ltmConfig["default"].ResourceMap[rsCfg3.Virtual.Name] = rsCfg3
@@ -625,6 +673,183 @@ var _ = Describe("Resource Config Tests", func() {
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 	})
 
+	It("Validate Multiple TLS Profiles", func() {
+		tlsRenc := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSReencrypt,
+					ClientSSLs:  []string{"clientssl", "foo-clientssl"},
+					ServerSSLs:  []string{"serverssl", "foo-serverssl"},
+				},
+			},
+		)
+
+		tlsRencComb := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSReencrypt,
+					ClientSSLs:  []string{"clientssl", "foo-clientssl"},
+					ServerSSL:   "serverssl",
+				},
+			},
+		)
+
+		tlsEdge := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSEdge,
+					ClientSSLs:  []string{"clientssl", "foo-clientssl"},
+				},
+			},
+		)
+
+		tlsPst := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSPassthrough,
+				},
+			},
+		)
+
+		ok := validateTLSProfile(tlsRenc)
+		Expect(ok).To(BeTrue(), "TLS Re-encryption Validation Failed")
+
+		ok = validateTLSProfile(tlsRencComb)
+		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
+
+		ok = validateTLSProfile(tlsEdge)
+		Expect(ok).To(BeTrue(), "TLS Edge Validation Failed")
+
+		ok = validateTLSProfile(tlsPst)
+		Expect(ok).To(BeTrue(), "TLS Passthrough Validation Failed")
+
+		// Negative cases
+		tlsPst.Spec.TLS.Termination = TLSEdge
+		tlsEdge.Spec.TLS.Termination = TLSReencrypt
+		tlsRenc.Spec.TLS.Termination = TLSPassthrough
+
+		ok = validateTLSProfile(tlsRenc)
+		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
+
+		ok = validateTLSProfile(tlsEdge)
+		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
+
+		ok = validateTLSProfile(tlsPst)
+		Expect(ok).To(BeFalse(), "TLS Passthrough Validation Failed")
+
+		tlsRenc.Spec.TLS.Termination = TLSEdge
+		ok = validateTLSProfile(tlsRenc)
+		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
+	})
+
+	Describe("Fetch target ports", func() {
+		var mockCtlr *mockController
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.nsInformers = make(map[string]*NSInformer)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		})
+		It("Int target port is returned with integer targetPort", func() {
+			svcPort := v1.ServicePort{
+				Name:       "http-port",
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{IntVal: 8080},
+			}
+			svcPort2 := v1.ServicePort{
+				Name:       "https-port",
+				Port:       443,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{IntVal: 8443},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort, svcPort2},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"})).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443})).To(Equal(intstr.IntOrString{IntVal: 8443}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "https-port"})).To(Equal(intstr.IntOrString{IntVal: 8443}), "Incorrect target port returned")
+		})
+		It("Service port name is returned with named target port", func() {
+			svcPort := v1.ServicePort{
+				Name:       "http-port",
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{StrVal: "http-web"},
+			}
+			svcPort2 := v1.ServicePort{
+				Name:       "https-port",
+				Port:       443,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{StrVal: "https-web"},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort, svcPort2},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"})).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443})).To(Equal(intstr.IntOrString{StrVal: "https-port"}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "https-port"})).To(Equal(intstr.IntOrString{StrVal: "https-port"}), "Incorrect target port returned")
+		})
+		It("empty target port is returned without port name with named target port", func() {
+			svcPort := v1.ServicePort{
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{StrVal: "http-web"},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{}), "Incorrect target port returned")
+		})
+		It("int target port is returned without port name with int target port", func() {
+			svcPort := v1.ServicePort{
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{IntVal: 8080},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
+		})
+	})
+
 	Describe("ResourceStore", func() {
 		var rs ResourceStore
 		BeforeEach(func() {
@@ -649,7 +874,8 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(err).ToNot(BeNil())
 			Expect(rsCfg).To(BeNil())
 
-			rs.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			rs.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 
 			rs.ltmConfig["default"].ResourceMap["virtualServer"] = &ResourceConfig{
 				Virtual: Virtual{
@@ -664,7 +890,8 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Get all Resources", func() {
-			rs.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			rs.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			rs.ltmConfig["default"].ResourceMap["virtualServer1"] = &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer1",
@@ -696,8 +923,6 @@ var _ = Describe("Resource Config Tests", func() {
 				"1.2",
 				"",
 				""}
-
-			mockCtlr.SSLContext = make(map[string]*v1.Secret)
 
 			ip = "1.2.3.4"
 
@@ -835,11 +1060,23 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.Reference = BIGIP
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
-
+			tlsProf.Spec.Hosts = []string{"test.com"}
 			ok := mockCtlr.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Handle insecure virtual with Redirect config")
 			Expect(len(inSecRsCfg.IRulesMap)).To(Equal(1))
 			Expect(len(inSecRsCfg.Virtual.IRules)).To(Equal(1))
+			Expect(len(inSecRsCfg.IntDgMap)).To(Equal(1))
+			for _, idg := range inSecRsCfg.IntDgMap {
+				for _, dg := range idg {
+					//record should have host and host:port match
+					Expect(len(dg.Records)).To(Equal(2))
+					Expect(dg.Records[0].Name).To(Equal("test.com/path"))
+					Expect(dg.Records[0].Data).To(Equal("/path"))
+					Expect(dg.Records[1].Name).To(Equal("test.com:80/path"))
+					Expect(dg.Records[1].Data).To(Equal("/path"))
+				}
+			}
+
 		})
 
 		It("Handle HTTP Server when Redirect with out host", func() {
@@ -881,69 +1118,6 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(0), "Failed to Process TLS Termination: Edge")
-		})
-
-		It("TLS Edge with BIGIP Reference", func() {
-
-			vs.Spec.TLSProfileName = "SampleTLS"
-			tlsProf.Spec.TLS.Termination = TLSEdge
-			tlsProf.Spec.TLS.Reference = Secret
-			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
-
-			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-
-			clSecret := test.NewSecret(
-				"clientsecret",
-				namespace,
-				"### cert ###",
-				"#### key ####",
-			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
-
-			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
-			Expect(len(rsCfg.customProfiles)).To(Equal(2), "Failed to Process TLS Termination: Edge")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
-
-			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
-			Expect(len(rsCfg.customProfiles)).To(Equal(2), "Failed to Process TLS Termination: Edge")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
-		})
-
-		It("TLS Reencrypt with BIGIP Reference", func() {
-
-			vs.Spec.TLSProfileName = "SampleTLS"
-			tlsProf.Spec.TLS.Termination = TLSReencrypt
-			tlsProf.Spec.TLS.Reference = Secret
-			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
-			tlsProf.Spec.TLS.ServerSSL = "serversecret"
-
-			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-
-			clSecret := test.NewSecret(
-				"clientsecret",
-				namespace,
-				"### cert ###",
-				"#### key ####",
-			)
-			svSecret := test.NewSecret(
-				"serversecret",
-				namespace,
-				"### cert ###",
-				"",
-			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret, svSecret)
-
-			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(rsCfg.customProfiles)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
-
-			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(rsCfg.customProfiles)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 		})
 
 		It("Validate API failures", func() {

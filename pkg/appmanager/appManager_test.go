@@ -22,26 +22,27 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func init() {
@@ -194,8 +195,8 @@ func (m *mockAppManager) getVsMutex(sKey serviceQueueKey) *sync.Mutex {
 	return mtx
 }
 
-func (m *mockAppManager) processNodeUpdate(obj interface{}, err error) {
-	m.appMgr.ProcessNodeUpdate(obj, err)
+func (m *mockAppManager) processNodeUpdate(obj interface{}) {
+	m.appMgr.ProcessNodeUpdate(obj)
 	// Consume all of the work queue entries added by ProcessNodeUpdate
 	queueLen := m.appMgr.vsQueue.Len()
 	for i := 0; i < queueLen; i++ {
@@ -347,66 +348,6 @@ func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
 	return ok
 }
 
-func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
-	ok, keys := m.appMgr.checkValidIngress(ing)
-	if ok {
-		ns := ing.ObjectMeta.Namespace
-		m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Create(context.TODO(), ing, metav1.CreateOptions{})
-		appInf, _ := m.appMgr.getNamespaceInformer(ns)
-		appInf.ingInformer.GetStore().Add(ing)
-		for _, vsKey := range keys {
-			vsKey.Operation = OprTypeCreate
-			mtx := m.getVsMutex(*vsKey)
-			mtx.Lock()
-			defer mtx.Unlock()
-			m.appMgr.syncVirtualServer(*vsKey)
-		}
-	}
-	return ok
-}
-
-func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
-	ok, keys := m.appMgr.checkValidIngress(ing)
-	if ok {
-		ns := ing.ObjectMeta.Namespace
-		_, err := m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Update(context.TODO(), ing, metav1.UpdateOptions{})
-		if nil != err {
-			// This can happen when an ingress is ignored by checkValidIngress
-			// before, but now has been updated to be accepted.
-			m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Create(context.TODO(), ing, metav1.CreateOptions{})
-		}
-		appInf, _ := m.appMgr.getNamespaceInformer(ns)
-		appInf.ingInformer.GetStore().Update(ing)
-		for _, vsKey := range keys {
-			vsKey.Operation = OprTypeUpdate
-			mtx := m.getVsMutex(*vsKey)
-			mtx.Lock()
-			defer mtx.Unlock()
-			m.appMgr.syncVirtualServer(*vsKey)
-		}
-	}
-	return ok
-}
-
-func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
-	ok, keys := m.appMgr.checkValidIngress(ing)
-	if ok {
-		name := ing.ObjectMeta.Name
-		ns := ing.ObjectMeta.Namespace
-		m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
-		appInf, _ := m.appMgr.getNamespaceInformer(ns)
-		appInf.ingInformer.GetStore().Delete(ing)
-		for _, vsKey := range keys {
-			vsKey.Operation = OprTypeDelete
-			mtx := m.getVsMutex(*vsKey)
-			mtx.Lock()
-			defer mtx.Unlock()
-			m.appMgr.syncVirtualServer(*vsKey)
-		}
-	}
-	return ok
-}
-
 func (m *mockAppManager) addRoute(route *routeapi.Route) bool {
 	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
@@ -462,6 +403,12 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 		m.appMgr.syncNamespace(ns.ObjectMeta.Name)
 	}
 	return found
+}
+
+func (m *mockAppManager) addNode(node *v1.Node, ns string) {
+	appInf, _ := m.appMgr.getNamespaceInformer(ns)
+	appInf.nodeInformer.GetStore().Add(node)
+	m.appMgr.setupNodeProcessing()
 }
 
 func (m *mockAppManager) getFakeEvents(ns string) []FakeEvent {
@@ -638,6 +585,75 @@ func (m *mockAppManager) checkValidPod(obj interface{}, operation string) {
 	}
 
 }
+
+const (
+	key = `-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAsmuTNATwm08Vg7v2qiaEjmb/6vITyHv2TsKeL2TgKK/pIGTY
++WEaoEsJCh2EtdEu5qT9mM4ex3EHAy4lXL4/a1Kp5qFEOx44raRnMKcafPh+BLL9
+AatyNi48Mdu54Qr6RVMDEN79Gpj5+/iHzoR5GPZT/34gVKfMMSBd8g4bGITjmrI1
+2pN6d7ya6a+iuJy3VahZQGGc8s7GSLs3tp3yHmuhi8pk0xHCRTWLUhFHi6egtgtn
+SMNXb2pN7OibQob4BKB/UQ8ifF4C4wkDeUyHH/T2f6RBb+lTdoBUYRVp9rsTLgTQ
+haatFJbbxfO6sPDeM1u3kHYG6OYBWnhq1jK1gQIDAQABAoIBAQCipi6rXVV6P739
+OXzD4Bk3N+5U4Bnoyhjf88sAqZUvgi2jukuSC1OajMzQy9gPZ4K5/+6vPjgQ2Jjr
+7UViJozp6ZG5DYqF2icRJK5tS+h5xI4c+o5q10Bm4/879HKfFMLSL7q7xow1kv9R
+FF+5hEpg1y37257djZo3rqn136YT0ot9udDHHsVC/XWigwoHTdBAT/kKtzwvs3og
+AYjRAamHbplAua7nMA1xPwlPJ/Ni5bKpc7Lg2VPzpQnIKeNRkkhtBLtLmkGFpvnj
+7UmVSbcfklekb8m2WhcjJGs7QuGZrx9KiXVgGONfrXOjpgwLRsA5mm+f6QhAsH7a
+qM6lmQOBAoGBANeXHta7zlEd5U3MsqCB4077tOemTqpvJMBCNywaaNZmgnHuIAlc
+gQd8xnV/zkqqOiXkL0ma2Zs4eOJdjfaZ8kuVMx2YHTjHzBfdeBBLcf4NT+ceLmdz
+5dfGTCr369zBdIcQnTtgaU8b2srP1W0WQ0WDHlQbci3em6tACr2zkn4bAoGBANPc
+4rNxqP/L6W61FX/FFowUKCAtId0YGKLOLcKVcZnUDcst+E+HtanGUty4Ip3yu/TK
+SoMPE+DoIUkWMbuTpW2APIguxkDGohmYY6SZaKyL9DcMJBF9thcxQE2/n5+72qpO
+3eqHfhJzhUXz85eS60Abw3NjFYBIb6JuLMeJkaSTAoGAHCOjaM+2jCvkxBTVs9GA
+Q8ziveGdHu3G1DlQTjdcO6/BkvFLyS0DwmBs3uVBnck+Mbfo3CiUAoiKbrFbWDab
+w3XD6Db0iXa6ktrbUvUl+czvAvGTiPk9pL5DLtCRPo0Zko9+lkNtO2AdXJ9n8gcX
+3LjSepPigU4u71k6jawkkMUCgYAwklaDD07Qfj5hPDDWnyfBK6nbXp2B49FaGezR
+zJND0iLrbvmbuiBC8Q30Pl7pWUoQIASfMWi8Slu/NtBmEb5+cUTvb9HR7fgh6BcI
+GIev71IpAKaQQALsJEV6zbDZ3SaPnw8vgqq7rjJizEAPgwZeJz9TB+dZBsJZOesY
+QAjc8wKBgQDJmuwfw48P3cqKxGULrH3S/VUl2RCiu5vK7MZUCAELfDbnNXbste2P
+5TAJ5WK9OjHw0J31Lj7lNNN2kJ9Mqec17YVhJniwtDm6otXCaU44JEsO8OE0dEPj
+f0RdZWFbsvoGSoSJCifpH0Ih8qsZNwnRUWkgNKShkK0/NKhQ8oahuA==
+-----END RSA PRIVATE KEY-----`
+	cert = `-----BEGIN CERTIFICATE-----
+MIIDDzCCAfcCCQD//ypDHJ5QrDANBgkqhkiG9w0BAQsFADBCMQswCQYDVQQGEwJV
+UzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwCY2ExCzAJBgNV
+BAoMAkY1MB4XDTIyMTIxMzA3NDgzOVoXDTIyMTIxNjA3NDgzOVowUTELMAkGA1UE
+BhMCVVMxCzAJBgNVBAgMAkNPMQwwCgYDVQQHDANCRE8xCzAJBgNVBAoMAkY1MRow
+GAYDVQQDDBFweXRlc3QtdGVzdC0xLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEP
+ADCCAQoCggEBALJrkzQE8JtPFYO79qomhI5m/+ryE8h79k7Cni9k4Civ6SBk2Plh
+GqBLCQodhLXRLuak/ZjOHsdxBwMuJVy+P2tSqeahRDseOK2kZzCnGnz4fgSy/QGr
+cjYuPDHbueEK+kVTAxDe/RqY+fv4h86EeRj2U/9+IFSnzDEgXfIOGxiE45qyNdqT
+ene8mumvorict1WoWUBhnPLOxki7N7ad8h5roYvKZNMRwkU1i1IRR4unoLYLZ0jD
+V29qTezom0KG+ASgf1EPInxeAuMJA3lMhx/09n+kQW/pU3aAVGEVafa7Ey4E0IWm
+rRSW28XzurDw3jNbt5B2BujmAVp4atYytYECAwEAATANBgkqhkiG9w0BAQsFAAOC
+AQEAEj8uJVTZsKen4fdQiwnS4MrupOTXg3ClDXH+faQr3SBjJUDDPXlpA/neN4aU
+Pv20RO1/e5xOmoB+JVoHtkIAJsMQmU8YEpot4mtibJQDvK5QcwnDAxKn/PKU4W0F
+8rqpNxN5vS4KZxfRj4NX3Dc+m1H52h1LO5Nb7KZ0b9SAgT+kMs4/oAgV16qHn58l
+2c4LgNYPhdGKs9GopgGxRGkqy6DNxolmpVoNgc7IuleGylmRBOVOQfM+VH0Jttxs
+k6HdyLPp5kLoAqOaoQVJiId5KwWhDM+nq98sGY+jFl6CCIdzumwP82+Zg55+diR8
+qcnS2td06z1ieb3p/5NmqFACEw==
+-----END CERTIFICATE-----`
+	destCACert = `-----BEGIN CERTIFICATE-----
+MIIDVzCCAj+gAwIBAgIJAImbKA4RVJfGMA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV
+BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL
+MAkGA1UECgwCRjUwHhcNMjIxMTExMDcyMzEzWhcNMjMxMTExMDcyMzEzWjBCMQsw
+CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC
+Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+sRy3ITtVtR8Q9CRsOj+kl7yuhC6UbgMK7hHAg12bQmy2peZmjeJ5JO27Z2FeO1gG
+p5U5knqaYtOnF9UiSufX28SFRMgxBNHldJuxi+BkBSKNRLrBQcOsl2IrhI8pDqLS
+1x36TASE77YR+CoLFJAiS45D8mQ5Pfm73W5LeW3Ea8gzRXINRuANTsidJxE68dtP
+N7GFLe6xuA7dJJ99nsxmSafdG6uJsmCgUvfXiJDf2BvSWHrnkn3MdAIBnKRBIKVE
+/kaofEW/E3aHDKn8IYFL/cvOWyzuO7GwU/mHOIvI7AuTKRZrw7TbGBHf6R7iZkkk
+I3SuZFvky0Pr3KNVTPDNSwIDAQABo1AwTjAdBgNVHQ4EFgQUdxEXtBxjS672J7Yp
+N4SZqhWdmtwwHwYDVR0jBBgwFoAUdxEXtBxjS672J7YpN4SZqhWdmtwwDAYDVR0T
+BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAByYz9PIOnjKIsl9AgcveenS7b7Wp
+MqMcKEZf0SWzjuOUeZoZo4bkwnUCf0tA4Bpzy1kiMeeqPj3Ya5vcJvodzuMkjfV7
+UIAgz1Ke2PhgujEwL5XMoZmT4+4BI+QRY48IheuJRMxKauzfRrzZX9BmURW54DRQ
+hMvO9tsn8iPpu8SLUCGcTO7nmHYZ16+V6HM26eq47yTnq1hUEjw1xmecQbcG5Sor
+nzkCdyiFZSQJVjQz2YFe0vP2apbB0IboolHyqKDNQBK8ajVnEwmvvU9NSUKEWf6H
+/is7QKfuJK8KZoyQU1H1oMMfG7XkdGNbn9aqEcgQ0/lZmjylxmWRWqEYDg==
+-----END CERTIFICATE-----`
+)
 
 var _ = Describe("AppManager Tests", func() {
 	Context("Output Config", func() {
@@ -867,8 +883,16 @@ var _ = Describe("AppManager Tests", func() {
 							Effect: v1.TaintEffectNoSchedule,
 						},
 					}),
+				*test.NewNode("node7", "7", false, []v1.NodeAddress{
+					{Type: "ExternalIP", Address: "127.0.0.7"}},
+					[]v1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/worker",
+							Effect: v1.TaintEffectNoExecute,
+						},
+					}),
 			}
-
+			// should ignore nodes with NotReady state(v1.TaintEffectNoExecute)
 			expectedOgSet := []Node{
 				{Name: "node0", Addr: "127.0.0.0"},
 				{Name: "node1", Addr: "127.0.0.1"},
@@ -883,7 +907,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err := fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			Expect(appMgr.oldNodes).To(Equal(expectedOgSet))
 
 			cachedNodes := appMgr.getNodesFromCache()
@@ -898,7 +922,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = true
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			Expect(appMgr.oldNodes).To(Equal(expectedInternal))
 
 			cachedNodes = appMgr.getNodesFromCache()
@@ -916,7 +940,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			expectedAddSet := append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -929,7 +953,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			expectedAddSet = append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -955,7 +979,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 
 			Expect(appMgr.oldNodes).To(Equal(expectedDelSet))
 
@@ -1022,7 +1046,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 				_, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 
 				// ConfigMap with TCP
@@ -1036,7 +1060,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 
 				// ConfigMap with UDP
@@ -1050,7 +1074,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 			}
 
@@ -1104,7 +1128,7 @@ var _ = Describe("AppManager Tests", func() {
 						{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
 				}
 
-				mockMgr.processNodeUpdate(nodeSet, nil)
+				mockMgr.processNodeUpdate(nodeSet)
 
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -1159,17 +1183,17 @@ var _ = Describe("AppManager Tests", func() {
 
 				addrs := []string{"127.0.0.0"}
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(30001, 80, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, FormatConfigMapVSName(cfgFoo8080))
+					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo8080), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeFalse())
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, FormatConfigMapVSName(cfgFoo9090))
+					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo9090), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeFalse())
 
@@ -1186,21 +1210,58 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace})).To(Equal(1))
 
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(20001, 80, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, FormatConfigMapVSName(cfgFoo8080))
+					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo8080), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(45454, 8080, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, FormatConfigMapVSName(cfgFoo9090))
+					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo9090), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeFalse())
+			})
+
+			It("Handles services with same ports in nodeport mode", func() {
+				mockMgr.appMgr.poolMemberType = NodePort
+				// Add a node
+				nds := []Node{Node{"node0", "10.10.10.1"}}
+				mockMgr.appMgr.oldNodes = nds
+				// Service with same port
+				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001, Protocol: "TCP"},
+					{Port: 9090, NodePort: 38001, Protocol: "TCP"},
+					{Port: 9090, NodePort: 38001, Protocol: "UDP"}}
+				foo := test.NewService("foo", "1", namespace, "NodePort", fooPorts)
+				foo.Labels = map[string]string{"cis.f5.com/as3-tenant": "test"}
+				r := mockMgr.addService(foo)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+				fooIps := []string{"10.1.1.1"}
+				// Add endpoint
+				fooEndpts := test.NewEndpoints(
+					"foo", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+				r = mockMgr.addEndpoints(fooEndpts)
+				expMembers := []Member{
+					{
+						Address: "10.10.10.1",
+						Port:    30001,
+						SvcPort: 80,
+						Session: "user-enabled",
+					},
+					{
+						Address: "10.10.10.1",
+						Port:    38001,
+						SvcPort: 9090,
+						Session: "user-enabled",
+					},
+				}
+				mems := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default")
+				Expect(mems).To(Equal(expMembers))
 			})
 
 			It("handles concurrent updates - NodePort", func() {
@@ -1238,7 +1299,7 @@ var _ = Describe("AppManager Tests", func() {
 
 						nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 						Expect(err).To(BeNil(), "Should not fail listing nodes.")
-						mockMgr.processNodeUpdate(nodes.Items, err)
+						mockMgr.processNodeUpdate(nodes.Items)
 					}
 
 					nodeCh <- struct{}{}
@@ -1296,7 +1357,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(err).To(BeNil())
 					nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 					Expect(err).To(BeNil(), "Should not fail listing nodes.")
-					mockMgr.processNodeUpdate(nodes.Items, err)
+					mockMgr.processNodeUpdate(nodes.Items)
 
 					nodeCh <- struct{}{}
 				}()
@@ -1357,7 +1418,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(n.Items, nil)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -1514,7 +1575,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				Expect(len(n.Items)).To(Equal(3))
 
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				// ConfigMap added
 				r := mockMgr.addConfigMap(cfgFoo)
@@ -1522,7 +1583,7 @@ var _ = Describe("AppManager Tests", func() {
 				resources := mockMgr.resources()
 				Expect(resources.PoolCount()).To(Equal(1))
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 
 				// Second ConfigMap added
@@ -1530,11 +1591,11 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeFalse())
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgBar))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgBar), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeFalse())
 
@@ -1543,7 +1604,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, 80, addrs)))
@@ -1553,7 +1614,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgBar))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgBar), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
@@ -1563,17 +1624,17 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				Expect(resources.PoolCount()).To(Equal(3))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, FormatConfigMapVSName(cfgFoo8080))
+					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo8080), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, 8080, addrs)))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, 80, addrs)))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgBar))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgBar), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
@@ -1583,22 +1644,22 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				Expect(resources.PoolCount()).To(Equal(4))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, FormatConfigMapVSName(cfgFoo9090))
+					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo9090), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(39001, 9090, addrs)))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, FormatConfigMapVSName(cfgFoo8080))
+					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo8080), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, 8080, addrs)))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, 80, addrs)))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgBar))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgBar), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
@@ -1608,28 +1669,28 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(4))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(30001, 80, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgBar))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgBar), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(37001, 80, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, FormatConfigMapVSName(cfgFoo8080))
+					ServiceKey{ServiceName: "foo", ServicePort: 8080, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo8080), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(38001, 8080, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, FormatConfigMapVSName(cfgFoo9090))
+					ServiceKey{ServiceName: "foo", ServicePort: 9090, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo9090), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
@@ -1680,15 +1741,15 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(30001, 80, []string{"127.0.0.3"})))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgBar))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgBar), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
@@ -1762,7 +1823,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				Expect(resources.PoolCount()).To(Equal(1))
 				resources.Delete(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace},
-					FormatConfigMapVSName(extrakeys))
+					NameRef{Name: FormatConfigMapVSName(extrakeys), Partition: "velcro"})
 
 				// Config map with no mode or balance
 				defaultModeAndBalance := test.NewConfigMap("mode_balance", "1", namespace, map[string]string{
@@ -1777,7 +1838,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(1))
 
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(defaultModeAndBalance))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(defaultModeAndBalance), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs).ToNot(BeNil(), "Config map should be object.")
 
@@ -1818,7 +1879,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -1835,13 +1896,13 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				resources := mockMgr.resources()
 				_, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 
 				r = mockMgr.addConfigMap(cfgBar)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should not be added if namespace does not match flag.")
 				Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace})).To(
 					Equal(1), "Virtual servers should contain original config.")
@@ -1850,7 +1911,7 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.updateConfigMap(cfgBar)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should not be added if namespace does not match flag.")
 				Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace})).To(
 					Equal(1), "Virtual servers should contain original config.")
@@ -1859,43 +1920,43 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.deleteConfigMap(cfgBar)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should not be added if namespace does not match flag.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible after delete called on incorrect namespace.")
 
 				r = mockMgr.addService(servFoo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 
 				r = mockMgr.addService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Service should not be added if namespace does not match flag.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 
 				r = mockMgr.updateService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
 				_, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: wrongNamespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Service should not be added if namespace does not match flag.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 
 				r = mockMgr.deleteService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Service should not have been deleted.")
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 			})
@@ -1935,7 +1996,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				Expect(len(n.Items)).To(Equal(4))
 
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				// ConfigMap ADDED
 				r := mockMgr.addConfigMap(cfgIapp1)
@@ -1943,7 +2004,7 @@ var _ = Describe("AppManager Tests", func() {
 				resources := mockMgr.resources()
 				Expect(resources.PoolCount()).To(Equal(1))
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
+					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp1), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 
 				// Second ConfigMap ADDED
@@ -1951,7 +2012,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
+					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp1), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 
 				// Service ADDED
@@ -1959,7 +2020,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
+					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp1), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, 80, addrs)))
 
@@ -1968,11 +2029,11 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
+					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp1), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, 80, addrs)))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp2", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp2))
+					ServiceKey{ServiceName: "iapp2", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp2), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(20202, 80, addrs)))
 
@@ -1991,15 +2052,15 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
+					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp1), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(10101, 80, append(addrs, "192.168.0.4"))))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp2", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp2))
+					ServiceKey{ServiceName: "iapp2", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp2), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(20202, 80, append(addrs, "192.168.0.4"))))
@@ -2012,15 +2073,15 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
+					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp1), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(10101, 80, []string{"192.168.0.0", "192.168.0.4"})))
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "iapp2", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp2))
+					ServiceKey{ServiceName: "iapp2", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgIapp2), Partition: "velcro"})
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(20202, 80, []string{"192.168.0.0", "192.168.0.4"})))
@@ -2074,7 +2135,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(1))
 
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(noBindAddr))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(noBindAddr), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs).ToNot(BeNil(), "Config map should be object.")
 
@@ -2087,7 +2148,7 @@ var _ = Describe("AppManager Tests", func() {
 				noBindAddr.ObjectMeta.Annotations[F5VsBindAddrAnnotation] = "1.2.3.4"
 				mockMgr.updateConfigMap(noBindAddr)
 				rs, _ = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(noBindAddr))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(noBindAddr), Partition: "velcro"})
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(10000)))
 
@@ -2124,7 +2185,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(1))
 
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(noVirtualAddress))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(noVirtualAddress), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs).ToNot(BeNil(), "Config map should be object.")
 
@@ -2186,7 +2247,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(n.Items, nil)
+				mockMgr.processNodeUpdate(n.Items)
 
 				endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
 				goodEndpts := test.NewEndpoints(svcName, "1", "node0", namespace,
@@ -2210,7 +2271,7 @@ var _ = Describe("AppManager Tests", func() {
 				for _, p := range svcPorts {
 					Expect(resources.CountOf(ServiceKey{ServiceName: "foo", ServicePort: p.Port, Namespace: namespace})).To(Equal(1))
 					rs, ok := resources.Get(
-						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 					Expect(ok).To(BeTrue())
 					Expect(rs.Pools[0].Members).To(Equal([]Member(nil)))
 				}
@@ -2279,7 +2340,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(n.Items, nil)
+				mockMgr.processNodeUpdate(n.Items)
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
@@ -2361,7 +2422,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(nodes.Items, nil)
+				mockMgr.processNodeUpdate(nodes.Items)
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
@@ -2428,7 +2489,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(nodes.Items, nil)
+				mockMgr.processNodeUpdate(nodes.Items)
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
@@ -2437,9 +2498,14 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 
-				r = mockMgr.addEndpoints(test.NewEndpoints(svcName, "1", "node0", namespace,
-					svcPodIps, []string{}, endptPorts))
+				endpoint := test.NewEndpoints(svcName, "1", "node0", namespace,
+					svcPodIps, []string{}, endptPorts)
+				r = mockMgr.addEndpoints(endpoint)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
+
+				// enqueue endpoints and check the queue length
+				mockMgr.appMgr.enqueueEndpoints(endpoint, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 
 				// no virtual servers yet
 				resources := mockMgr.resources()
@@ -2570,285 +2636,12 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(2))
 			})
 
-			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
-			It("configures virtual servers via Ingress", func() {
-				// Add a service
-				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				r := mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				ingressConfig := v1beta1.IngressSpec{
-					Backend: &v1beta1.IngressBackend{
-						ServiceName: "foo",
-						ServicePort: intstr.IntOrString{IntVal: 80},
-					},
-				}
-				// Add a new Ingress
-				ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r = mockMgr.addIngress(ingress)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				resources := mockMgr.resources()
-
-				events := mockMgr.getFakeEvents(namespace)
-				Expect(len(events)).To(Equal(1))
-				Expect(resources.PoolCount()).To(Equal(1))
-				Expect(events[0].Namespace).To(Equal(namespace))
-				Expect(events[0].Name).To(Equal("ingress"))
-				Expect(events[0].Reason).To(Equal("ResourceConfigured"))
-
-				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-
-				Expect(rs.Pools[0].Balance).To(Equal("round-robin"))
-				Expect(rs.Virtual.Partition).To(Equal("velcro"))
-				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
-				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
-				// Update the Ingress resource
-				ingress2 := test.NewIngress("ingress", "1", namespace, ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "5.6.7.8",
-						F5VsPartitionAnnotation: "velcro2",
-						F5VsHttpPortAnnotation:  "443",
-					})
-				r = mockMgr.updateIngress(ingress2)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				Expect(resources.PoolCount()).To(Equal(1))
-				events = mockMgr.getFakeEvents(namespace)
-				Expect(len(events)).To(Equal(2))
-				Expect(events[1].Namespace).To(Equal(namespace))
-				Expect(events[1].Name).To(Equal("ingress"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-
-				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("5.6.7.8", 443))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
-
-				Expect(rs.Virtual.Partition).To(Equal("velcro2"))
-				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
-				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(443)))
-				// Delete the Ingress resource
-				r = mockMgr.deleteIngress(ingress2)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				Expect(resources.PoolCount()).To(Equal(0))
-				// events = mockMgr.getFakeEvents(namespace)
-				// Expect(len(events)).To(Equal(2))
-
-				// Shouldn't process Ingress with non-F5 class
-				// https://github.com/F5Networks/k8s-bigip-ctlr/issues/311
-				ingressNotf5 := test.NewIngress("ingress-bad", "1", namespace, ingressConfig,
-					map[string]string{
-						K8sIngressClass: "notf5",
-					})
-				r = mockMgr.addIngress(ingressNotf5)
-				Expect(r).To(BeFalse(), "Ingress resource should not be processed.")
-				Expect(resources.PoolCount()).To(Equal(0))
-				ingressNotf5.Annotations[K8sIngressClass] = "f5"
-				r = mockMgr.updateIngress(ingressNotf5)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed when flipping from notf5 to f5.")
-				Expect(resources.PoolCount()).To(Equal(1))
-				//events = mockMgr.getFakeEvents(namespace)
-				//Expect(len(events)).To(Equal(3))
-				ingressNotf5.Annotations[K8sIngressClass] = "notf5again"
-				r = mockMgr.updateIngress(ingressNotf5)
-				Expect(r).To(BeFalse(), "Ingress resource should be destroyed when flipping from f5 to notf5again.")
-				Expect(resources.PoolCount()).To(Equal(0))
-				//events = mockMgr.getFakeEvents(namespace)
-				//Expect(len(events)).To(Equal(3))
-
-				// Multi-service Ingress
-				ingressConfig = v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: "host1",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-						{Host: "host2",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{Path: "/foobar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foobar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				barSvc := test.NewService("bar", "2", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				r = mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				foobarSvc := test.NewService("foobar", "3", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37003}})
-				r = mockMgr.addService(foobarSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				ingress3 := test.NewIngress("ingress", "2", namespace, ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r = mockMgr.addIngress(ingress3)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				//events = mockMgr.getFakeEvents(namespace)
-				//Expect(len(events)).To(Equal(4))
-				// 4 rules, but only 3 backends specified. We should have 3 keys stored, one for
-				// each backend
-				Expect(resources.PoolCount()).To(Equal(3))
-				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(4))
-				mockMgr.deleteService(fooSvc)
-				Expect(resources.PoolCount()).To(Equal(2))
-				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-
-				mockMgr.deleteIngress(ingress3)
-				mockMgr.addService(fooSvc)
-				ingressConfig = v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: "",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				ingress4 := test.NewIngress("ingress", "3", namespace, ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				// Add ingress with same ip (should use shared virtual)
-				ingress5 := test.NewIngress("ingressShared", "4", namespace,
-					v1beta1.IngressSpec{
-						Rules: []v1beta1.IngressRule{
-							{Host: "",
-								IngressRuleValue: v1beta1.IngressRuleValue{
-									HTTP: &v1beta1.HTTPIngressRuleValue{
-										Paths: []v1beta1.HTTPIngressPath{
-											{Path: "/foo",
-												Backend: v1beta1.IngressBackend{
-													ServiceName: "foobar",
-													ServicePort: intstr.IntOrString{IntVal: 80},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r = mockMgr.addIngress(ingress4)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				r = mockMgr.addIngress(ingress5)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				Expect(resources.VirtualCount()).To(Equal(1))
-				Expect(resources.PoolCount()).To(Equal(3))
-				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-				//events = mockMgr.getFakeEvents(namespace)
-				//Expect(len(events)).To(Equal(8))
-
-				mockMgr.deleteIngress(ingress5)
-				Expect(resources.VirtualCount()).To(Equal(1))
-				Expect(resources.PoolCount()).To(Equal(2))
-				mockMgr.deleteService(fooSvc)
-				Expect(resources.PoolCount()).To(Equal(1))
-				// re-add the service and make sure the pool is re-created
-				mockMgr.addService(fooSvc)
-				Expect(resources.PoolCount()).To(Equal(2))
-				// Rename a service to one that doesn't exist, which should cause
-				// removal of its pool.
-				ingress4.Spec.Rules[0].HTTP.Paths[1].Backend.ServiceName = "not-there"
-				mockMgr.updateIngress(ingress4)
-				Expect(resources.PoolCount()).To(Equal(1))
-			})
-
-			// TODO Update the testcase only for routes once v1beta1.Ingress is deprecated in k8s 1.22
 			It("doesn't deactivate a multi-service config unnecessarily", func() {
-				mockMgr.appMgr.useNodeInternal = true
-				// Ingress first
-				ingressConfig := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: "host1",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
+				mockMgr.appMgr.routeConfig = RouteConfig{
+					HttpVs:  "ose-vserver",
+					HttpsVs: "https-ose-vserver",
 				}
+				mockMgr.appMgr.useNodeInternal = true
 				// Create Node so we get endpoints
 				node := test.NewNode("node1", "1", false,
 					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
@@ -2856,53 +2649,8 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
-
-				// Create the services
-				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				r := mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				barSvc := test.NewService("bar", "2", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				r = mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				// Create the Ingress
-				ing := test.NewIngress("ingress", "1", namespace, ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r = mockMgr.addIngress(ing)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-
-				resources := mockMgr.resources()
-
-				deleteServices := func() {
-					rs, ok := resources.Get(
-						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-					Expect(ok).To(BeTrue())
-					Expect(rs.MetaData.Active).To(BeTrue())
-
-					// Delete one service, config should still be active
-					mockMgr.deleteService(fooSvc)
-					rs, ok = resources.Get(
-						ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-					Expect(ok).To(BeTrue())
-					Expect(rs.MetaData.Active).To(BeTrue())
-
-					// Delete final service, config should go inactive
-					mockMgr.deleteService(barSvc)
-					rs, ok = resources.Get(
-						ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
-					Expect(ok).To(BeFalse())
-				}
-				deleteServices()
-
+				mockMgr.processNodeUpdate(n.Items)
 				// Now try routes
-				mockMgr.addService(fooSvc)
-				mockMgr.addService(barSvc)
 				spec1 := routeapi.RouteSpec{
 					Host: "foo.com",
 					Path: "/foo",
@@ -2910,11 +2658,25 @@ var _ = Describe("AppManager Tests", func() {
 						Kind: "Service",
 						Name: "foo",
 					},
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.FromInt(80),
+					},
 				}
 				route1 := test.NewRoute("route1", "1", namespace, spec1, nil)
-				r = mockMgr.addRoute(route1)
+				r := mockMgr.addRoute(route1)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
+				// enqueue Route and check the queue length
+				mockMgr.appMgr.enqueueRoute(route1, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 
+				// enqueue Route with delete operation and check the hostPath Map
+				key := route1.Spec.Host + route1.Spec.Path
+				mockMgr.appMgr.updateHostPathMap(route1.CreationTimestamp, key)
+				_, ok := mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
+				Expect(ok).To(BeTrue())
+				mockMgr.appMgr.enqueueRoute(route1, OprTypeDelete)
+				_, ok = mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
+				Expect(ok).To(BeFalse())
 				spec2 := routeapi.RouteSpec{
 					Host: "bar.com",
 					Path: "/bar",
@@ -2922,587 +2684,43 @@ var _ = Describe("AppManager Tests", func() {
 						Kind: "Service",
 						Name: "bar",
 					},
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.FromInt(80),
+					},
 				}
 				route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
 				r = mockMgr.addRoute(route2)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				deleteServices()
-			})
-
-			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
-			It("configure whitelist annotation on Ingress", func() {
-				var found *Condition
-
-				// Multi-service Ingress
-				ingressConfig := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: "host1",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				barSvc := test.NewService(
-					"bar",
-					"2", namespace,
-					"NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				r := mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				ingress3 := test.NewIngress(
-					"ingress",
-					"2",
-					namespace,
-					ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:             "1.2.3.4",
-						F5VsPartitionAnnotation:            "velcro",
-						F5VsWhitelistSourceRangeAnnotation: "1.2.3.4/32,2.2.2.0/24",
-					})
-				ingress4 := test.NewIngress(
-					"ingress",
-					"2",
-					namespace,
-					ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "2.2.2.2",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r = mockMgr.addIngress(ingress3)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				resources := mockMgr.resources()
-
-				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-					FormatIngressVSName("1.2.3.4", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-
-				// Check to see that the condition
-				Expect(len(rs.Policies)).To(Equal(1))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				// Check to see if there are three conditions.
-				//
-				// One condition for the /foo rule
-				// One condition for the /bar condition
-				// One condition for the whitelist entry
-				//
-				// as defined in ingressConfig above.
-				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
-				for _, x := range rs.Policies[0].Rules[0].Conditions {
-					if x.Tcp == true {
-						found = x
-					}
-				}
-				Expect(found).NotTo(BeNil())
-				Expect(found.Values).Should(ConsistOf("1.2.3.4/32", "2.2.2.0/24"))
-
-				mockMgr.deleteIngress(ingress3)
-				r = mockMgr.addIngress(ingress4)
-
-				resources = mockMgr.resources()
-				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-					FormatIngressVSName("2.2.2.2", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
-
-				found = nil
-				for _, x := range rs.Policies[0].Rules[0].Conditions {
-					if x.Tcp == true {
-						found = x
-					}
-				}
-				Expect(found).To(BeNil())
-			})
-			It("configure allow source range annotation on Ingress", func() {
-				var found *Condition
-
-				// Multi-service Ingress
-				ingressConfig := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: "host1",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				barSvc := test.NewService(
-					"bar",
-					"2", namespace,
-					"NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				r := mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				ingress3 := test.NewIngress(
-					"ingress",
-					"2",
-					namespace,
-					ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:         "1.2.3.4",
-						F5VsPartitionAnnotation:        "velcro",
-						F5VsAllowSourceRangeAnnotation: "1.2.3.4/32,2.2.2.0/24",
-					})
-				ingress4 := test.NewIngress(
-					"ingress",
-					"2",
-					namespace,
-					ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "2.2.2.2",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r = mockMgr.addIngress(ingress3)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				resources := mockMgr.resources()
-
-				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-					FormatIngressVSName("1.2.3.4", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-
-				// Check to see that the condition
-				Expect(len(rs.Policies)).To(Equal(1))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				// Check to see if there are three conditions.
-				//
-				// One condition for the /foo rule
-				// One condition for the /bar condition
-				// One condition for the whitelist entry
-				//
-				// as defined in ingressConfig above.
-				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
-				for _, x := range rs.Policies[0].Rules[0].Conditions {
-					if x.Tcp == true {
-						found = x
-					}
-				}
-				Expect(found).NotTo(BeNil())
-				Expect(found.Values).Should(ConsistOf("1.2.3.4/32", "2.2.2.0/24"))
-
-				mockMgr.deleteIngress(ingress3)
-				r = mockMgr.addIngress(ingress4)
-
-				resources = mockMgr.resources()
-				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-					FormatIngressVSName("2.2.2.2", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
-
-				found = nil
-				for _, x := range rs.Policies[0].Rules[0].Conditions {
-					if x.Tcp == true {
-						found = x
-					}
-				}
-				Expect(found).To(BeNil())
-			})
-			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
-			It("configure whitelist annotation, extra spaces, on Ingress", func() {
-				var found *Condition
-
-				// Multi-service Ingress
-				ingressConfig := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{
-							Host: "host1",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{
-											Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{
-											Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				barSvc := test.NewService(
-					"bar",
-					"2", namespace,
-					"NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				r := mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				ingress3 := test.NewIngress(
-					"ingress",
-					"2",
-					namespace,
-					ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:             "1.2.3.4",
-						F5VsPartitionAnnotation:            "velcro",
-						F5VsWhitelistSourceRangeAnnotation: "10.10.10.0/24, 192.168.0.0/16, 172.16.0.0/18",
-					})
-				r = mockMgr.addIngress(ingress3)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				resources := mockMgr.resources()
-
-				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-					FormatIngressVSName("1.2.3.4", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-
-				// Check to see that the condition
-				Expect(len(rs.Policies)).To(Equal(1))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				// Check to see if there are three conditions.
-				//
-				// One condition for the /foo rule
-				// One condition for the /bar condition
-				// One condition for the whitelist entry
-				//
-				// as defined in ingressConfig above.
-				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
-				for _, x := range rs.Policies[0].Rules[0].Conditions {
-					if x.Tcp == true {
-						found = x
-					}
-				}
-				Expect(found).NotTo(BeNil())
-				Expect(found.Values).Should(ConsistOf("10.10.10.0/24", "192.168.0.0/16", "172.16.0.0/18"))
-			})
-
-			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
-			It("configure allow source ange annotation, extra spaces, on Ingress", func() {
-				var found *Condition
-
-				// Multi-service Ingress
-				ingressConfig := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{
-							Host: "host1",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{
-											Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-										{
-											Path: "/bar",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "bar",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-				barSvc := test.NewService(
-					"bar",
-					"2", namespace,
-					"NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				r := mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				ingress3 := test.NewIngress(
-					"ingress",
-					"2",
-					namespace,
-					ingressConfig,
-					map[string]string{
-						F5VsBindAddrAnnotation:         "1.2.3.4",
-						F5VsPartitionAnnotation:        "velcro",
-						F5VsAllowSourceRangeAnnotation: "10.10.10.0/24, 192.168.0.0/16, 172.16.0.0/18",
-					})
-				r = mockMgr.addIngress(ingress3)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				resources := mockMgr.resources()
-
-				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-					FormatIngressVSName("1.2.3.4", 80))
-				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-
-				// Check to see that the condition
-				Expect(len(rs.Policies)).To(Equal(1))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				// Check to see if there are three conditions.
-				//
-				// One condition for the /foo rule
-				// One condition for the /bar condition
-				// One condition for the whitelist entry
-				//
-				// as defined in ingressConfig above.
-				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
-				for _, x := range rs.Policies[0].Rules[0].Conditions {
-					if x.Tcp == true {
-						found = x
-					}
-				}
-				Expect(found).NotTo(BeNil())
-				Expect(found.Values).Should(ConsistOf("10.10.10.0/24", "192.168.0.0/16", "172.16.0.0/18"))
-			})
-
-			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
-			It("properly uses the default Ingress IP", func() {
-				mockMgr.appMgr.defaultIngIP = "10.1.2.3"
-
+				// Create the services
 				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
 					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				barSvc := test.NewService("bar", "1", namespace, "NodePort",
+				r = mockMgr.addService(fooSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+				barSvc := test.NewService("bar", "2", namespace, "NodePort",
 					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				mockMgr.addService(fooSvc)
-				mockMgr.addService(barSvc)
-
-				ingCfg1 := v1beta1.IngressSpec{
-					Backend: &v1beta1.IngressBackend{
-						ServiceName: "foo",
-						ServicePort: intstr.IntOrString{IntVal: 80},
-					},
-				}
-				ingCfg2 := v1beta1.IngressSpec{
-					Backend: &v1beta1.IngressBackend{
-						ServiceName: "bar",
-						ServicePort: intstr.IntOrString{IntVal: 80},
-					},
-				}
-				ingress1 := test.NewIngress("ingress1", "1", namespace, ingCfg1,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "controller-default",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				ingress2 := test.NewIngress("ingress2", "2", namespace, ingCfg2,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "controller-default",
-						F5VsPartitionAnnotation: "velcro",
-					})
-				mockMgr.addIngress(ingress1)
-				mockMgr.addIngress(ingress2)
+				r = mockMgr.addService(barSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.VirtualCount()).To(Equal(1))
-				Expect(resources.PoolCount()).To(Equal(2))
-				_, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("10.1.2.3", 80))
-				Expect(ok).To(BeTrue())
+				deleteServices := func() {
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "ose-vserver", Partition: "velcro"})
+					Expect(ok).To(BeTrue())
+					Expect(rs.MetaData.Active).To(BeTrue())
 
-				ingress2.Annotations[F5VsBindAddrAnnotation] = "1.2.3.4"
-				mockMgr.updateIngress(ingress2)
-				Expect(resources.VirtualCount()).To(Equal(2))
-				Expect(resources.PoolCount()).To(Equal(2))
-			})
+					// Delete one service, config should still be active
+					mockMgr.deleteService(fooSvc)
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, NameRef{Name: "ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue())
+					Expect(rs.MetaData.Active).To(BeTrue())
 
-			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
-			It("properly configures redirect data group for ingress", func() {
-				ns1 := "ns1"
-				ns2 := "ns2"
-				host := "foo.com"
-				svcName := "foo"
-				fooPath := "/foo"
-				barPath := "/bar"
-				err := mockMgr.startNonLabelMode([]string{ns1, ns2})
-				Expect(err).To(BeNil())
-				httpFoo := v1beta1.HTTPIngressRuleValue{
-					Paths: []v1beta1.HTTPIngressPath{
-						{Path: fooPath,
-							Backend: v1beta1.IngressBackend{
-								ServiceName: svcName,
-								ServicePort: intstr.IntOrString{IntVal: 80},
-							},
-						},
-					},
+					// Delete final service, config should go inactive
+					mockMgr.deleteService(barSvc)
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, NameRef{Name: "ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeFalse())
 				}
-				httpBar := v1beta1.HTTPIngressRuleValue{
-					Paths: []v1beta1.HTTPIngressPath{
-						{Path: barPath,
-							Backend: v1beta1.IngressBackend{
-								ServiceName: svcName,
-								ServicePort: intstr.IntOrString{IntVal: 80},
-							},
-						},
-					},
-				}
-				tlsArray := []v1beta1.IngressTLS{
-					{
-						SecretName: "/Common/clientssl",
-					},
-				}
-				specFoo := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: host,
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &httpFoo,
-							},
-						},
-					},
-					TLS: tlsArray,
-				}
-				specBar := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: host,
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &httpBar,
-							},
-						},
-					},
-					TLS: tlsArray,
-				}
-
-				// Create the first ingress and associate a service
-				ing1a := test.NewIngress("ing1a", "1", ns1, specFoo,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: DEFAULT_PARTITION,
-						IngressSslRedirect:      "true",
-					})
-				r := mockMgr.addIngress(ing1a)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				fooSvc1 := test.NewService(svcName, "1", ns1, "NodePort",
-					[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
-				r = mockMgr.addService(fooSvc1)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				// Create identical ingress and service in another namespace
-				ing2 := test.NewIngress("ing2", "1", ns2, specFoo,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: DEFAULT_PARTITION,
-						IngressSslRedirect:      "true",
-					})
-				r = mockMgr.addIngress(ing2)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				fooSvc2 := test.NewService(svcName, "1", ns2, "NodePort",
-					[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
-				r = mockMgr.addService(fooSvc2)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-
-				// Make sure the entry isn't duplicated in the dg
-				grpRef := NameRef{
-					Partition: DEFAULT_PARTITION,
-					Name:      HttpsRedirectDgName,
-				}
-				nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
-				Expect(found).To(BeTrue(), "redirect group not found")
-				flatDg := nsMap.FlattenNamespaces()
-				Expect(flatDg).ToNot(BeNil(), "should have data")
-				Expect(len(flatDg.Records)).To(Equal(1))
-				Expect(flatDg.Records[0].Name).To(Equal(host + fooPath))
-				Expect(flatDg.Records[0].Data).To(Equal(fooPath))
-
-				// Add a route for the same host but different path
-				ing1b := test.NewIngress("ing1b", "1", ns1, specBar,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: "velcro",
-						IngressSslRedirect:      "true",
-					})
-				r = mockMgr.addIngress(ing1b)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				Expect(found).To(BeTrue(), "redirect group not found")
-				flatDg = nsMap.FlattenNamespaces()
-				Expect(flatDg).ToNot(BeNil(), "should have data")
-				Expect(len(flatDg.Records)).To(Equal(2))
-
-				// Delete one of the duplicates for foo.com/foo, should not change dg
-				r = mockMgr.deleteIngress(ing2)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				Expect(found).To(BeTrue(), "redirect group not found")
-				flatDg = nsMap.FlattenNamespaces()
-				Expect(flatDg).ToNot(BeNil(), "should have data")
-				Expect(len(flatDg.Records)).To(Equal(2))
-
-				// Delete the second duplicate for foo.com/foo, should change dg
-				r = mockMgr.deleteIngress(ing1a)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				Expect(found).To(BeTrue(), "redirect group not found")
-				flatDg = nsMap.FlattenNamespaces()
-				Expect(flatDg).ToNot(BeNil(), "should have data")
-				Expect(len(flatDg.Records)).To(Equal(1))
-				Expect(flatDg.Records[0].Name).To(Equal(host + barPath))
-				Expect(flatDg.Records[0].Data).To(Equal(barPath))
-
-				// Delete last ingress, should produce a nil dg
-				r = mockMgr.deleteIngress(ing1b)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				flatDg = nsMap.FlattenNamespaces()
-				Expect(flatDg).To(BeNil(), "should not have data")
-
-				// Re-create the first ingress without ssl-redirect = true, should not
-				// be in the dg
-				ing1a = test.NewIngress("ing1a", "1", ns1, specFoo,
-					map[string]string{
-						F5VsBindAddrAnnotation:  "1.2.3.4",
-						F5VsPartitionAnnotation: DEFAULT_PARTITION,
-						IngressSslRedirect:      "false",
-					})
-				r = mockMgr.addIngress(ing1a)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				Expect(found).To(BeFalse(), "redirect group should be gone")
-				flatDg = nsMap.FlattenNamespaces()
-				Expect(flatDg).To(BeNil(), "should not have data")
+				deleteServices()
 			})
 
 			Context("Routes", func() {
@@ -3513,850 +2731,858 @@ var _ = Describe("AppManager Tests", func() {
 					}
 				})
 
-				//FixMe: Fix this unit test as we updated checkValidRoute function - included certificate and key validation.
-
-				// It("configures virtual servers via Routes", func() {
-				// 	spec := routeapi.RouteSpec{
-				// 		Host: "foobar.com",
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "foo",
-				// 		},
-				// 		Port: &routeapi.RoutePort{
-				// 			TargetPort: intstr.FromString("foo-80"),
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: "edge",
-				// 			Certificate: "cert",
-				// 			Key:         "key",
-				// 		},
-				// 	}
-				// 	route := test.NewRoute("route", "1", namespace, spec, nil)
-				// 	r := mockMgr.addRoute(route)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				// 	resources := mockMgr.resources()
-				// 	// Associate a service
-				// 	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
-				// 	r = mockMgr.addService(fooSvc)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(1))
-
-				// 	rs, ok := resources.Get(
-				// 		ServiceKey{"foo", 80, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(rs.MetaData.Active).To(BeTrue())
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				// 	customProfiles := mockMgr.customProfiles()
-				// 	// Should be 1 profile from Spec, and 1 default clientssl
-				// 	Expect(len(customProfiles)).To(Equal(2))
-
-				// 	spec = routeapi.RouteSpec{
-				// 		Host: "barfoo.com",
-				// 		Path: "/bar",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "bar",
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: "edge",
-				// 			Certificate: "cert",
-				// 			Key:         "key",
-				// 		},
-				// 	}
-				// 	route2 := test.NewRoute("route2", "1", namespace, spec, nil)
-				// 	r = mockMgr.addRoute(route2)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	resources = mockMgr.resources()
-				// 	// Associate a service
-				// 	barSvc := test.NewService("bar", "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				// 	mockMgr.addService(barSvc)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(2))
-
-				// 	rs, ok = resources.Get(
-				// 		ServiceKey{"bar", 80, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(rs.MetaData.Active).To(BeTrue())
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-
-				// 	customProfiles = mockMgr.customProfiles()
-				// 	// Should be 2 profile from Spec, and 1 default clientssl
-				// 	Expect(len(customProfiles)).To(Equal(3))
-
-				// 	// Delete a Route resource
-				// 	r = mockMgr.deleteRoute(route2)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(1))
-				// 	rs, ok = resources.Get(
-				// 		ServiceKey{"foo", 80, "default"}, "https-ose-vserver")
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-				// 	Expect(len(customProfiles)).To(Equal(2))
-
-				// 	// Update Route1 port
-				// 	route.Spec.Port.TargetPort = intstr.IntOrString{IntVal: 443}
-				// 	mockMgr.updateRoute(route)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	rs, ok = resources.Get(
-				// 		ServiceKey{"foo", 443, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(rs.Pools[0].ServicePort).To(Equal(int32(443)))
-				// })
-
-				// It("configures passthrough routes", func() {
-				// 	// create 2 services and routes
-				// 	hostName1 := "foobar.com"
-				// 	svcName1 := "foo"
-				// 	spec := routeapi.RouteSpec{
-				// 		Host: hostName1,
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: svcName1,
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: routeapi.TLSTerminationPassthrough,
-				// 		},
-				// 	}
-				// 	route1 := test.NewRoute("rt1", "1", namespace, spec, nil)
-				// 	r := mockMgr.addRoute(route1)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				// 	resources := mockMgr.resources()
-				// 	fooSvc := test.NewService(svcName1, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-				// 	r = mockMgr.addService(fooSvc)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(1))
-
-				// 	hostName2 := "barfoo.com"
-				// 	svcName2 := "bar"
-				// 	spec = routeapi.RouteSpec{
-				// 		Host: hostName2,
-				// 		Path: "/bar",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: svcName2,
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination:                   routeapi.TLSTerminationPassthrough,
-				// 			InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
-				// 		},
-				// 	}
-				// 	route2 := test.NewRoute("rt2", "1", namespace, spec, nil)
-				// 	r = mockMgr.addRoute(route2)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	resources = mockMgr.resources()
-				// 	barSvc := test.NewService(svcName2, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-				// 	mockMgr.addService(barSvc)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(2))
-
-				// 	// Check state.
-				// 	rs, ok := resources.Get(
-				// 		ServiceKey{svcName1, 443, namespace}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(rs.MetaData.Active).To(BeTrue())
-				// 	Expect(len(rs.Policies)).To(Equal(0))
-				// 	Expect(len(rs.Virtual.IRules)).To(Equal(1))
-				// 	expectedIRuleName := fmt.Sprintf("/%s/%s",
-				// 		DEFAULT_PARTITION, SslPassthroughIRuleName)
-				// 	Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
-
-				// 	hostDgKey := NameRef{
-				// 		Name:      PassthroughHostsDgName,
-				// 		Partition: DEFAULT_PARTITION,
-				// 	}
-				// 	hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
-				// 	Expect(found).To(BeTrue())
-				// 	Expect(len(hostDg[namespace].Records)).To(Equal(2))
-				// 	Expect(hostDg[namespace].Records[1].Name).To(Equal(hostName1))
-				// 	Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName2))
-				// 	Expect(hostDg[namespace].Records[1].Data).To(Equal(FormatRoutePoolName(
-				// 		route1.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route1))))
-				// 	Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
-				// 		route2.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route2))))
-
-				// 	rs, ok = resources.Get(
-				// 		ServiceKey{svcName2, 443, namespace}, "ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(rs.MetaData.Active).To(BeTrue())
-				// 	Expect(len(rs.Virtual.IRules)).To(Equal(0))
-				// 	Expect(len(rs.Policies)).To(Equal(0))
-
-				// 	// Delete a Route resource and make sure the data groups are cleaned up.
-				// 	r = mockMgr.deleteRoute(route2)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(1))
-				// 	hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
-				// 	Expect(found).To(BeTrue())
-				// 	Expect(len(hostDg[namespace].Records)).To(Equal(1))
-				// 	Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName1))
-				// 	Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
-				// 		route1.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route1))))
-				// })
-
-				// It("configures reencrypt routes", func() {
-				// 	hostName := "foobar.com"
-				// 	spec := routeapi.RouteSpec{
-				// 		Host: hostName,
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "foo",
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination:              "reencrypt",
-				// 			Certificate:              "cert",
-				// 			Key:                      "key",
-				// 			DestinationCACertificate: "destCaCert",
-				// 		},
-				// 	}
-				// 	route := test.NewRoute("route", "1", namespace, spec, nil)
-				// 	r := mockMgr.addRoute(route)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				// 	resources := mockMgr.resources()
-				// 	// Associate a service
-				// 	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-				// 	r = mockMgr.addService(fooSvc)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-				// 	Expect(resources.PoolCount()).To(Equal(1))
-
-				// 	rs, ok := resources.Get(
-				// 		ServiceKey{"foo", 443, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(rs.MetaData.Active).To(BeTrue())
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-				// 	Expect(len(rs.Virtual.IRules)).To(Equal(1))
-				// 	expectedIRuleName := fmt.Sprintf("/%s/%s",
-				// 		DEFAULT_PARTITION, SslPassthroughIRuleName)
-				// 	Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
-				// 	hostDgKey := NameRef{
-				// 		Name:      ReencryptHostsDgName,
-				// 		Partition: DEFAULT_PARTITION,
-				// 	}
-				// 	hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
-				// 	routePath := hostName + spec.Path
-				// 	Expect(found).To(BeTrue())
-				// 	Expect(len(hostDg[namespace].Records)).To(Equal(1))
-				// 	Expect(hostDg[namespace].Records[0].Name).To(Equal(routePath))
-				// 	Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
-				// 		route.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route))))
-
-				// 	customProfiles := mockMgr.customProfiles()
-				// 	// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
-				// 	Expect(len(customProfiles)).To(Equal(4))
-				// 	// should have 2 client ssl custom profile and 2 server ssl custom profile
-				// 	// should have 1 client ssl custom profile and 1 server ssl custom profile
-				// 	haveClientSslProfile := false
-				// 	haveServerSslProfile := false
-				// 	for _, prof := range customProfiles {
-				// 		switch prof.Context {
-				// 		case CustomProfileClient:
-				// 			haveClientSslProfile = true
-				// 		case CustomProfileServer:
-				// 			haveServerSslProfile = true
-				// 		}
-				// 	}
-				// 	Expect(haveClientSslProfile).To(BeTrue())
-				// 	Expect(haveServerSslProfile).To(BeTrue())
-
-				// 	// and both should be referenced by the virtual
-				// 	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(2))
-				// 	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileServer)).To(Equal(2))
-				// })
-
-				// It("configures whitelist annotation on Routes", func() {
-				// 	spec := routeapi.RouteSpec{
-				// 		Host: "foo.com",
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "foo",
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: "edge",
-				// 			Certificate: "cert",
-				// 			Key:         "key",
-				// 		},
-				// 	}
-				// 	route := test.NewRoute("route", "1", namespace, spec,
-				// 		map[string]string{
-				// 			"virtual-server.f5.com/whitelist-source-range": "1.2.3.4/32,5.6.7.8/24",
-				// 		})
-				// 	mockMgr.addRoute(route)
-				// 	spec2 := routeapi.RouteSpec{
-				// 		Host: "bar.com",
-				// 		Path: "/bar",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "foo",
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: "edge",
-				// 			Certificate: "cert",
-				// 			Key:         "key",
-				// 		},
-				// 	}
-				// 	route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
-				// 	mockMgr.addRoute(route2)
-				// 	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				// 	mockMgr.addService(fooSvc)
-
-				// 	resources := mockMgr.resources()
-				// 	rs, ok := resources.Get(
-				// 		ServiceKey{"foo", 80, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-
-				// 	// Verify whitelist conditions exist
-				// 	var found *Condition
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(3))
-				// 	Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
-				// 	for _, x := range rs.Policies[0].Rules[0].Conditions {
-				// 		if x.Tcp == true {
-				// 			found = x
-				// 		}
-				// 	}
-				// 	Expect(found).NotTo(BeNil())
-				// 	Expect(found.Values).Should(ConsistOf("1.2.3.4/32", "5.6.7.8/24"))
-
-				// 	// delete whitelist route, conditions should be gone
-				// 	mockMgr.deleteRoute(route)
-
-				// 	rs, ok = resources.Get(
-				// 		ServiceKey{"foo", 80, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-
-				// 	Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
-				// 	found = nil
-				// 	for _, x := range rs.Policies[0].Rules[0].Conditions {
-				// 		if x.Tcp == true {
-				// 			found = x
-				// 		}
-				// 	}
-				// 	Expect(found).To(BeNil())
-				// })
-
-				// It("doesn't update stored route configs during processing", func() {
-				// 	spec1 := routeapi.RouteSpec{
-				// 		Host: "foo.com",
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "foo",
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: "edge",
-				// 			Certificate: "cert",
-				// 			Key:         "key",
-				// 		},
-				// 	}
-				// 	spec2 := routeapi.RouteSpec{
-				// 		Host: "foo.com",
-				// 		Path: "/bar",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: "foo",
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination: "edge",
-				// 			Certificate: "cert",
-				// 			Key:         "key",
-				// 		},
-				// 	}
-				// 	route := test.NewRoute("route", "1", namespace, spec1, nil)
-				// 	mockMgr.addRoute(route)
-
-				// 	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				// 	mockMgr.addService(fooSvc)
-
-				// 	resources := mockMgr.resources()
-				// 	rs, ok := resources.Get(
-				// 		ServiceKey{"foo", 80, "default"}, "https-ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				// 	// Add a new route, our stored config (rs), should not have been
-				// 	// updated locally. It should only update when we get it again.
-				// 	// This confirms that we aren't updating a pointer.
-				// 	route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
-				// 	mockMgr.addRoute(route2)
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-				// 	rs, _ = resources.Get(
-				// 		ServiceKey{"foo", 80, "default"}, "https-ose-vserver")
-				// 	Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-				// })
-
-				// It("properly configures redirect data group for routes", func() {
-				// 	ns1 := "ns1"
-				// 	ns2 := "ns2"
-				// 	host := "foo.com"
-				// 	svcName := "foo"
-				// 	fooPath := "/foo"
-				// 	barPath := "/bar"
-				// 	err := mockMgr.startNonLabelMode([]string{ns1, ns2})
-				// 	Expect(err).To(BeNil())
-				// 	spec := routeapi.RouteSpec{
-				// 		Host: host,
-				// 		Path: fooPath,
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind: "Service",
-				// 			Name: svcName,
-				// 		},
-				// 		Port: &routeapi.RoutePort{
-				// 			TargetPort: intstr.FromInt(80),
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination:                   "edge",
-				// 			Certificate:                   "cert",
-				// 			Key:                           "key",
-				// 			InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
-				// 		},
-				// 	}
-
-				// 	// Create the first route and associate a service
-				// 	route1a := test.NewRoute("route1a", "1", ns1, spec, nil)
-				// 	r := mockMgr.addRoute(route1a)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	fooSvc1 := test.NewService(svcName, "1", ns1, "NodePort",
-				// 		[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
-				// 	r = mockMgr.addService(fooSvc1)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-
-				// 	// Create identical route and service in another namespace
-				// 	route2 := test.NewRoute("route", "1", ns2, spec, nil)
-				// 	r = mockMgr.addRoute(route2)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	fooSvc2 := test.NewService(svcName, "1", ns2, "NodePort",
-				// 		[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
-				// 	r = mockMgr.addService(fooSvc2)
-				// 	Expect(r).To(BeTrue(), "Service should be processed.")
-
-				// 	// Make sure the entry isn't duplicated in the dg
-				// 	grpRef := NameRef{
-				// 		Partition: DEFAULT_PARTITION,
-				// 		Name:      HttpsRedirectDgName,
-				// 	}
-				// 	nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeTrue(), "redirect group not found")
-				// 	flatDg := nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).ToNot(BeNil(), "should have data")
-				// 	Expect(len(flatDg.Records)).To(Equal(1))
-				// 	Expect(flatDg.Records[0].Name).To(Equal(host + fooPath))
-				// 	Expect(flatDg.Records[0].Data).To(Equal(fooPath))
-
-				// 	// Add a route for the same host but different path
-				// 	route1b := test.NewRoute("route1b", "1", ns1, spec, nil)
-				// 	route1b.Spec.Path = barPath
-				// 	r = mockMgr.addRoute(route1b)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeTrue(), "redirect group not found")
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).ToNot(BeNil(), "should have data")
-				// 	Expect(len(flatDg.Records)).To(Equal(2))
-
-				// 	// Delete one of the duplicates for foo.com/foo, should not change dg
-				// 	r = mockMgr.deleteRoute(route2)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeTrue(), "redirect group not found")
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).ToNot(BeNil(), "should have data")
-				// 	Expect(len(flatDg.Records)).To(Equal(2))
-
-				// 	// Delete the second duplicate for foo.com/foo, should change dg
-				// 	r = mockMgr.deleteRoute(route1a)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeTrue(), "redirect group not found")
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).ToNot(BeNil(), "should have data")
-				// 	Expect(len(flatDg.Records)).To(Equal(1))
-				// 	Expect(flatDg.Records[0].Name).To(Equal(host + barPath))
-				// 	Expect(flatDg.Records[0].Data).To(Equal(barPath))
-
-				// 	// Delete last route, should produce a nil dg
-				// 	r = mockMgr.deleteRoute(route1b)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeFalse(), "redirect group should be gone")
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).To(BeNil(), "should not have data")
-
-				// 	// Re-create the first route without redirect, should not be in dg
-				// 	spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
-				// 	route1a = test.NewRoute("route1a", "1", ns1, spec, nil)
-				// 	r = mockMgr.addRoute(route1a)
-				// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeFalse(), "redirect group should be gone")
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).To(BeNil(), "should not have data")
-				// })
-
-				// It("manages alternate backends for routes (pool creation)", func() {
-				// 	svc1Name := "foo"
-				// 	svc2Name := "bar"
-				// 	svc3Name := "baz"
-				// 	fooSvc := test.NewService(svc1Name, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				// 	mockMgr.addService(fooSvc)
-				// 	barSvc := test.NewService(svc2Name, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				// 	mockMgr.addService(barSvc)
-				// 	bazSvc := test.NewService(svc3Name, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37003}})
-				// 	mockMgr.addService(bazSvc)
-
-				// 	w0 := int32(100)
-				// 	w1 := int32(50)
-				// 	w2 := int32(10)
-
-				// 	spec := routeapi.RouteSpec{
-				// 		Host: "foo.com",
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind:   "Service",
-				// 			Name:   "fake1", // start with non-existent service
-				// 			Weight: &w0,
-				// 		},
-				// 		AlternateBackends: []routeapi.RouteTargetReference{
-				// 			{
-				// 				Kind:   "Service",
-				// 				Name:   "fake2", // start with non-existent service
-				// 				Weight: &w1,
-				// 			},
-				// 			{
-				// 				Kind:   "Service",
-				// 				Name:   svc3Name,
-				// 				Weight: &w2,
-				// 			},
-				// 		},
-				// 	}
-				// 	route := test.NewRoute("route", "1", namespace, spec, nil)
-				// 	mockMgr.addRoute(route)
-
-				// 	resources := mockMgr.resources()
-				// 	rs, ok := resources.Get(
-				// 		ServiceKey{svc3Name, 80, "default"}, "ose-vserver")
-				// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-				// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-
-				// 	Expect(resources.PoolCount()).To(Equal(1))
-				// 	Expect(len(rs.Policies)).To(Equal(0))
-
-				// 	// Update to real service
-				// 	route.Spec.To.Name = svc1Name
-				// 	route.Spec.AlternateBackends[0].Name = svc2Name
-				// 	mockMgr.updateRoute(route)
-				// 	Expect(resources.PoolCount()).To(Equal(3))
-				// 	rs, _ = resources.Get(
-				// 		ServiceKey{svc1Name, 80, "default"}, "ose-vserver")
-				// 	Expect(len(rs.Policies)).To(Equal(0))
-
-				// 	// Remove an alternate service
-				// 	mockMgr.deleteService(bazSvc)
-				// 	Expect(resources.PoolCount()).To(Equal(2))
-
-				// 	mockMgr.addService(bazSvc)
-				// 	Expect(resources.PoolCount()).To(Equal(3))
-
-				// 	// Rename a service, expect the pool to be removed
-				// 	route.Spec.To.Name = "not-there"
-				// 	mockMgr.updateRoute(route)
-				// 	Expect(resources.PoolCount()).To(Equal(2))
-				// })
-
-				// It("manages alternate backends for routes (datagroups)", func() {
-				// 	svc1Name := "foo"
-				// 	svc2Name := "bar"
-				// 	svc3Name := "baz"
-				// 	fooSvc := test.NewService(svc1Name, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				// 	mockMgr.addService(fooSvc)
-				// 	barSvc := test.NewService(svc2Name, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37002}})
-				// 	mockMgr.addService(barSvc)
-				// 	bazSvc := test.NewService(svc3Name, "1", namespace, "NodePort",
-				// 		[]v1.ServicePort{{Port: 80, NodePort: 37003}})
-				// 	mockMgr.addService(bazSvc)
-
-				// 	w0 := int32(100)
-				// 	w1 := int32(50)
-				// 	w2 := int32(0)
-				// 	w3 := int32(60)
-
-				// 	// without path; backends with weights 100,50,0
-				// 	spec1 := routeapi.RouteSpec{
-				// 		Host: "bar.com",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind:   "Service",
-				// 			Name:   svc1Name,
-				// 			Weight: &w0,
-				// 		},
-				// 		AlternateBackends: []routeapi.RouteTargetReference{
-				// 			{
-				// 				Kind:   "Service",
-				// 				Name:   svc2Name,
-				// 				Weight: &w1,
-				// 			},
-				// 			{
-				// 				Kind:   "Service",
-				// 				Name:   svc3Name,
-				// 				Weight: &w2,
-				// 			},
-				// 		},
-				// 	}
-				// 	// with path; backends with weights 100,60; reencrypt
-				// 	spec2 := routeapi.RouteSpec{
-				// 		Host: "foo.com",
-				// 		Path: "/foo",
-				// 		To: routeapi.RouteTargetReference{
-				// 			Kind:   "Service",
-				// 			Name:   svc1Name,
-				// 			Weight: &w0,
-				// 		},
-				// 		AlternateBackends: []routeapi.RouteTargetReference{
-				// 			{
-				// 				Kind:   "Service",
-				// 				Name:   svc3Name,
-				// 				Weight: &w3,
-				// 			},
-				// 		},
-				// 		TLS: &routeapi.TLSConfig{
-				// 			Termination:              "reencrypt",
-				// 			Certificate:              "cert",
-				// 			Key:                      "key",
-				// 			DestinationCACertificate: "destCaCert",
-				// 		},
-				// 	}
-				// 	route1 := test.NewRoute("route1", "1", namespace, spec1, nil)
-				// 	mockMgr.addRoute(route1)
-				// 	route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
-				// 	mockMgr.addRoute(route2)
-
-				// 	// verify data groups
-				// 	grpRef := NameRef{
-				// 		Partition: DEFAULT_PARTITION,
-				// 		Name:      AbDeploymentDgName,
-				// 	}
-				// 	nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
-				// 	Expect(found).To(BeTrue(), "a/b group not found")
-				// 	flatDg := nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).ToNot(BeNil(), "should have data")
-				// 	Expect(len(flatDg.Records)).To(Equal(2))
-
-				// 	Expect(flatDg.Records[0].Name).To(Equal(spec1.Host))
-				// 	barWeight := float64(w1) / (float64(w0) + float64(w1))
-				// 	fooWeight := (float64(w0) + float64(w1)) / (float64(w0) + float64(w1))
-				// 	data := fmt.Sprintf("openshift_default_%s,%4.3f;openshift_default_%s,%4.3f",
-				// 		svc2Name, barWeight, svc1Name, fooWeight)
-				// 	Expect(flatDg.Records[0].Data).To(Equal(data))
-
-				// 	Expect(flatDg.Records[1].Name).To(Equal(spec2.Host))
-				// 	bazWeight := float64(w3) / (float64(w0) + float64(w3))
-				// 	fooWeight = (float64(w0) + float64(w3)) / (float64(w0) + float64(w3))
-				// 	data = fmt.Sprintf("openshift_default_%s,%4.3f;openshift_default_%s,%4.3f",
-				// 		svc3Name, bazWeight, svc1Name, fooWeight)
-				// 	Expect(flatDg.Records[1].Data).To(Equal(data))
-
-				// 	rs, ok := mockMgr.resources().Get(
-				// 		ServiceKey{svc1Name, 80, namespace}, "ose-vserver")
-				// 	Expect(ok).To(BeTrue())
-				// 	Expect(len(rs.Virtual.IRules)).To(Equal(1))
-
-				// 	// Turn off A/B
-				// 	route1.Spec.AlternateBackends = []routeapi.RouteTargetReference{}
-				// 	route2.Spec.AlternateBackends = []routeapi.RouteTargetReference{}
-				// 	mockMgr.updateRoute(route1)
-				// 	mockMgr.updateRoute(route2)
-
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg).To(BeNil())
-
-				// 	// All weights are 0
-				// 	route1.Spec.To.Weight = &w2
-				// 	route1.Spec.AlternateBackends = []routeapi.RouteTargetReference{
-				// 		{
-				// 			Kind:   "Service",
-				// 			Name:   svc2Name,
-				// 			Weight: &w2,
-				// 		},
-				// 		{
-				// 			Kind:   "Service",
-				// 			Name:   svc3Name,
-				// 			Weight: &w2,
-				// 		},
-				// 	}
-				// 	mockMgr.updateRoute(route1)
-				// 	nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				// 	flatDg = nsMap.FlattenNamespaces()
-				// 	Expect(flatDg.Records[0].Data).To(Equal(""))
-				// })
-			})
-
-			// Check that the provided host resolves into the expected addr.
-			// update parameter is only used to tell function to update an empty host
-			hostResolution := func(host string, expAddr, update bool) {
-				ingressConfig := v1beta1.IngressSpec{
-					Rules: []v1beta1.IngressRule{
-						{Host: host,
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
+				It("configures virtual servers via Routes", func() {
+					spec := routeapi.RouteSpec{
+						Host: "foobar.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
 						},
-						{Host: "shouldBeIgnored",
-							IngressRuleValue: v1beta1.IngressRuleValue{
-								HTTP: &v1beta1.HTTPIngressRuleValue{
-									Paths: []v1beta1.HTTPIngressPath{
-										{Path: "/foo",
-											Backend: v1beta1.IngressBackend{
-												ServiceName: "foo",
-												ServicePort: intstr.IntOrString{IntVal: 80},
-											},
-										},
-									},
-								},
-							},
+						Port: &routeapi.RoutePort{
+							TargetPort: intstr.FromString("foo-80"),
 						},
-					},
-				}
-				ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
-					map[string]string{
-						F5VsPartitionAnnotation: "velcro",
-					})
-				r := mockMgr.addIngress(ingress)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-
-				resources := mockMgr.resources()
-				Expect(resources.PoolCount()).To(Equal(1))
-				var bindAddr string
-				for _, cfg := range resources.GetAllResources() {
-					bindAddr = cfg.Virtual.VirtualAddress.BindAddr
-				}
-				if expAddr {
-					Expect(len(bindAddr)).To(BeNumerically(">", 0))
-				} else {
-					Expect(len(bindAddr)).To(Equal(0))
-				}
-				// Verify addition of host name works as expected
-				if update {
-					ingress.Spec.Rules[0].Host = "f5.com"
-					mockMgr.updateIngress(ingress)
-					Expect(resources.PoolCount()).To(Equal(1))
-					for _, cfg := range resources.GetAllResources() {
-						bindAddr = cfg.Virtual.VirtualAddress.BindAddr
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: cert,
+							Key:         key,
+						},
 					}
-					Expect(len(bindAddr)).To(BeNumerically(">", 0))
-				}
-				mockMgr.deleteIngress(ingress)
-			}
+					route := test.NewRoute("route", "1", namespace, spec, nil)
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
 
-			It("resolves ingress host names", func() {
-				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				r := mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
+					resources := mockMgr.resources()
+					// Associate a service
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
 
-				// Set to LOOKUP mode, using local DNS
-				mockMgr.appMgr.resolveIng = "LOOKUP"
-				// Empty host (then add one)
-				hostResolution("", false, true)
-				expectedEventCt := 4 // # expected events
-				events := mockMgr.getFakeEvents(namespace)
-				Expect(len(events)).To(Equal(expectedEventCt))
-				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-				Expect(events[2].Reason).To(Equal("HostResolvedSuccessfully"))
-				Expect(events[3].Reason).To(Equal("ResourceConfigured"))
-				// each following test will skip events handled here
-				ignoreEventCt := expectedEventCt
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 
-				// Bad host
-				hostResolution("doesn't.exist", false, false)
-				expectedEventCt = 2
-				events = mockMgr.getFakeEvents(namespace)
-				events = events[ignoreEventCt:]
-				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-				ignoreEventCt += expectedEventCt
+					customProfiles := mockMgr.customProfiles()
+					// Should be 1 profile from Spec, and 1 default clientssl
+					Expect(len(customProfiles)).To(Equal(2))
 
-				// Good host
-				hostResolution("f5.com", true, false)
-				expectedEventCt = 2
-				events = mockMgr.getFakeEvents(namespace)
-				events = events[ignoreEventCt:]
-				Expect(events[0].Reason).To(Equal("HostResolvedSuccessfully"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-				ignoreEventCt += expectedEventCt
+					spec = routeapi.RouteSpec{
+						Host: "barfoo.com",
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "bar",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: cert,
+							Key:         key,
+						},
+					}
+					route2 := test.NewRoute("route2", "1", namespace, spec, nil)
+					r = mockMgr.addRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					resources = mockMgr.resources()
+					// Associate a service
+					barSvc := test.NewService("bar", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(barSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(2))
 
-				// Use a non-existent custom DNS server
-				mockMgr.appMgr.resolveIng = "BadCustomDNS"
-				// Good host; bad DNS
-				hostResolution("google.com", false, false)
-				events = mockMgr.getFakeEvents(namespace)
-				events = events[ignoreEventCt:]
-				ignoreEventCt += expectedEventCt
-				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-				expectedEventCt = 2
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 
-				// Use a valid custom DNS server (hostname)
-				mockMgr.appMgr.resolveIng = "pdns130.f5.com."
-				hostResolution("f5.com", true, false)
-				events = mockMgr.getFakeEvents(namespace)
-				events = events[ignoreEventCt:]
-				ignoreEventCt += expectedEventCt
-				Expect(events[0].Reason).To(Equal("HostResolvedSuccessfully"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-				expectedEventCt = 2
+					customProfiles = mockMgr.customProfiles()
+					// Should be 2 profile from Spec, and 1 default clientssl
+					Expect(len(customProfiles)).To(Equal(3))
 
-				// Use a valid custom DNS server (ip address)
-				mockMgr.appMgr.resolveIng = "8.8.8.8"
-				hostResolution("google.com", true, false)
-				events = mockMgr.getFakeEvents(namespace)
-				events = events[ignoreEventCt:]
-				ignoreEventCt += expectedEventCt
-				Expect(events[0].Reason).To(Equal("HostResolvedSuccessfully"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
-				expectedEventCt = 2
+					// Delete a Route resource
+					r = mockMgr.deleteRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					Expect(len(customProfiles)).To(Equal(2))
 
-				// Good DNS, bad host
-				hostResolution("doesn't.exist", false, false)
-				events = mockMgr.getFakeEvents(namespace)
-				events = events[ignoreEventCt:]
-				ignoreEventCt += expectedEventCt
-				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
-				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+					// Update Route1 port
+					route.Spec.Port.TargetPort = intstr.IntOrString{IntVal: 443}
+					mockMgr.updateRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.Pools[0].ServicePort).To(Equal(int32(443)))
+				})
+
+				It("configures passthrough routes", func() {
+					// create 2 services and routes
+					hostName1 := "foobar.com"
+					svcName1 := "foo"
+					spec := routeapi.RouteSpec{
+						Host: hostName1,
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: svcName1,
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: routeapi.TLSTerminationPassthrough,
+						},
+					}
+					route1 := test.NewRoute("rt1", "1", namespace, spec, nil)
+					r := mockMgr.addRoute(route1)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					fooSvc := test.NewService(svcName1, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
+
+					hostName2 := "barfoo.com"
+					svcName2 := "bar"
+					spec = routeapi.RouteSpec{
+						Host: hostName2,
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: svcName2,
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:                   routeapi.TLSTerminationPassthrough,
+							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
+						},
+					}
+					route2 := test.NewRoute("rt2", "1", namespace, spec, nil)
+					r = mockMgr.addRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					resources = mockMgr.resources()
+					barSvc := test.NewService(svcName2, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					mockMgr.addService(barSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(2))
+
+					// Check state.
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: svcName1, ServicePort: 443, Namespace: namespace}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies)).To(Equal(0))
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+					expectedIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, SslPassthroughIRuleName)
+					Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
+
+					hostDgKey := NameRef{
+						Name:      PassthroughHostsDgName,
+						Partition: DEFAULT_PARTITION,
+					}
+					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg[namespace].Records)).To(Equal(2))
+					Expect(hostDg[namespace].Records[1].Name).To(Equal(hostName1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName2))
+					Expect(hostDg[namespace].Records[1].Data).To(Equal(FormatRoutePoolName(
+						route1.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route1))))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
+						route2.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route2))))
+
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: svcName2, ServicePort: 443, Namespace: namespace}, NameRef{Name: "ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Virtual.IRules)).To(Equal(0))
+					Expect(len(rs.Policies)).To(Equal(0))
+
+					// Delete a Route resource and make sure the data groups are cleaned up.
+					r = mockMgr.deleteRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
+					hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg[namespace].Records)).To(Equal(1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName1))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
+						route1.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route1))))
+				})
+
+				It("configures reencrypt routes", func() {
+					hostName := "foobar.com"
+					spec := routeapi.RouteSpec{
+						Host: hostName,
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:              "reencrypt",
+							Certificate:              cert,
+							Key:                      key,
+							DestinationCACertificate: destCACert,
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec, nil)
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					// Associate a service
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
+
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+					expectedIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, SslPassthroughIRuleName)
+					Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
+					hostDgKey := NameRef{
+						Name:      ReencryptHostsDgName,
+						Partition: DEFAULT_PARTITION,
+					}
+					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					routePath := hostName + spec.Path
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg[namespace].Records)).To(Equal(1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(routePath))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
+						route.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route))))
+
+					customProfiles := mockMgr.customProfiles()
+					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
+					Expect(len(customProfiles)).To(Equal(4))
+					// should have 2 client ssl custom profile and 2 server ssl custom profile
+					// should have 1 client ssl custom profile and 1 server ssl custom profile
+					haveClientSslProfile := false
+					haveServerSslProfile := false
+					for _, prof := range customProfiles {
+						switch prof.Context {
+						case CustomProfileClient:
+							haveClientSslProfile = true
+						case CustomProfileServer:
+							haveServerSslProfile = true
+						}
+					}
+					Expect(haveClientSslProfile).To(BeTrue())
+					Expect(haveServerSslProfile).To(BeTrue())
+
+					// and both should be referenced by the virtual
+					Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(2))
+					Expect(rs.Virtual.GetProfileCountByContext(CustomProfileServer)).To(Equal(2))
+				})
+
+				It("configures routes with rewrite-target-url", func() {
+					annotation := make(map[string]string)
+					annotation["virtual-server.f5.com/rewrite-target-url"] = "/foo"
+					hostName := "foobar.com"
+					spec := routeapi.RouteSpec{
+						Host: hostName,
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:              "reencrypt",
+							Certificate:              cert,
+							Key:                      key,
+							DestinationCACertificate: destCACert,
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec, annotation)
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					// Associate a service
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
+
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+					expectedIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, SslPassthroughIRuleName)
+					Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
+					hostDgKey := NameRef{
+						Name:      ReencryptHostsDgName,
+						Partition: DEFAULT_PARTITION,
+					}
+					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					routePath := hostName + spec.Path
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg[namespace].Records)).To(Equal(1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(routePath))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
+						route.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route))))
+
+					customProfiles := mockMgr.customProfiles()
+					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
+					Expect(len(customProfiles)).To(Equal(4))
+					// should have 2 client ssl custom profile and 2 server ssl custom profile
+					// should have 1 client ssl custom profile and 1 server ssl custom profile
+					haveClientSslProfile := false
+					haveServerSslProfile := false
+					for _, prof := range customProfiles {
+						switch prof.Context {
+						case CustomProfileClient:
+							haveClientSslProfile = true
+						case CustomProfileServer:
+							haveServerSslProfile = true
+						}
+					}
+					Expect(haveClientSslProfile).To(BeTrue())
+					Expect(haveServerSslProfile).To(BeTrue())
+
+					// and both should be referenced by the virtual
+					Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(2))
+					Expect(rs.Virtual.GetProfileCountByContext(CustomProfileServer)).To(Equal(2))
+				})
+
+				It("configures routes with approot-rewrite-target-url", func() {
+					annotation := make(map[string]string)
+					annotation[F5VsAppRootAnnotation] = "/foo"
+					hostName := "foobar.com"
+					spec := routeapi.RouteSpec{
+						Host: hostName,
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:              "reencrypt",
+							Certificate:              cert,
+							Key:                      key,
+							DestinationCACertificate: destCACert,
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec, annotation)
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					// Associate a service
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.PoolCount()).To(Equal(1))
+
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+					expectedIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, SslPassthroughIRuleName)
+					Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
+					hostDgKey := NameRef{
+						Name:      ReencryptHostsDgName,
+						Partition: DEFAULT_PARTITION,
+					}
+					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					routePath := hostName + spec.Path
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg[namespace].Records)).To(Equal(1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(routePath))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(FormatRoutePoolName(
+						route.ObjectMeta.Namespace, GetRouteCanonicalServiceName(route))))
+
+					customProfiles := mockMgr.customProfiles()
+					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
+					Expect(len(customProfiles)).To(Equal(4))
+					// should have 2 client ssl custom profile and 2 server ssl custom profile
+					// should have 1 client ssl custom profile and 1 server ssl custom profile
+					haveClientSslProfile := false
+					haveServerSslProfile := false
+					for _, prof := range customProfiles {
+						switch prof.Context {
+						case CustomProfileClient:
+							haveClientSslProfile = true
+						case CustomProfileServer:
+							haveServerSslProfile = true
+						}
+					}
+					Expect(haveClientSslProfile).To(BeTrue())
+					Expect(haveServerSslProfile).To(BeTrue())
+
+					// and both should be referenced by the virtual
+					Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(2))
+					Expect(rs.Virtual.GetProfileCountByContext(CustomProfileServer)).To(Equal(2))
+				})
+
+				It("configures whitelist annotation on Routes", func() {
+					spec := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: cert,
+							Key:         key,
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec,
+						map[string]string{
+							"virtual-server.f5.com/whitelist-source-range": "1.2.3.4/32,5.6.7.8/24",
+						})
+					mockMgr.addRoute(route)
+					spec2 := routeapi.RouteSpec{
+						Host: "bar.com",
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: cert,
+							Key:         key,
+						},
+					}
+					route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
+					mockMgr.addRoute(route2)
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					// Verify whitelist conditions exist
+					var found *Condition
+					Expect(len(rs.Policies[0].Rules)).To(Equal(3))
+					Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
+					for _, x := range rs.Policies[0].Rules[0].Conditions {
+						if x.Tcp == true {
+							found = x
+						}
+					}
+					Expect(found).NotTo(BeNil())
+					Expect(found.Values).Should(ConsistOf("1.2.3.4/32", "5.6.7.8/24"))
+
+					// delete whitelist route, conditions should be gone
+					mockMgr.deleteRoute(route)
+
+					rs, ok = resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
+					found = nil
+					for _, x := range rs.Policies[0].Rules[0].Conditions {
+						if x.Tcp == true {
+							found = x
+						}
+					}
+					Expect(found).To(BeNil())
+				})
+
+				It("doesn't update stored route configs during processing", func() {
+					spec1 := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: cert,
+							Key:         key,
+						},
+					}
+					spec2 := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: cert,
+							Key:         key,
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec1, nil)
+					mockMgr.addRoute(route)
+
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+
+					// Add a new route, our stored config (rs), should not have been
+					// updated locally. It should only update when we get it again.
+					// This confirms that we aren't updating a pointer.
+					route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
+					mockMgr.addRoute(route2)
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					rs, _ = resources.Get(
+						ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				})
+
+				It("properly configures redirect data group for routes", func() {
+					ns1 := "ns1"
+					ns2 := "ns2"
+					host := "foo.com"
+					svcName := "foo"
+					fooPath := "/foo"
+					barPath := "/bar"
+					err := mockMgr.startNonLabelMode([]string{ns1, ns2})
+					Expect(err).To(BeNil())
+					spec := routeapi.RouteSpec{
+						Host: host,
+						Path: fooPath,
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: svcName,
+						},
+						Port: &routeapi.RoutePort{
+							TargetPort: intstr.FromInt(80),
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:                   "edge",
+							Certificate:                   cert,
+							Key:                           key,
+							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
+						},
+					}
+
+					// Create the first route and associate a service
+					route1a := test.NewRoute("route1a", "1", ns1, spec, nil)
+					r := mockMgr.addRoute(route1a)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					fooSvc1 := test.NewService(svcName, "1", ns1, "NodePort",
+						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc1)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+
+					// Create identical route and service in another namespace
+					route2 := test.NewRoute("route", "1", ns2, spec, nil)
+					r = mockMgr.addRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					fooSvc2 := test.NewService(svcName, "1", ns2, "NodePort",
+						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc2)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+
+					// Make sure the entry isn't duplicated in the dg
+					grpRef := NameRef{
+						Partition: DEFAULT_PARTITION,
+						Name:      HttpsRedirectDgName,
+					}
+					nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg := nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(2))
+					Expect(flatDg.Records[0].Name).To(Equal(host + fooPath))
+					Expect(flatDg.Records[0].Data).To(Equal(fooPath))
+					Expect(flatDg.Records[1].Name).To(Equal(host + ":80" + fooPath))
+					Expect(flatDg.Records[1].Data).To(Equal(fooPath))
+
+					// Add a route for the same host but different path
+					route1b := test.NewRoute("route1b", "1", ns1, spec, nil)
+					route1b.Spec.Path = barPath
+					r = mockMgr.addRoute(route1b)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(4))
+
+					// Delete one of the duplicates for foo.com/foo, should not change dg
+					r = mockMgr.deleteRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(4))
+
+					// Delete the second duplicate for foo.com/foo, should change dg
+					r = mockMgr.deleteRoute(route1a)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(2))
+					Expect(flatDg.Records[0].Name).To(Equal(host + barPath))
+					Expect(flatDg.Records[0].Data).To(Equal(barPath))
+					Expect(flatDg.Records[1].Name).To(Equal(host + ":80" + barPath))
+					Expect(flatDg.Records[1].Data).To(Equal(barPath))
+
+					// Delete last route, should produce a nil dg
+					r = mockMgr.deleteRoute(route1b)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeFalse(), "redirect group should be gone")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).To(BeNil(), "should not have data")
+
+					// Re-create the first route without redirect, should not be in dg
+					spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
+					route1a = test.NewRoute("route1a", "1", ns1, spec, nil)
+					r = mockMgr.addRoute(route1a)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeFalse(), "redirect group should be gone")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).To(BeNil(), "should not have data")
+				})
+
+				It("manages alternate backends for routes (pool creation)", func() {
+					svc1Name := "foo"
+					svc2Name := "bar"
+					svc3Name := "baz"
+					fooSvc := test.NewService(svc1Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+					barSvc := test.NewService(svc2Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+					mockMgr.addService(barSvc)
+					bazSvc := test.NewService(svc3Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37003}})
+					mockMgr.addService(bazSvc)
+
+					w0 := int32(100)
+					w1 := int32(50)
+					w2 := int32(10)
+
+					spec := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind:   "Service",
+							Name:   "fake1", // start with non-existent service
+							Weight: &w0,
+						},
+						AlternateBackends: []routeapi.RouteTargetReference{
+							{
+								Kind:   "Service",
+								Name:   "fake2", // start with non-existent service
+								Weight: &w1,
+							},
+							{
+								Kind:   "Service",
+								Name:   svc3Name,
+								Weight: &w2,
+							},
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec, nil)
+					mockMgr.addRoute(route)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						ServiceKey{ServiceName: svc3Name, ServicePort: 80, Namespace: "default"}, NameRef{Name: "ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					Expect(resources.PoolCount()).To(Equal(1))
+					Expect(len(rs.Policies)).To(Equal(0))
+
+					// Update to real service
+					route.Spec.To.Name = svc1Name
+					route.Spec.AlternateBackends[0].Name = svc2Name
+					mockMgr.updateRoute(route)
+					Expect(resources.PoolCount()).To(Equal(3))
+					rs, _ = resources.Get(
+						ServiceKey{ServiceName: svc1Name, ServicePort: 80, Namespace: "default"}, NameRef{Name: "ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(len(rs.Policies)).To(Equal(0))
+
+					// Remove an alternate service
+					mockMgr.deleteService(bazSvc)
+					Expect(resources.PoolCount()).To(Equal(2))
+
+					mockMgr.addService(bazSvc)
+					Expect(resources.PoolCount()).To(Equal(3))
+
+					// Rename a service, expect the pool to be removed
+					route.Spec.To.Name = "not-there"
+					mockMgr.updateRoute(route)
+					Expect(resources.PoolCount()).To(Equal(2))
+				})
+
+				It("manages alternate backends for routes (datagroups)", func() {
+					svc1Name := "foo"
+					svc2Name := "bar"
+					svc3Name := "baz"
+					fooSvc := test.NewService(svc1Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+					barSvc := test.NewService(svc2Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+					mockMgr.addService(barSvc)
+					bazSvc := test.NewService(svc3Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37003}})
+					mockMgr.addService(bazSvc)
+
+					w0 := int32(100)
+					w1 := int32(50)
+					w2 := int32(0)
+					w3 := int32(60)
+
+					// without path; backends with weights 100,50,0
+					spec1 := routeapi.RouteSpec{
+						Host: "bar.com",
+						To: routeapi.RouteTargetReference{
+							Kind:   "Service",
+							Name:   svc1Name,
+							Weight: &w0,
+						},
+						AlternateBackends: []routeapi.RouteTargetReference{
+							{
+								Kind:   "Service",
+								Name:   svc2Name,
+								Weight: &w1,
+							},
+							{
+								Kind:   "Service",
+								Name:   svc3Name,
+								Weight: &w2,
+							},
+						},
+					}
+					// with path; backends with weights 100,60; reencrypt
+					spec2 := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind:   "Service",
+							Name:   svc1Name,
+							Weight: &w0,
+						},
+						AlternateBackends: []routeapi.RouteTargetReference{
+							{
+								Kind:   "Service",
+								Name:   svc3Name,
+								Weight: &w3,
+							},
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:              "reencrypt",
+							Certificate:              cert,
+							Key:                      key,
+							DestinationCACertificate: "destCaCert",
+						},
+					}
+					route1 := test.NewRoute("route1", "1", namespace, spec1, nil)
+					mockMgr.addRoute(route1)
+					route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
+					mockMgr.addRoute(route2)
+
+					// verify data groups
+					grpRef := NameRef{
+						Partition: DEFAULT_PARTITION,
+						Name:      AbDeploymentDgName,
+					}
+					nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "a/b group not found")
+					flatDg := nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(2))
+
+					Expect(flatDg.Records[0].Name).To(Equal(spec1.Host))
+					barWeight := float64(w1) / (float64(w0) + float64(w1))
+					fooWeight := (float64(w0) + float64(w1)) / (float64(w0) + float64(w1))
+					data := fmt.Sprintf("openshift_default_%s,%4.3f;openshift_default_%s,%4.3f",
+						svc2Name, barWeight, svc1Name, fooWeight)
+					Expect(flatDg.Records[0].Data).To(Equal(data))
+
+					Expect(flatDg.Records[1].Name).To(Equal(spec2.Host))
+					bazWeight := float64(w3) / (float64(w0) + float64(w3))
+					fooWeight = (float64(w0) + float64(w3)) / (float64(w0) + float64(w3))
+					data = fmt.Sprintf("openshift_default_%s,%4.3f;openshift_default_%s,%4.3f",
+						svc3Name, bazWeight, svc1Name, fooWeight)
+					Expect(flatDg.Records[1].Data).To(Equal(data))
+
+					rs, ok := mockMgr.resources().Get(
+						ServiceKey{ServiceName: svc1Name, ServicePort: 80, Namespace: namespace}, NameRef{Name: "ose-vserver", Partition: DEFAULT_PARTITION})
+					Expect(ok).To(BeTrue())
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+
+					// Turn off A/B
+					route1.Spec.AlternateBackends = []routeapi.RouteTargetReference{}
+					route2.Spec.AlternateBackends = []routeapi.RouteTargetReference{}
+					mockMgr.updateRoute(route1)
+					mockMgr.updateRoute(route2)
+
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).To(BeNil())
+
+					// All weights are 0
+					route1.Spec.To.Weight = &w2
+					route1.Spec.AlternateBackends = []routeapi.RouteTargetReference{
+						{
+							Kind:   "Service",
+							Name:   svc2Name,
+							Weight: &w2,
+						},
+						{
+							Kind:   "Service",
+							Name:   svc3Name,
+							Weight: &w2,
+						},
+					}
+					mockMgr.updateRoute(route1)
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg.Records[0].Data).To(Equal(""))
+				})
 			})
 		})
 
@@ -4375,7 +3601,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgNs1 := test.NewConfigMap("foomap", "1", ns1,
 					map[string]string{
@@ -4403,39 +3629,42 @@ var _ = Describe("AppManager Tests", func() {
 				resources := mockMgr.resources()
 				r := mockMgr.addConfigMap(cfgNs1)
 				Expect(r).To(BeTrue(), "Config map should be processed.")
+				// enqueue configMap and check the queue length
+				mockMgr.appMgr.enqueueConfigMap(cfgNs1, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1}, FormatConfigMapVSName(cfgNs1))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1}, NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeFalse())
 				r = mockMgr.addService(svcNs1)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1}, FormatConfigMapVSName(cfgNs1))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1}, NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				r = mockMgr.addConfigMap(cfgNs2)
 				Expect(r).To(BeTrue(), "Config map should be processed.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2}, FormatConfigMapVSName(cfgNs2))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2}, NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeFalse())
 				r = mockMgr.addService(svcNs2)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2}, FormatConfigMapVSName(cfgNs2))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2}, NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				r = mockMgr.addConfigMap(cfgNsDefault)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: nsDefault}, FormatConfigMapVSName(cfgNsDefault))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: nsDefault}, NameRef{Name: FormatConfigMapVSName(cfgNsDefault), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				r = mockMgr.addService(svcNsDefault)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: nsDefault}, FormatConfigMapVSName(cfgNsDefault))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: nsDefault}, NameRef{Name: FormatConfigMapVSName(cfgNsDefault), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 			})
 
@@ -4485,7 +3714,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				err = mockMgr.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 				Expect(err).To(BeNil())
-				// Re-adding it should fail
+				//Re-adding it should fail
 				err = mockMgr.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 				Expect(err).ToNot(BeNil())
 			})
@@ -4509,12 +3738,13 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Config map should be processed.")
 				resources := mockMgr.resources()
 				rs, ok := resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: NumNSname},
-					FormatConfigMapVSName(cfgFoo))
+					NameRef{Name: FormatConfigMapVSName(cfgFoo), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.Virtual.Name).To(Equal("cfgmap_" + NumNSname + "_foomap"))
 			})
 
 			It("watches namespace labels", func() {
+				mockMgr.appMgr.manageIngress = false
 				nsLabel := "watching"
 				err := mockMgr.startLabelMode(nsLabel)
 				Expect(err).To(BeNil())
@@ -4529,7 +3759,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgNs1 := test.NewConfigMap("foomap", "1", ns1.ObjectMeta.Name,
 					map[string]string{
@@ -4557,13 +3787,13 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addConfigMap(cfgNs3)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				_, ok := resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs1))
+					NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs2))
+					NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns3.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs3))
+					NameRef{Name: FormatConfigMapVSName(cfgNs3), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 
 				// Add a namespace with no label, should still not create any resources.
@@ -4576,13 +3806,13 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addConfigMap(cfgNs3)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs1))
+					NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs2))
+					NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns3.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs3))
+					NameRef{Name: FormatConfigMapVSName(cfgNs3), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 
 				// Add a namespace with a mismatched label, should still not create any
@@ -4596,13 +3826,13 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addConfigMap(cfgNs3)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs1))
+					NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs2))
+					NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns3.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs3))
+					NameRef{Name: FormatConfigMapVSName(cfgNs3), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 
 				// Add a namespace with a matching label and make sure the config map that
@@ -4616,13 +3846,13 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addConfigMap(cfgNs3)
 				Expect(r).To(BeTrue(), "Config map should be processed.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs1))
+					NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs2))
+					NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				rs, ok := resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns3.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs3))
+					NameRef{Name: FormatConfigMapVSName(cfgNs3), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeFalse())
 
@@ -4641,122 +3871,122 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addService(svcNs3)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs1))
+					NameRef{Name: FormatConfigMapVSName(cfgNs1), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				_, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns2.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs2))
+					NameRef{Name: FormatConfigMapVSName(cfgNs2), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
 				rs, ok = resources.Get(ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns3.ObjectMeta.Name},
-					FormatConfigMapVSName(cfgNs3))
+					NameRef{Name: FormatConfigMapVSName(cfgNs3), Partition: "velcro"})
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeTrue())
 			})
 			//FixMe: Fix this unit test as we updated checkValidRoute function - included certificate and key validation.
 
-			// It("handles routes and services in multiple namespaces", func() {
-			// 	mockMgr.appMgr.routeConfig = RouteConfig{
-			// 		HttpVs:  "ose-vserver",
-			// 		HttpsVs: "https-ose-vserver",
-			// 	}
-			// 	ns1 := "default"
-			// 	ns2 := "kube-system"
-
-			// 	cfgMapSelector, err := labels.Parse(DefaultConfigMapLabel)
-			// 	Expect(err).To(BeNil())
-			// 	err = mockMgr.appMgr.AddNamespace("", cfgMapSelector, 0)
-			// 	Expect(err).To(BeNil())
-
-			// 	mockMgr.appMgr.useNodeInternal = true
-			// 	nodeSet := []v1.Node{
-			// 		*test.NewNode("node0", "0", false, []v1.NodeAddress{
-			// 			{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
-			// 	}
-			// 	mockMgr.processNodeUpdate(nodeSet, nil)
-
-			// 	// Create two services with same name in different namespaces
-			// 	svcNs1 := test.NewService("foo", "1", ns1, "NodePort",
-			// 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-			// 	svcNs2 := test.NewService("foo", "2", ns2, "NodePort",
-			// 		[]v1.ServicePort{{Port: 80, NodePort: 38001}})
-			// 	mockMgr.addService(svcNs1)
-			// 	mockMgr.addService(svcNs2)
-
-			// 	spec1 := routeapi.RouteSpec{
-			// 		Host: "foobar.com",
-			// 		Path: "/foo",
-			// 		Port: &routeapi.RoutePort{
-			// 			TargetPort: intstr.IntOrString{IntVal: 80},
-			// 		},
-			// 		To: routeapi.RouteTargetReference{
-			// 			Kind: "Service",
-			// 			Name: "foo",
-			// 		},
-			// 		TLS: &routeapi.TLSConfig{
-			// 			Termination: "edge",
-			// 			Certificate: "cert",
-			// 			Key:         "key",
-			// 		},
-			// 	}
-			// 	spec2 := routeapi.RouteSpec{
-			// 		Host: "foobar.com",
-			// 		Path: "/bar",
-			// 		Port: &routeapi.RoutePort{
-			// 			TargetPort: intstr.IntOrString{IntVal: 80},
-			// 		},
-			// 		To: routeapi.RouteTargetReference{
-			// 			Kind: "Service",
-			// 			Name: "foo",
-			// 		},
-			// 		TLS: &routeapi.TLSConfig{
-			// 			Termination: "edge",
-			// 			Certificate: "cert",
-			// 			Key:         "key",
-			// 		},
-			// 	}
-			// 	// Create two routes with same name in different namespaces
-			// 	route := test.NewRoute("route", "1", ns1, spec1, nil)
-			// 	r := mockMgr.addRoute(route)
-			// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-			// 	route2 := test.NewRoute("route", "2", ns2, spec2, nil)
-			// 	r = mockMgr.addRoute(route2)
-			// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-			// 	resources := mockMgr.resources()
-			// 	Expect(resources.PoolCount()).To(Equal(2))
-
-			// 	rs, ok := resources.Get(
-			// 		ServiceKey{"foo", 80, ns1}, "https-ose-vserver")
-			// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-			// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-			// 	Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-			// 	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(3))
-			// 	addr := []string{"127.0.0.0"}
-			// 	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
-			// 	Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, addr)))
-
-			// 	rs, ok = resources.Get(
-			// 		ServiceKey{"foo", 80, ns2}, "https-ose-vserver")
-			// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-			// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-			// 	Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-			// 	Expect(len(rs.Pools)).To(Equal(2))
-			// 	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(3))
-			// 	addr = []string{"127.0.0.0"}
-			// 	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
-			// 	Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, addr)))
-
-			// 	// Delete a route
-			// 	mockMgr.deleteRoute(route2)
-			// 	Expect(resources.PoolCount()).To(Equal(1))
-			// 	rs, ok = resources.Get(
-			// 		ServiceKey{"foo", 80, ns1}, "https-ose-vserver")
-			// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-			// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
-			// 	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-			// 	Expect(len(rs.Pools)).To(Equal(1))
-			// 	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(2))
-			// 	addr = []string{"127.0.0.0"}
-			// 	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
-			// })
+			//It("handles routes and services in multiple namespaces", func() {
+			//	mockMgr.appMgr.routeConfig = RouteConfig{
+			//		HttpVs:  "ose-vserver",
+			//		HttpsVs: "https-ose-vserver",
+			//	}
+			//	ns1 := "default"
+			//	ns2 := "kube-system"
+			//
+			//	cfgMapSelector, err := labels.Parse(DefaultConfigMapLabel)
+			//	Expect(err).To(BeNil())
+			//	err = mockMgr.appMgr.AddNamespace("", cfgMapSelector, 0)
+			//	Expect(err).To(BeNil())
+			//
+			//	mockMgr.appMgr.useNodeInternal = true
+			//	nodeSet := []v1.Node{
+			//		*test.NewNode("node0", "0", false, []v1.NodeAddress{
+			//			{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+			//	}
+			//	mockMgr.processNodeUpdate(nodeSet, nil)
+			//
+			//	// Create two services with same name in different namespaces
+			//	svcNs1 := test.NewService("foo", "1", ns1, "NodePort",
+			//		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+			//	svcNs2 := test.NewService("foo", "2", ns2, "NodePort",
+			//		[]v1.ServicePort{{Port: 80, NodePort: 38001}})
+			//	mockMgr.addService(svcNs1)
+			//	mockMgr.addService(svcNs2)
+			//
+			//	spec1 := routeapi.RouteSpec{
+			//		Host: "foobar.com",
+			//		Path: "/foo",
+			//		Port: &routeapi.RoutePort{
+			//			TargetPort: intstr.IntOrString{IntVal: 80},
+			//		},
+			//		To: routeapi.RouteTargetReference{
+			//			Kind: "Service",
+			//			Name: "foo",
+			//		},
+			//		TLS: &routeapi.TLSConfig{
+			//			Termination: "edge",
+			//			Certificate: cert,
+			//			Key:         key,
+			//		},
+			//	}
+			//	spec2 := routeapi.RouteSpec{
+			//		Host: "foobar.com",
+			//		Path: "/bar",
+			//		Port: &routeapi.RoutePort{
+			//			TargetPort: intstr.IntOrString{IntVal: 80},
+			//		},
+			//		To: routeapi.RouteTargetReference{
+			//			Kind: "Service",
+			//			Name: "foo",
+			//		},
+			//		TLS: &routeapi.TLSConfig{
+			//			Termination: "edge",
+			//			Certificate: cert,
+			//			Key:         key,
+			//		},
+			//	}
+			//	// Create two routes with same name in different namespaces
+			//	route := test.NewRoute("route", "1", ns1, spec1, nil)
+			//	r := mockMgr.addRoute(route)
+			//	Expect(r).To(BeTrue(), "Route resource should be processed.")
+			//	route2 := test.NewRoute("route", "2", ns2, spec2, nil)
+			//	r = mockMgr.addRoute(route2)
+			//	Expect(r).To(BeTrue(), "Route resource should be processed.")
+			//	resources := mockMgr.resources()
+			//	Expect(resources.PoolCount()).To(Equal(2))
+			//
+			//	rs, ok := resources.Get(
+			//		ServiceKey{"foo", 80, ns1}, "https-ose-vserver")
+			//	Expect(ok).To(BeTrue(), "Route should be accessible.")
+			//	Expect(rs).ToNot(BeNil(), "Route should be object.")
+			//	Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+			//	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(3))
+			//	addr := []string{"127.0.0.0"}
+			//	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addr)))
+			//	Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, 80, addr)))
+			//
+			//	rs, ok = resources.Get(
+			//		ServiceKey{"foo", 80, ns2}, "https-ose-vserver")
+			//	Expect(ok).To(BeTrue(), "Route should be accessible.")
+			//	Expect(rs).ToNot(BeNil(), "Route should be object.")
+			//	Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+			//	Expect(len(rs.Pools)).To(Equal(2))
+			//	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(3))
+			//	addr = []string{"127.0.0.0"}
+			//	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addr)))
+			//	Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, 80, addr)))
+			//
+			//	// Delete a route
+			//	mockMgr.deleteRoute(route2)
+			//	Expect(resources.PoolCount()).To(Equal(1))
+			//	rs, ok = resources.Get(
+			//		ServiceKey{"foo", 80, ns1}, "https-ose-vserver")
+			//	Expect(ok).To(BeTrue(), "Route should be accessible.")
+			//	Expect(rs).ToNot(BeNil(), "Route should be object.")
+			//	Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+			//	Expect(len(rs.Pools)).To(Equal(1))
+			//	Expect(rs.Virtual.GetProfileCountByContext(CustomProfileClient)).To(Equal(2))
+			//	addr = []string{"127.0.0.0"}
+			//	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addr)))
+			//})
 		})
 		Describe("Test NodeportLocal", func() {
 			var nplsvc *v1.Service
@@ -4806,9 +4036,8 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(mockMgr.appMgr.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
 				//verify selector match on pod
 				Expect(mockMgr.appMgr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
-				var items []v1.Pod
-				items = append(items, *pod1, *pod2)
-				pods := v1.PodList{Items: items}
+				var pods []*v1.Pod
+				pods = append(pods, pod1, pod2)
 				//Verify endpoints
 				members := []Member{
 					{
@@ -4824,10 +4053,419 @@ var _ = Describe("AppManager Tests", func() {
 						Session: "user-enabled",
 					},
 				}
-				mems := mockMgr.appMgr.getEndpointsForNPL(8080, &pods)
+				mems := mockMgr.appMgr.getEndpointsForNPL(intstr.FromInt(8080), pods)
 				Expect(mems).To(Equal(members))
 			})
 
+		})
+		var _ = Describe("OtherSDNType", func() {
+			var selectors map[string]string
+			var pod *v1.Pod
+			BeforeEach(func() {
+				mockMgr.appMgr.TeemData = &teem.TeemsData{SDNType: "other"}
+				selectors = make(map[string]string)
+
+			})
+			It("Check the SDNType Cilium", func() {
+				pod = test.NewPod("cilium-node1", "default", 8080, selectors)
+				pod.Status.Phase = "Running"
+				mockMgr.appMgr.kubeClient = k8sfake.NewSimpleClientset(pod)
+				mockMgr.appMgr.setOtherSDNType()
+				Expect(mockMgr.appMgr.TeemData.SDNType).To(Equal("cilium"), "SDNType should be cilium")
+			})
+			It("Check the SDNType Calico", func() {
+				pod = test.NewPod("calico-node1", "default", 8080, selectors)
+				pod.Status.Phase = "Running"
+				mockMgr.appMgr.kubeClient = k8sfake.NewSimpleClientset(pod)
+				mockMgr.appMgr.setOtherSDNType()
+				Expect(mockMgr.appMgr.TeemData.SDNType).To(Equal("calico"), "SDNType should be calico")
+			})
+			It("Check the SDNType other", func() {
+				pod = test.NewPod("node1", "default", 8080, selectors)
+				pod.Status.Phase = "Running"
+				mockMgr.appMgr.kubeClient = k8sfake.NewSimpleClientset(pod)
+				mockMgr.appMgr.setOtherSDNType()
+				Expect(mockMgr.appMgr.TeemData.SDNType).To(Equal("other"), "SDNType should be other")
+			})
+		})
+
+		Describe("Test Helper Methods", func() {
+			It("Test GetPodsForService", func() {
+				namespace := "test"
+				svcName := "svc1"
+				selector, err := labels.Parse(DefaultConfigMapLabel)
+				Expect(err).To(BeNil())
+				// no service and different namespace
+				mockMgr.appMgr.poolMemberType = NodePortLocal
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				podList := mockMgr.appMgr.GetPodsForService("diff-ns", svcName)
+				Expect(podList).To(BeNil())
+
+				// no service created, correct namespace
+				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				Expect(podList).To(BeNil())
+
+				//Add service, No nodeportlocal annotation
+				appInf := mockMgr.appMgr.appInformers[namespace]
+				Expect(appInf).NotTo(BeNil())
+				svcPorts := []v1.ServicePort{
+					newServicePort("port0", 80),
+				}
+				svc1 := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
+				appInf.svcInformer.GetStore().Add(svc1)
+				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				Expect(podList).To(BeNil())
+
+				// Add nodeportlocal annotation
+				svc1.Annotations = make(map[string]string)
+				svc1.Annotations[NPLSvcAnnotation] = "true"
+				appInf.svcInformer.GetStore().Update(svc1)
+				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				Expect(podList).To(BeNil())
+
+				// Add Pod selector
+				svc1.Spec.Selector = make(map[string]string)
+				svc1.Spec.Selector["app"] = "app1"
+				appInf.svcInformer.GetStore().Update(svc1)
+				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				Expect(podList).To(BeNil())
+			})
+			It("Test getEndpoints", func() {
+				namespace := "test"
+				svcName1 := "svc1"
+				svcName2 := "svc2"
+				selector, err := labels.Parse(DefaultConfigMapLabel)
+				Expect(err).To(BeNil())
+				// no service and different namespace
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				appInf := mockMgr.appMgr.appInformers[namespace]
+				Expect(appInf).NotTo(BeNil())
+
+				// hubmode, no service
+				mockMgr.appMgr.hubMode = true
+				defer func() {
+					mockMgr.appMgr.hubMode = false
+					mockMgr.appMgr.isNodePort = true
+				}()
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				members := mockMgr.appMgr.getEndpoints("test", namespace)
+				Expect(members).To(BeNil())
+
+				// Add service
+				svcPorts := []v1.ServicePort{
+					newServicePort("port0", 80),
+				}
+				svc1 := test.NewService(svcName1, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
+				svc1.Labels = make(map[string]string)
+				svc1.Labels["test"] = "true"
+				svc2 := test.NewService(svcName2, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
+				svc2.Labels = make(map[string]string)
+				svc2.Labels["test"] = "true"
+				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc1, metav1.CreateOptions{})
+				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc2, metav1.CreateOptions{})
+				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				Expect(members).To(BeNil())
+
+				// Set isNodePort to false, no endpoints
+				mockMgr.appMgr.isNodePort = false
+				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				Expect(members).To(BeNil())
+
+				// Set isNodePort to false, no endpoints
+				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				Expect(members).To(BeNil())
+
+				// Add endpoints
+				readyIps := []string{"10.2.96.3", "10.2.96.4"}
+				endpts1 := test.NewEndpoints(svcName1, "1", "node0", namespace,
+					readyIps, nil, convertSvcPortsToEndpointPorts(svcPorts))
+				appInf.endptInformer.GetStore().Add(endpts1)
+				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				Expect(members).NotTo(BeNil())
+				Expect(len(members)).To(Equal(2))
+
+			})
+
+			It("Test getEndpointsForNPL", func() {
+				namespace := "test"
+				podName := "pod1"
+				targetPort := intstr.IntOrString{
+					StrVal: "port1",
+				}
+				nplanno := NPLAnnotation{
+					PodPort:  80,
+					NodeIP:   "127.0.0.1",
+					NodePort: 30030,
+				}
+				pod1 := v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      podName,
+						Namespace: namespace,
+					},
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
+							{Ports: []v1.ContainerPort{{Name: "port1", ContainerPort: 80}}},
+						},
+					},
+				}
+				var pods []*v1.Pod
+				pods = append(pods, &pod1)
+				mockMgr.appMgr.nplStore[namespace+"/"+podName] = []NPLAnnotation{nplanno}
+				members := mockMgr.appMgr.getEndpointsForNPL(targetPort, pods)
+				Expect(len(members)).To(Equal(1))
+
+			})
+
+			It("Test affectedVirtuals", func() {
+				spec := routeapi.RouteSpec{}
+				route := &routeapi.Route{
+					Spec: spec,
+				}
+				v := mockMgr.appMgr.affectedVirtuals(route)
+				Expect(v).To(Equal(HTTP))
+
+				//InsecureEdgeTerminationPolicyType
+				route.Spec.TLS = &routeapi.TLSConfig{
+					InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyNone,
+				}
+				v = mockMgr.appMgr.affectedVirtuals(route)
+				Expect(v).To(Equal(HTTPS))
+
+				route.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
+				v = mockMgr.appMgr.affectedVirtuals(route)
+				Expect(v).To(Equal(HTTPANDS))
+
+				route.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyRedirect
+				mockMgr.appMgr.affectedVirtuals(route)
+				Expect(v).To(Equal(HTTPANDS))
+			})
+
+			It("Test exposeKubernetesService", func() {
+				namespace := "test"
+				svcName := "svc1"
+				selector, err := labels.Parse(DefaultConfigMapLabel)
+				Expect(err).To(BeNil())
+				// no service and different namespace
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				svcPorts := []v1.ServicePort{
+					newServicePort("port0", 80),
+				}
+				svc := &v1.Service{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Service",
+						APIVersion: "v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      svcName,
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{
+						Ports: svcPorts,
+					},
+				}
+				sKey := ServiceKey{
+					ServiceName: "svc1",
+					ServicePort: 80,
+					Namespace:   namespace,
+				}
+				rsCfg := &ResourceConfig{
+					Pools: []Pool{{}},
+				}
+				appInf := mockMgr.appMgr.appInformers[namespace]
+				ret, err1, msg := mockMgr.appMgr.exposeKubernetesService(svc, sKey, rsCfg, appInf, 0)
+				Expect(ret).To(BeFalse())
+				Expect(len(err1)).NotTo(Equal(0))
+				Expect(len(msg)).NotTo(Equal(0))
+
+				// With endpoint
+				readyIps := []string{"10.2.96.3", "10.2.96.4"}
+				ep := test.NewEndpoints(svcName, "1", "node0", namespace,
+					readyIps, nil, convertSvcPortsToEndpointPorts(svcPorts))
+				appInf.endptInformer.GetStore().Add(ep)
+				ret, err1, msg = mockMgr.appMgr.exposeKubernetesService(svc, sKey, rsCfg, appInf, 0)
+				Expect(ret).To(BeTrue())
+				Expect(len(err1)).To(Equal(0))
+				Expect(len(msg)).To(Equal(0))
+			})
+
+			It("Test updatePoolMembersForNPL", func() {
+				namespace := "test"
+				svcName := "svc1"
+				selector, err := labels.Parse(DefaultConfigMapLabel)
+				Expect(err).To(BeNil())
+				mockMgr.appMgr.poolMemberType = NodePortLocal
+				// no service and different namespace
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				svcPorts := []v1.ServicePort{
+					newServicePort("port0", 80),
+				}
+				svc := &v1.Service{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Service",
+						APIVersion: "v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      svcName,
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{
+						Ports: svcPorts,
+						Type:  v1.ServiceTypeNodePort,
+					},
+				}
+				sKey := ServiceKey{
+					ServiceName: "svc1",
+					ServicePort: 80,
+					Namespace:   namespace,
+				}
+				rsCfg := &ResourceConfig{
+					Pools: []Pool{{}},
+				}
+
+				// Nodeport service
+				ret, err1, msg := mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
+				Expect(ret).To(BeFalse())
+				Expect(len(err1)).NotTo(Equal(0))
+				Expect(len(msg)).NotTo(Equal(0))
+
+				// ClusterIP service not created
+				svc.Spec.Type = v1.ServiceTypeClusterIP
+				ret, err1, msg = mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
+				Expect(ret).To(BeTrue())
+				Expect(len(err1)).To(Equal(0))
+				Expect(len(msg)).To(Equal(0))
+
+				// ClusterIP service created, no pods
+				appInf := mockMgr.appMgr.appInformers[namespace]
+				annotations := make(map[string]string)
+				annotations[NPLSvcAnnotation] = "true"
+				svc.ObjectMeta.Annotations = annotations
+				svc.Spec.Selector = make(map[string]string)
+				svc.Spec.Selector["app"] = "app1"
+				appInf.svcInformer.GetStore().Add(svc)
+				ret, err1, msg = mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
+				Expect(ret).To(BeTrue())
+				Expect(len(err1)).To(Equal(0))
+				Expect(len(msg)).To(Equal(0))
+			})
+
+			It("Test isNonPerfResource", func() {
+				Expect(isNonPerfResource(Services)).To(BeTrue())
+				Expect(isNonPerfResource(Ingresses)).To(BeFalse())
+				Expect(isNonPerfResource("test")).To(BeTrue())
+			})
+
+			It("Test enqueueNamespace", func() {
+				namespace := "ns1"
+				selector, _ := labels.Parse(DefaultConfigMapLabel)
+				// Namespace not created
+				ns1 := test.NewNamespace(namespace, "1", map[string]string{})
+				mockMgr.appMgr.enqueueNamespace(ns1)
+				Expect(mockMgr.appMgr.nsQueue.Len()).To(Equal(0))
+
+				// Namespace created
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				mockMgr.appMgr.enqueueNamespace(ns1)
+				Expect(mockMgr.appMgr.nsQueue.Len()).To(Equal(1))
+			})
+
+			It("Test processNextNamespace", func() {
+				namespace := "ns1"
+				selector, _ := labels.Parse(DefaultConfigMapLabel)
+				ns1 := test.NewNamespace(namespace, "1", map[string]string{})
+				_ = mockMgr.appMgr.AddNamespaceLabelInformer(selector, 0)
+				mockMgr.appMgr.nsInformer.GetStore().Add(ns1)
+				mockMgr.appMgr.nsQueue.Add(ns1.ObjectMeta.Name)
+				Expect(mockMgr.appMgr.nsQueue.Len()).To(Equal(1))
+				mockMgr.appMgr.processNextNamespace()
+				Expect(mockMgr.appMgr.nsQueue.Len()).To(Equal(0))
+
+			})
+
+			It("Test triggerSyncResources", func() {
+				namespace := "ns1"
+				selector, _ := labels.Parse(DefaultConfigMapLabel)
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				svcName := "svc1"
+				svc := &v1.Service{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Service",
+						APIVersion: "v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      svcName,
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{},
+				}
+				appInf := mockMgr.appMgr.appInformers[namespace]
+				appInf.svcInformer.GetStore().Add(svc)
+				mockMgr.appMgr.triggerSyncResources(namespace, appInf)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
+			})
+
+			It("Test getQueueLength for svc", func() {
+				svcName := "svc1"
+				namespace := "default"
+				selector, _ := labels.Parse(DefaultConfigMapLabel)
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				svc := &v1.Service{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Service",
+						APIVersion: "v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      svcName,
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{},
+				}
+				mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{"default"}}
+				mockMgr.addService(svc)
+				Expect(mockMgr.appMgr.getQueueLength()).To(Equal(1))
+				mockMgr.appMgr.enqueueService(svc, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
+			})
+			It("Test getQueueLength for configMap", func() {
+				err := mockMgr.startNonLabelMode([]string{"default"})
+				Expect(err).To(BeNil())
+				cfgNs1 := test.NewConfigMap("foomap", "1", "default",
+					map[string]string{
+						"schema": schemaUrl,
+						"data":   configmapFoo,
+					})
+				cfgNs1.ObjectMeta.Labels = map[string]string{"f5type": "virtual-server"}
+				mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{"default"}}
+				mockMgr.addConfigMap(cfgNs1)
+				Expect(mockMgr.appMgr.getQueueLength()).To(Equal(1))
+				mockMgr.appMgr.enqueueConfigMap(cfgNs1, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
+			})
+			It("Test GetAllWatchedNamespaces", func() {
+				mockMgr.appMgr.manageIngress = false
+				namespaces := mockMgr.appMgr.GetAllWatchedNamespaces()
+				Expect(len(namespaces)).To(Equal(1))
+				Expect(namespaces[0]).To(Equal(""))
+				err := mockMgr.startLabelMode("watching")
+				Expect(err).To(BeNil())
+				mockMgr.appMgr.WatchedNS.NamespaceLabel = "watching"
+				ns1 := test.NewNamespace("ns1", "1", map[string]string{})
+				ns2 := test.NewNamespace("ns2", "1", map[string]string{"notwatching": "no"})
+				ns3 := test.NewNamespace("ns3", "1", map[string]string{"watching": "yes"})
+				mockMgr.addNamespace(ns1)
+				mockMgr.addNamespace(ns2)
+				mockMgr.addNamespace(ns3)
+				namespaces = mockMgr.appMgr.GetAllWatchedNamespaces()
+				Expect(len(namespaces)).To(Equal(1))
+				Expect(namespaces[0]).To(Equal("ns3"))
+				ns4 := test.NewNamespace("ns4", "1", map[string]string{"watching": "yes"})
+				mockMgr.addNamespace(ns4)
+				namespaces = mockMgr.appMgr.GetAllWatchedNamespaces()
+				sort.Strings(namespaces)
+				Expect(len(namespaces)).To(Equal(2))
+				Expect(namespaces[0]).To(Equal("ns3"))
+				Expect(namespaces[1]).To(Equal("ns4"))
+			})
 		})
 	})
 })

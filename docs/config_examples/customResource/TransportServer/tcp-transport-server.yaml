@@ -26,3 +26,9 @@ spec:
       type: tcp
       interval: 10
       timeout: 10
+    # reselectTries specifies the maximum number of attempts to find a responsive member for a connection
+    # Supported values: [0, 65535]
+    reselectTries: 15
+    # serviceDownAction specifies connection handling when member is non-responsive
+    # Supported values: “drop”, “none”, “reselect”, “reset”
+    serviceDownAction: reselect

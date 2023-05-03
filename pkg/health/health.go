@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"os"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 type HealthChecker struct {
 	SubPID int
 }
 
-//TODO: Add additional health checks
-//TODO: add health check if Kubernetes API is still reachable
+// TODO: Add additional health checks
+// TODO: add health check if Kubernetes API is still reachable
 func (hc HealthChecker) HealthCheckHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if hc.SubPID != 0 {

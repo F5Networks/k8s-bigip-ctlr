@@ -19,8 +19,8 @@ package appmanager
 import (
 	"context"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -164,11 +164,6 @@ func (appMgr *Manager) fetchRoute(rscKey string) *routeapi.Route {
 	ns := strings.Split(rscKey, "/")[0]
 	appInf, haveNamespace := appMgr.getNamespaceInformer(ns)
 	if !haveNamespace {
-		// This shouldn't happen as the namespace is checked for every item before
-		// it is added to the queue, but issue a warning if it does.
-		log.Warningf(
-			"Received an update for an item from an un-watched namespace %v",
-			ns)
 		return nil
 	}
 	obj, exist, err := appInf.routeInformer.GetIndexer().GetByKey(rscKey)

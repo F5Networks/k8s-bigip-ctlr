@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"sort"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
@@ -36,44 +36,53 @@ func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
 func (am *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
 	// Create Shared as3Application object for Routes
 	adc := as3ADC{}
-	adc.initDefault(DEFAULT_PARTITION, am.defaultRouteDomain)
+	var partitions map[string]struct{}
+	if len(am.Resources.Partitions) == 0 {
+		partitions = make(map[string]struct{})
+		partitions[DEFAULT_PARTITION] = struct{}{}
+	} else {
+		partitions = am.Resources.Partitions
+	}
+	for partition := range partitions {
+		adc.initTenant(partition, am.defaultRouteDomain)
+		sharedApp := adc.getAS3SharedApp(partition)
 
-	sharedApp := adc.getAS3SharedApp(DEFAULT_PARTITION)
+		// Process CIS Resources to create AS3 Resources
+		am.processResourcesForAS3(sharedApp, partition)
 
-	// Process CIS Resources to create AS3 Resources
-	am.processResourcesForAS3(sharedApp)
+		// Process CustomProfiles
+		am.processCustomProfilesForAS3(sharedApp, partition)
 
-	// Process CustomProfiles
-	am.processCustomProfilesForAS3(sharedApp)
+		// Process RouteProfiles
+		am.processProfilesForAS3(sharedApp, partition)
 
-	// Process RouteProfiles
-	am.processProfilesForAS3(sharedApp)
+		// For Ingress process SecretName
+		// Process IRules
+		am.processIRulesForAS3(sharedApp, partition)
 
-	// For Ingress process SecretName
-	// Process IRules
-	am.processIRulesForAS3(sharedApp)
+		// Process DataGroup to be consumed by IRule
+		am.processDataGroupForAS3(sharedApp, partition)
 
-	// Process DataGroup to be consumed by IRule
-	am.processDataGroupForAS3(sharedApp)
-
-	// Process F5 Resources
-	am.processF5ResourcesForAS3(sharedApp)
-
+		// Process F5 Resources
+		am.processF5ResourcesForAS3(sharedApp)
+	}
 	return adc
 }
 
-func (am *AS3Manager) processProfilesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processProfilesForAS3(sharedApp as3Application, partition string) {
 	// Processes RouteProfs to create AS3 Declaration for Route annotations
 	// Override/Set ServerTLS/ClientTLS in AS3 Service as annotation takes higher priority
 	for svcName, cfg := range am.Resources.RsMap {
-		if svc, ok := sharedApp[as3FormattedString(svcName, cfg.MetaData.ResourceType)].(*as3Service); ok {
-			switch cfg.MetaData.ResourceType {
-			case ResourceTypeRoute:
-				processRouteTLSProfilesForAS3(&cfg.MetaData, svc)
-			case ResourceTypeIngress:
-				processIngressTLSProfilesForAS3(&cfg.Virtual, svc)
-			default:
-				log.Warningf("Unsupported resource type: %v", cfg.MetaData.ResourceType)
+		if svcName.Partition == partition {
+			if svc, ok := sharedApp[as3FormattedString(svcName.Name, cfg.MetaData.ResourceType)].(*as3Service); ok {
+				switch cfg.MetaData.ResourceType {
+				case ResourceTypeRoute:
+					processRouteTLSProfilesForAS3(&cfg.MetaData, svc)
+				case ResourceTypeIngress:
+					processIngressTLSProfilesForAS3(&cfg.Virtual, svc)
+				default:
+					log.Warningf("Unsupported resource type: %v", cfg.MetaData.ResourceType)
+				}
 			}
 		}
 	}
@@ -140,7 +149,7 @@ func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 
 }
 
-//Get sorted ServerTLS by value
+// Get sorted ServerTLS by value
 func getSortedServerTLS(serverTLS []as3ResourcePointer) []as3ResourcePointer {
 	if len(serverTLS) == 1 {
 		return serverTLS

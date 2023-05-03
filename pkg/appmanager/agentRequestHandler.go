@@ -1,8 +1,8 @@
 package appmanager
 
 import (
-	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 )
 
 // Method to deploy resources on configured agent
@@ -50,12 +50,13 @@ func (appMgr *Manager) deployResource() error {
 	// Prepare copy of RsMap
 	appMgr.resources.Lock()
 	resourceConfigMap := make(ResourceConfigMap)
+	partitions := make(map[string]struct{})
 	for key, value := range appMgr.resources.RsMap {
 		rsConfig := ResourceConfig{}
 		rsConfig.CopyConfig(value)
 		resourceConfigMap[key] = &rsConfig
+		partitions[rsConfig.GetPartition()] = struct{}{}
 	}
-	resourceConfigs := appMgr.resources.GetAllResources()
 	appMgr.resources.Unlock()
 
 	// Prepare InternalF5ResourcesGroup Copy
@@ -71,8 +72,8 @@ func (appMgr *Manager) deployResource() error {
 	}
 	deployCfg := ResourceRequest{
 		Resources: &AgentResources{
-			RsMap:  resourceConfigMap,
-			RsCfgs: resourceConfigs,
+			RsMap:      resourceConfigMap,
+			Partitions: partitions,
 		},
 		Profs:        Profs,
 		IrulesMap:    iRulesMap,
@@ -82,6 +83,7 @@ func (appMgr *Manager) deployResource() error {
 	}
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}
 	// Handle resources to agent and deploy to BIG-IP
+
 	appMgr.AgentCIS.Deploy(agentReq)
 	go appMgr.TeemData.PostTeemsData()
 	// Initialize cfgMap context if CfgMaps are removed

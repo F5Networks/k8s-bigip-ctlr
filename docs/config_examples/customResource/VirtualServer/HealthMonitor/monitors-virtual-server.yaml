@@ -8,7 +8,7 @@ metadata:
 spec:
   allowVlans: []
   host: foo.example.com
-  httpTraffic: ""
+  httpTraffic: "none"
   iRules: []
   pools:
     - monitors:

@@ -27,15 +27,17 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
 	timeoutNill   = 0 * time.Second
 	timeoutSmall  = 3 * time.Second
 	timeoutMedium = 30 * time.Second
-	timeoutLarge  = 60 * time.Second
+	timeoutLarge  = 180 * time.Second
 )
 
 const (
@@ -49,10 +51,9 @@ const (
 
 type PostManager struct {
 	postChan   chan config
-	httpClient *http.Client
+	HttpClient *http.Client
 	activeCfg  config
 	PostParams
-	Tenants map[string]bool
 }
 
 type PostParams struct {
@@ -62,9 +63,10 @@ type PostParams struct {
 	TrustedCerts  string
 	SSLInsecure   bool
 	AS3PostDelay  int
-	//Log the AS3 response body in Controller logs
-	LogResponse   bool
-	RouteClientV1 routeclient.RouteV1Interface
+	// Log the AS3 response body in Controller logs
+	LogResponse       bool
+	RouteClientV1     routeclient.RouteV1Interface
+	HTTPClientMetrics bool
 }
 
 type config struct {
@@ -76,7 +78,6 @@ func NewPostManager(params PostParams) *PostManager {
 	pm := &PostManager{
 		postChan:   make(chan config, 1),
 		PostParams: params,
-		Tenants:    make(map[string]bool),
 	}
 	pm.setupBIGIPRESTClient()
 
@@ -104,9 +105,24 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 		},
 	}
 
-	postMgr.httpClient = &http.Client{
-		Transport: tr,
-		Timeout:   timeoutLarge,
+	if postMgr.HTTPClientMetrics {
+		log.Debug("[BIGIP] Http client instrumented with metrics!")
+		instrumentedRoundTripper := promhttp.InstrumentRoundTripperInFlight(prometheus.ClientInFlightGauge,
+			promhttp.InstrumentRoundTripperCounter(prometheus.ClientAPIRequestsCounter,
+				promhttp.InstrumentRoundTripperTrace(prometheus.ClientTrace,
+					promhttp.InstrumentRoundTripperDuration(prometheus.ClientHistVec, tr),
+				),
+			),
+		)
+		postMgr.HttpClient = &http.Client{
+			Transport: instrumentedRoundTripper,
+			Timeout:   timeoutLarge,
+		}
+	} else {
+		postMgr.HttpClient = &http.Client{
+			Transport: tr,
+			Timeout:   timeoutLarge,
+		}
 	}
 }
 
@@ -234,7 +250,7 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 }
 
 func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
-	httpResp, err := postMgr.httpClient.Do(request)
+	httpResp, err := postMgr.HttpClient.Do(request)
 	if err != nil {
 		log.Errorf("[AS3] REST call error: %v ", err)
 		return nil, nil
@@ -259,11 +275,11 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 }
 
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) (bool, string) {
-	//traverse all response results
+	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
 		v := value.(map[string]interface{})
-		//log result with code, tenant and message
+		// log result with code, tenant and message
 		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 	}
 	return true, responseStatusOk
@@ -272,7 +288,7 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}) (bool, string) {
 	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
-	//return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
+	// return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
 	return false, responseStatusServiceUnavailable
 }
 
@@ -306,7 +322,7 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
-			//log result with code, tenant and message
+			// log result with code, tenant and message
 			log.Errorf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
@@ -318,12 +334,11 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	//return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+	// return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
 	return false, responseStatusCommon
 }
 
 func (postMgr *PostManager) getBigipRegKeyURL() string {
 	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"
 	return apiURL
-
 }

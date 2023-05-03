@@ -15,10 +15,10 @@ RUN_TESTS=${RUN_TESTS:-1}
 
 if [ $RUN_TESTS -eq 1 ]; then
     go get github.com/onsi/ginkgo/ginkgo@v1.16.2
-	  go get github.com/onsi/gomega@v1.12.0
+	  go get github.com/onsi/gomega@v1.25.0
+	  go install github.com/onsi/ginkgo/ginkgo@v1.16.2
 	  GO111MODULE=off
 	  go get github.com/wadey/gocovmerge
-	  go get golang.org/x/tools/cmd/cover
 	  go get github.com/mattn/goveralls
     echo "Gathering unit test code coverage for 'release' build..."
     ginkgo_test_with_coverage

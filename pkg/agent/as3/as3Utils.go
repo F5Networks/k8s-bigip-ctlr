@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func ValidateJSONStringAndFetchObject(jsonData string, jsonObj *map[string]interface{}) error {
@@ -165,14 +165,6 @@ func ExtractVirtualAddressAndPort(str string) (string, int) {
 		return "", 0
 	}
 
-}
-
-func DeepEqualAS3ArbitraryJsonObject(obj1, obj2 map[string]interface{}) bool {
-	if len(obj1) == 0 && len(obj2) == 0 {
-		return true
-	}
-
-	return reflect.DeepEqual(obj1, obj2)
 }
 
 func getTenants(decl as3Declaration, includeEmptyTenant bool) []string {
@@ -341,7 +333,7 @@ func (c as3Control) initDefault(userAgent string) {
 	c["userAgent"] = userAgent
 }
 
-func (adc as3ADC) initDefault(partition string, defaultRouteDomain int) {
+func (adc as3ADC) initTenant(partition string, defaultRouteDomain int) {
 	tnt := as3Tenant{}
 	tnt.initDefault(defaultRouteDomain)
 	adc[partition] = tnt
@@ -383,7 +375,7 @@ func (a as3Application) initDefault() {
 	a[as3template] = as3shared
 }
 
-//Replacing "-" with "_" for given string
+// Replacing "-" with "_" for given string
 // also handling the IP addr to string as per AS3 for Ingress Resource.
 func as3FormattedString(str string, resourceType string) string {
 	var formattedString string

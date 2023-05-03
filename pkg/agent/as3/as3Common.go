@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/xeipuuv/gojsonschema"
 )
 
@@ -59,87 +59,84 @@ func (am *AS3Manager) validateAS3Template(template string) bool {
 	return validated
 }
 
-func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
-	for _, cfg := range am.Resources.RsCfgs {
-		//Create policies
-		createPoliciesDecl(cfg, sharedApp)
+func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application, partition string) {
+	for nameRef, cfg := range am.Resources.RsMap {
+		if nameRef.Partition == partition {
+			//Create policies
+			createPoliciesDecl(cfg, sharedApp)
 
-		//Create health monitor declaration
-		createMonitorDecl(cfg, sharedApp)
+			//Create health monitor declaration
+			createMonitorDecl(cfg, sharedApp)
 
-		//Create pools
-		createPoolDecl(cfg, sharedApp, am.shareNodes)
+			//Create pools
+			createPoolDecl(cfg, sharedApp, am.shareNodes, partition)
 
-		//Create AS3 Service for virtual server
-		createServiceDecl(cfg, sharedApp)
+			//Create AS3 Service for virtual server
+			createServiceDecl(cfg, sharedApp, partition)
+		}
 	}
 }
 
-// Returns a pool of IP address.
-//func getFakeEndpointsForPool(tenant tenantName, app appName, pool poolName) pool {
-//	return []Member{
-//		{"1.1.1.1", 80, ""},
-//		{"2.2.2.2", 80, ""},
-//		{"3.3.3.3", 80, ""},
-//	}
-//}
-
-func (am *AS3Manager) processIRulesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processIRulesForAS3(sharedApp as3Application, partition string) {
 	// Create irule declaration
-	for _, v := range am.IrulesMap {
-		iRule := &as3IRules{}
-		iRule.Class = "iRule"
-		iRule.IRule = v.Code
-		sharedApp[as3FormattedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
+	for nameRef, v := range am.IrulesMap {
+		if nameRef.Partition == partition {
+			iRule := &as3IRules{}
+			iRule.Class = "iRule"
+			iRule.IRule = v.Code
+			sharedApp[as3FormattedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
+		}
 	}
 }
 
-func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application, partition string) {
 	for idk, idg := range am.IntDgMap {
-		for _, dg := range idg {
-			dataGroupRecord, found := sharedApp[as3FormattedString(dg.Name, "")]
-			if !found {
-				dgMap := &as3DataGroup{}
-				dgMap.Class = "Data_Group"
-				dgMap.KeyDataType = "string"
-				for _, record := range dg.Records {
-					var rec as3Record
-					rec.Key = record.Name
-					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
-						rec.Value = val
-					} else {
-						rec.Value = as3FormattedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+		if idk.Partition == partition {
+			for _, dg := range idg {
+				dataGroupRecord, found := sharedApp[as3FormattedString(dg.Name, "")]
+				if !found {
+					dgMap := &as3DataGroup{}
+					dgMap.Class = "Data_Group"
+					dgMap.KeyDataType = "string"
+					for _, record := range dg.Records {
+						var rec as3Record
+						rec.Key = record.Name
+						// To override default Value created for CCCL for certain DG types
+						if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, partition); ok {
+							rec.Value = val
+						} else {
+							rec.Value = as3FormattedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+						}
+						dgMap.Records = append(dgMap.Records, rec)
 					}
-					dgMap.Records = append(dgMap.Records, rec)
-				}
-				// sort above create dgMap records.
-				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
-				sharedApp[as3FormattedString(dg.Name, "")] = dgMap
-			} else {
-				for _, record := range dg.Records {
-					var rec as3Record
-					rec.Key = record.Name
-					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
-						rec.Value = val
-					} else {
-						rec.Value = as3FormattedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+					// sort above create dgMap records.
+					sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
+					sharedApp[as3FormattedString(dg.Name, "")] = dgMap
+				} else {
+					for _, record := range dg.Records {
+						var rec as3Record
+						rec.Key = record.Name
+						// To override default Value created for CCCL for certain DG types
+						if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, partition); ok {
+							rec.Value = val
+						} else {
+							rec.Value = as3FormattedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+						}
+						sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
 					}
-					sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+					// sort above created
+					sort.Slice(sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records,
+						func(i, j int) bool {
+							return (sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
+								sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
+						})
 				}
-				// sort above created
-				sort.Slice(sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records,
-					func(i, j int) bool {
-						return (sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
-							sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
-					})
 			}
 		}
 	}
 }
 
-func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bool) {
+func getDGRecordValueForAS3(dgName string, sharedApp as3Application, partition string) (string, bool) {
 	switch dgName {
 	case ReencryptServerSslDgName:
 		for _, v := range sharedApp {
@@ -148,7 +145,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bo
 					return val.BigIP, true
 				}
 				if val, ok := svc.ClientTLS.(string); ok {
-					return strings.Join([]string{"", DEFAULT_PARTITION, as3SharedApplication, val}, "/"), true
+					return strings.Join([]string{"", partition, as3SharedApplication, val}, "/"), true
 				}
 				log.Errorf("Unable to find serverssl for Data Group: %v\n", dgName)
 			}
@@ -157,31 +154,33 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bo
 	return "", false
 }
 
-func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application, partition string) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
 	for key, prof := range am.Profs {
-		// Create TLSServer and Certificate for each profile
-		svcName := as3FormattedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
-		if svcName == "" {
-			continue
-		}
-		if ok := am.createUpdateTLSServer(prof, svcName, sharedApp); ok {
-			// Create Certificate only if the corresponding TLSServer is created
-			createCertificateDecl(prof, sharedApp)
-		} else {
-			createUpdateCABundle(prof, caBundleName, sharedApp)
-			if tlsClient == nil {
-				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+		if prof.Partition == partition {
+			// Create TLSServer and Certificate for each profile
+			svcName := as3FormattedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
+			if svcName == "" {
+				continue
 			}
-			skey := SecretKey{
-				Name: prof.Name + "-ca",
-			}
-			if _, ok := am.Profs[skey]; ok && tlsClient != nil {
-				// If a profile exist in customProfiles with key as created above
-				// then it indicates that secure-serverssl needs to be added
-				tlsClient.ValidateCertificate = true
+			if ok := am.createUpdateTLSServer(prof, svcName, sharedApp); ok {
+				// Create Certificate only if the corresponding TLSServer is created
+				createCertificateDecl(prof, sharedApp)
+			} else {
+				createUpdateCABundle(prof, caBundleName, sharedApp)
+				if tlsClient == nil {
+					tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+				}
+				skey := SecretKey{
+					Name: prof.Name + "-ca",
+				}
+				if _, ok := am.Profs[skey]; ok && tlsClient != nil {
+					// If a profile exist in customProfiles with key as created above
+					// then it indicates that secure-serverssl needs to be added
+					tlsClient.ValidateCertificate = true
+				}
 			}
 		}
 	}
@@ -260,7 +259,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Pools for Route
-func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool) {
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, partition string) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
 		pool.LoadBalancingMode = v.Balance
@@ -279,7 +278,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			var monitor as3ResourcePointer
 			use := strings.Split(val, "/")
 			monitor.Use = fmt.Sprintf("/%s/%s/%s",
-				DEFAULT_PARTITION,
+				partition,
 				as3SharedApplication,
 				as3FormattedString(use[len(use)-1], cfg.MetaData.ResourceType),
 			)
@@ -296,7 +295,7 @@ func updateVirtualToHTTPS(v *as3Service) {
 }
 
 // Create AS3 Service for Route
-func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
+func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, partition string) {
 	svc := &as3Service{}
 	numPolicies := len(cfg.Virtual.Policies)
 	switch {
@@ -306,7 +305,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			policyName = strings.Title(cfg.Virtual.Policies[0].Name)
 		}
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
-			DEFAULT_PARTITION,
+			partition,
 			as3SharedApplication,
 			as3FormattedString(policyName, cfg.MetaData.ResourceType))
 	case numPolicies > 1:
@@ -319,7 +318,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				peps,
 				as3ResourcePointer{
 					BigIP: fmt.Sprintf("/%s/%s/%s",
-						DEFAULT_PARTITION,
+						partition,
 						as3SharedApplication,
 						pep.Name,
 					),
@@ -332,7 +331,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		ps := strings.Split(cfg.Virtual.PoolName, "/")
 		if cfg.Virtual.PoolName != "" {
 			svc.Pool = fmt.Sprintf("/%s/%s/%s",
-				DEFAULT_PARTITION,
+				partition,
 				as3SharedApplication,
 				as3FormattedString(ps[len(ps)-1], cfg.MetaData.ResourceType))
 		}
@@ -340,7 +339,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	svc.Layer4 = cfg.Virtual.IpProtocol
 	svc.Source = "0.0.0.0/0"
-	svc.TranslateServerAddress = true
+	transSerAdd := true
+	if cfg.Virtual.TranslateServerAddress == "disabled" {
+		transSerAdd = false
+	}
+	svc.TranslateServerAddress = &transSerAdd
 	svc.TranslateServerPort = true
 
 	svc.Class = "Service_HTTP"
@@ -382,13 +385,16 @@ func createAS3RuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 					val := c.Values[i] + ":" + strconv.Itoa(port)
 					values = append(values, val)
 				}
-				condition.All = &as3PolicyCompareString{
-					Values: values,
-				}
 			} else {
-				condition.All = &as3PolicyCompareString{
-					Values: c.Values,
+				//For ports 80 and 443, host header should match both
+				// host and host:port match
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val, c.Values[i])
 				}
+			}
+			condition.All = &as3PolicyCompareString{
+				Values: values,
 			}
 			if c.HTTPHost {
 				condition.Type = "httpHeader"
@@ -487,7 +493,7 @@ func createAS3RuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 	}
 }
 
-//Create health monitor declaration
+// Create health monitor declaration
 func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	for _, v := range cfg.Monitors {
@@ -500,23 +506,18 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		monitor.TargetPort = &val
 		targetAddressStr := ""
 		monitor.TargetAddress = &targetAddressStr
-		//Monitor type
-		switch v.Type {
-		case "http":
-			adaptiveFalse := false
-			monitor.Adaptive = &adaptiveFalse
-			monitor.Dscp = &val
-			monitor.Receive = "none"
-			if v.Recv != "" {
-				monitor.Receive = v.Recv
+		monitor.Receive = "none"
+		if v.Recv != "" {
+			monitor.Receive = v.Recv
+		}
+		monitor.Send = v.Send
+		monitor.Adaptive = false
+		monitor.Dscp = &val
+		monitor.TimeUnitilUp = &val
+		if v.SslProfile != "" {
+			monitor.ClientTLS = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", v.SslProfile),
 			}
-			monitor.TimeUnitilUp = &val
-			monitor.Send = v.Send
-		case "https":
-			//Todo: For https monitor type
-			adaptiveFalse := false
-			monitor.Send = v.Send
-			monitor.Adaptive = &adaptiveFalse
 		}
 		sharedApp[as3FormattedString(v.Name, cfg.MetaData.ResourceType)] = monitor
 	}

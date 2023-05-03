@@ -18,11 +18,9 @@ package vxlan
 
 import (
 	"context"
-	"fmt"
-
 	// appManager is only used because we need the Member type (can't mock it)
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -121,7 +119,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(struct{}{}, fmt.Errorf("an error"))
+			vxMgr.ProcessNodeUpdate(struct{}{})
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(0))
 	})
@@ -135,7 +133,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(struct{}{}, nil)
+			vxMgr.ProcessNodeUpdate(struct{}{})
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(0))
 	})
@@ -151,7 +149,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(nodeList, nil)
+			vxMgr.ProcessNodeUpdate(nodeList)
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(1))
 
@@ -190,7 +188,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 
 		vxMgr.useNodeInt = false
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(nodeList, nil)
+			vxMgr.ProcessNodeUpdate(nodeList)
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(2))
 
@@ -250,7 +248,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		}
 
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate([]v1.Node{flannelNode}, nil)
+			vxMgr.ProcessNodeUpdate([]v1.Node{flannelNode})
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(3))
 
@@ -273,7 +271,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(nodeList, nil)
+			vxMgr.ProcessNodeUpdate(nodeList)
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(1))
 	})
@@ -289,7 +287,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(nodeList, nil)
+			vxMgr.ProcessNodeUpdate(nodeList)
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(1))
 	})
@@ -305,7 +303,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 		vxMgr, err := NewVxlanMgr("maintain", "vxlan500", true, mock, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(func() {
-			vxMgr.ProcessNodeUpdate(nodeList, nil)
+			vxMgr.ProcessNodeUpdate(nodeList)
 		}).ToNot(Panic())
 		Expect(mock.WrittenTimes).To(Equal(1))
 	})
@@ -346,7 +344,6 @@ var _ = Describe("VxlanMgr Tests", func() {
 
 		fakeClient.CoreV1().Nodes().Create(context.TODO(), &flannelNode, metav1.CreateOptions{})
 		fakeClient.CoreV1().Pods("default").Create(context.TODO(), flannelPod, metav1.CreateOptions{})
-
 		vxMgr.ProcessAppmanagerEvents(fakeClient)
 		pod := []resource.Member{
 			resource.Member{

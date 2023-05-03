@@ -6,11 +6,230 @@ Next Release
 
 Added Functionality
 ```````````````````
+**What’s new:**
+    * Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+        * Fix issue with liveness probe in NextGen
+        * Skip processing OSCP system services to enhance performance
+        * NextGen Route controller takes precedence over Legacy Route deployment parameters
+        * Add Support of server-side http2 profile
+        * Support setting Auto-LastHop option from policy CR
+        * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only)
+        * Support for setting http analytics profile from policy CR
+        * Support for setting client and server ssl profiles from policy CR
+    * Ingress
+        *
+    * CRD
+        * Support for configuring multiple iRules with policyCR
+        * Add Support for AB deployment with VS CR
+        * Add Support of ServerSide HTTP2 Profile in Policy CR and VS CR
+        * Support setting http mrf router option from policy CR(applicable only to VS cr)
+        * Support for setting http analytics profile from policy CR
+    * Static route support added for ovn-k8s,flannel and antrea CNI.
+    * Support for operator in openshift 4.12
+Bug Fixes
+````````````
+* `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal
+
+Upgrade notes
+``````````````
+* Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
+
+
+2.12.1
+-------------
+
+Added Functionality
+```````````````````
+* Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+    * Support for WAF with A/B deployments in routes
+* CRD
+    * Support for ExternalIP update of associated services of Type LB in TS CR
+    * Support for new GTM partition in as3 mode
+        * CIS will create a new partition for GTM with partition name {defaultpartition_gtm} in as3 mode
 
 Bug Fixes
 ````````````
+* `Issue 2725 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2725>`_: AS3 label not working with AS3 configmap when filter-tenants set to true.
+* `Issue 2793 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2793>`_: TLSProfile crd not working when the SSL profile is from Shared location.
+* `Issue 2797 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2797>`_: TLSProfile deletes a referenced SSL Profile when making changes or deleting a VS.
+* `Issue 2799 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2799>`_: VirtualServer deletes a referenced iRule when making changes or deleting a VS.
+* `Issue 2789 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2789>`_: AS3 Post delay - Not working as expected.
+* `Issue 2816 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2816>`_: Fix Error Not found cis.f5.com/ipamLabel
+* `Issue 2796 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2796>`_: EDNS not working when deployed before TS
+* `Issue 2790 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2790>`_: CIS sends multiple AS3 requests for a single VS
+
+2.12.0
+-------------
+
+Added Functionality
+```````````````````
+**What’s new:**
+    * Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+        * Support for rewrite-app-root annotation in routes
+        * Support for WAF annotation in routes
+        * Support for allow-source-range annotation in routes
+        * Support for targetPort in route's health monitors
+    * Ingress
+        * Support for partition annotation in Ingress
+        * Added wildcard character(*) validation for ingress path
+    * CRD
+        * Support for ipIntelligencePolicy with policy CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_
+            * Support for configuring ratio on GSLBDomainPool with externaldns CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns-pool-ratio.yaml>`_
+        * Support for BIGIP partition with Virtual Server, Transport Server and IngressLink custom resources See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/partition>`_
+        * Support for none as value for iRules in policy CR and virtual server CR to disable adding default CIS iRule on BIGIP. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource>`_ for more details.
+        * Support for path/pool based WAF for VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/pool-waf>`_
+        * `Issue 2737 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2737>`_: Support for serviceNamespace field in transport server spec that allows to define a pool service from another namespace for transport server CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/serviceNamespace>`_
+        * `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/HttpMrfRoutingEnabled>`_
+        * `Issue 2666 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2666>`_: Support for multiple virtual addresses on VirtualServer CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-multiplevip/>`_
+        * `Issue 2729 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2729>`_: Support for named port with servicePort. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-named-port>`_
+        * `Issue 2744 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2744>`_: Support for Host header rewrite in VirtualServer CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/HostRewrite>`_
+    * Helm Chart Enhancements
+        * Support for podSecurityContext
+        * Support for bigip-login secret creation
+        * Support for latest CRD schema
+        * Fix for nesting of ingressClass definitions
+    * Support for --http-client-metrics deployment parameter to export the AS3 http client prometheus metrics
+
+Bug Fixes
+`````````
+* `Issue 2703 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2703>`_: Fix host group having multiple hosts with EDNS.
+* `Issue 2726 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2726>`_: Fix prometheus metrics broken in v2.11.1
+* `Issue 2767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2767>`_: Fix wrong pool member port configured
+* `Issue 2764 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2764>`_: Remove unwanted TLS iRule deployed on reencrypt when passing XFF
+* `Issue 2677 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2677>`_: Remove NotReady state nodes from BIGIP poolmembers in NodePortMode
+* `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
+* LTM policy fix for default http and https ports
+
+Vulnerability Fixes
+```````````````````
++------------------+------------------------------------------------------------------+
+| CVE              | Comments                                                         |
++==================+==================================================================+
+| CVE-2022-40897   | Upgraded the setuptools package in f5-cccl                       |
++------------------+------------------------------------------------------------------+
+| CVE-2022-23491   | Upgraded certifi package in f5-cccl repository                   |
++------------------+------------------------------------------------------------------+
+| CVE-2022-21698   | Upgraded prometheus vendor package in k8s-bigip-ctlr repository  |
++------------------+------------------------------------------------------------------+
+| CVE-2022-27664   | Upgraded golang in k8s-bigip-ctlr repository                     |
++------------------+------------------------------------------------------------------+
+| CVE-2021-43565   | Upgraded golang in k8s-bigip-ctlr repository                     |
++------------------+------------------------------------------------------------------+
+| CVE-2022-27191   | Upgraded golang in k8s-bigip-ctlr repository                     |
++------------------+------------------------------------------------------------------+
+
+Known Issues
+`````````````
+* Partition annotation change for ingress intermittently cause AS3 422 error. When error, delete the old ingress & recreate the ingress with new partition.
+* Partition change for custom resources (VS/TS/IngressLink) may cause AS3 422 error for default partition. When error, restart the CIS controller.
+
+Upgrade notes
+``````````````
+* Refer `guide <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md>`_ to migrate to next generation routes.
+* Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12. Use the networking.k8s.io/v1 API for ingress.
+* Deprecated CommonName support for host certificate verification in secrets,  use subject alternative name(SAN) in certificates instead.
+
+FIC 0.1.9 Release notes :
+-------------------------
+
+Added Functionality
+```````````````````
+**What’s new:**
+    * Base image upgraded to RedHat UBI-9 for FIC Container image
+
+Bug Fixes
+````````````
+* `Issue 2747 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2747>`_ Fix to persist IP addresses after CIS restart
+
+
+2.11.1
+------
+
+Added Functionality
+```````````````````
+* Next generation routes preview. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+    * Support for default routeGroup (Migration Only)
+* Base image upgraded to RedHat UBI-9 for CIS Container image
+* Support for AS3 3.41.0
+
+Bug Fixes
+`````````
+* Added pattern definition in CR schema to align with F5 BIG-IP Object Naming convention
+* `Issue 2153 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2153>`_: Updated go.mod to v2
+* `Issue 2657 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2657>`_: WAF policy name does not allow hyphen (-)
+
+Documentation
+`````````````
+* Updated user guides (`See here <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/user_guides/README.md>`_)
+* `Issue 2606 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2606>`_: Applying setup files from Clouddocs fails.
+
+CIS Helm Chart Fixes
+````````````````````
+* CRD Schema Update
+* RBAC Update
+
+FIC Helm Chart Fixes
+````````````````````
+* Added support for Infoblox credentials using k8s secrets in helm charts
+
+
+2.11.0
+-------------
+
+Added Functionality
+```````````````````
+**What’s new:**
+    * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+        * Policy CR integration with extended ConfigMap
+        * EDNS CR integration with extended ConfigMap
+        * Support for Default SSL profiles from baseRouteSpec in extended Configmap
+        * Support Path based A/B deployment for Re-encrypt termination
+        * Support for TLS profiles as K8S secrets in route annotations. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
+        * Support for TLS profiles as route annotations. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
+        * Support for health monitors using route annotations See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
+        * Support to create Health Monitor from the pod liveness probe for routes. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
+    * CRD
+        * CIS configures GTM configuration in default partition
+        * Pool reselect support for VS and TS. `Example for VS <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/pool-reselect/vs-with-pool-reselect.yaml>`_ ,
+          `Example for TS <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/tcp-transport-server.yaml>`_
+        * Support for allowVlans with policy CR.
+        * Support for --cccl-gtm-agent deployment parameter to set the gtm agent
+        * Support to provide the same VIP for TS and VS CRs using hostGroup. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
+        * :issues:`2420` Support for nodeMemberLabel in Transport Server pool. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/>`_
+        * :issues:`2469` Support for virtual server grouping by hostgroup across namespaces.From 2.11, hostGroup should be unique across namespaces.See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
+        * :issues:`2585` Support for multiple clientssl & serverssl profiles in TLS Profiles. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
+        * :issues:`2637` Support for custom persistence profile. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/persistenceProfile>`_
+
+    * Ingress
+        * Support for Translate Address annotation in ingress.
+        * Support for sslProfile in HTTPS health monitors for ingress. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1/>`_
+
+Bug Fixes
+````````````
+* :issues:`2581` IPAM to provide the same IP for different TS
+* :issues:`2586` Update ExternalIP of associated services of Type LB for VS and IngressLink CR
+* :issues:`2609` TargetPort support for string with NPL
+* :issues:`2626` Process IngressLink on K8S node update
+* Fix to remove old ingress monitor when type gets modified
+* Fix to send AS3 declaration for the recreated domain after IPAM controller restart
+
+FIC Helm Chart Fixes
+``````````````````````
+* :issues:`130` IPAM Helm Deployment strategy should be recreate
+
+
+2.10.1
+-------------
+Bug Fixes
+````````````
+* Fix to monitor NGINX+ service changes
+* :issues:`2582` Fix issue with inconsistent pool names for VS
+* :issues:`2596` Fix invalid property name with serviceAddress
+* :issues:`2570` Fix for TLSProfile doesn't get updated when K8s secret changes
 * :issues:`2394` Fix to set ingress https monitor send string
 * :issues:`2549` Fix trafficGroup regex
+* :issues:`2492` Fix for shared pool not working in nodePort mode
+
 
 2.10.0
 -------------
@@ -36,12 +255,14 @@ Added Functionality
         * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`1933` Added serviceNamespace field in Pools for VirtualServer CR that allows to define a pool service from another namespace in a Virtual server CR.
           See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+
     * Ingress:
         * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
     * Support for Cilium CNI (>=v1.12.0) in kubernetes cluster. See `Examples <https://github.com/f5devcentral/f5-ci-docs/blob/master/docs/cilium/cilium-bigip-info.rst>`_
     * Support for --log-file deployment parameter to store the CIS logs in a file
     * Support for AS3 3.38.0
     * Support for operator in openshift 4.10 & openshift 4.11
+
 
 Bug Fixes
 ````````````
@@ -148,18 +369,18 @@ Known Issues
 -------------
 Bug Fixes
 ````````````
-* :issues:`2030` Changes to Ingress resource ServicePort are now reflected on BIG-IP.
-* :issues:`2205` Bulk deletion of EDNS handled properly.
-* :issues:`2255` ServicePort is now optional and multi-port service handled properly in ConfigMaps.
-* :issues:`2164` CIS properly updates configuration in BIGIP when configured with agent CCCL and log-level DEBUG.
-* :issues:`2191` CIS properly logs iApps when configured with agent CCCL.
-* :issues:`2220` CRD VirtualServer status reported correctly when using hostGroup.
-* :issues:`2209` ConfigMap errors logs now contain ConfigMap name and namespace.
+* :issues: 2030  Changes to Ingress resource ServicePort are now reflected on BIG-IP.
+* :issues: 2205  Bulk deletion of EDNS handled properly.
+* :issues: 2255  ServicePort is now optional and multi-port service handled properly in ConfigMaps.
+* :issues: 2164  CIS properly updates configuration in BIGIP when configured with agent CCCL and log-level DEBUG.
+* :issues: 2191  CIS properly logs iApps when configured with agent CCCL.
+* :issues: 2220  CRD VirtualServer status reported correctly when using hostGroup.
+* :issues: 2209  ConfigMap errors logs now contain ConfigMap name and namespace.
 * SR - CIS configured in CCCL agent mode properly updates BIG-IP when there are no backend pods to iApps ConfigMaps
 
 FIC Bug Fixes
 ````````````````
-* :issues:`98` IPAM Storage initialisation handled properly.
+* :issues: 98  IPAM Storage initialisation handled properly.
 
 2.8.0
 -------------
@@ -179,12 +400,12 @@ Bug Fixes
 ````````````
 * Added fix for processing oldest route when same host and path in routes
 * Added fix for cis crash with routes
-* :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
-* :issues:`2221` Fixed Error in CIS logs while deleting multiple VS CRD
-* :issues:`2222` Fix deleting VirtualServer using hostGroup
-* :issues:`2233` TS and VS CRD don't detect the pool members for grafana service
-* :issues:`2234` Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap
-* :issues:`2077` CIS deletes all existing ARP on restart and recreates it, which affects traffic
+* :issues: 2212  Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
+* :issues: 2221  Fixed Error in CIS logs while deleting multiple VS CRD
+* :issues: 2222  Fix deleting VirtualServer using hostGroup
+* :issues: 2233  TS and VS CRD don't detect the pool members for grafana service
+* :issues: 2234  Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap
+* :issues: 2077  CIS deletes all existing ARP on restart and recreates it, which affects traffic
 
 2.7.1
 -------------
@@ -193,13 +414,13 @@ Bug Fixes
 * Optimized processing of ConfigMaps with FilterTenants enabled
 * Added support for multihost VS policy rules for same path and service backend combination
 * Improved error handling with EDNS Custom resource
-* :issues:`1872` Support protocol UDP in Services of type LoadBalancer
-* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
-* :issues:`2051` Fix AS3 Postdelay issue when error occurs
-* :issues:`2077` Fix recreating ARPs when CIS restarts
-* :issues:`2172` Fix Endpoint NodeName validation issue
+* :issues: 1872 Support protocol UDP in Services of type LoadBalancer
+* :issues: 1918 ExternalDNS adds both VSs to a Wide IP pool
+* :issues: 2051 Fix AS3 Postdelay issue when error occurs
+* :issues: 2077 Fix recreating ARPs when CIS restarts
+* :issues: 2172 Fix Endpoint NodeName validation issue
 * Helm Chart Enhancements:
-    - issues:`2184` Helm Chart ClusterRole does not have correct permissions
+    - issues: 2184 Helm Chart ClusterRole does not have correct permissions
 
 FIC Enhancements
 ````````````````
@@ -249,14 +470,14 @@ Added Functionality
 
 Bug Fixes
 ````````````
-* :issues:`1684` [EDNS] CIS tries to remove non-existing monitor from GTM pool
-* :issues:`1873` Enable /metrics endpoint with crd mode
-* :issues:`1916` Display IPAM provided IPaddress for TransportServer
-* :issues:`2014` Allow type LoadBalancer with different TargetPort and Port values
-* :issues:`2016,2102` Fix for crash while validating secrets
-* :issues:`2025` Support 'sni-server-name' for GTM HTTPS Monitor
-* :issues:`2087` Enable nodeMemberLabel regex to support common node labels
-* :issues:`2053` Remove ECDSA cert SNI support for OpenShift Routes - Revert :issue:`1723`
+* :issues:1684 [EDNS] CIS tries to remove non-existing monitor from GTM pool
+* :issues:1873 Enable /metrics endpoint with crd mode
+* :issues:1916 Display IPAM provided IPaddress for TransportServer
+* :issues:2014 Allow type LoadBalancer with different TargetPort and Port values
+* :issues:2016,2102 Fix for crash while validating secrets
+* :issues:2025 Support 'sni-server-name' for GTM HTTPS Monitor
+* :issues:2087 Enable nodeMemberLabel regex to support common node labels
+* :issues:2053 Remove ECDSA cert SNI support for OpenShift Routes - Revert :issue:1723
 * Restructured docs examples directory
 * Improved performance while processing VS, services and endpoint resources
 

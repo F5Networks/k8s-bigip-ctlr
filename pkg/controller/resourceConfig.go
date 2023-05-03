@@ -17,25 +17,26 @@
 package controller
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 
 	routeapi "github.com/openshift/api/route/v1"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -56,7 +57,7 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
-	rs.svcResourceCache = make(map[string]map[string]struct{})
+	rs.svcResourceCache = make(map[string]map[string]svcResourceCacheMeta)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
@@ -91,6 +92,7 @@ const (
 	// Internal data group for https redirect
 	HttpsRedirectDgName = "https_redirect_dg"
 	TLSIRuleName        = "tls_irule"
+	ABPathIRuleName     = "ab_deployment_path_irule"
 )
 
 // constants for TLS references
@@ -103,10 +105,18 @@ const (
 	Certificate = "certificate"
 )
 
+// constants for SSL options
+const (
+	PolicySSLOption           = "policySSL"
+	AnnotationSSLOption       = "annotation"
+	RouteCertificateSSLOption = "routeCertificate"
+	DefaultSSLOption          = "defaultSSL"
+	InvalidSSLOption          = "invalid"
+)
+
 func NewCustomProfile(
 	profile ProfileRef,
-	cert,
-	key,
+	certificates []certificate,
 	serverName string,
 	sni bool,
 	peerCertMode,
@@ -118,8 +128,7 @@ func NewCustomProfile(
 		Name:         profile.Name,
 		Partition:    profile.Partition,
 		Context:      profile.Context,
-		Cert:         cert,
-		Key:          key,
+		Certificates: certificates,
 		ServerName:   serverName,
 		SNIDefault:   sni,
 		PeerCertMode: peerCertMode,
@@ -189,7 +198,8 @@ func JoinBigipPath(partition, objName string) string {
 // Adds an IRule reference to a Virtual object
 func (v *Virtual) AddIRule(ruleName string) bool {
 	for _, irule := range v.IRules {
-		if irule == ruleName {
+		// Skip adding iRule for "none" value
+		if irule == ruleName || irule == "none" {
 			return false
 		}
 	}
@@ -264,12 +274,38 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func framePoolName(ns string, pool cisapiv1.Pool, port intstr.IntOrString, host string) string {
+func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string) string {
+
 	poolName := pool.Name
 	if poolName == "" {
-		poolName = formatPoolName(ns, pool.Service, port, pool.NodeMemberLabel, host)
+		targetPort := pool.ServicePort
+
+		if (intstr.IntOrString{}) == targetPort {
+			svcNamespace := ns
+			if pool.ServiceNamespace != "" {
+				svcNamespace = pool.ServiceNamespace
+			}
+			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
+		}
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host)
 	}
 
+	return poolName
+}
+
+func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host string, cxt SvcBackendCxt) string {
+	poolName := pool.Name
+	if poolName == "" || pool.AlternateBackends != nil {
+		targetPort := pool.ServicePort
+		svcNamespace := ns
+		if cxt.SvcNamespace != "" {
+			svcNamespace = cxt.SvcNamespace
+		}
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort)
+		}
+		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host)
+	}
 	return poolName
 }
 
@@ -288,7 +324,7 @@ func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLa
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port int32, hostName string, path string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
 
 	if len(hostName) > 0 {
@@ -302,8 +338,8 @@ func formatMonitorName(namespace, svc string, monitorType string, port int32, ho
 		}
 	}
 
-	if monitorType != "" && port != 0 {
-		servicePort := fmt.Sprint(port)
+	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
+		servicePort := fetchPortString(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
 	}
 	return AS3NameFormatter(monitorName)
@@ -322,7 +358,7 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 	return AS3NameFormatter(policyName)
 }
 
-func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]struct{} {
+func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]svcResourceCacheMeta {
 	return ctlr.resources.svcResourceCache[svcDepRscKey]
 }
 
@@ -331,11 +367,11 @@ func (ctlr *Controller) updateSvcDepResources(rsName string, rsCfg *ResourceConf
 		svcDepRscKey := pool.ServiceNamespace + "_" + pool.ServiceName
 		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
 			if _, found := resources[rsName]; !found {
-				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
+				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
 			}
 		} else {
-			ctlr.resources.svcResourceCache[svcDepRscKey] = make(map[string]struct{})
-			ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
+			ctlr.resources.svcResourceCache[svcDepRscKey] = make(map[string]svcResourceCacheMeta)
+			ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
 		}
 	}
 }
@@ -357,14 +393,14 @@ func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfi
 }
 
 // fetch target port from service
-func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort int32) intstr.IntOrString {
+func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort intstr.IntOrString) intstr.IntOrString {
 	var targetPort intstr.IntOrString
 	var svcIndexer cache.Indexer
 	svcKey := namespace + "/" + svcName
 	if ctlr.watchingAllNamespaces() {
-		svcIndexer = ctlr.crInformers[""].svcInformer.GetIndexer()
+		svcIndexer = ctlr.comInformers[""].svcInformer.GetIndexer()
 	} else {
-		if informer, ok := ctlr.crInformers[namespace]; ok {
+		if informer, ok := ctlr.comInformers[namespace]; ok {
 			svcIndexer = informer.svcInformer.GetIndexer()
 		} else {
 			return targetPort
@@ -377,8 +413,29 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	}
 	svc := item.(*v1.Service)
 	for _, port := range svc.Spec.Ports {
-		if port.Port == servicePort {
-			return port.TargetPort
+		if servicePort.StrVal == "" {
+			if port.Port == servicePort.IntVal {
+				// In case of named targetPort, send service port name to match endpoint name as targetPort
+				if port.TargetPort.StrVal != "" {
+					// port name is required when using the named targetPort
+					if port.Name != "" {
+						return intstr.IntOrString{StrVal: port.Name}
+					} else {
+						log.Errorf("port name should be defined with the named targetPort for service %v", svcKey)
+						return targetPort
+					}
+				}
+				return port.TargetPort
+			}
+		} else {
+			if port.Name == servicePort.StrVal {
+				// In case of named targetPort, send service port name to match endpoint name as targetPort
+				if port.TargetPort.StrVal != "" {
+					// port name is required when using the named targetPort
+					return intstr.IntOrString{StrVal: port.Name}
+				}
+				return port.TargetPort
+			}
 		}
 	}
 	return targetPort
@@ -398,93 +455,95 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	var pools Pools
 	var rules *Rules
 	var monitors []Monitor
-	var targetPort intstr.IntOrString
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-		svcNamespace := vs.Namespace
-		if pl.ServiceNamespace != "" {
-			svcNamespace = pl.ServiceNamespace
-		}
-		targetPort = ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
-
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
-		}
-		poolName := framePoolName(vs.ObjectMeta.Namespace, pl, targetPort, vs.Spec.Host)
-		//check for custom monitor
-		var monitorName string
-		if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
-			monitorName = pl.Monitor.Name
-		} else {
-			monitorName = pl.Name + "-monitor"
-		}
-
-		if _, ok := framedPools[poolName]; ok {
-			// Pool with same name framed earlier, so skipping this pool
-			log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
-			continue
-		}
-		framedPools[poolName] = struct{}{}
-
-		pool := Pool{
-			Name:             poolName,
-			Partition:        rsCfg.Virtual.Partition,
-			ServiceName:      pl.Service,
-			ServiceNamespace: svcNamespace,
-			ServicePort:      targetPort,
-
-			NodeMemberLabel: pl.NodeMemberLabel,
-			Balance:         pl.Balance,
-		}
-		if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
-		} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
-			if pl.Name == "" {
-				monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
+		//Fetch service backends with weights for pool
+		backendSvcs := ctlr.GetPoolBackends(&pl)
+		for _, SvcBackend := range backendSvcs {
+			poolName := ctlr.framePoolNameForVs(vs.Namespace, pl, vs.Spec.Host, SvcBackend)
+			//check for custom monitor
+			var monitorName string
+			if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
+				monitorName = pl.Monitor.Name
+			} else {
+				monitorName = pl.Name + "-monitor"
 			}
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-			monitor := Monitor{
-				Name:       monitorName,
-				Partition:  rsCfg.Virtual.Partition,
-				Type:       pl.Monitor.Type,
-				Interval:   pl.Monitor.Interval,
-				Send:       pl.Monitor.Send,
-				Recv:       pl.Monitor.Recv,
-				Timeout:    pl.Monitor.Timeout,
-				TargetPort: pl.Monitor.TargetPort,
+
+			if _, ok := framedPools[poolName]; ok {
+				// Pool with same name framed earlier, so skipping this pool
+				log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
+				continue
 			}
-			monitors = append(monitors, monitor)
-		} else if pl.Monitors != nil {
-			for _, monitor := range pl.Monitors {
-				if monitor.Name != "" && monitor.Reference == BIGIP {
-					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
-				} else {
-					var formatPort int32
-					if monitor.TargetPort != 0 {
-						formatPort = monitor.TargetPort
+			framedPools[poolName] = struct{}{}
+			targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
+			if (intstr.IntOrString{}) == targetPort {
+				targetPort = pl.ServicePort
+			}
+			svcNamespace := vs.Namespace
+			if SvcBackend.SvcNamespace != "" {
+				svcNamespace = SvcBackend.SvcNamespace
+			}
+			pool := Pool{
+				Name:              poolName,
+				Partition:         rsCfg.Virtual.Partition,
+				ServiceName:       SvcBackend.Name,
+				ServiceNamespace:  svcNamespace,
+				ServicePort:       targetPort,
+				NodeMemberLabel:   pl.NodeMemberLabel,
+				Balance:           pl.Balance,
+				ReselectTries:     pl.ReselectTries,
+				ServiceDownAction: pl.ServiceDownAction,
+			}
+			if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
+			} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+				if pl.Name == "" {
+					monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
+				}
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+				monitor := Monitor{
+					Name:       monitorName,
+					Partition:  rsCfg.Virtual.Partition,
+					Type:       pl.Monitor.Type,
+					Interval:   pl.Monitor.Interval,
+					Send:       pl.Monitor.Send,
+					Recv:       pl.Monitor.Recv,
+					Timeout:    pl.Monitor.Timeout,
+					TargetPort: pl.Monitor.TargetPort,
+				}
+				monitors = append(monitors, monitor)
+			} else if pl.Monitors != nil {
+				for _, monitor := range pl.Monitors {
+					if monitor.Name != "" && monitor.Reference == BIGIP {
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
 					} else {
-						formatPort = pl.ServicePort
+						var formatPort intstr.IntOrString
+						if monitor.TargetPort != 0 {
+							formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+						} else {
+							formatPort = pl.ServicePort
+						}
+						if monitor.Name == "" {
+							monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, monitor.Type, formatPort, vs.Spec.Host, pl.Path)
+						}
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+						monitor := Monitor{
+							Name:       monitorName,
+							Partition:  rsCfg.Virtual.Partition,
+							Type:       monitor.Type,
+							Interval:   monitor.Interval,
+							Send:       monitor.Send,
+							Recv:       monitor.Recv,
+							Timeout:    monitor.Timeout,
+							TargetPort: monitor.TargetPort,
+						}
+						rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 					}
-					if monitor.Name == "" {
-						monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, vs.Spec.Host, pl.Path)
-					}
-					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-					monitor := Monitor{
-						Name:       monitorName,
-						Partition:  rsCfg.Virtual.Partition,
-						Type:       monitor.Type,
-						Interval:   monitor.Interval,
-						Send:       monitor.Send,
-						Recv:       monitor.Recv,
-						Timeout:    monitor.Timeout,
-						TargetPort: monitor.TargetPort,
-					}
-					rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 				}
 			}
+			pools = append(pools, pool)
 		}
-		pools = append(pools, pool)
 	}
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
@@ -510,8 +569,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 
 	//Attach allowVlans.
-	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
-
+	if len(vs.Spec.AllowVLANs) > 0 {
+		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	}
 	if vs.Spec.PersistenceProfile != "" {
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
@@ -519,6 +579,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if len(vs.Spec.Profiles.TCP.Client) > 0 || len(vs.Spec.Profiles.TCP.Server) > 0 {
 		rsCfg.Virtual.TCP.Client = vs.Spec.Profiles.TCP.Client
 		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
+	}
+
+	if len(vs.Spec.Profiles.HTTP2.Client) > 0 || len(vs.Spec.Profiles.HTTP2.Server) > 0 {
+		rsCfg.Virtual.HTTP2.Client = vs.Spec.Profiles.HTTP2.Client
+		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
 	}
 
 	if vs.Spec.DOS != "" {
@@ -536,7 +601,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if vs.Spec.ProfileMultiplex != "" {
 		rsCfg.Virtual.ProfileMultiplex = vs.Spec.ProfileMultiplex
 	}
-
+	// check if custom http port set on virtual
+	if vs.Spec.VirtualServerHTTPPort != 0 {
+		httpPort = vs.Spec.VirtualServerHTTPPort
+	}
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&
@@ -559,6 +627,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	// Attach user specified iRules
 	if len(vs.Spec.IRules) > 0 {
 		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
+	}
+
+	// Append all the hosts from a host group/ single host
+	if vs.Spec.Host != "" {
+		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, vs.Spec.Host)
 	}
 	return nil
 }
@@ -585,85 +658,77 @@ func (ctlr *Controller) handleTLS(
 
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
 		if tlsContext.termination != TLSPassthrough {
-			clientSSL := tlsContext.bigIPSSLProfiles.clientSSL
-			serverSSL := tlsContext.bigIPSSLProfiles.serverSSL
+			clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
+			serverSSL := tlsContext.bigIPSSLProfiles.serverSSLs
 			// Process Profile
 			switch tlsContext.referenceType {
 			case BIGIP:
 				log.Debugf("Processing  BIGIP referenced profiles for '%s' '%s'/'%s'",
 					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 				// Process referenced BIG-IP clientSSL
-				if clientSSL != "" {
-					clientProfRef := ConvertStringToProfileRef(
-						clientSSL, CustomProfileClient, tlsContext.namespace)
-					rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+				if len(clientSSL) > 0 {
+					for _, profile := range clientSSL {
+						clientProfRef := ConvertStringToProfileRef(
+							profile, CustomProfileClient, tlsContext.namespace)
+						rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+					}
 				}
 				// Process referenced BIG-IP serverSSL
-				if serverSSL != "" {
-					serverProfRef := ConvertStringToProfileRef(
-						serverSSL, CustomProfileServer, tlsContext.namespace)
-					rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+				if len(serverSSL) > 0 {
+					for _, profile := range serverSSL {
+						serverProfRef := ConvertStringToProfileRef(
+							profile, CustomProfileServer, tlsContext.namespace)
+						rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+					}
 				}
 				log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
 					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 			case Secret:
-				// Prepare SSL Transient Context
-				// Check if TLS Secret already exists
 				// Process ClientSSL stored as kubernetes secret
-				if clientSSL != "" {
-					if secret, ok := ctlr.SSLContext[clientSSL]; ok {
-						log.Debugf("clientSSL secret %s for '%s'/'%s' is already available with CIS in "+
-							"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
-						if err != nil {
-							log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s' using secret '%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
+				var namespace string
+				if ctlr.watchingAllNamespaces() {
+					namespace = ""
+				} else {
+					namespace = tlsContext.namespace
+				}
+				if len(clientSSL) > 0 {
+					var secrets []*v1.Secret
+					for _, secretName := range clientSSL {
+						secretKey := tlsContext.namespace + "/" + secretName
+						if _, ok := ctlr.comInformers[namespace]; !ok {
 							return false
 						}
-					} else {
-						// Check if profile is contained in a Secret
-						// Update the SSL Context if secret found, This is used to avoid api calls
-						log.Debugf("saving clientSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
-							Get(context.TODO(), clientSSL, metav1.GetOptions{})
-						if err != nil {
+						obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+						if err != nil || !found {
 							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 								clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 							return false
 						}
-						ctlr.SSLContext[clientSSL] = secret
-						err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
-						if err != nil {
-							log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
+						secrets = append(secrets, obj.(*v1.Secret))
+					}
+					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
+					if err != nil {
+						log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
 					}
 				}
 				// Process ServerSSL stored as kubernetes secret
-				if serverSSL != "" {
-					if secret, ok := ctlr.SSLContext[serverSSL]; ok {
-						log.Debugf("serverSSL secret %s for '%s'/'%s' is already available with CIS in "+
-							"SSLContext as serverSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
-						if err != nil {
-							log.Debugf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s' using secret '%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
+				if len(serverSSL) > 0 {
+					var secrets []*v1.Secret
+					for _, secret := range serverSSL {
+						secretKey := tlsContext.namespace + "/" + secret
+						if _, ok := ctlr.comInformers[namespace]; !ok {
 							return false
 						}
-					} else {
-						// Check if profile is contained in a Secret
-						// Update the SSL Context if secret found, This is used to avoid api calls
-						log.Debugf("saving serverSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
-							Get(context.TODO(), serverSSL, metav1.GetOptions{})
-						if err != nil {
+						obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+						if err != nil || !found {
 							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 								serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 							return false
 						}
-						ctlr.SSLContext[serverSSL] = secret
-						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+						secrets = append(secrets, obj.(*v1.Secret))
+						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 						if err != nil {
 							log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
 								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -675,7 +740,8 @@ func (ctlr *Controller) handleTLS(
 			case Certificate:
 				// Prepare SSL Transient Context
 				if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
-					err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate,
+					cert := certificate{Cert: tlsContext.bigIPSSLProfiles.certificate, Key: tlsContext.bigIPSSLProfiles.key}
+					err, _ := ctlr.createClientSSLProfile(rsCfg, []certificate{cert},
 						fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
 					if err != nil {
 						log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
@@ -686,11 +752,12 @@ func (ctlr *Controller) handleTLS(
 				// Create Server SSL profile for bigip
 				if tlsContext.bigIPSSLProfiles.destinationCACertificate != "" {
 					var err error
+					cert := certificate{Cert: tlsContext.bigIPSSLProfiles.destinationCACertificate}
 					if tlsContext.bigIPSSLProfiles.caCertificate != "" {
-						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate,
+						err, _ = ctlr.createServerSSLProfile(rsCfg, []certificate{cert},
 							tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 					} else {
-						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate,
+						err, _ = ctlr.createServerSSLProfile(rsCfg, []certificate{cert},
 							"", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 					}
 					if err != nil {
@@ -709,18 +776,33 @@ func (ctlr *Controller) handleTLS(
 				switch tlsContext.termination {
 				case TLSEdge:
 					serverSsl := "false"
-					sslPath := tlsContext.hostname + poolPathRef.path
-					sslPath = strings.TrimSuffix(sslPath, "/")
-					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
-						rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
+					for _, hostname := range poolPathRef.aliasHostnames {
+						sslPath := hostname + poolPathRef.path
+						sslPath = strings.TrimSuffix(sslPath, "/")
+						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
+							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
+					}
 
 				case TLSReencrypt:
-					sslPath := tlsContext.hostname + poolPathRef.path
-					sslPath = strings.TrimSuffix(sslPath, "/")
-					serverSsl := AS3NameFormatter("crd_" + tlsContext.ipAddress + "_tls_client")
-					if "" != serverSSL {
-						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
-							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
+					for _, hostname := range poolPathRef.aliasHostnames {
+						sslPath := hostname + poolPathRef.path
+						sslPath = strings.TrimSuffix(sslPath, "/")
+						if len(serverSSL) > 0 {
+							if tlsContext.referenceType == BIGIP {
+								// for bigip referenced profiles we need to add entries for all profiles
+								for _, profileName := range serverSSL {
+									updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+										rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
+								}
+
+							} else {
+								// for secrets all the ca certificates will be bundle within a single profile
+								profileName := AS3NameFormatter(rsCfg.Virtual.Name + "_tls_client")
+								updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+									rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
+							}
+
+						}
 					}
 				}
 			}
@@ -739,10 +821,10 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				ReencryptHostsDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
+				tlsContext.httpPort,
 			)
 		case TLSEdge:
 			updateDataGroupOfDgName(
@@ -750,10 +832,10 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				EdgeHostsDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
+				tlsContext.httpPort,
 			)
 		case TLSPassthrough:
 			updateDataGroupOfDgName(
@@ -761,10 +843,10 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				PassthroughHostsDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
-				[]string{})
+				[]string{},
+				tlsContext.httpPort)
 		}
 		if len(rsCfg.Virtual.AllowSourceRange) > 0 {
 			updateDataGroupOfDgName(
@@ -772,14 +854,14 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				AllowSourceRangeDgName,
-				"",
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
-				rsCfg.Virtual.AllowSourceRange)
+				rsCfg.Virtual.AllowSourceRange,
+				tlsContext.httpPort)
 		}
 		ctlr.handleDataGroupIRules(
 			rsCfg,
-			tlsContext.hostname,
+			tlsContext.vsHostname,
 			tlsContext.termination,
 		)
 		return true
@@ -798,7 +880,7 @@ func (ctlr *Controller) handleTLS(
 			log.Debugf("Applying HTTP redirect iRule.")
 			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", tlsContext.name)
 			var ruleName string
-			if tlsContext.hostname == "" {
+			if tlsContext.vsHostname == "" {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), tlsContext.httpsPort)
 				rsCfg.addIRule(ruleName, rsCfg.Virtual.Partition, httpRedirectIRuleNoHost(tlsContext.httpsPort))
 			} else {
@@ -812,10 +894,10 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				HttpsRedirectDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
+				tlsContext.httpPort,
 			)
 		case TLSAllowInsecure:
 			// State 3, do not apply any policy
@@ -848,42 +930,81 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 
 	var httpsPort int32
-
+	var httpPort int32
 	if vs.Spec.VirtualServerHTTPSPort == 0 {
 		httpsPort = DEFAULT_HTTPS_PORT
 	} else {
 		httpsPort = vs.Spec.VirtualServerHTTPSPort
 	}
-	bigIPSSLProfiles := BigIPSSLProfiles{}
-	if tls.Spec.TLS.ClientSSL != "" {
-		bigIPSSLProfiles.clientSSL = tls.Spec.TLS.ClientSSL
+	if vs.Spec.VirtualServerHTTPPort == 0 {
+		httpPort = DEFAULT_HTTP_PORT
+	} else {
+		httpPort = vs.Spec.VirtualServerHTTPPort
 	}
-	if tls.Spec.TLS.ServerSSL != "" {
-		bigIPSSLProfiles.serverSSL = tls.Spec.TLS.ServerSSL
+	bigIPSSLProfiles := BigIPSSLProfiles{}
+	// Giving priority to ClientSSLs over ClientSSL
+	if len(tls.Spec.TLS.ClientSSLs) > 0 {
+		bigIPSSLProfiles.clientSSLs = tls.Spec.TLS.ClientSSLs
+	} else if tls.Spec.TLS.ClientSSL != "" {
+		bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, tls.Spec.TLS.ClientSSL)
+	}
+	// Giving priority to ServerSSLs over ServerSSL
+	if len(tls.Spec.TLS.ServerSSLs) > 0 {
+		bigIPSSLProfiles.serverSSLs = tls.Spec.TLS.ServerSSLs
+	} else if tls.Spec.TLS.ServerSSL != "" {
+		bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, tls.Spec.TLS.ServerSSL)
 	}
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
-
-		poolName := framePoolName(
-			vs.ObjectMeta.Namespace,
-			pl,
-			intstr.IntOrString{IntVal: pl.ServicePort},
-			vs.Spec.Host,
-		)
-
-		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName})
+		poolBackends := ctlr.GetPoolBackends(&pl)
+		for _, backend := range poolBackends {
+			poolName := ctlr.framePoolNameForVs(
+				vs.ObjectMeta.Namespace,
+				pl,
+				vs.Spec.Host,
+				backend,
+			)
+			if len(tls.Spec.Hosts) > 1 {
+				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
+			} else {
+				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
+			}
+		}
+		//Handle AB datagroup for virtualserver
+		if rsCfg.Virtual.VirtualAddress.Port == httpsPort || (rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure) {
+			ctlr.updateDataGroupForABVirtualServer(&pl,
+				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+				rsCfg.Virtual.Partition,
+				vs.Namespace,
+				rsCfg.IntDgMap,
+				pl.ServicePort,
+				vs.Spec.Host,
+				tls.Spec.TLS.Termination,
+			)
+			//path based AB deployment not supported for passthrough
+			if isVsPathBasedABDeployment(&pl) &&
+				(tls.Spec.TLS.Termination == TLSEdge ||
+					(tls.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
+				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
+			}
+			// handle AB traffic for edge termination with allow
+			if isVSABDeployment(&pl) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
+				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
+			}
+		}
 	}
-	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
-		vs.ObjectMeta.Namespace,
-		VirtualServer,
-		tls.Spec.TLS.Reference,
-		vs.Spec.Host,
-		httpsPort,
-		ip,
-		tls.Spec.TLS.Termination,
-		vs.Spec.HTTPTraffic,
-		poolPathRefs,
-		bigIPSSLProfiles,
+	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
+		namespace:        vs.ObjectMeta.Namespace,
+		resourceType:     VirtualServer,
+		referenceType:    tls.Spec.TLS.Reference,
+		vsHostname:       vs.Spec.Host,
+		httpsPort:        httpsPort,
+		httpPort:         httpPort,
+		ipAddress:        ip,
+		termination:      tls.Spec.TLS.Termination,
+		httpTraffic:      vs.Spec.HTTPTraffic,
+		poolPathRefs:     poolPathRefs,
+		bigIPSSLProfiles: bigIPSSLProfiles,
 	})
 }
 
@@ -893,28 +1014,28 @@ func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
 	//validation for re-encrypt termination
 	if tls.Spec.TLS.Termination == "reencrypt" {
 		// Should contain both client and server SSL profiles
-		if (tls.Spec.TLS.ClientSSL == "") || (tls.Spec.TLS.ServerSSL == "") {
+		if (tls.Spec.TLS.ClientSSL == "" || tls.Spec.TLS.ServerSSL == "") && (len(tls.Spec.TLS.ClientSSLs) == 0 || len(tls.Spec.TLS.ServerSSLs) == 0) {
 			log.Errorf("TLSProfile %s of type re-encrypt termination should contain both "+
-				"ClientSSL and ServerSSL", tls.ObjectMeta.Name)
+				"ClientSSLs and ServerSSLs", tls.ObjectMeta.Name)
 			return false
 		}
 	} else if tls.Spec.TLS.Termination == "edge" {
 		// Should contain only client SSL
-		if tls.Spec.TLS.ClientSSL == "" {
-			log.Errorf("TLSProfile %s of type edge termination should contain Client SSL",
+		if tls.Spec.TLS.ClientSSL == "" && len(tls.Spec.TLS.ClientSSLs) == 0 {
+			log.Errorf("TLSProfile %s of type edge termination should contain ClientSSLs",
 				tls.ObjectMeta.Name)
 			return false
 		}
-		if tls.Spec.TLS.ServerSSL != "" {
-			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSL",
+		if tls.Spec.TLS.ServerSSL != "" || len(tls.Spec.TLS.ServerSSLs) != 0 {
+			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSLs",
 				tls.ObjectMeta.Name)
 			return false
 		}
 	} else {
 		// Pass-through
-		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") {
+		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") || len(tls.Spec.TLS.ClientSSLs) != 0 || len(tls.Spec.TLS.ServerSSLs) != 0 {
 			log.Errorf("TLSProfile %s of type Pass-through termination should NOT contain either "+
-				"ClientSSL or ServerSSL", tls.ObjectMeta.Name)
+				"ClientSSLs or ServerSSLs", tls.ObjectMeta.Name)
 			return false
 		}
 	}
@@ -927,6 +1048,13 @@ func ConvertStringToProfileRef(profileName, context, ns string) ProfileRef {
 	parts := strings.Split(profName, "/")
 	profRef := ProfileRef{Context: context, Namespace: ns, BigIPProfile: true}
 	switch len(parts) {
+	case 3:
+		// refernce to existing profile created using AS3 in Common(non-cis-managed) partition
+		if parts[1] == "Shared" {
+			profRef.Partition = parts[0] + "/" + parts[1]
+			profRef.Name = parts[2]
+		}
+
 	case 2:
 		profRef.Partition = parts[0]
 		profRef.Name = parts[1]
@@ -1039,10 +1167,20 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	_, ok := rs.ltmConfig[partition]
 	if !ok {
-		rs.ltmConfig[partition] = &PartitionConfig{make(ResourceMap), 0}
+		zero := 0
+		rs.ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 	}
 
 	return rs.ltmConfig[partition].ResourceMap
+}
+
+func (rs *ResourceStore) getLTMPartitions() []string {
+	var partitions []string
+
+	for partition, _ := range rs.ltmConfig {
+		partitions = append(partitions, partition)
+	}
+	return partitions
 }
 
 // getResourceConfig gets a specific Resource cfg
@@ -1074,12 +1212,17 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 	for prtn, partitionConfig := range rs.ltmConfig {
 		// copy only those partitions where virtual server exists otherwise remove from ltmConfig
 		if len(partitionConfig.ResourceMap) > 0 {
-			ltmConfig[prtn] = &PartitionConfig{make(ResourceMap), partitionConfig.Priority}
+			ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
 			for rsName, res := range partitionConfig.ResourceMap {
 				ltmConfig[prtn].ResourceMap[rsName] = res
 			}
 		} else {
-			deletePartitions = append(deletePartitions, prtn)
+			// Delete partition from ltmConfig only if the priority is 0 else don't delete it
+			partitionConfig.PriorityMutex.RLock()
+			if *(partitionConfig.Priority) == 0 {
+				deletePartitions = append(deletePartitions, prtn)
+			}
+			partitionConfig.PriorityMutex.RUnlock()
 		}
 	}
 	// delete the partitions if there are no virtuals in that partition
@@ -1093,7 +1236,9 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
 	for prtn, partitionConfig := range rs.ltmConfig {
-		ltmConfig[prtn] = &PartitionConfig{make(ResourceMap), partitionConfig.Priority}
+		partitionConfig.PriorityMutex.RLock()
+		ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
+		partitionConfig.PriorityMutex.RUnlock()
 		for rsName, res := range partitionConfig.ResourceMap {
 			copyRes := &ResourceConfig{}
 			copyRes.copyConfig(res)
@@ -1106,11 +1251,14 @@ func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 // getGTMConfigCopy is a WideIP reference copy of GTMConfig
 func (rs *ResourceStore) getGTMConfigCopy() GTMConfig {
 	gtmConfig := make(GTMConfig)
-	for dominName, wip := range rs.gtmConfig {
-		// Everytime new wip object gets created from the scratch
-		// so no need to deep copy wip
-		gtmConfig[dominName] = wip
-		rs.gtmConfigCache[dominName] = wip
+	for partition, gtmPartitionConfig := range rs.gtmConfig {
+		gtmConfig[partition] = GTMPartitionConfig{
+			WideIPs: make(map[string]WideIP),
+		}
+		for domainName, wip := range gtmPartitionConfig.WideIPs {
+			copyRes := copyGTMConfig(wip)
+			gtmConfig[partition].WideIPs[domainName] = copyRes
+		}
 	}
 	return gtmConfig
 }
@@ -1134,7 +1282,9 @@ func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
 // Update the tenant priority in ltmConfigCache
 func (rs *ResourceStore) updatePartitionPriority(partition string, priority int) {
 	if _, ok := rs.ltmConfig[partition]; ok {
-		rs.ltmConfig[partition].Priority = priority
+		rs.ltmConfig[partition].PriorityMutex.Lock()
+		*rs.ltmConfig[partition].Priority = priority
+		rs.ltmConfig[partition].PriorityMutex.Unlock()
 	}
 }
 
@@ -1154,6 +1304,26 @@ func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
 	}
 
 	return allPoolMembers
+}
+
+// Copies from an existing config into our new config
+func copyGTMConfig(cfg WideIP) (rc WideIP) {
+	// MetaData
+	rc.DomainName = cfg.DomainName
+	rc.UID = cfg.UID
+	rc.LBMethod = cfg.LBMethod
+	rc.RecordType = cfg.RecordType
+	// Pools
+	rc.Pools = make([]GSLBPool, len(cfg.Pools))
+	copy(rc.Pools, cfg.Pools)
+	// Pool Members and Monitor Names
+	for i := range rc.Pools {
+		rc.Pools[i].Members = make([]string, len(cfg.Pools[i].Members))
+		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
+		rc.Pools[i].Monitors = make([]Monitor, len(cfg.Pools[i].Monitors))
+		copy(rc.Pools[i].Monitors, cfg.Pools[i].Monitors)
+	}
+	return rc
 }
 
 // Copies from an existing config into our new config
@@ -1481,6 +1651,23 @@ func (ctlr *Controller) handleDataGroupIRules(
 	}
 }
 
+func (ctlr *Controller) HandlePathBasedABIRule(
+	rsCfg *ResourceConfig,
+	vsHost string,
+	tlsTerminationType string,
+) {
+	// For https
+	if "" != tlsTerminationType && tlsTerminationType != TLSPassthrough {
+		rsCfg.addIRule(
+			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+		if vsHost != "" {
+			abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
+				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
+			rsCfg.Virtual.AddIRule(abPathIRule)
+		}
+	}
+}
+
 func (ctlr *Controller) deleteVirtualServer(partition, rsName string) {
 	ctlr.resources.deleteVirtualServer(partition, rsName)
 }
@@ -1495,14 +1682,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.TransportServer,
 ) error {
-	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
-	if (intstr.IntOrString{}) == targetPort {
-		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
-	}
-	poolName := framePoolName(
+
+	poolName := ctlr.framePoolName(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
-		targetPort,
 		"",
 	)
 	//check for custom monitor
@@ -1512,15 +1695,25 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	} else {
 		monitorName = poolName + "-monitor"
 	}
+	svcNamespace := vs.Namespace
+	if vs.Spec.Pool.ServiceNamespace != "" {
+		svcNamespace = vs.Spec.Pool.ServiceNamespace
+	}
+	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
+	if (intstr.IntOrString{}) == targetPort {
+		targetPort = vs.Spec.Pool.ServicePort
+	}
 
 	pool := Pool{
-		Name:             poolName,
-		Partition:        rsCfg.Virtual.Partition,
-		ServiceName:      vs.Spec.Pool.Service,
-		ServiceNamespace: vs.ObjectMeta.Namespace,
-		ServicePort:      targetPort,
-		NodeMemberLabel:  vs.Spec.Pool.NodeMemberLabel,
-		Balance:          vs.Spec.Pool.Balance,
+		Name:              poolName,
+		Partition:         rsCfg.Virtual.Partition,
+		ServiceName:       vs.Spec.Pool.Service,
+		ServiceNamespace:  svcNamespace,
+		ServicePort:       targetPort,
+		NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
+		Balance:           vs.Spec.Pool.Balance,
+		ReselectTries:     vs.Spec.Pool.ReselectTries,
+		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
 	}
 	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName, Reference: vs.Spec.Pool.Monitor.Reference})
@@ -1547,9 +1740,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			if monitor.Name != "" && monitor.Reference == BIGIP {
 				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
 			} else {
-				var formatPort int32
+				var formatPort intstr.IntOrString
 				if monitor.TargetPort != 0 {
-					formatPort = monitor.TargetPort
+					formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
 				} else {
 					formatPort = pl.ServicePort
 				}
@@ -1610,8 +1803,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 
 	//set allowed VLAN's per TS config
-	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
-
+	if len(vs.Spec.AllowVLANs) > 0 {
+		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	}
 	if vs.Spec.PersistenceProfile != "" {
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
@@ -1656,9 +1850,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "", ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "", ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,
@@ -1700,12 +1894,30 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.HTTP2.Client = plc.Spec.Profiles.HTTP2.Client
+	rsCfg.Virtual.HTTP2.Server = plc.Spec.Profiles.HTTP2.Server
 	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
+	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
+	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
+	rsCfg.Virtual.AutoLastHop = plc.Spec.AutoLastHop
+	if rsCfg.Virtual.HttpMrfRoutingEnabled == nil && plc.Spec.Profiles.HttpMrfRoutingEnabled != nil {
+		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
+	}
+
+	if plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP != "" &&
+		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
+		//  Apply : both or empty -> analytics will be applied for both HTTP and HTTPS
+		if plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply == "both" ||
+			plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply == "" ||
+			rsCfg.MetaData.Protocol == plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply {
+			rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP
+		}
+	}
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}
-	var iRule string
+	var iRule []string
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP
 	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
@@ -1719,31 +1931,31 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 
 	switch rsCfg.MetaData.Protocol {
 	case "https":
-		iRule = plc.Spec.IRules.Secure
-		if len(plc.Spec.Profiles.HTTP2) > 0 {
-			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name:         plc.Spec.Profiles.HTTP2,
-				Context:      "http2",
-				BigIPProfile: true,
-			})
+		if len(plc.Spec.IRuleList.Secure) > 0 {
+			iRule = plc.Spec.IRuleList.Secure
+		} else if plc.Spec.IRules.Secure != "" {
+			iRule = append(iRule, plc.Spec.IRules.Secure)
 		}
 	case "http":
-		iRule = plc.Spec.IRules.InSecure
+		if len(plc.Spec.IRuleList.InSecure) > 0 {
+			iRule = plc.Spec.IRuleList.InSecure
+		} else if plc.Spec.IRules.InSecure != "" {
+			iRule = append(iRule, plc.Spec.IRules.InSecure)
+		}
 	}
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":
-			rsCfg.Virtual.IRules = []string{iRule}
+			rsCfg.Virtual.IRules = iRule
 		case "high":
-			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+			rsCfg.Virtual.IRules = append(iRule, rsCfg.Virtual.IRules...)
 		default:
-			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule...)
 		}
 	}
 	// set snat as specified by user in the policy
-	snat := plc.Spec.SNAT
-	if snat != "" {
-		rsCfg.Virtual.SNAT = snat
+	if plc.Spec.SNAT != "" {
+		rsCfg.Virtual.SNAT = plc.Spec.SNAT
 	}
 
 	return nil
@@ -1761,6 +1973,8 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
+	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1773,16 +1987,20 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 		})
 	}
 
-	var iRule string
-	iRule = plc.Spec.IRules.InSecure
+	var iRule []string
+	if len(plc.Spec.IRuleList.InSecure) > 0 {
+		iRule = plc.Spec.IRuleList.InSecure
+	} else if plc.Spec.IRules.InSecure != "" {
+		iRule = append(iRule, plc.Spec.IRules.InSecure)
+	}
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":
-			rsCfg.Virtual.IRules = []string{iRule}
+			rsCfg.Virtual.IRules = iRule
 		case "high":
-			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+			rsCfg.Virtual.IRules = append(iRule, rsCfg.Virtual.IRules...)
 		default:
-			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule...)
 		}
 	}
 	// set snat as specified by user or else use auto as default
@@ -1811,9 +2029,6 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 			VServerName:   extdSpec.global.VServerName,
 			VServerAddr:   extdSpec.global.VServerAddr,
 			AllowOverride: extdSpec.global.AllowOverride,
-			SNAT:          extdSpec.global.SNAT,
-			WAF:           extdSpec.global.WAF,
-			TLS:           extdSpec.global.TLS,
 		}
 
 		if extdSpec.local.VServerName != "" {
@@ -1822,38 +2037,10 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 		if extdSpec.local.VServerAddr != "" {
 			ergc.VServerAddr = extdSpec.local.VServerAddr
 		}
-		if extdSpec.local.SNAT != "" {
-			ergc.SNAT = extdSpec.local.SNAT
-		}
-		if extdSpec.local.WAF != "" {
-			ergc.WAF = extdSpec.local.WAF
-		}
-		if extdSpec.local.TLS != (TLS{}) {
-			ergc.TLS = extdSpec.local.TLS
+		if extdSpec.local.Policy != "" {
+			ergc.Policy = extdSpec.local.Policy
 		}
 
-		if extdSpec.local.AllowSourceRange != nil {
-			ergc.AllowSourceRange = make([]string, len(extdSpec.local.AllowSourceRange))
-			copy(ergc.AllowSourceRange, extdSpec.local.AllowSourceRange)
-		} else if extdSpec.global.AllowSourceRange != nil {
-			ergc.AllowSourceRange = make([]string, len(extdSpec.global.AllowSourceRange))
-			copy(ergc.AllowSourceRange, extdSpec.global.AllowSourceRange)
-		}
-		if extdSpec.local.IRules != nil {
-			ergc.IRules = make([]string, len(extdSpec.local.IRules))
-			copy(ergc.IRules, extdSpec.local.IRules)
-		} else if extdSpec.global.IRules != nil {
-			ergc.IRules = make([]string, len(extdSpec.global.IRules))
-			copy(ergc.IRules, extdSpec.global.IRules)
-		}
-
-		if extdSpec.local.HealthMonitors != nil {
-			ergc.HealthMonitors = make(Monitors, len(extdSpec.local.HealthMonitors))
-			copy(ergc.HealthMonitors, extdSpec.local.HealthMonitors)
-		} else if extdSpec.global.HealthMonitors != nil {
-			ergc.HealthMonitors = make(Monitors, len(extdSpec.global.HealthMonitors))
-			copy(ergc.HealthMonitors, extdSpec.global.HealthMonitors)
-		}
 		return ergc, extdSpec.partition
 	}
 
@@ -1867,7 +2054,7 @@ func (ctlr *Controller) handleRouteTLS(
 	route *routeapi.Route,
 	vServerAddr string,
 	servicePort intstr.IntOrString,
-	extdSpec *ExtendedRouteGroupSpec) bool {
+	policySSLProfiles rgPlcSSLProfiles) bool {
 
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS
@@ -1875,26 +2062,40 @@ func (ctlr *Controller) handleRouteTLS(
 	}
 	var tlsReferenceType string
 	bigIPSSLProfiles := BigIPSSLProfiles{}
+	sslProfileOption := ctlr.getSSLProfileOption(route, policySSLProfiles)
+	switch sslProfileOption {
+	case "":
+		break
+	case PolicySSLOption:
+		tlsReferenceType = BIGIP
 
-	//If TLS config is present in the global configmap look for the bigIPReference
-	if extdSpec.TLS != (TLS{}) && extdSpec.TLS.Reference == BIGIP {
-		tlsReferenceType = extdSpec.TLS.Reference
-		if route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-			if extdSpec.TLS.ClientSSL == "" {
+		bigIPSSLProfiles.clientSSLs = policySSLProfiles.clientSSLs
+
+		if route.Spec.TLS.Termination == TLSReencrypt {
+			if len(policySSLProfiles.serverSSLs) == 0 {
 				return false
 			}
-			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt && extdSpec.TLS.ServerSSL == "" {
-				return false
-			}
-
-			bigIPSSLProfiles.clientSSL = extdSpec.TLS.ClientSSL
-			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-				bigIPSSLProfiles.serverSSL = extdSpec.TLS.ServerSSL
-			}
+			bigIPSSLProfiles.serverSSLs = policySSLProfiles.serverSSLs
 		}
-	} else {
-		tlsReferenceType = Certificate
+	case AnnotationSSLOption:
+		if clientSSL, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+			if len(strings.Split(clientSSL, "/")) > 1 {
+				tlsReferenceType = BIGIP
+			} else {
+				tlsReferenceType = Secret
+			}
+			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, clientSSL)
+			serverSSL, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]
+			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+				if !ok {
+					return false
+				}
+				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, serverSSL)
+			}
 
+		}
+	case RouteCertificateSSLOption:
+		tlsReferenceType = Certificate
 		if route.Spec.TLS.Key != "" {
 			bigIPSSLProfiles.key = route.Spec.TLS.Key
 		}
@@ -1907,12 +2108,59 @@ func (ctlr *Controller) handleRouteTLS(
 		if route.Spec.TLS.DestinationCACertificate != "" {
 			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
 		}
-
-		//Flag to track the route groups which are using TLS Ciphers
-		ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-			DependsOnTLSCipher: true,
+		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
+		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+			//set for default routegroup
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+				//Flag to track the route groups which are using TLS profiles.
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+						DependsOnTLS: true,
+					}
+				}
+			} else {
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+					DependsOnTLS: true,
+				}
+			}
 		}
+	case DefaultSSLOption:
+		// Check for default tls in baseRouteSpec
+		tlsReferenceType = BIGIP
+
+		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
+			return false
+		}
+		bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL)
+
+		if route.Spec.TLS.Termination == TLSReencrypt {
+			if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" {
+				return false
+			}
+			bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
+		}
+		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
+		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+			//Flag to track the route groups which are using TLS Ciphers
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+						DependsOnTLS: true,
+					}
+				}
+			} else {
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+						DependsOnTLS: true,
+					}
+				}
+			}
+		}
+	default:
+		log.Errorf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
+		return false
 	}
+
 	var poolPathRefs []poolPathRef
 
 	for _, pl := range rsCfg.Pools {
@@ -1933,6 +2181,7 @@ func (ctlr *Controller) handleRouteTLS(
 						pl.ServicePort,
 						"",
 						""),
+					[]string{route.Spec.Host},
 				})
 		}
 	}
@@ -1945,6 +2194,11 @@ func (ctlr *Controller) handleRouteTLS(
 			rsCfg.IntDgMap,
 			servicePort,
 		)
+		if isRoutePathBasedABDeployment(route) &&
+			(route.Spec.TLS.Termination == TLSEdge ||
+				(route.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) != TLSAllowInsecure)) {
+			ctlr.HandlePathBasedABIRule(rsCfg, route.Spec.Host, string(route.Spec.TLS.Termination))
+		}
 	}
 
 	return ctlr.handleTLS(rsCfg, TLSContext{route.ObjectMeta.Name,
@@ -1953,10 +2207,62 @@ func (ctlr *Controller) handleRouteTLS(
 		tlsReferenceType,
 		route.Spec.Host,
 		DEFAULT_HTTPS_PORT,
+		DEFAULT_HTTP_PORT,
 		vServerAddr,
 		string(route.Spec.TLS.Termination),
 		strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)),
 		poolPathRefs,
 		bigIPSSLProfiles,
 	})
+}
+
+/*
+getSSLProfileOption returns which ssl profile option to be used for the route
+Examples: annotation, routeCertificate, defaultSSL, invalid
+*/
+func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfiles rgPlcSSLProfiles) string {
+	sslProfileOption := ""
+	if route == nil || route.Spec.TLS == nil || route.Spec.TLS.Termination == routeapi.TLSTerminationPassthrough {
+		return sslProfileOption
+	}
+	if len(plcSSLProfiles.clientSSLs) > 0 {
+		sslProfileOption = PolicySSLOption
+	} else if _, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+		sslProfileOption = AnnotationSSLOption
+	} else if route.Spec.TLS != nil && route.Spec.TLS.Key != "" && route.Spec.TLS.Certificate != "" {
+		sslProfileOption = RouteCertificateSSLOption
+	} else if ctlr.resources != nil && ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) &&
+		ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
+		ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP {
+		sslProfileOption = DefaultSSLOption
+	} else {
+		sslProfileOption = InvalidSSLOption
+	}
+	return sslProfileOption
+}
+
+// return the services associated with a virtualserver pool (svc names + weight)
+func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
+	numOfBackends := 1
+	if pool.AlternateBackends != nil {
+		numOfBackends += len(pool.AlternateBackends)
+	}
+	sbcs := make([]SvcBackendCxt, numOfBackends)
+
+	beIdx := 0
+	sbcs[beIdx].Name = pool.Service
+
+	sbcs[beIdx].Weight = int(pool.Weight)
+	if pool.ServiceNamespace != "" {
+		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
+	}
+	if pool.AlternateBackends != nil {
+		for _, svc := range pool.AlternateBackends {
+			beIdx = beIdx + 1
+			sbcs[beIdx].Name = svc.Service
+			sbcs[beIdx].Weight = int(svc.Weight)
+			sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
+		}
+	}
+	return sbcs
 }

@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 // Dump out the Virtual Server configs to a file
@@ -34,7 +34,7 @@ func (cm *CCCLManager) OutputConfigLocked() {
 	resources := PartitionMap{}
 
 	// Filter the configs to only those that have active services
-	for _, cfg := range cm.Resources.RsCfgs {
+	for _, cfg := range cm.Resources.RsMap {
 		if cfg.MetaData.Active == true {
 			initPartitionData(resources, cfg.GetPartition())
 
@@ -172,80 +172,6 @@ func (cm *CCCLManager) OutputConfigLocked() {
 		case <-time.After(time.Second):
 			log.Warning("Did not receive config write response in 1s")
 		}
-	}
-}
-
-func (cm *CCCLManager) SendFDBEntries() {
-	// Organize the data as a map of arrays of resources (per partition)
-	resources := PartitionMap{}
-
-	// Filter the configs to only those that have active services
-	for _, cfg := range cm.Resources.RsCfgs {
-		if cfg.MetaData.Active == true {
-			initPartitionData(resources, cfg.GetPartition())
-		}
-	}
-
-	doneCh, errCh, err := cm.ConfigWriter().SendSection("resources", resources)
-	if nil != err {
-		log.Warningf("[CCCL] Failed to write FDB Records: %v", err)
-		return
-	}
-
-	select {
-	case <-doneCh:
-		log.Infof("[CCCL] Successfully Sent the FDB Records")
-	case e := <-errCh:
-		log.Warningf("[CCCL] Failed to write FDB Records: %v", e)
-	case <-time.After(time.Second):
-		log.Warning("Did not receive config write response in 1s")
-	}
-}
-
-func (cm *CCCLManager) SendARPEntries() {
-
-	log.Debugf("[CORE] FDB  Deploy revc")
-	// Get all pool members and write them to VxlanMgr to configure ARP entries
-	resources := PartitionMap{}
-	var allPoolMembers []Member
-
-	// Filter the configs to only those that have active services
-	for _, cfg := range cm.Resources.RsCfgs {
-		if cfg.MetaData.Active == true {
-			initPartitionData(resources, cfg.GetPartition())
-			for _, p := range cfg.Pools {
-				resources[p.Partition].Pools = appendPool(resources[p.Partition].Pools, p)
-			}
-		}
-	}
-
-	for _, cfg := range resources {
-		for _, pool := range cfg.Pools {
-			allPoolMembers = append(allPoolMembers, pool.Members...)
-		}
-	}
-
-	if cm.eventChan != nil {
-		for member := range cm.ResourceRequest.PoolMembers {
-			allPoolMembers = append(allPoolMembers, member)
-		}
-
-		select {
-		case cm.eventChan <- allPoolMembers:
-			log.Debugf("[CCCL] AppManager wrote endpoints to VxlanMgr")
-		case <-time.After(3 * time.Second):
-		}
-	}
-}
-
-// Parse the SSL Profile and append it to the list
-func appendSslProfile(profs []ProfileRef, profile string, context string) []ProfileRef {
-	p := strings.Split(profile, "/")
-	if len(p) != 2 {
-		log.Errorf("[CCCL] Could not parse partition and name from SSL profile: %s", profile)
-		return profs
-	} else {
-		return append(profs, ProfileRef{Partition: p[0], Name: p[1], Context: context})
 	}
 }
 

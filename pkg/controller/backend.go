@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 const (
@@ -52,12 +52,14 @@ var baseAS3Config = `{
 	  }
 	}
   }
-  `
+`
 
 var DEFAULT_PARTITION string
+var DEFAULT_GTM_PARTITION string
 
 func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
+	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
 	postMgr := NewPostManager(params.PostParams)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
@@ -77,6 +79,8 @@ func NewAgent(params AgentParams) *Agent {
 		tenantPriorityMap:     make(map[string]int),
 		userAgent:             params.UserAgent,
 		HttpAddress:           params.HttpAddress,
+		ccclGTMAgent:          params.CCCLGTMAgent,
+		disableARP:            params.DisableARP,
 	}
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
@@ -100,13 +104,15 @@ func NewAgent(params AgentParams) *Agent {
 			vxlanPartition = cleanPath[:slashPos]
 		}
 	}
-
+	if params.StaticRoutingMode == true {
+		vxlanPartition = params.Partition
+	}
 	gs := globalSection{
 		LogLevel:       params.LogLevel,
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
-		GTM:            true,
+		GTM:            params.CCCLGTMAgent,
 		DisableARP:     params.DisableARP,
 	}
 
@@ -217,6 +223,13 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
 	for rsConfig := range agent.postChan {
+		// For the very first post after starting controller, need not wait to post
+		if !agent.firstPost && agent.AS3PostDelay != 0 {
+			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
+			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", agent.AS3PostDelay)
+			_ = <-time.After(time.Duration(agent.AS3PostDelay) * time.Second)
+		}
+
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
 		// Otherwise, we will wait for retryWorker to complete its current iteration
 		agent.declUpdate.Lock()
@@ -226,7 +239,8 @@ func (agent *Agent) agentWorker() {
 		case rsConfig = <-agent.postChan:
 		case <-time.After(1 * time.Microsecond):
 		}
-		if !(agent.EnableIPV6) {
+
+		if !(agent.EnableIPV6) && agent.ccclGTMAgent {
 			agent.PostGTMConfig(rsConfig)
 		}
 
@@ -249,12 +263,16 @@ func (agent *Agent) agentWorker() {
 		agent.tenantResponseMap = make(map[string]tenantResponse)
 
 		for tenant := range agent.incomingTenantDeclMap {
-			if _, ok := agent.tenantPriorityMap[tenant]; ok {
-				priorityTenants = append(priorityTenants, tenant)
-			} else {
-				updatedTenants = append(updatedTenants, tenant)
+			// CIS with AS3 doesnt allow write to Common partition.So objects in common partition
+			// should not be updated or deleted by CIS. So removing from tenant map
+			if tenant != "Common" {
+				if _, ok := agent.tenantPriorityMap[tenant]; ok {
+					priorityTenants = append(priorityTenants, tenant)
+				} else {
+					updatedTenants = append(updatedTenants, tenant)
+				}
+				agent.tenantResponseMap[tenant] = tenantResponse{}
 			}
-			agent.tenantResponseMap[tenant] = tenantResponse{}
 		}
 
 		// Update the priority tenants first
@@ -278,7 +296,10 @@ func (agent *Agent) postTenantsDeclaration(decl as3Declaration, rsConfig Resourc
 
 	agent.publishConfig(cfg)
 
-	go agent.updatePoolMembers(rsConfig)
+	// Don't update ARPs if disableARP is set to true
+	if !agent.disableARP {
+		go agent.updateARPsForPoolMembers(rsConfig)
+	}
 
 	agent.updateTenantResponse(true)
 
@@ -337,12 +358,12 @@ func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl i
 	} else {
 		agent.retryTenantDeclMap[tenant] = &tenantParams{
 			tenDecl,
-			tenantResponse{resp.agentResponseCode, resp.taskId},
+			tenantResponse{resp.agentResponseCode, resp.taskId, false},
 		}
 	}
 }
 
-func (agent *Agent) updatePoolMembers(rsConfig ResourceConfigRequest) {
+func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
@@ -370,15 +391,20 @@ func (agent *Agent) updateTenantResponse(agentWorkerUpdate bool) {
 	*/
 	for tenant, resp := range agent.tenantResponseMap {
 		if resp.agentResponseCode == 200 {
-			// update cachedTenantDeclMap with successfully posted declaration
-			if agentWorkerUpdate {
-				agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
+			if resp.isDeleted {
+				// Update the cache tenant map if tenant is deleted.
+				delete(agent.cachedTenantDeclMap, tenant)
 			} else {
-				agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
-			}
-			// if received the 200 response remove the entry from tenantPriorityMap
-			if _, ok := agent.tenantPriorityMap[tenant]; ok {
-				delete(agent.tenantPriorityMap, tenant)
+				// update cachedTenantDeclMap with successfully posted declaration
+				if agentWorkerUpdate {
+					agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
+				} else {
+					agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
+				}
+				// if received the 200 response remove the entry from tenantPriorityMap
+				if _, ok := agent.tenantPriorityMap[tenant]; ok {
+					delete(agent.tenantPriorityMap, tenant)
+				}
 			}
 		}
 		if agentWorkerUpdate {
@@ -511,13 +537,14 @@ func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})
 	wideIPs := WideIPs{}
-	for _, v := range config.gtmConfig {
-		wideIPs.WideIPs = append(wideIPs.WideIPs, v)
+
+	for _, gtmPartitionConfig := range config.gtmConfig {
+		for _, v := range gtmPartitionConfig.WideIPs {
+			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
+		}
 	}
 
-	// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
 	dnsConfig["Common"] = wideIPs
-
 	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
 
 	if nil != err {
@@ -539,7 +566,7 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
 	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
 	agent.tenantPriorityMap = make(map[string]int)
-	for tenant, cfg := range agent.createAS3LTMConfigADC(config) {
+	for tenant, cfg := range agent.createAS3LTMAndGTMConfigADC(config) {
 		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
@@ -589,98 +616,122 @@ func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3
 	return as3Declaration(decl)
 }
 
-func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest) as3Tenant {
+func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
+	adc := agent.createAS3LTMConfigADC(config)
+	if !agent.ccclGTMAgent {
+		adc = agent.createAS3GTMConfigADC(config, adc)
+	}
+
+	return adc
+}
+
+func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
 	if len(config.gtmConfig) == 0 {
-		return nil
-	}
-	sharedApp := as3Application{}
-	sharedApp["class"] = "Application"
-	sharedApp["template"] = "shared"
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
 
-	tenantDecl := as3Tenant{
-		"class":              "Tenant",
-		as3SharedApplication: sharedApp,
-	}
-
-	for domainName, wideIP := range config.gtmConfig {
-
-		gslbDomain := as3GLSBDomain{
-			Class:      "GSLB_Domain",
-			DomainName: wideIP.DomainName,
-			RecordType: wideIP.RecordType,
-			LBMode:     wideIP.LBMethod,
-			Pools:      make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
+		tenantDecl := as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
 		}
-		for _, pool := range wideIP.Pools {
-			gslbPool := as3GSLBPool{
-				Class:      "GSLB_Pool",
-				RecordType: pool.RecordType,
-				LBMode:     pool.LBMethod,
-				Members:    make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
-				Monitors:   make([]as3ResourcePointer, 0, len(pool.Monitors)),
-			}
+		adc[DEFAULT_GTM_PARTITION] = tenantDecl
 
-			for _, mem := range pool.Members {
-				gslbPool.Members = append(gslbPool.Members, as3GSLBPoolMemberA{
-					Enabled: true,
-					Server: as3ResourcePointer{
-						BigIP: pool.DataServer,
-					},
-					VirtualServer: mem,
-				})
-			}
+		return adc
+	}
 
-			for _, mon := range pool.Monitors {
-				gslbMon := as3GSLBMonitor{
-					Class:    "GSLB_Monitor",
-					Interval: mon.Interval,
-					Type:     mon.Type,
-					Send:     mon.Send,
-					Receive:  mon.Recv,
-					Timeout:  mon.Timeout,
+	for pn, gtmPartitionConfig := range config.gtmConfig {
+		var tenantDecl as3Tenant
+		var sharedApp as3Application
+
+		if obj, ok := adc[pn]; ok {
+			tenantDecl = obj.(as3Tenant)
+			sharedApp = tenantDecl[as3SharedApplication].(as3Application)
+		} else {
+			sharedApp = as3Application{}
+			sharedApp["class"] = "Application"
+			sharedApp["template"] = "shared"
+
+			tenantDecl = as3Tenant{
+				"class":              "Tenant",
+				as3SharedApplication: sharedApp,
+			}
+		}
+
+		for domainName, wideIP := range gtmPartitionConfig.WideIPs {
+
+			gslbDomain := as3GLSBDomain{
+				Class:      "GSLB_Domain",
+				DomainName: wideIP.DomainName,
+				RecordType: wideIP.RecordType,
+				LBMode:     wideIP.LBMethod,
+				Pools:      make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
+			}
+			for _, pool := range wideIP.Pools {
+				gslbPool := as3GSLBPool{
+					Class:      "GSLB_Pool",
+					RecordType: pool.RecordType,
+					LBMode:     pool.LBMethod,
+					Members:    make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
+					Monitors:   make([]as3ResourcePointer, 0, len(pool.Monitors)),
 				}
 
-				gslbPool.Monitors = append(gslbPool.Monitors, as3ResourcePointer{
-					Use: mon.Name,
-				})
+				for _, mem := range pool.Members {
+					gslbPool.Members = append(gslbPool.Members, as3GSLBPoolMemberA{
+						Enabled: true,
+						Server: as3ResourcePointer{
+							BigIP: pool.DataServer,
+						},
+						VirtualServer: mem,
+					})
+				}
 
-				sharedApp[mon.Name] = gslbMon
+				for _, mon := range pool.Monitors {
+					gslbMon := as3GSLBMonitor{
+						Class:    "GSLB_Monitor",
+						Interval: mon.Interval,
+						Type:     mon.Type,
+						Send:     mon.Send,
+						Receive:  mon.Recv,
+						Timeout:  mon.Timeout,
+					}
+
+					gslbPool.Monitors = append(gslbPool.Monitors, as3ResourcePointer{
+						Use: mon.Name,
+					})
+
+					sharedApp[mon.Name] = gslbMon
+				}
+				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name, Ratio: pool.Ratio})
+				sharedApp[pool.Name] = gslbPool
 			}
-			gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name})
-			sharedApp[pool.Name] = gslbPool
-		}
 
-		sharedApp[domainName] = gslbDomain
+			sharedApp[domainName] = gslbDomain
+		}
+		adc[pn] = tenantDecl
 	}
 
-	return tenantDecl
+	return adc
 }
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
-	as3JSONDecl := as3ADC{}
+	adc := as3ADC{}
+	for tenant := range agent.cachedTenantDeclMap {
+		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
+			// Remove partition
+			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
+		}
+	}
 	for tenantName, partitionConfig := range config.ltmConfig {
 		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
-		if partitionConfig.Priority > 0 {
-			agent.tenantPriorityMap[tenantName] = partitionConfig.Priority
+		partitionConfig.PriorityMutex.RLock()
+		if *(partitionConfig.Priority) > 0 {
+			agent.tenantPriorityMap[tenantName] = *(partitionConfig.Priority)
 		}
+		partitionConfig.PriorityMutex.RUnlock()
 		if len(partitionConfig.ResourceMap) == 0 {
-			if agent.Partition == tenantName {
-				// Flush Partition contents
-				sharedApp := as3Application{}
-				sharedApp["class"] = "Application"
-				sharedApp["template"] = "shared"
-
-				tenantDecl := as3Tenant{
-					"class":              "Tenant",
-					as3SharedApplication: sharedApp,
-				}
-				as3JSONDecl[tenantName] = tenantDecl
-			} else {
-				// Remove Partition
-				as3JSONDecl[tenantName] = as3Tenant{
-					"class": "Tenant",
-				}
-			}
+			// Remove partition
+			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName)
 			continue
 		}
 		// Create Shared as3Application object
@@ -707,13 +758,35 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
 		}
-		as3JSONDecl[tenantName] = tenantDecl
+		adc[tenantName] = tenantDecl
 	}
-	return as3JSONDecl
+	return adc
+}
+
+func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
+	if defaultPartition == tenant {
+		// Flush Partition contents
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+		return as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
+		}
+	}
+	return as3Tenant{
+		"class": "Tenant",
+	}
 }
 
 func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	for _, rsCfg := range rsMap {
+		// Skip processing IRules for "None" value
+		for _, v := range rsCfg.Virtual.IRules {
+			if v == "none" {
+				continue
+			}
+		}
 		// Create irule declaration
 		for _, v := range rsCfg.IRulesMap {
 			iRule := &as3IRules{}
@@ -726,7 +799,13 @@ func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 
 func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	for _, rsCfg := range rsMap {
-		for idk, idg := range rsCfg.IntDgMap {
+		// Skip processing DataGroup for "None" iRule value
+		for _, v := range rsCfg.Virtual.IRules {
+			if v == "none" {
+				continue
+			}
+		}
+		for _, idg := range rsCfg.IntDgMap {
 			for _, dg := range idg {
 				dataGroupRecord, found := sharedApp[dg.Name]
 				if !found {
@@ -734,32 +813,14 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 					dgMap.Class = "Data_Group"
 					dgMap.KeyDataType = dg.Type
 					for _, record := range dg.Records {
-						var rec as3Record
-						rec.Key = record.Name
-						virtualAddress := extractVirtualAddress(record.Data)
-						// To override default Value created for CCCL for certain DG types
-						if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
-							rec.Value = val
-						} else {
-							rec.Value = record.Data
-						}
-						dgMap.Records = append(dgMap.Records, rec)
+						dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
 					}
 					// sort above create dgMap records.
 					sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
 					sharedApp[dg.Name] = dgMap
 				} else {
 					for _, record := range dg.Records {
-						var rec as3Record
-						rec.Key = record.Name
-						virtualAddress := extractVirtualAddress(record.Data)
-						// To override default Value created for CCCL for certain DG types
-						if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
-							rec.Value = val
-						} else {
-							rec.Value = record.Data
-						}
-						sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+						sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, as3Record{Key: record.Name, Value: record.Data})
 					}
 					// sort above created
 					sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
@@ -771,32 +832,6 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 			}
 		}
 	}
-}
-
-func extractVirtualAddress(str string) string {
-	var address string
-	if strings.HasPrefix(str, "crd_") && strings.HasSuffix(str, "_tls_client") {
-		address = strings.TrimRight(strings.TrimLeft(str, "crd_"), "_tls_client")
-	}
-	return address
-}
-
-func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddress string) (string, bool) {
-	if strings.HasSuffix(dgName, ReencryptServerSslDgName) {
-		for _, v := range sharedApp {
-			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" &&
-				AS3NameFormatter((svc.VirtualAddresses[0]).(string)) == virtualAddress {
-				if val, ok := svc.ClientTLS.(*as3ResourcePointer); ok {
-					return val.BigIP, true
-				}
-				if val, ok := svc.ClientTLS.(string); ok {
-					return strings.Join([]string{"", val}, ""), true
-				}
-				log.Errorf("Unable to find serverssl for Data Group: %v\n", dgName)
-			}
-		}
-	}
-	return "", false
 }
 
 // Process for AS3 Resource
@@ -856,6 +891,8 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		pool := &as3Pool{}
 		pool.LoadBalancingMode = v.Balance
 		pool.Class = "Pool"
+		pool.ReselectTries = v.ReselectTries
+		pool.ServiceDownAction = v.ServiceDownAction
 		for _, val := range v.Members {
 			var member as3PoolMember
 			member.AddressDiscovery = "static"
@@ -894,7 +931,11 @@ func updateVirtualToHTTPS(v *as3Service) {
 // Process Irules for CRD
 func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 	var IRules []interface{}
+	// Skip processing IRules for "None" value
 	for _, v := range cfg.Virtual.IRules {
+		if v == "none" {
+			continue
+		}
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
 
@@ -907,7 +948,8 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 		}
 		if strings.HasSuffix(iRuleNoPort, HttpRedirectIRuleName) ||
 			strings.HasSuffix(iRuleNoPort, HttpRedirectNoHostIRuleName) ||
-			strings.HasSuffix(iRuleName, TLSIRuleName) {
+			strings.HasSuffix(iRuleName, TLSIRuleName) ||
+			strings.HasSuffix(iRuleName, ABPathIRuleName) {
 
 			IRules = append(IRules, iRuleName)
 		} else {
@@ -968,12 +1010,9 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 		svc.Class = "Service_TCP"
 	}
-	if len(cfg.Virtual.PersistenceProfile) > 0 {
-		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
-		if cfg.Virtual.PersistenceProfile == "none" {
-			svc.PersistenceMethods = &[]string{}
-		}
-	}
+
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
+
 	if len(cfg.Virtual.ProfileDOS) > 0 {
 		svc.ProfileDOS = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileDOS,
@@ -982,6 +1021,36 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	if len(cfg.Virtual.ProfileBotDefense) > 0 {
 		svc.ProfileBotDefense = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
+
+	if cfg.MetaData.Protocol == "https" {
+		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
+			if cfg.Virtual.HTTP2.Client == "" {
+				log.Errorf("[AS3] resetting ProfileHTTP2 as client profile doesnt co-exist with HTTP2 Server Profile, Please include client HTTP2 Profile ")
+			}
+			if cfg.Virtual.HTTP2.Server == "" {
+				svc.ProfileHTTP2 = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+				}
+			}
+			if cfg.Virtual.HTTP2.Client == "" && cfg.Virtual.HTTP2.Server != "" {
+				svc.ProfileHTTP2 = as3ProfileHTTP2{
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+					},
+				}
+			}
+			if cfg.Virtual.HTTP2.Client != "" && cfg.Virtual.HTTP2.Server != "" {
+				svc.ProfileHTTP2 = as3ProfileHTTP2{
+					Ingress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+					},
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+					},
+				}
+			}
 		}
 	}
 
@@ -1028,14 +1097,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
-		case "http2":
-			if !profile.BigIPProfile {
-				svc.ProfileHTTP2 = name
-			} else {
-				svc.ProfileHTTP2 = &as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", profile.Name),
-				}
-			}
 		case "http":
 			if !profile.BigIPProfile {
 				svc.ProfileHTTP = name
@@ -1059,6 +1120,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	if virtualAddress != "" && port != 0 {
 		if len(cfg.ServiceAddress) == 0 {
 			va := append(svc.VirtualAddresses, virtualAddress)
+			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
+				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					va = append(va, val)
+				}
+			}
 			svc.VirtualAddresses = va
 			svc.VirtualPort = port
 		} else {
@@ -1069,6 +1135,17 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			}
 			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
 			svc.VirtualPort = port
+		}
+	}
+	if cfg.Virtual.HttpMrfRoutingEnabled != nil {
+		//set HttpMrfRoutingEnabled
+		svc.HttpMrfRoutingEnabled = *cfg.Virtual.HttpMrfRoutingEnabled
+	}
+	svc.AutoLastHop = cfg.Virtual.AutoLastHop
+
+	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP != "" {
+		svc.HttpAnalyticsProfile = &as3ResourcePointer{
+			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP,
 		}
 	}
 	processCommonDecl(cfg, svc)
@@ -1087,7 +1164,7 @@ func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, shared
 		serviceAddress.SpanningEnabled = sa.SpanningEnabled
 		serviceAddress.TrafficGroup = sa.TrafficGroup
 		serviceAddress.VirtualAddress = virtualAddress
-		name = "crd_service_address_" + strings.Replace(virtualAddress, ".", "_", -1)
+		name = "crd_service_address_" + AS3NameFormatter(virtualAddress)
 		sharedApp[name] = serviceAddress
 	}
 	return name
@@ -1108,13 +1185,16 @@ func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 					val := c.Values[i] + ":" + strconv.Itoa(port)
 					values = append(values, val)
 				}
-				condition.All = &as3PolicyCompareString{
-					Values: values,
-				}
 			} else {
-				condition.All = &as3PolicyCompareString{
-					Values: c.Values,
+				//For ports 80 and 443, host header should match both
+				// host and host:port match
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val, c.Values[i])
 				}
+			}
+			condition.All = &as3PolicyCompareString{
+				Values: values,
 			}
 			if c.HTTPHost {
 				condition.Type = "httpHeader"
@@ -1176,6 +1256,9 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		if v.Forward {
 			action.Type = "forward"
 		}
+		if v.Log {
+			action.Type = "log"
+		}
 		if v.Request {
 			action.Event = "request"
 		}
@@ -1191,7 +1274,12 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		if v.Location != "" {
 			action.Location = v.Location
 		}
-		// Handle hostname rewrite.
+		if v.Log {
+			action.Write = &as3LogMessage{
+				Message: v.Message,
+			}
+		}
+		// Handle vsHostname rewrite.
 		if v.Replace && v.HTTPHost {
 			action.Replace = &as3ActionReplaceMap{
 				Value: v.Value,
@@ -1212,6 +1300,24 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 				},
 			}
 		}
+		// WAF action
+		if v.WAF {
+			action.Type = "waf"
+		}
+		// Add policy reference
+		if v.Policy != "" {
+			action.Policy = &as3ResourcePointer{
+				BigIP: v.Policy,
+			}
+		}
+		if v.Enabled != nil {
+			action.Enabled = v.Enabled
+		}
+		// Add drop action if specified
+		if v.Drop {
+			action.Type = "drop"
+		}
+
 		rulesData.Actions = append(rulesData.Actions, action)
 	}
 }
@@ -1267,6 +1373,8 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 	// lets discard BIGIP profile creation when there exists a custom profile.
 	as3ClientSuffix := "_tls_client"
 	as3ServerSuffix := "_tls_server"
+	var clientProfiles []as3MultiTypeParam
+	var serverProfiles []as3MultiTypeParam
 	for _, profile := range virtual.Profiles {
 		switch profile.Context {
 		case CustomProfileClient:
@@ -1279,9 +1387,9 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 			} else {
 				// Profile is a BIG-IP reference
 				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
-				svc.ServerTLS = &as3ResourcePointer{
+				clientProfiles = append(clientProfiles, &as3ResourcePointer{
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
-				}
+				})
 			}
 			updateVirtualToHTTPS(svc)
 		case CustomProfileServer:
@@ -1293,12 +1401,18 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 			} else {
 				// Profile is a BIG-IP reference
 				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
-				svc.ClientTLS = &as3ResourcePointer{
+				serverProfiles = append(serverProfiles, &as3ResourcePointer{
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
-				}
+				})
 			}
 			updateVirtualToHTTPS(svc)
 		}
+	}
+	if len(clientProfiles) > 0 {
+		svc.ServerTLS = clientProfiles
+	}
+	if len(serverProfiles) > 0 {
+		svc.ClientTLS = serverProfiles
 	}
 }
 
@@ -1339,15 +1453,12 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 
 // createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
 func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
-	// A TLSServer profile needs to carry both Certificate and Key
-	if "" != prof.Cert && "" != prof.Key {
+	if len(prof.Certificates) > 0 {
 		if sharedApp[svcName] == nil {
 			return false
 		}
 		svc := sharedApp[svcName].(*as3Service)
 		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
-		certName := prof.Name
-
 		tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
 		if !ok {
 			tlsServer = &as3TLSServer{
@@ -1365,43 +1476,54 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 			svc.ServerTLS = tlsServerName
 			updateVirtualToHTTPS(svc)
 		}
-
-		tlsServer.Certificates = append(
-			tlsServer.Certificates,
-			as3TLSServerCertificates{
-				Certificate: certName,
-			},
-		)
+		for index, certificate := range prof.Certificates {
+			certName := fmt.Sprintf("%s_%d", prof.Name, index)
+			// A TLSServer profile needs to carry both Certificate and Key
+			if len(certificate.Cert) > 0 && len(certificate.Key) > 0 {
+				tlsServer.Certificates = append(
+					tlsServer.Certificates,
+					as3TLSServerCertificates{
+						Certificate: certName,
+					},
+				)
+			} else {
+				return false
+			}
+		}
 		return true
 	}
 	return false
 }
 
 func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
-	if "" != prof.Cert && "" != prof.Key {
-		cert := &as3Certificate{
-			Class:       "Certificate",
-			Certificate: prof.Cert,
-			PrivateKey:  prof.Key,
-			ChainCA:     prof.CAFile,
+	for index, certificate := range prof.Certificates {
+		if len(certificate.Cert) > 0 && len(certificate.Key) > 0 {
+			cert := &as3Certificate{
+				Class:       "Certificate",
+				Certificate: certificate.Cert,
+				PrivateKey:  certificate.Key,
+				ChainCA:     prof.CAFile,
+			}
+			sharedApp[fmt.Sprintf("%s_%d", prof.Name, index)] = cert
 		}
-		sharedApp[prof.Name] = cert
 	}
 }
 
 func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3Application) {
-	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
-	if "" != prof.Cert && "" == prof.Key {
-		caBundle, ok := sharedApp[caBundleName].(*as3CABundle)
+	for _, cert := range prof.Certificates {
+		// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
+		if len(cert.Cert) > 0 && len(cert.Key) == 0 {
+			caBundle, ok := sharedApp[caBundleName].(*as3CABundle)
 
-		if !ok {
-			caBundle = &as3CABundle{
-				Class:  "CA_Bundle",
-				Bundle: "",
+			if !ok {
+				caBundle = &as3CABundle{
+					Class:  "CA_Bundle",
+					Bundle: "",
+				}
+				sharedApp[caBundleName] = caBundle
 			}
-			sharedApp[caBundleName] = caBundle
+			caBundle.Bundle += "\n" + cert.Cert
 		}
-		caBundle.Bundle += "\n" + prof.Cert
 	}
 }
 
@@ -1410,8 +1532,14 @@ func createTLSClient(
 	svcName, caBundleName string,
 	sharedApp as3Application,
 ) *as3TLSClient {
+
 	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
-	if _, ok := sharedApp[svcName]; "" != prof.Cert && "" == prof.Key && ok {
+	for _, certificate := range prof.Certificates {
+		if certificate.Key != "" {
+			return nil
+		}
+	}
+	if _, ok := sharedApp[svcName]; len(prof.Certificates) > 0 && ok {
 		svc := sharedApp[svcName].(*as3Service)
 		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
 
@@ -1509,12 +1637,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 
-	if len(cfg.Virtual.PersistenceProfile) > 0 {
-		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
-		if cfg.Virtual.PersistenceProfile == "none" {
-			svc.PersistenceMethods = &[]string{}
-		}
-	}
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
 
 	if len(cfg.Virtual.ProfileDOS) > 0 {
 		svc.ProfileDOS = &as3ResourcePointer{
@@ -1621,6 +1744,13 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 		}
 	}
 
+	//Attach ipIntelligence policy
+	if cfg.Virtual.IpIntelligencePolicy != "" {
+		svc.IpIntelligencePolicy = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.IpIntelligencePolicy),
+		}
+	}
+
 	//Attach logging profile
 	if cfg.Virtual.LogProfiles != nil {
 		for _, lp := range cfg.Virtual.LogProfiles {
@@ -1645,4 +1775,29 @@ func getSortedCustomProfileKeys(customProfiles map[SecretKey]CustomProfile) []Se
 		return customProfiles[keys[i]].Name < customProfiles[keys[j]].Name
 	})
 	return keys
+}
+
+// addPersistenceMethod adds persistence methods in the service declaration
+func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
+	if len(persistenceProfile) == 0 {
+		return
+	}
+	switch persistenceProfile {
+	case "none":
+		svc.PersistenceMethods = &[]as3MultiTypeParam{}
+	case "cookie", "destination-address", "hash", "msrdp", "sip-info", "source-address", "tls-session-id", "universal":
+		svc.PersistenceMethods = &[]as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
+	default:
+		svc.PersistenceMethods = &[]as3MultiTypeParam{
+			as3MultiTypeParam(
+				as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", persistenceProfile),
+				},
+			),
+		}
+	}
+}
+
+func (agent *Agent) isGTMTenant(partition string) bool {
+	return partition == DEFAULT_GTM_PARTITION
 }

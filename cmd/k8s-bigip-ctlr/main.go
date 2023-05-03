@@ -20,24 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/controller"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	"io/ioutil"
-
-	v1 "k8s.io/api/core/v1"
-
-	//"net/http"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -45,13 +29,29 @@ import (
 	"syscall"
 	"time"
 
-	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/as3"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	configclient "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/controller"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
+
+	v1 "k8s.io/api/core/v1"
+
+	//"net/http"
+
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/pflag"
@@ -168,6 +168,7 @@ var (
 
 	trustedCertsCfgmap     *string
 	agent                  *string
+	ccclGtmAgent           *bool
 	logAS3Response         *bool
 	shareNodes             *bool
 	overriderAS3CfgmapName *string
@@ -191,6 +192,9 @@ var (
 	gtmBigIPPassword *string
 	gtmCredsDir      *string
 
+	httpClientMetrics *bool
+	staticRoutingMode *bool
+	orchestrationCNI  *string
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -199,7 +203,7 @@ var (
 	agRspChan          chan interface{}
 	eventChan          chan interface{}
 	configWriter       writer.Writer
-	k8sVersion         string
+	userAgentInfo      string
 )
 
 func _init() {
@@ -243,6 +247,8 @@ func _init() {
 		"Optional, address to serve http based informations (/metrics and /health).")
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
+	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
+	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
 	// Custom Resource
 	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
 		"Optional, flag to enbale ipv6 network support.")
@@ -291,11 +297,16 @@ func _init() {
 	// TODO: Rephrase agent functionality
 	agent = bigIPFlags.String("agent", "as3",
 		"Optional, when set to cccl, orchestration agent will be CCCL instead of AS3")
+	ccclGtmAgent = bigIPFlags.Bool("cccl-gtm-agent", true,
+		"Optional, Option to configure GTM objects using CCCL or AS3 Agent. Default Agent is CCCL.")
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."
 	overriderAS3CfgmapName = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
+	httpClientMetrics = bigIPFlags.Bool("http-client-metrics", false,
+		"Optional, adds HTTP client metric instrumentation for the k8s-bigip-ctlr")
+
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
@@ -320,7 +331,8 @@ func _init() {
 	namespaceLabel = kubeFlags.String("namespace-label", "",
 		"Optional, used to watch for namespaces with this label")
 	manageRoutes = kubeFlags.Bool("manage-routes", false,
-		"Optional, specify whether or not to manage Route resources")
+		"Optional, specify whether or not to manage Legacy Route resources  "+
+			"Please use controller-mode option for NextGen Route Controller ")
 	manageIngress = kubeFlags.Bool("manage-ingress", true,
 		"Optional, specify whether or not to manage Ingress resources")
 	manageConfigMaps = kubeFlags.Bool("manage-configmaps", true,
@@ -510,12 +522,23 @@ func verifyArgs() error {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
 
+	if *staticRoutingMode == true {
+		if isNodePort || *poolMemberType == "nodeportlocal" {
+			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
+				"Must be in Cluster mode if using static route configuration.")
+		}
+		if len(*openshiftSDNName) > 0 || len(*flannelName) > 0 {
+			return fmt.Errorf("Cannot have openshift-sdn-name or flannel-name as static route processing doesnt require tunnel " +
+				"configuration.")
+		}
+	}
+
 	if len(*openshiftSDNName) > 0 && len(*flannelName) > 0 {
 		return fmt.Errorf("Cannot have both openshift-sdn-name and flannel-name specified.")
 	}
 
 	if flags.Changed("openshift-sdn-name") {
-		if len(*openshiftSDNName) == 0 {
+		if len(*openshiftSDNName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter openshift-sdn-name")
 		}
 		if isNodePort {
@@ -525,7 +548,7 @@ func verifyArgs() error {
 		vxlanMode = "maintain"
 		vxlanName = *openshiftSDNName
 	} else if flags.Changed("flannel-name") {
-		if len(*flannelName) == 0 {
+		if len(*flannelName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter flannel-name")
 		}
 		if isNodePort {
@@ -539,7 +562,7 @@ func verifyArgs() error {
 	if *hubMode && !(*manageConfigMaps) {
 		return fmt.Errorf("Hubmode is supported only for configmaps")
 	}
-	if *manageRoutes {
+	if *manageRoutes && *controllerMode == "" {
 		if len(*routeVserverAddr) == 0 {
 			return fmt.Errorf("Missing required parameter route-vserver-addr")
 		}
@@ -672,52 +695,6 @@ func getGTMCredentials() {
 	}
 }
 
-func setupNodePolling(
-	appMgr *appmanager.Manager,
-	np pollers.Poller,
-	eventChanl <-chan interface{},
-	kubeClient kubernetes.Interface,
-) error {
-	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := np.RegisterListener(appMgr.ProcessNodeUpdate)
-	if nil != err {
-		return fmt.Errorf("error registering node update listener: %v",
-			err)
-	}
-
-	if 0 != len(vxlanMode) {
-		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := vxlanName
-		cleanPath := strings.TrimLeft(vxlanName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos != -1 {
-			tunnelName = cleanPath[slashPos+1:]
-		}
-		vxMgr, err := vxlan.NewVxlanMgr(
-			vxlanMode,
-			tunnelName,
-			appMgr.UseNodeInternal(),
-			getConfigWriter(),
-			eventChanl,
-		)
-		if nil != err {
-			return fmt.Errorf("error creating vxlan manager: %v", err)
-		}
-
-		// Register vxMgr to watch for node updates to process fdb records
-		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
-		if eventChanl != nil {
-			vxMgr.ProcessAppmanagerEvents(kubeClient)
-		}
-	}
-
-	return nil
-}
-
 func createLabel(label string) (labels.Selector, error) {
 	var l labels.Selector
 	var err error
@@ -793,15 +770,15 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 func initController(
 	config *rest.Config,
 ) *controller.Controller {
-
 	postMgrParams := controller.PostParams{
-		BIGIPUsername: *bigIPUsername,
-		BIGIPPassword: *bigIPPassword,
-		BIGIPURL:      *bigIPURL,
-		TrustedCerts:  "",
-		SSLInsecure:   true,
-		AS3PostDelay:  *as3PostDelay,
-		LogResponse:   *logAS3Response,
+		BIGIPUsername:     *bigIPUsername,
+		BIGIPPassword:     *bigIPPassword,
+		BIGIPURL:          *bigIPURL,
+		TrustedCerts:      "",
+		SSLInsecure:       true,
+		AS3PostDelay:      *as3PostDelay,
+		LogResponse:       *logAS3Response,
+		HTTPClientMetrics: *httpClientMetrics,
 	}
 
 	GtmParams := controller.GTMParams{
@@ -811,20 +788,22 @@ func initController(
 	}
 
 	agentParams := controller.AgentParams{
-		PostParams:     postMgrParams,
-		GTMParams:      GtmParams,
-		Partition:      (*bigIPPartitions)[0],
-		LogLevel:       *logLevel,
-		VerifyInterval: *verifyInterval,
-		VXLANName:      vxlanName,
-		PythonBaseDir:  *pythonBaseDir,
-		UserAgent:      getUserAgentInfo(),
-		HttpAddress:    *httpAddress,
-		EnableIPV6:     *enableIPV6,
+		PostParams:        postMgrParams,
+		GTMParams:         GtmParams,
+		Partition:         (*bigIPPartitions)[0],
+		LogLevel:          *logLevel,
+		VerifyInterval:    *verifyInterval,
+		VXLANName:         vxlanName,
+		PythonBaseDir:     *pythonBaseDir,
+		UserAgent:         userAgentInfo,
+		HttpAddress:       *httpAddress,
+		EnableIPV6:        *enableIPV6,
+		CCCLGTMAgent:      *ccclGtmAgent,
+		StaticRoutingMode: *staticRoutingMode,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	if *openshiftSDNName != "" {
+	if *openshiftSDNName != "" || *staticRoutingMode == true {
 		agentParams.DisableARP = true
 	}
 
@@ -849,11 +828,12 @@ func initController(
 			Mode:               controller.ControllerMode(*controllerMode),
 			RouteSpecConfigmap: *routeSpecConfigmap,
 			RouteLabel:         *routeLabel,
+			StaticRoutingMode:  *staticRoutingMode,
+			OrchestrationCNI:   *orchestrationCNI,
 		},
 	)
 
 	return ctlr
-
 }
 
 // TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
@@ -932,7 +912,10 @@ func main() {
 			vxlanPartition = cleanPath[:slashPos]
 		}
 	}
-
+	if *staticRoutingMode == true {
+		//partition provide through args
+		vxlanPartition = (*bigIPPartitions)[0]
+	}
 	config, err := getKubeConfig()
 	if err != nil {
 		os.Exit(1)
@@ -943,11 +926,12 @@ func main() {
 		log.Fatalf("[INIT] error connecting to the client: %v", err)
 		os.Exit(1)
 	}
+	userAgentInfo = getUserAgentInfo()
 	td := &teem.TeemsData{
 		CisVersion:      version,
 		Agent:           *agent,
 		PoolMemberType:  *poolMemberType,
-		PlatformInfo:    getUserAgentInfo(),
+		PlatformInfo:    userAgentInfo,
 		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
 		AccessEnabled:   true,
 		ResourceType: teem.ResourceTypes{
@@ -966,18 +950,7 @@ func main() {
 		},
 	}
 	if !(*disableTeems) {
-		if isNodePort {
-			td.SDNType = "nodeport-mode"
-		} else {
-			if len(*openshiftSDNName) > 0 {
-				td.SDNType = "openshiftSDN"
-			} else if len(*flannelName) > 0 {
-				td.SDNType = "flannel"
-			} else {
-				td.SDNType = "calico"
-			}
-		}
-
+		td.SDNType = getSDNType(config)
 		// Post telemetry data request
 		//if !td.PostTeemsData() {
 		//	td.AccessEnabled = false
@@ -1016,7 +989,7 @@ func main() {
 	}
 	// When CIS configured in OCP cluster mode disable ARP in globalSection
 	disableARP := false
-	if *openshiftSDNName != "" {
+	if *openshiftSDNName != "" || *staticRoutingMode == true {
 		disableARP = true
 	}
 
@@ -1066,11 +1039,11 @@ func main() {
 	}
 
 	agRspChan = make(chan interface{}, 1)
-	var appMgrParms = getAppManagerParams()
+	appMgrParms := getAppManagerParams()
 
 	// creates the clientset
 	appMgrParms.KubeClient = kubeClient
-	if *manageRoutes {
+	if *manageRoutes && *controllerMode == "" {
 		var rclient *routeclient.RouteV1Client
 		rclient, err = routeclient.NewForConfig(config)
 		if nil != err {
@@ -1106,16 +1079,6 @@ func main() {
 	}
 	appMgr.TeemData = td
 	GetNamespaces(appMgr)
-	intervalFactor := time.Duration(*nodePollInterval)
-	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
-	if nil != err {
-		log.Fatalf("Required polling utility for node updates failed setup: %v",
-			err)
-	}
-
-	np.Run()
-	defer np.Stop()
 
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
@@ -1125,7 +1088,7 @@ func main() {
 		SubPID: subPid,
 	}
 	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics()
+	bigIPPrometheus.RegisterMetrics(*httpClientMetrics)
 	go func() {
 		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
 	}()
@@ -1188,6 +1151,12 @@ func getAppManagerParams() appmanager.Params {
 		DefaultRouteDomain:     *defaultRouteDomain,
 		PoolMemberType:         *poolMemberType,
 		Agent:                  *agent,
+		VXLANMode:              vxlanMode,
+		VXLANName:              vxlanName,
+		EventChan:              eventChan,
+		ConfigWriter:           getConfigWriter(),
+		StaticRoutingMode:      *staticRoutingMode,
+		OrchestrationCNI:       *orchestrationCNI,
 	}
 }
 
@@ -1221,11 +1190,12 @@ func getAS3Params() *as3.Params {
 		LogResponse:               *logAS3Response,
 		ShareNodes:                *shareNodes,
 		RspChan:                   agRspChan,
-		UserAgent:                 getUserAgentInfo(),
+		UserAgent:                 userAgentInfo,
 		ConfigWriter:              getConfigWriter(),
 		EventChan:                 eventChan,
 		DefaultRouteDomain:        *defaultRouteDomain,
 		PoolMemberType:            *poolMemberType,
+		HTTPClientMetrics:         *httpClientMetrics,
 	}
 }
 
@@ -1233,7 +1203,7 @@ func getCCCLParams() *cccl.Params {
 	return &cccl.Params{
 		ConfigWriter: getConfigWriter(),
 		EventChan:    eventChan,
-		//ToDo: Remove this post 2.2 release
+		// ToDo: Remove this post 2.2 release
 		BIGIPUsername: *bigIPUsername,
 		BIGIPPassword: *bigIPPassword,
 		BIGIPURL:      *bigIPURL,
@@ -1354,4 +1324,39 @@ func getUserAgentInfo() string {
 	}
 	log.Warningf("Unable to fetch user agent details. %v", err)
 	return fmt.Sprintf("CIS/v%v", version)
+}
+
+func getSDNType(config *rest.Config) string {
+	var sdnType string
+	if isNodePort {
+		sdnType = "nodeport-mode"
+	} else {
+		if len(*openshiftSDNName) > 0 {
+			rconfigclient, err := configclient.NewForConfig(config)
+			if nil != err {
+				log.Errorf("unable to create route config client: err: %+v\n", err)
+				return "openshiftSDN"
+			}
+			sdnType = setSDNTypeForOpenshift(rconfigclient)
+		} else if len(*flannelName) > 0 {
+			sdnType = "flannel"
+		} else {
+			sdnType = "other"
+		}
+	}
+	return sdnType
+}
+
+func setSDNTypeForOpenshift(rconfigclient *configclient.ConfigV1Client) string {
+	networks, err := rconfigclient.Networks().List(context.TODO(), metav1.ListOptions{})
+	if nil != err {
+		log.Errorf("unable to list networks: err: %+v\n", err)
+	}
+	if len(networks.Items) > 0 {
+		// Putting the first item in the network list
+		if strings.ToLower(networks.Items[0].Status.NetworkType) != "openshiftsdn" {
+			return networks.Items[0].Status.NetworkType
+		}
+	}
+	return "openshiftSDN"
 }

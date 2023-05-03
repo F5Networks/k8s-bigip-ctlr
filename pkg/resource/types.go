@@ -49,7 +49,7 @@ type (
 		ArpEnabled         bool   `json:"arpEnabled,omitempty"`
 		ICMPEcho           string `json:"icmpEcho,omitempty"`
 		RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
-		TrafficGroup       string `json:"trafficGroup,omitempty,omitempty"`
+		TrafficGroup       string `json:"trafficGroup,omitempty"`
 		SpanningEnabled    bool   `json:"spanningEnabled,omitempty"`
 	}
 
@@ -83,19 +83,20 @@ type (
 
 	// Virtual server config
 	Virtual struct {
-		Name                  string                `json:"name"`
-		PoolName              string                `json:"pool,omitempty"`
-		Partition             string                `json:"-"`
-		Destination           string                `json:"destination"`
-		Enabled               bool                  `json:"enabled"`
-		IpProtocol            string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		Policies              []NameRef             `json:"policies,omitempty"`
-		IRules                []string              `json:"rules,omitempty"`
-		Profiles              ProfileRefs           `json:"profiles,omitempty"`
-		Description           string                `json:"description,omitempty"`
-		VirtualAddress        *VirtualAddress       `json:"-"`
-		Mask                  string                `json:"mask,omitempty"`
+		Name                   string                `json:"name"`
+		PoolName               string                `json:"pool,omitempty"`
+		Partition              string                `json:"-"`
+		Destination            string                `json:"destination"`
+		Enabled                bool                  `json:"enabled"`
+		IpProtocol             string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation  SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		Policies               []NameRef             `json:"policies,omitempty"`
+		IRules                 []string              `json:"rules,omitempty"`
+		Profiles               ProfileRefs           `json:"profiles,omitempty"`
+		Description            string                `json:"description,omitempty"`
+		VirtualAddress         *VirtualAddress       `json:"-"`
+		Mask                   string                `json:"mask,omitempty"`
+		TranslateServerAddress string                `json:"translateAddress,omitempty"`
 	}
 	Virtuals []Virtual
 
@@ -104,7 +105,7 @@ type (
 		Name                string                    `json:"name"`
 		Partition           string                    `json:"-"`
 		IApp                string                    `json:"template"`
-		IAppPoolMemberTable *iappPoolMemberTable      `json:"poolMemberTable,omitempty"`
+		IAppPoolMemberTable *IappPoolMemberTable      `json:"poolMemberTable,omitempty"`
 		IAppOptions         map[string]string         `json:"options,omitempty"`
 		IAppTables          map[string]iappTableEntry `json:"tables,omitempty"`
 		IAppVariables       map[string]string         `json:"variables,omitempty"`
@@ -132,13 +133,14 @@ type (
 
 	// Pool health monitor
 	Monitor struct {
-		Name      string `json:"name"`
-		Partition string `json:"-"`
-		Interval  int    `json:"interval,omitempty"`
-		Type      string `json:"type,omitempty"`
-		Send      string `json:"send,omitempty"`
-		Recv      string `json:"recv,omitempty"`
-		Timeout   int    `json:"timeout,omitempty"`
+		Name       string `json:"name"`
+		Partition  string `json:"-"`
+		Interval   int    `json:"interval,omitempty"`
+		Type       string `json:"type,omitempty"`
+		Send       string `json:"send,omitempty"`
+		Recv       string `json:"recv,omitempty"`
+		Timeout    int    `json:"timeout,omitempty"`
+		SslProfile string `json:"sslProfile,omitempty"`
 	}
 	Monitors []Monitor
 
@@ -241,7 +243,7 @@ type (
 	}
 
 	// frontend pool member table
-	iappPoolMemberTable struct {
+	IappPoolMemberTable struct {
 		Name    string                 `json:"name"`
 		Columns []iappPoolMemberColumn `json:"columns"`
 		Members []Member               `json:"members,omitempty"`
@@ -313,7 +315,7 @@ type (
 
 		// iApp parameters
 		IApp                string                    `json:"iapp,omitempty"`
-		IAppPoolMemberTable *iappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
+		IAppPoolMemberTable *IappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
 		IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
 		IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
 		IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
@@ -322,12 +324,13 @@ type (
 	// This is the format for each item in the health monitor annotation used
 	// in the Ingress and Route objects.
 	AnnotationHealthMonitor struct {
-		Path     string `json:"path"`
-		Interval int    `json:"interval"`
-		Send     string `json:"send"`
-		Recv     string `json:"recv"`
-		Timeout  int    `json:"timeout"`
-		Type     string `json:"type"`
+		Path       string `json:"path"`
+		Interval   int    `json:"interval"`
+		Send       string `json:"send"`
+		Recv       string `json:"recv"`
+		Timeout    int    `json:"timeout"`
+		Type       string `json:"type"`
+		SslProfile string `json:"sslProfile"`
 	}
 	AnnotationHealthMonitors []AnnotationHealthMonitor
 
@@ -420,8 +423,8 @@ type (
 	}
 
 	AgentResources struct {
-		RsMap  ResourceConfigMap
-		RsCfgs ResourceConfigs
+		RsMap      ResourceConfigMap
+		Partitions map[string]struct{}
 	}
 
 	ResourceRequest struct {
@@ -516,6 +519,7 @@ const F5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const F5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const F5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
 const DefaultSslServerCAName = "openshift_route_cluster_default-ca"
+const F5VSTranslateServerAddress = "virtual-server.f5.com/translate-server-address"
 const F5VsWAFPolicy = "virtual-server.f5.com/waf"
 const OprTypeCreate = "create"
 const OprTypeUpdate = "update"

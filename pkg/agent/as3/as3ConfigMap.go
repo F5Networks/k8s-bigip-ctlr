@@ -3,17 +3,12 @@ package as3
 import (
 	"encoding/json"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 // cfgMap States
 const (
-	cmInit = iota + 1
-	cmActive
-	cmError
-	cmDeletePending
-
 	F5TypeLabel      = "f5type"
 	VSLabel          = "virtual-server"
 	TrueLabel        = "true"
@@ -89,6 +84,7 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			cfgmap := &AS3ConfigMap{
 				Name:      rscCfgMap.Name,
 				Namespace: rscCfgMap.Namespace,
+				Validated: true,
 			}
 			rscCfgMap.Data = am.getTenantObjects(tenants)
 			tenantMap, endPoints := am.processCfgMap(rscCfgMap)

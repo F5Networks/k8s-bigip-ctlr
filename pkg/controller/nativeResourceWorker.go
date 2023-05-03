@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -10,213 +11,21 @@ import (
 	"sync"
 	"time"
 
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	routeapi "github.com/openshift/api/route/v1"
 
 	"reflect"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
-
-// nativeResourceWorker starts the Custom Resource Worker.
-func (ctlr *Controller) nativeResourceWorker() {
-	log.Debugf("Starting Native Resource Worker")
-	ctlr.setInitialServiceCount()
-	ctlr.processGlobalExtendedRouteConfig()
-	for ctlr.processNativeResource() {
-	}
-}
-
-// processNativeResource gets resources from the nativeResourceQueue and processes the resource
-// depending  on its kind.
-func (ctlr *Controller) processNativeResource() bool {
-	key, quit := ctlr.nativeResourceQueue.Get()
-	if quit {
-		// The controller is shutting down.
-		log.Debugf("Resource Queue is empty, Going to StandBy Mode")
-		return false
-	}
-	var isRetryableError bool
-
-	defer ctlr.nativeResourceQueue.Done(key)
-	rKey := key.(*rqKey)
-	log.Debugf("Processing Key: %v", rKey)
-
-	// During Init time, just accumulate all the poolMembers by processing only services
-	if ctlr.initState && rKey.kind != Namespace {
-		if rKey.kind != Service {
-			ctlr.nativeResourceQueue.AddRateLimited(key)
-			return true
-		}
-		ctlr.initialSvcCount--
-		if ctlr.initialSvcCount <= 0 {
-			ctlr.initState = false
-		}
-	}
-
-	rscDelete := false
-	if rKey.event == Delete {
-		rscDelete = true
-	}
-
-	// Check the type of resource and process accordingly.
-	switch rKey.kind {
-
-	case Route:
-		route := rKey.rsc.(*routeapi.Route)
-		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
-		// so should not trigger delete from here
-		if rKey.event == Create {
-			if _, ok := ctlr.resources.processedNativeResources[resourceRef{
-				kind:      Route,
-				name:      route.Name,
-				namespace: route.Namespace,
-			}]; ok {
-				break
-			}
-		}
-
-		if rscDelete {
-			delete(ctlr.resources.processedNativeResources, resourceRef{
-				kind:      Route,
-				namespace: route.Namespace,
-				name:      route.Name,
-			})
-			// Delete the route entry from hostPath Map
-			ctlr.deleteHostPathMapEntry(route)
-		}
-		if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[route.Namespace]; ok {
-			err := ctlr.processRoutes(routeGroup, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-		}
-
-	case ConfigMap:
-		cm := rKey.rsc.(*v1.ConfigMap)
-		err, ok := ctlr.processConfigMap(cm, rscDelete)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-			break
-		}
-
-		if !ok {
-			isRetryableError = true
-		}
-
-	case Service:
-		svc := rKey.rsc.(*v1.Service)
-
-		_ = ctlr.processService(svc, nil, rscDelete)
-
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-			break
-		}
-		if ctlr.initState {
-			break
-		}
-		ctlr.updatePoolMembersForRoutes(svc.Namespace)
-	case Endpoints:
-		ep := rKey.rsc.(*v1.Endpoints)
-		svc := ctlr.getServiceForEndpoints(ep)
-		// No Services are effected with the change in service.
-		if nil == svc {
-			break
-		}
-
-		_ = ctlr.processService(svc, ep, rscDelete)
-
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-			break
-		}
-		ctlr.updatePoolMembersForRoutes(svc.Namespace)
-
-	case Namespace:
-		ns := rKey.rsc.(*v1.Namespace)
-		nsName := ns.ObjectMeta.Name
-		var triggerDelete bool
-		if rscDelete {
-			// TODO: Delete all the resource configs from the store
-			if nrInf, ok := ctlr.nrInformers[nsName]; ok {
-				nrInf.stop()
-				delete(ctlr.nrInformers, nsName)
-			}
-			if esInf, ok := ctlr.esInformers[nsName]; ok {
-				esInf.stop()
-				delete(ctlr.esInformers, nsName)
-			}
-			ctlr.namespacesMutex.Lock()
-			delete(ctlr.namespaces, nsName)
-			ctlr.namespacesMutex.Unlock()
-			log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
-			triggerDelete = true
-		} else {
-			ctlr.namespacesMutex.Lock()
-			ctlr.namespaces[nsName] = true
-			ctlr.namespacesMutex.Unlock()
-			_ = ctlr.addNamespacedInformers(nsName, true)
-			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
-		}
-		if ctlr.namespaceLabelMode {
-			ctlr.processGlobalExtendedRouteConfig()
-		} else {
-			if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
-				_ = ctlr.processRoutes(routeGroup, triggerDelete)
-			}
-		}
-	default:
-		log.Errorf("Unknown resource Kind: %v", rKey.kind)
-	}
-	if isRetryableError {
-		ctlr.nativeResourceQueue.AddRateLimited(key)
-	} else {
-		ctlr.nativeResourceQueue.Forget(key)
-	}
-
-	if ctlr.nativeResourceQueue.Len() == 0 {
-		ctlr.postResourceConfigRequest()
-	}
-	return true
-}
-
-func (ctlr *Controller) postResourceConfigRequest() {
-	if ctlr.resources.isConfigUpdated() {
-		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
-			shareNodes:         ctlr.shareNodes,
-			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
-			defaultRouteDomain: ctlr.defaultRouteDomain,
-		}
-		go ctlr.TeemData.PostTeemsData()
-		config.reqId = ctlr.enqueueReq(config)
-		ctlr.Agent.PostConfig(config)
-		ctlr.initState = false
-		ctlr.resources.updateCaches()
-	}
-
-}
 
 func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) error {
 	startTime := time.Now()
@@ -225,23 +34,46 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		log.Debugf("Finished syncing RouteGroup/Namespace %v (%v)",
 			routeGroup, endTime.Sub(startTime))
 	}()
-
-	extdSpec, partition := ctlr.resources.getExtendedRouteSpec(routeGroup)
-
-	if extdSpec == nil {
-		return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+	var extdSpec *ExtendedRouteGroupSpec
+	var partition string
+	if routeGroup == defaultRouteGroupName {
+		defaultrgspec := ctlr.resources.extdSpecMap[routeGroup]
+		extdSpec = defaultrgspec.defaultrg
+		partition = defaultrgspec.partition
+	} else {
+		extdSpec, partition = ctlr.resources.getExtendedRouteSpec(routeGroup)
+		if extdSpec == nil {
+			return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+		}
+	}
+	annotationsUsed := &AnnotationsUsed{}
+	var policySSLProfiles rgPlcSSLProfiles
+	err, plc := ctlr.getRouteGroupPolicy(extdSpec)
+	if err != nil {
+		return err
+	}
+	if plc != nil && len(plc.Spec.Profiles.SSLProfiles.ClientProfiles) > 0 {
+		policySSLProfiles.clientSSLs = plc.Spec.Profiles.SSLProfiles.ClientProfiles
+		policySSLProfiles.serverSSLs = plc.Spec.Profiles.SSLProfiles.ServerProfiles
+		plcName := strings.Split(extdSpec.Policy, "/")
+		if len(plcName) == 2 {
+			policySSLProfiles.plcNamespace = plcName[0]
+			policySSLProfiles.plcName = plcName[1]
+		}
 	}
 
-	routes := ctlr.getGroupedRoutes(routeGroup, extdSpec)
+	routes := ctlr.getGroupedRoutes(routeGroup, annotationsUsed, policySSLProfiles)
 
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
 			rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-			if ctlr.getVirtualServer(partition, rsName) != nil {
+			vs := ctlr.getVirtualServer(partition, rsName)
+			if vs != nil {
 				log.Debugf("Removing virtual %v belongs to RouteGroup: %v",
 					rsName, routeGroup)
 				ctlr.deleteVirtualServer(partition, rsName)
+				ctlr.ProcessRouteEDNS(vs.MetaData.hosts)
 			}
 		}
 		return nil
@@ -274,13 +106,15 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-		if extdSpec.AllowSourceRange != nil {
-			rsCfg.Virtual.AllowSourceRange = make([]string, len(extdSpec.AllowSourceRange))
-			copy(rsCfg.Virtual.AllowSourceRange, extdSpec.AllowSourceRange)
+		if rsCfg.MetaData.Protocol == "http" {
+			// for unsecured vs, disable mrf router always
+			enabled := false
+			rsCfg.Virtual.HttpMrfRoutingEnabled = &enabled
 		}
+
 		// deletion ; update /health /app/path1
 
-		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec)
+		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, plc, annotationsUsed, extdSpec.AllowOverride)
 
 		if err != nil {
 			processingError = true
@@ -301,7 +135,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 			if isSecureRoute(rt) {
 				//TLS Logic
-				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, extdSpec)
+				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, policySSLProfiles)
 				if !processed {
 					// Processing failed
 					// Stop processing further routes
@@ -318,7 +152,11 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				name:      rt.Name,
 			}] = struct{}{}
 		}
-		ctlr.removeUnusedHealthMonitors(rsCfg)
+
+		// Add default WAF disable rule if WAF annotation is used
+		if annotationsUsed.WAF && rsCfg.Virtual.WAF == "" {
+			ctlr.addDefaultWAFDisableRule(rsCfg, "openshift_route_waf_disable")
+		}
 
 		if processingError {
 			log.Errorf("Unable to Process Route Group %s", routeGroup)
@@ -337,34 +175,57 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 
 	if !processingError {
+		var hosts []string
 		for name, rscfg := range vsMap {
 			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 			rsMap[name] = rscfg
+
+			if len(rscfg.MetaData.hosts) > 0 {
+				hosts = rscfg.MetaData.hosts
+			}
 		}
+		ctlr.ProcessRouteEDNS(hosts)
 	}
 
 	return nil
 }
 
-func (ctlr *Controller) removeUnusedHealthMonitors(rsCfg *ResourceConfig) {
-	monitorLen := len(rsCfg.Monitors)
-	i := 0
-	for i < monitorLen {
-		if !rsCfg.Monitors[i].InUse {
-			log.Warningf("Discarding monitor %v with path %v as it is unused", rsCfg.Monitors[i].Name, rsCfg.Monitors[i].Path)
-			if i == len(rsCfg.Monitors)-1 {
-				rsCfg.Monitors = rsCfg.Monitors[:i]
-			} else {
-				rsCfg.Monitors = append(rsCfg.Monitors[:i], rsCfg.Monitors[i+1:]...)
+// addDefaultWAFDisableRule adds WAF disable action for rules without WAF and a default WAF disable rule
+func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig, wafDisableRuleName string) {
+	enabled := false
+	wafDisableAction := &action{
+		WAF:     true,
+		Enabled: &enabled,
+	}
+	wafDropAction := &action{
+		Drop:    true,
+		Request: true,
+	}
+	wafDisableRule := &Rule{
+		Name:    wafDisableRuleName,
+		Actions: []*action{wafDropAction, wafDisableAction},
+	}
+	for index, pol := range rsCfg.Policies {
+		for _, rule := range pol.Rules {
+			isRuleWithWAF := false
+			for _, action := range rule.Actions {
+				if action.WAF {
+					isRuleWithWAF = true
+					break
+				}
 			}
-			monitorLen -= 1
-		} else {
-			i++
+			// Add a default WAF disable action to all non-WAF rules
+			if !isRuleWithWAF {
+				rule.Actions = append(rule.Actions, wafDisableAction)
+			}
 		}
+		// BigIP requires a default WAF disable rule doesn't require WAF
+		rsCfg.Policies[index].Rules = append(rsCfg.Policies[index].Rules, wafDisableRule)
 	}
 }
 
-func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRouteGroupSpec) []*routeapi.Route {
+func (ctlr *Controller) getGroupedRoutes(routeGroup string,
+	annotationsUsed *AnnotationsUsed, policySSLProfiles rgPlcSSLProfiles) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
 	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
@@ -374,7 +235,7 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRo
 		ctlr.TeemData.Unlock()
 		for _, route := range orderedRoutes {
 			// TODO: add combinations for a/b - svc weight ; valid svcs or not
-			if ctlr.checkValidRoute(route, extdSpec) {
+			if ctlr.checkValidRoute(route, policySSLProfiles) {
 				var key string
 				if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
 					key = route.Spec.Host + "/"
@@ -383,39 +244,62 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRo
 				}
 				ctlr.updateHostPathMap(route.ObjectMeta.CreationTimestamp, key)
 				assocRoutes = append(assocRoutes, route)
+				if _, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
+					annotationsUsed.WAF = true
+				}
+				if _, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]; ok {
+					annotationsUsed.AllowSourceRange = true
+				}
 			}
 		}
 	}
 	return assocRoutes
 }
 
-func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extdSpec *ExtendedRouteGroupSpec) error {
-	if extdSpec.SNAT == "" {
-		rsCfg.Virtual.SNAT = DEFAULT_SNAT
-	} else {
-		rsCfg.Virtual.SNAT = extdSpec.SNAT
-	}
-	rsCfg.Virtual.WAF = extdSpec.WAF
-	rsCfg.Virtual.IRules = extdSpec.IRules
-
-	for _, hm := range extdSpec.HealthMonitors {
-		if hm.Type == "" {
-			hm.Type = "http"
+func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
+	au *AnnotationsUsed, allowOverride string) error {
+	if plc != nil {
+		err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+		if err != nil {
+			return err
 		}
-		rsCfg.Monitors = append(
-			rsCfg.Monitors,
-			Monitor{
-				Name:      AS3NameFormatter(hm.Path) + "_monitor",
-				Partition: rsCfg.Virtual.Partition,
-				Interval:  hm.Interval,
-				Type:      hm.Type,
-				Send:      hm.Send,
-				Recv:      hm.Recv,
-				Timeout:   hm.Timeout,
-				Path:      hm.Path,
-			})
+
+		// If allowOverride is true and routes use WAF annotation then WAF specified in policy CR is deprioritized
+		if allowOverride, err := strconv.ParseBool(allowOverride); err == nil && allowOverride && au.WAF {
+			rsCfg.Virtual.WAF = ""
+		}
+
+		// If allowOverride is true and routes use allow-source-range annotation then allow-source-range specified
+		// in policy CR is deprioritized
+		if allowOverride, err := strconv.ParseBool(allowOverride); err == nil && allowOverride &&
+			au.AllowSourceRange {
+			rsCfg.Virtual.AllowSourceRange = nil
+		}
 	}
 	return nil
+}
+
+func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (error, *cisapiv1.Policy) {
+	policy := extdSpec.Policy
+	if policy != "" {
+		splits := strings.Split(policy, "/")
+		policyNamespace := splits[0]
+		comInf, ok := ctlr.getNamespacedCommonInformer(policyNamespace)
+		if !ok {
+			return fmt.Errorf("Informer not found for namespace: %v", policyNamespace), nil
+		}
+		obj, exist, err := comInf.plcInformer.GetIndexer().GetByKey(policy)
+		if err != nil {
+			return fmt.Errorf("Error while fetching Policy: %v: %v", policy, err), nil
+		}
+		if !exist {
+			return fmt.Errorf("Policy Not Found: %v", policy), nil
+		}
+		plc := obj.(*cisapiv1.Policy)
+		return nil, plc
+	}
+	return nil, nil
+
 }
 
 // gets the target port for the route
@@ -427,7 +311,7 @@ func (ctlr *Controller) getServicePort(
 	log.Debugf("Finding port for route %v", route.Name)
 	var err error
 	var port int32
-	nrInf, ok := ctlr.getNamespacedEssentialInformer(route.Namespace)
+	nrInf, ok := ctlr.getNamespacedCommonInformer(route.Namespace)
 	if !ok {
 		return fmt.Errorf("Informer not found for namespace: %v", route.Namespace), port
 	}
@@ -471,6 +355,28 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, route.Spec.Host)
 
+	// Use default SNAT if not provided by user
+	if rsCfg.Virtual.SNAT == "" {
+		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	}
+
+	// If not using WAF from policy CR, use WAF from route annotations
+	wafPolicy := ""
+	if rsCfg.Virtual.WAF == "" {
+		wafPolicy, _ = route.Annotations[resource.F5VsWAFPolicy]
+	}
+
+	// If not using AllowSourceRange from policy CR, use it from route annotations
+	var allowSourceRange []string
+	if rsCfg.Virtual.AllowSourceRange == nil {
+		sourceRange, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]
+		if ok {
+			allowSourceRange = resource.ParseWhitelistSourceRangeAnnotations(sourceRange)
+		}
+	} else {
+		allowSourceRange = rsCfg.Virtual.AllowSourceRange
+	}
+
 	backendSvcs := GetRouteBackends(route)
 
 	for _, bs := range backendSvcs {
@@ -490,67 +396,131 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 		}
 
-		for index, monitor := range rsCfg.Monitors {
-			if strings.HasPrefix(monitor.Path, route.Spec.Host+route.Spec.Path) {
-				// Remove unused health monitors
-				rsCfg.Monitors[index].InUse = true
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
-				break
+		// Handle Route health monitors
+		hmStr, exists := route.ObjectMeta.Annotations[LegacyHealthMonitorAnnotation]
+		if exists {
+			var monitors Monitors
+			err := json.Unmarshal([]byte(hmStr), &monitors)
+			if err != nil {
+				log.Errorf("Unable to parse health monitor JSON array '%v': %v",
+					hmStr, err)
+			} else {
+				for _, hm := range monitors {
+					if hm.Type == "" {
+						hm.Type = "http"
+					}
+					monitor := Monitor{
+						Name:       pool.Name + "_monitor",
+						Partition:  rsCfg.Virtual.Partition,
+						Interval:   hm.Interval,
+						Type:       hm.Type,
+						Send:       hm.Send,
+						Recv:       hm.Recv,
+						Timeout:    hm.Timeout,
+						Path:       hm.Path,
+						TargetPort: hm.TargetPort,
+					}
+					rsCfg.Monitors = append(
+						rsCfg.Monitors,
+						monitor,
+					)
+					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
+				}
+			}
+		} else {
+			// Skip NPL Annotation check on service
+			svcPods := ctlr.GetPodsForService(route.Namespace, bs.Name, false)
+
+			if svcPods != nil && len(svcPods) > 0 {
+				port := pool.ServicePort.IntVal
+				pod := svcPods[0]
+
+			out:
+				for _, container := range pod.Spec.Containers {
+					if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
+						continue
+					}
+					for _, cPort := range container.Ports {
+						if cPort.ContainerPort == port {
+							var scheme v1.URIScheme
+							switch container.LivenessProbe.HTTPGet.Scheme {
+							case v1.URISchemeHTTPS:
+								scheme = v1.URISchemeHTTPS
+							case v1.URISchemeHTTP:
+								scheme = v1.URISchemeHTTP
+							default:
+								scheme = v1.URISchemeHTTP
+							}
+
+							monitor := Monitor{
+								Name:      pool.Name + "_monitor",
+								Partition: rsCfg.Virtual.Partition,
+								Interval:  int(container.LivenessProbe.PeriodSeconds),
+								Type:      strings.ToLower(string(scheme)),
+								Send:      "GET /\r\n",
+								Recv:      "",
+								Timeout:   int(container.LivenessProbe.TimeoutSeconds),
+								Path:      container.LivenessProbe.HTTPGet.Path,
+							}
+							rsCfg.Monitors = append(
+								rsCfg.Monitors,
+								monitor,
+							)
+							pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
+							break out
+						}
+					}
+				}
 			}
 		}
-
 		rsCfg.Pools = append(rsCfg.Pools, pool)
-		// skip the policy creation for passthrough termination
-		// skip the policy creation for A/B Deployment
-		if !isPassthroughRoute(route) && !IsRouteABDeployment(route) {
-			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange)
-			if rules == nil {
-				return fmt.Errorf("failed to create LTM Rules")
-			}
-
-			policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
-
-			rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
-		}
 	}
-
+	poolName := formatPoolName(
+		route.Namespace,
+		route.Spec.To.Name,
+		servicePort,
+		"",
+		"",
+	)
+	// skip the policy creation for passthrough termination
+	if !isPassthroughRoute(route) {
+		var rules *Rules
+		if isRouteABDeployment(route) {
+			rules = ctlr.prepareABRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
+		} else {
+			rules = ctlr.prepareRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
+		}
+		if rules == nil {
+			return fmt.Errorf("failed to create LTM Rules")
+		}
+		policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
+		rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
+	}
 	return nil
 }
 
-// prepareRouteLTMRules prepares LTM Policy rules for VirtualServer
-func (ctlr *Controller) prepareRouteLTMRules(
+func (ctlr *Controller) prepareABRouteLTMRules(
 	route *routeapi.Route,
 	poolName string,
 	allowSourceRange []string,
+	wafPolicy string,
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
-
+	var redirects []*Rule
 	uri := route.Spec.Host + route.Spec.Path
 	path := route.Spec.Path
-
+	appRoot := "/"
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
-
-	rl, err := createRule(uri, poolName, ruleName, allowSourceRange)
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy, true)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil
 	}
 
-	if rewritePath, ok := route.Annotations[string(URLRewriteAnnotation)]; ok {
-		rewriteActions, err := getRewriteActions(
-			path,
-			rewritePath,
-			len(rl.Actions),
-		)
-		if nil != err {
-			log.Errorf("Error configuring rule: %v", err)
-			return nil
-		}
-		rl.Actions = append(rl.Actions, rewriteActions...)
-	}
-
-	if strings.HasPrefix(uri, "*.") == true {
+	if route.Spec.Path == appRoot || route.Spec.Path == "" {
+		redirects = append(redirects, rl)
+	} else if strings.HasPrefix(uri, "*.") == true {
 		wildcards[uri] = rl
 	} else {
 		rlMap[uri] = rl
@@ -581,11 +551,261 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	rls = append(rls, w...)
 	sort.Sort(rls)
-
+	rls = append(redirects, rls...)
 	return &rls
 }
 
-func (ctlr *Controller) updatePoolMembersForRoutes(namespace string) {
+// prepareRouteLTMRules prepares LTM Policy rules for VirtualServer
+func (ctlr *Controller) prepareRouteLTMRules(
+	route *routeapi.Route,
+	poolName string,
+	allowSourceRange []string,
+	wafPolicy string,
+) *Rules {
+	rlMap := make(ruleMap)
+	wildcards := make(ruleMap)
+	var redirects []*Rule
+	uri := route.Spec.Host + route.Spec.Path
+	path := route.Spec.Path
+	appRoot := "/"
+	// Handle app-root annotation
+	appRootPath, appRootOk := route.Annotations[resource.F5VsAppRootAnnotation]
+	if appRootOk {
+		ruleName := formatVirtualServerRuleName(route.Spec.Host, "", "redirectto", appRootPath)
+		rl, err := createRedirectRule(route.Spec.Host+appRoot, appRootPath, ruleName, allowSourceRange)
+		if nil != err {
+			log.Errorf("Error configuring redirect rule: %v", err)
+			return nil
+		}
+		redirects = append(redirects, rl)
+		if path == appRoot || path == "" {
+			uri = route.Spec.Host + appRootPath
+			path = appRootPath
+		}
+	}
+
+	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy, false)
+	if nil != err {
+		log.Errorf("Error configuring rule: %v", err)
+		return nil
+	}
+
+	// Handle url-rewrite annotation
+	if rewritePath, ok := route.Annotations[resource.F5VsURLRewriteAnnotation]; ok {
+		rewriteActions, err := getRewriteActions(
+			path,
+			rewritePath,
+			len(rl.Actions),
+		)
+		if nil != err {
+			log.Errorf("Error configuring rule: %v", err)
+			return nil
+		}
+		rl.Actions = append(rl.Actions, rewriteActions...)
+	}
+
+	if route.Spec.Path == appRoot || route.Spec.Path == "" {
+		redirects = append(redirects, rl)
+	} else if strings.HasPrefix(uri, "*.") == true {
+		wildcards[uri] = rl
+	} else {
+		rlMap[uri] = rl
+	}
+
+	if appRootOk && len(redirects) != 2 {
+		log.Error("AppRoot path not found for rewriting")
+		return nil
+	}
+
+	if rlMap[route.Spec.Host] == nil && len(redirects) == 2 {
+		rl := &Rule{
+			Name:    formatVirtualServerRuleName(route.Spec.Host, route.Namespace, "", redirects[1].Actions[0].Pool),
+			FullURI: route.Spec.Host,
+			Actions: redirects[1].Actions,
+			Conditions: []*condition{
+				redirects[1].Conditions[0],
+			},
+		}
+		redirects = append(redirects, rl)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	sortrules := func(r ruleMap, rls *Rules, ordinal int) {
+		for _, v := range r {
+			*rls = append(*rls, v)
+		}
+		//sort.Sort(sort.Reverse(*rls))
+		for _, v := range *rls {
+			v.Ordinal = ordinal
+			ordinal++
+		}
+		wg.Done()
+	}
+
+	rls := Rules{}
+	go sortrules(rlMap, &rls, 0)
+
+	w := Rules{}
+	go sortrules(wildcards, &w, len(rlMap))
+
+	wg.Wait()
+
+	rls = append(rls, w...)
+	sort.Sort(rls)
+	rls = append(redirects, rls...)
+	return &rls
+}
+
+func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg *ResourceConfig) {
+
+	//Get routes for service
+	route := ctlr.GetServiceRouteWithoutHealthAnnotation(service)
+	if route == nil {
+		return
+	}
+
+	err, port := ctlr.getServicePort(route)
+	if err != nil {
+		return
+	}
+	servicePort := intstr.IntOrString{IntVal: port}
+	poolName := formatPoolName(
+		service.Namespace,
+		service.Name,
+		servicePort,
+		"",
+		"",
+	)
+	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
+	if svcPods != nil && len(svcPods) > 0 {
+		//Pick any one of the pod
+		pod := svcPods[0]
+
+		var podMonitor Monitor
+	out:
+		for _, container := range pod.Spec.Containers {
+			for _, cPort := range container.Ports {
+				if cPort.ContainerPort == servicePort.IntVal {
+					if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
+						break out
+					} else {
+						var scheme v1.URIScheme
+						switch container.LivenessProbe.HTTPGet.Scheme {
+						case v1.URISchemeHTTPS:
+							scheme = v1.URISchemeHTTPS
+						case v1.URISchemeHTTP:
+							scheme = v1.URISchemeHTTP
+						default:
+							scheme = v1.URISchemeHTTP
+						}
+
+						podMonitor = Monitor{
+							Name:      poolName + "_monitor",
+							Partition: freshRsCfg.Virtual.Partition,
+							Interval:  int(container.LivenessProbe.PeriodSeconds),
+							Type:      strings.ToLower(string(scheme)),
+							Send:      "GET /\r\n",
+							Recv:      "",
+							Timeout:   int(container.LivenessProbe.TimeoutSeconds),
+							Path:      container.LivenessProbe.HTTPGet.Path,
+						}
+
+						break out
+					}
+				}
+			}
+		}
+
+		for monitorInd, mon := range freshRsCfg.Monitors {
+			if mon.Name == poolName+"_monitor" {
+				//If liveness spec is not modified, return
+				if reflect.DeepEqual(mon, podMonitor) {
+					return
+				} else {
+					//If liveness spec is modified/removed, remove the monitor from the config
+					if len(freshRsCfg.Monitors) == 1 {
+						freshRsCfg.Monitors = make([]Monitor, 0)
+					} else if monitorInd == len(freshRsCfg.Monitors)-1 {
+						freshRsCfg.Monitors = freshRsCfg.Monitors[:monitorInd]
+					} else if monitorInd == 0 {
+						freshRsCfg.Monitors = freshRsCfg.Monitors[1:]
+					} else {
+						freshRsCfg.Monitors = append(freshRsCfg.Monitors[:monitorInd], freshRsCfg.Monitors[monitorInd+1:]...)
+					}
+				}
+				break
+			}
+		}
+		//Add monitor if LivenessProbe is present in pod
+		if podMonitor != (Monitor{}) {
+			freshRsCfg.Monitors = append(
+				freshRsCfg.Monitors,
+				podMonitor,
+			)
+		}
+
+		for poolInd, pool := range freshRsCfg.Pools {
+			if pool.Name == poolName {
+				for monInd, monitorName := range pool.MonitorNames {
+					if monitorName.Name == poolName+"_monitor" {
+						//If liveness spec is modified/removed,Remove the monitor name from the pool
+						if len(pool.MonitorNames) == 1 {
+							freshRsCfg.Pools[poolInd].MonitorNames = make([]MonitorName, 0)
+						} else if monInd == len(pool.MonitorNames)-1 {
+							freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[:monInd]
+						} else if monInd == 0 {
+							freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[1:]
+						} else {
+							freshRsCfg.Pools[poolInd].MonitorNames = append(pool.MonitorNames[:monInd], pool.MonitorNames[monInd+1:]...)
+						}
+						break
+					}
+				}
+				//Add monitor name to the pool if LivenessProbe is present in pod
+				if podMonitor != (Monitor{}) {
+					freshRsCfg.Pools[poolInd].MonitorNames = append(freshRsCfg.Pools[poolInd].MonitorNames, MonitorName{Name: podMonitor.Name})
+				}
+				break
+			}
+		}
+	}
+}
+
+func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Service) *routeapi.Route {
+	natvInf, ok := ctlr.getNamespacedNativeInformer(service.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", service.Namespace)
+		return nil
+	}
+	routes, _ := natvInf.routeInformer.GetIndexer().ByIndex("namespace", service.Namespace)
+	routeMatched := false
+	for _, obj := range routes {
+		route := obj.(*routeapi.Route)
+		if route.Spec.To.Name == service.Name {
+			routeMatched = true
+		} else {
+			for _, altBEnd := range route.Spec.AlternateBackends {
+				if altBEnd.Name == service.Name {
+					routeMatched = true
+				}
+			}
+		}
+		_, exists := route.ObjectMeta.Annotations[LegacyHealthMonitorAnnotation]
+		//If LegacyHealthMonitorAnnotation annotation found, ignore route
+		if exists && routeMatched {
+			return nil
+		} else if routeMatched {
+			return route
+		}
+	}
+	return nil
+}
+
+func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool) {
+	namespace := svc.Namespace
 	for _, portStruct := range getBasicVirtualPorts() {
 		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
 		if !ok {
@@ -602,12 +822,17 @@ func (ctlr *Controller) updatePoolMembersForRoutes(namespace string) {
 		}
 		freshRsCfg := &ResourceConfig{}
 		freshRsCfg.copyConfig(rsCfg)
+
 		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
 			if ctlr.PoolMemberType == NodePort {
 				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
 			} else {
 				ctlr.updatePoolMembersForCluster(freshRsCfg, ns)
 			}
+		}
+		if updatePoolHealthMon {
+			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
+			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
 		}
 		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
 	}
@@ -640,6 +865,10 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err)
 	}
 	namespace, namespaceLabel := false, false
+	//Either defaultRouteGroup or ExtendedRouteGroupConfigs are allowed
+	if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) && len(es.ExtendedRouteGroupConfigs) > 0 {
+		return fmt.Errorf("can not specify both defaultRouteGroup and ExtendedRouteGroupConfigs in extended configmap %v/%v", cm.Namespace, cm.Name)
+	}
 	for rg := range es.ExtendedRouteGroupConfigs {
 		// ergc needs to be created at every iteration, as we are using address inside this container
 
@@ -651,7 +880,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 		}
 		if len(ergc.NamespaceLabel) > 0 {
 			namespaceLabel = true
-			ctlr.nativeResourceContext.namespaceLabelMode = true
+			ctlr.resourceContext.namespaceLabelMode = true
 		}
 	}
 	if namespace && namespaceLabel {
@@ -695,8 +924,15 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
-		log.Debugf("Finished syncing local extended spec configmap: %v/%v (%v)",
-			cm.Namespace, cm.Name, endTime.Sub(startTime))
+		key := cm.Namespace + string('/') + cm.Name
+		if ctlr.routeSpecCMKey == key {
+			log.Debugf("Finished syncing extended Global spec configmap: %v/%v (%v)",
+				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		} else {
+			log.Debugf("Finished syncing extended local spec configmap: %v/%v (%v)",
+				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		}
+
 	}()
 
 	ersData := cm.Data
@@ -708,12 +944,27 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	}
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
-
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
 
 		// Get the base route config from the Global ConfigMap
 		ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
+		var partition string
+		if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
+			partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
+		} else {
+			partition = ctlr.Partition
+		}
 
+		if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+			newExtdSpecMap[defaultRouteGroupName] = &extendedParsedSpec{
+				override:   false,
+				local:      nil,
+				global:     nil,
+				defaultrg:  &es.BaseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec,
+				namespaces: ctlr.getNamespacesForRouteGroup(defaultRouteGroupName),
+				partition:  partition,
+			}
+		}
 		for rg := range es.ExtendedRouteGroupConfigs {
 			// ergc needs to be created at every iteration, as we are using address inside this container
 
@@ -722,8 +973,9 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			ergc := es.ExtendedRouteGroupConfigs[rg]
 			var allowOverride bool
 
-			if ctlr.namespaceLabelMode {
-				// specifically setting the allow override as false in case of namespaceLabel Mode
+			if ctlr.namespaceLabelMode || len(ergc.AllowOverride) == 0 {
+				// specifically setting allow override as false in case of namespaceLabel Mode
+				// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
 				allowOverride = false
 			} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
 				return fmt.Errorf("invalid allowOverride value in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
@@ -742,7 +994,6 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			} else {
 				partition = ctlr.Partition
 			}
-
 			newExtdSpecMap[routeGroup] = &extendedParsedSpec{
 				override:   allowOverride,
 				local:      nil,
@@ -760,13 +1011,25 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		// Global configmap once gets processed even before processing other native resources
 		if ctlr.initState {
 			ctlr.resources.extdSpecMap = newExtdSpecMap
+			for rg, ergps := range newExtdSpecMap {
+				if !ctlr.namespaceLabelMode && ergps.override {
+					// check for alternative local configmaps (pick latest)
+					// process if one is available
+					localCM := ctlr.getLatestLocalConfigMap(rg)
+					if localCM != nil {
+						err, _ = ctlr.processConfigMap(localCM, false)
+						if err != nil {
+							log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
+						}
+					}
+
+				}
+			}
 			return nil, true
 		}
-
 		deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
 			ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
 		)
-
 		for _, routeGroupKey := range deletedSpecs {
 			_ = ctlr.processRoutes(routeGroupKey, true)
 			if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
@@ -801,6 +1064,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
 			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
 			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
 			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
 			err := ctlr.processRoutes(routeGroupKey, false)
 			if err != nil {
@@ -813,6 +1077,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
 			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
 			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
 			err := ctlr.processRoutes(routeGroupKey, false)
 			if err != nil {
 				log.Errorf("Failed to process RouteGroup: %v with updated extended spec", routeGroupKey)
@@ -825,13 +1090,15 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
 			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
 			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
 			err := ctlr.processRoutes(routeGroupKey, false)
 			if err != nil {
 				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
 			}
 		}
 
-	} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.nativeResourceContext.namespaceLabelMode {
+	} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
+		//local configmap processing.
 		ergc := es.ExtendedRouteGroupConfigs[0]
 		if ergc.Namespace != cm.Namespace {
 			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true
@@ -874,6 +1141,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			// creation event
 			if spec.local == nil {
 				if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
+					if ctlr.initState {
+						spec.local = &ergc.ExtendedRouteGroupSpec
+						return nil, true
+					}
 					if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
 						// Delete existing virtual that was framed with globla config
 						// later build new virtual with local config
@@ -923,7 +1194,8 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 		"DEFAULT",
 		"/Common/f5-default",
 	}
-
+	ctlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
+	ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig = DefaultRouteGroupConfig{}
 	if (baseRouteConfig != BaseRouteConfig{}) {
 		if baseRouteConfig.TLSCipher.TLSVersion != "" {
 			ctlr.resources.baseRouteConfig.TLSCipher.TLSVersion = baseRouteConfig.TLSCipher.TLSVersion
@@ -936,7 +1208,17 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 			ctlr.resources.baseRouteConfig.TLSCipher.CipherGroup = baseRouteConfig.TLSCipher.CipherGroup
 		}
 	}
-
+	if baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) {
+		ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL = baseRouteConfig.DefaultTLS.ClientSSL
+		ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL = baseRouteConfig.DefaultTLS.ServerSSL
+		ctlr.resources.baseRouteConfig.DefaultTLS.Reference = baseRouteConfig.DefaultTLS.Reference
+	}
+	if baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerName = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerName
+		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerAddr = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerAddr
+		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.Policy = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.Policy
+		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.BigIpPartition = baseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
+	}
 }
 
 func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
@@ -1000,17 +1282,38 @@ func getOperationalExtendedConfigMapSpecs(
 			continue
 		}
 		if !reflect.DeepEqual(spec, newMap[routeGroupKey]) {
-			if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override || spec.partition != newSpec.partition {
-				// Update to VServerName or override should trigger delete and recreation of object
-				modifiedSpecs = append(modifiedSpecs, routeGroupKey)
+			if routeGroupKey == defaultRouteGroupName {
+				//handle update to vserverName or partition in defaultRouteGroup
+				if spec.defaultrg.VServerName != newSpec.defaultrg.VServerName || spec.partition != newSpec.partition {
+					// Update to VServerName or override should trigger delete and recreation of object
+					modifiedSpecs = append(modifiedSpecs, routeGroupKey)
+				} else {
+					updatedSpecs = append(updatedSpecs, routeGroupKey)
+					updateMap[routeGroupKey] = true
+				}
 			} else {
-				updatedSpecs = append(updatedSpecs, routeGroupKey)
-				updateMap[routeGroupKey] = true
+				if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override || spec.partition != newSpec.partition {
+					// Update to VServerName or override should trigger delete and recreation of object
+					modifiedSpecs = append(modifiedSpecs, routeGroupKey)
+				} else {
+					updatedSpecs = append(updatedSpecs, routeGroupKey)
+					updateMap[routeGroupKey] = true
+				}
 			}
 		}
 	}
 	for routeGroupKey, spec := range cachedMap {
-		if spec.global.Meta.DependsOnTLSCipher {
+		//check defaultTLS set
+		var checkTLS bool
+		if routeGroupKey == defaultRouteGroupName {
+			checkTLS = spec.defaultrg.Meta.DependsOnTLS
+		} else {
+			checkTLS = spec.global.Meta.DependsOnTLS
+		}
+		if checkTLS {
+			if _, ok := newMap[routeGroupKey]; !ok {
+				continue
+			}
 			if _, ok := updateMap[routeGroupKey]; !ok {
 				updatedSpecs = append(updatedSpecs, routeGroupKey)
 			}
@@ -1220,12 +1523,19 @@ func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 		} else {
 			key = route.Spec.Host + route.Spec.Path
 		}
-		ctlr.processedHostPath.Lock()
+		//ctlr.processedHostPath.Lock()
 		if timestamp, ok := ctlr.processedHostPath.processedHostPathMap[key]; ok && timestamp == route.ObjectMeta.CreationTimestamp {
 			delete(ctlr.processedHostPath.processedHostPathMap, key)
 		}
-		ctlr.processedHostPath.Unlock()
+		//ctlr.processedHostPath.Unlock()
 	}
+}
+
+func (ctlr *Controller) GetHostFromHostPath(hostPath string) string {
+	if strings.Contains(hostPath, "/") {
+		return strings.Split(hostPath, "/")[0]
+	}
+	return hostPath
 }
 
 func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
@@ -1277,7 +1587,7 @@ func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
 	return obj.(*routeapi.Route)
 }
 
-func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *ExtendedRouteGroupSpec) bool {
+func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rgPlcSSLProfiles) bool {
 	// Validate the hostpath
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
@@ -1296,21 +1606,24 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 			return false
 		}
 	}
-
-	// If TLS reference of type BigIP is configured in ConfigMap, fetch Client and Server SSL profile references
-	if extdSpec != nil && extdSpec.TLS != (TLS{}) && extdSpec.TLS.Reference == BIGIP && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-		if extdSpec.TLS.ClientSSL == "" {
-			message := fmt.Sprintf("Missing BigIP client SSL profile reference in the ConfigMap")
+	sslProfileOption := ctlr.getSSLProfileOption(route, plcSSLProfiles)
+	switch sslProfileOption {
+	case "":
+		break
+	case PolicySSLOption:
+		if len(plcSSLProfiles.serverSSLs) == 0 && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing server SSL profile in the policy %v/%v", plcSSLProfiles.plcNamespace, plcSSLProfiles.plcName)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
-		if extdSpec.TLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-			message := fmt.Sprintf("Missing BigIP server SSL profile reference in the ConfigMap")
+	case AnnotationSSLOption:
+		if _, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing server SSL profile in the annotation")
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
-	} else if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-		// Validate hostname if certificate is not provided in SSL annotations
+	case RouteCertificateSSLOption:
+		// Validate vsHostname if certificate is not provided in SSL annotations
 		ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
 		if !ok {
 			//Invalid certificate and key
@@ -1318,7 +1631,69 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
+	case DefaultSSLOption:
+		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
+			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
+		if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
+	default:
+		message := fmt.Sprintf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
+		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+		return false
 	}
+
+	// Validate appRoot Rewrite annotation
+	if appRootPath, ok := route.Annotations[resource.F5VsAppRootAnnotation]; ok {
+		if appRootPath == "" {
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsAppRootAnnotation)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+		if route.Spec.Path != "" && route.Spec.Path != "/" {
+			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", resource.F5VsAppRootAnnotation, appRootPath, route.Name)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+	}
+
+	// Validate WAF annotation
+	if wafPolicy, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
+		if wafPolicy == "" {
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsWAFPolicy)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+	}
+
+	// Validate AllowSourceRange annotation
+	if sourceRange, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]; ok {
+		invalidAllowSourceRange := false
+		if sourceRange == "" {
+			invalidAllowSourceRange = true
+		} else {
+			allowSourceRange := resource.ParseWhitelistSourceRangeAnnotations(sourceRange)
+			if allowSourceRange == nil && len(allowSourceRange) == 0 {
+				invalidAllowSourceRange = true
+			}
+		}
+		if invalidAllowSourceRange {
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name,
+				resource.F5VsAllowSourceRangeAnnotation)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+	}
+
 	// Validate the route service exists or not
 	err, _ := ctlr.getServicePort(route)
 	if err != nil {
@@ -1340,6 +1715,8 @@ func (ctlr *Controller) updateHostPathMap(timestamp metav1.Time, key string) {
 		if routeTimestamp == timestamp && hostPath != key {
 			// Deleting the ProcessedHostPath map if route's path is changed
 			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+			//track removed/modified hosts for EDNS processing
+			ctlr.processedHostPath.removedHosts = append(ctlr.processedHostPath.removedHosts, ctlr.GetHostFromHostPath(hostPath))
 		}
 	}
 	// adding the ProcessedHostPath map entry
@@ -1360,26 +1737,87 @@ func (ctlr *Controller) deleteHostPathMapEntry(route *routeapi.Route) {
 		if routeTimestamp == route.CreationTimestamp && hostPath == key {
 			// Deleting the ProcessedHostPath map if route's path is changed
 			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+			//track removed/modified hosts for EDNS processing
+			ctlr.processedHostPath.removedHosts = append(ctlr.processedHostPath.removedHosts, ctlr.GetHostFromHostPath(key))
 		}
 	}
 }
 
 func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []string {
 	var namespaces []string
-	if !ctlr.namespaceLabelMode {
-		namespaces = append(namespaces, namespaceGroup)
-		ctlr.resources.invertedNamespaceLabelMap[namespaceGroup] = namespaceGroup
-	} else {
-		nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, namespaceGroup)
-		nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
-		if err != nil {
-			log.Errorf("Unable to Fetch Namespaces: %v", err)
-			return nil
+	//check for defaultRouteGroup
+	if namespaceGroup == defaultRouteGroupName {
+		namespaces = ctlr.getWatchingNamespaces()
+		for _, ns := range namespaces {
+			ctlr.resources.invertedNamespaceLabelMap[ns] = namespaceGroup
 		}
-		for _, ns := range nss.Items {
-			namespaces = append(namespaces, ns.Name)
-			ctlr.resources.invertedNamespaceLabelMap[ns.Name] = namespaceGroup
+	} else {
+		if !ctlr.namespaceLabelMode {
+			namespaces = append(namespaces, namespaceGroup)
+			ctlr.resources.invertedNamespaceLabelMap[namespaceGroup] = namespaceGroup
+		} else {
+			nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, namespaceGroup)
+			nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
+			if err != nil {
+				log.Errorf("Unable to Fetch Namespaces: %v", err)
+				return nil
+			}
+			for _, ns := range nss.Items {
+				namespaces = append(namespaces, ns.Name)
+				ctlr.resources.invertedNamespaceLabelMap[ns.Name] = namespaceGroup
+			}
 		}
 	}
 	return namespaces
+}
+
+// fetch routeGroup for given policyCR.
+func (ctlr *Controller) getRouteGroupForCustomPolicy(policy string) []string {
+	var routeGroups []string
+	for rg, extdSpec := range ctlr.resources.extdSpecMap {
+		if extdSpec.override {
+			// continue if extended spec is not set
+			if extdSpec.local == nil {
+				if extdSpec.global != nil && extdSpec.global.Policy == policy {
+					routeGroups = append(routeGroups, rg)
+				}
+				continue
+			}
+			if extdSpec.local.Policy == policy {
+				routeGroups = append(routeGroups, rg)
+			}
+			if extdSpec.local.Policy == "" && extdSpec.global.Policy == policy {
+				routeGroups = append(routeGroups, rg)
+			} else {
+				continue
+			}
+		} else {
+			//handle policycr for defaultRouteGroup
+			if rg == defaultRouteGroupName {
+				if extdSpec.defaultrg.Policy == policy {
+					routeGroups = append(routeGroups, rg)
+				}
+			} else {
+				if extdSpec.global.Policy == policy {
+					routeGroups = append(routeGroups, rg)
+				}
+			}
+		}
+	}
+	return routeGroups
+}
+
+// fetch routeGroup for given secret.
+func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
+	for rg, extdSpec := range ctlr.resources.extdSpecMap {
+		// Skip local extended configmaps for TLS secret update processing
+		if extdSpec == nil || extdSpec.global == nil {
+			continue
+		}
+		// Check if namespace of the secret matches with the namespace of the routes defined in a route group
+		if ctlr.resources.invertedNamespaceLabelMap[secret.Namespace] == rg {
+			return rg
+		}
+	}
+	return ""
 }

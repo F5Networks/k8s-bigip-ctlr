@@ -3,6 +3,15 @@ kind: Route
 metadata:
   annotations:
     virtual-server.f5.com/balance: least-connections-node
+    virtual-server.f5.com/health: |
+      [
+        {
+          "path": "pytest-bar-1.com/",
+          "send": "HTTP GET /",
+          "interval": 5,
+          "timeout": 10
+        }
+      ]
   labels:
     f5type: systest
   name: svc-pytest-bar-1-com

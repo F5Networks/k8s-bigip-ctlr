@@ -18,18 +18,20 @@ package controller
 
 import (
 	"fmt"
+
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 // prepareVirtualServerRules prepares LTM Policy rules for VirtualServer
@@ -59,6 +61,11 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		if pl.Service == "" {
 			continue
 		}
+		// If not using WAF from policy CR, use Pool Based WAF from VS
+		wafPolicy := ""
+		if rsCfg.Virtual.WAF == "" {
+			wafPolicy = pl.WAF
+		}
 
 		uri := vs.Spec.Host + pl.Path
 
@@ -76,39 +83,56 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			uri = vs.Spec.Host + vs.Spec.RewriteAppRoot
 			path = vs.Spec.RewriteAppRoot
 		}
-
-		poolName := framePoolName(
-			vs.ObjectMeta.Namespace,
-			pl,
-			intstr.IntOrString{IntVal: pl.ServicePort},
-			vs.Spec.Host,
-		)
-		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
-		var err error
-		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange)
-		if nil != err {
-			log.Errorf("Error configuring rule: %v", err)
-			return nil
+		poolBackends := ctlr.GetPoolBackends(&pl)
+		skipPool := false
+		if pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0 {
+			skipPool = true
 		}
-		if pl.Rewrite != "" {
-			rewriteActions, err := getRewriteActions(
-				path,
-				pl.Rewrite,
-				len(rl.Actions),
+		for _, backend := range poolBackends {
+			poolName := ctlr.framePoolNameForVs(
+				vs.ObjectMeta.Namespace,
+				pl,
+				vs.Spec.Host,
+				backend,
 			)
+			ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
+			var err error
+			rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, skipPool)
 			if nil != err {
 				log.Errorf("Error configuring rule: %v", err)
 				return nil
 			}
-			rl.Actions = append(rl.Actions, rewriteActions...)
-		}
+			if pl.HostRewrite != "" {
+				hostRewriteActions, err := getHostRewriteActions(
+					pl.HostRewrite,
+					len(rl.Actions),
+				)
+				if nil != err {
+					log.Errorf("Error configuring rule: %v", err)
+					return nil
+				}
+				rl.Actions = append(rl.Actions, hostRewriteActions...)
+			}
+			if pl.Rewrite != "" {
+				rewriteActions, err := getRewriteActions(
+					path,
+					pl.Rewrite,
+					len(rl.Actions),
+				)
+				if nil != err {
+					log.Errorf("Error configuring rule: %v", err)
+					return nil
+				}
+				rl.Actions = append(rl.Actions, rewriteActions...)
+			}
 
-		if pl.Path == "/" {
-			redirects = append(redirects, rl)
-		} else if true == strings.HasPrefix(uri, "*.") {
-			wildcards[uri] = rl
-		} else {
-			rlMap[uri] = rl
+			if pl.Path == "/" {
+				redirects = append(redirects, rl)
+			} else if true == strings.HasPrefix(uri, "*.") {
+				wildcards[uri] = rl
+			} else {
+				rlMap[uri] = rl
+			}
 		}
 	}
 
@@ -184,7 +208,7 @@ func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string 
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rule, error) {
+func createRule(uri, poolName, ruleName string, allowSourceRange []string, wafPolicy string, skipPool bool) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -192,13 +216,7 @@ func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rul
 		return nil, err
 	}
 
-	a := action{
-		Forward: true,
-		Name:    "0",
-		Pool:    poolName,
-		Request: true,
-	}
-
+	var actions []*action
 	var conditions []*condition
 	var cond *condition
 	if true == strings.HasPrefix(uri, "*.") {
@@ -236,10 +254,41 @@ func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rul
 		conditions = append(conditions, cond)
 	}
 
+	// for a/b enabled resource pool will be skipped
+	var a action
+	if !skipPool {
+		a = action{
+			Forward: true,
+			Name:    "0",
+			Pool:    poolName,
+			Request: true,
+		}
+		actions = append(actions, &a)
+	} else if wafPolicy == "" {
+		// add dummy action
+		a = action{
+			Log:     true,
+			Message: "a/b pool",
+			Name:    "0",
+			Request: true,
+		}
+		actions = append(actions, &a)
+	}
+
+	// Add WAF rule
+	if wafPolicy != "" {
+		wafAction := &action{
+			WAF:     true,
+			Policy:  wafPolicy,
+			Request: true,
+		}
+		actions = append(actions, wafAction)
+	}
+
 	rl := Rule{
 		Name:       ruleName,
 		FullURI:    uri,
-		Actions:    []*action{&a},
+		Actions:    actions,
 		Conditions: conditions,
 	}
 
@@ -320,6 +369,19 @@ func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, err
 		}
 	}
 	return actions, nil
+}
+
+func getHostRewriteActions(rwHost string, actionNameIndex int) ([]*action, error) {
+	if rwHost == "" {
+		return nil, fmt.Errorf("empty host")
+	}
+	return []*action{{
+		Name:     fmt.Sprintf("%d", actionNameIndex),
+		HTTPHost: true,
+		Replace:  true,
+		Request:  true,
+		Value:    rwHost,
+	}}, nil
 }
 
 func createRedirectRule(source, target, ruleName string, allowSourceRange []string) (*Rule, error) {
@@ -450,8 +512,12 @@ func (rules Rules) Less(i, j int) bool {
 		return endCountI > endCountJ
 	}
 
-	// Strategy 4: Lowest Ordinal
-	return ruleI.Ordinal < ruleJ.Ordinal
+	if ruleI.Ordinal != ruleJ.Ordinal {
+		// Strategy 4: Lowest Ordinal
+		return ruleI.Ordinal < ruleJ.Ordinal
+	}
+	// Strategy 5: Lexicographic Order
+	return ruleI.Name < ruleJ.Name
 
 }
 
@@ -550,6 +616,52 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 		}`, dgName, port)
 
 	return iRuleCode
+}
+
+func (ctlr *Controller) GetPathBasedABDeployIRule(rsVSName string, partition string) string {
+	dgPath := strings.Join([]string{partition, Shared}, "/")
+
+	iRule := fmt.Sprintf(`proc select_ab_pool {path default_pool } {
+			set last_slash [string length $path]
+			set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+			while {$last_slash >= 0} {
+				if {[class match $path equals $ab_class]} then {
+					break
+				}
+				set last_slash [string last "/" $path $last_slash]
+				incr last_slash -1
+				set path [string range $path 0 $last_slash]
+			}
+			if {$last_slash >= 0} {
+				set ab_rule [class match -value $path equals $ab_class]
+				if {$ab_rule != ""} then {
+					set weight_selection [expr {rand()}]
+					set service_rules [split $ab_rule ";"]
+					foreach service_rule $service_rules {
+						set fields [split $service_rule ","]
+						set pool_name [lindex $fields 0]
+						set weight [expr {double([lindex $fields 1])}]
+						if {$weight_selection <= $weight} then {
+							return $pool_name
+						}
+					}
+				}
+				# If we had a match, but all weights were 0 then
+				# retrun a 503 (Service Unavailable)
+				HTTP::respond 503
+			}
+			return $default_pool
+		}
+		when HTTP_REQUEST priority 200 {
+			set path [string tolower [HTTP::host]][HTTP::path]
+			set selected_pool [call select_ab_pool $path ""]
+			if {$selected_pool != ""} then {
+				pool $selected_pool
+				event disable
+			}
+		}`, dgPath, rsVSName)
+
+	return iRule
 }
 
 func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSourceRange []string) string {
@@ -893,10 +1005,10 @@ func updateDataGroupOfDgName(
 	poolPathRefs []poolPathRef,
 	rsVSName string,
 	dgName string,
-	hostName string,
 	namespace string,
 	partition string,
 	allowSourceRange []string,
+	httpPort int32,
 ) {
 	rsDGName := getRSCfgResName(rsVSName, dgName)
 	switch dgName {
@@ -905,16 +1017,20 @@ func updateDataGroupOfDgName(
 		// Servername and path from the ssl::payload of clientssl_data Irule event is
 		// used as value in edge and reencrypt Datagroup.
 		for _, pl := range poolPathRefs {
-			routePath := hostName + pl.path
-			routePath = strings.TrimSuffix(routePath, "/")
-			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, routePath, pl.poolName, DataGroupType)
+			for _, hostName := range pl.aliasHostnames {
+				routePath := hostName + pl.path
+				routePath = strings.TrimSuffix(routePath, "/")
+				updateDataGroup(intDgMap, rsDGName,
+					partition, namespace, routePath, pl.poolName, DataGroupType)
+			}
 		}
 	case PassthroughHostsDgName:
-		// only hostname will be used for passthrough routes
+		// only vsHostname will be used for passthrough routes
 		for _, pl := range poolPathRefs {
-			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, hostName, pl.poolName, DataGroupType)
+			for _, hostName := range pl.aliasHostnames {
+				updateDataGroup(intDgMap, rsDGName,
+					partition, namespace, hostName, pl.poolName, DataGroupType)
+			}
 		}
 	case HttpsRedirectDgName:
 		for _, pl := range poolPathRefs {
@@ -922,9 +1038,25 @@ func updateDataGroupOfDgName(
 			if path == "" {
 				path = "/"
 			}
-			routePath := hostName + path
-			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, routePath, path, DataGroupType)
+			//for custom http port, host:port match should redirect traffic
+			if httpPort != DEFAULT_HTTP_PORT {
+				for _, hostName := range pl.aliasHostnames {
+					routePath := hostName + ":" + strconv.Itoa(int(httpPort)) + path
+					updateDataGroup(intDgMap, rsDGName,
+						partition, namespace, routePath, path, DataGroupType)
+				}
+			} else {
+				//for default port 80 either host or host:port match traffic
+				//should be redirected
+				for _, hostName := range pl.aliasHostnames {
+					routePath := hostName + path
+					routePathwithPort := hostName + ":" + strconv.Itoa(int(DEFAULT_HTTP_PORT)) + path
+					updateDataGroup(intDgMap, rsDGName,
+						partition, namespace, routePath, path, DataGroupType)
+					updateDataGroup(intDgMap, rsDGName,
+						partition, namespace, routePathwithPort, path, DataGroupType)
+				}
+			}
 		}
 	case AllowSourceRange:
 		for _, sourceNw := range allowSourceRange {
@@ -982,7 +1114,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 ) {
-	if !IsRouteABDeployment(route) {
+	if !isRouteABDeployment(route) {
 		return
 	}
 
@@ -995,11 +1127,9 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	path := route.Spec.Path
 	tls := route.Spec.TLS
 	if tls != nil {
-		// We don't support path-based A/B for pass-thru and re-encrypt
+		// We don't support path-based A/B for pass-thru
 		switch tls.Termination {
 		case routeapi.TLSTerminationPassthrough:
-			path = ""
-		case routeapi.TLSTerminationReencrypt:
 			path = ""
 		}
 	}
@@ -1041,17 +1171,29 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	}
 }
 
-func IsRouteABDeployment(route *routeapi.Route) bool {
+func isRouteABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
 }
 
+func isRoutePathBasedABDeployment(route *routeapi.Route) bool {
+	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0 && (route.Spec.Path != "" && route.Spec.Path != "/")
+}
+
+func isVSABDeployment(pool *cisapiv1.Pool) bool {
+	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0
+}
+
+func isVsPathBasedABDeployment(pool *cisapiv1.Pool) bool {
+	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
+}
+
 // return the services associated with a route (names + weight)
-func GetRouteBackends(route *routeapi.Route) []RouteBackendCxt {
+func GetRouteBackends(route *routeapi.Route) []SvcBackendCxt {
 	numOfBackends := 1
 	if route.Spec.AlternateBackends != nil {
 		numOfBackends += len(route.Spec.AlternateBackends)
 	}
-	rbcs := make([]RouteBackendCxt, numOfBackends)
+	rbcs := make([]SvcBackendCxt, numOfBackends)
 
 	beIdx := 0
 	rbcs[beIdx].Name = route.Spec.To.Name
@@ -1072,4 +1214,70 @@ func GetRouteBackends(route *routeapi.Route) []RouteBackendCxt {
 	}
 
 	return rbcs
+}
+
+// updateDataGroupForABVirtualServer updates the data group map based on alternativeBackends of route.
+func (ctlr *Controller) updateDataGroupForABVirtualServer(
+	pool *cisapiv1.Pool,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port intstr.IntOrString,
+	host string,
+	termination string,
+) {
+	if !isVSABDeployment(pool) {
+		return
+	}
+
+	weightTotal := 0
+	backends := ctlr.GetPoolBackends(pool)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+		if svc.SvcNamespace != "" {
+			namespace = svc.SvcNamespace
+		}
+	}
+
+	path := pool.Path
+	// We don't support path-based A/B for pass-thru
+	switch termination {
+	case TLSPassthrough:
+		path = ""
+	}
+	if path == "/" {
+		path = ""
+	}
+	key := host + path
+
+	if weightTotal == 0 {
+		// If all services have 0 weight, 503 will be returned
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0
+		for _, be := range backends {
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+			poolName := formatPoolName(
+				namespace,
+				be.Name,
+				port,
+				"",
+				host,
+			)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
+	}
 }

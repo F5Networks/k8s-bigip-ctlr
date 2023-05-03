@@ -24,10 +24,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 const (
@@ -35,19 +35,20 @@ const (
 	svcAppLabel         = "cis.f5.com/as3-app="
 	svcPoolLabel        = "cis.f5.com/as3-pool="
 	as3SupportedVersion = 3.18
-	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version           = 3.38
-	defaultAS3Version    = "3.38.0"
-	defaultAS3Build      = "3"
+	// Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
+	// While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
+	as3Version           = 3.41
+	defaultAS3Version    = "3.41.0"
+	defaultAS3Build      = "1"
 	as3tenant            = "Tenant"
 	as3class             = "class"
 	as3SharedApplication = "Shared"
 	as3application       = "Application"
 	as3shared            = "shared"
 	as3template          = "template"
-	//as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
+	// as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
 	as3defaultRouteDomain = "defaultRouteDomain"
-	as3SchemaFileName     = "as3-schema-3.38.0-4-cis.json"
+	as3SchemaFileName     = "as3-schema-3.41.0-1-cis.json"
 )
 
 var baseAS3Config = `{
@@ -103,13 +104,12 @@ type AS3Manager struct {
 	// POSTs configuration to BIG-IP using AS3
 	PostManager *PostManager
 	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
-	FilterTenants    bool
-	failedContext    failureContext
-	DefaultPartition string
-	ReqChan          chan MessageRequest
-	RspChan          chan interface{}
-	userAgent        string
-	l2l3Agent        L2L3Agent
+	FilterTenants bool
+	failedContext failureContext
+	ReqChan       chan MessageRequest
+	RspChan       chan interface{}
+	userAgent     string
+	l2l3Agent     L2L3Agent
 	ResourceRequest
 	ResourceResponse
 	as3Version                string
@@ -131,7 +131,7 @@ type Params struct {
 	EnableTLS                 string
 	TLS13CipherGroupReference string
 	Ciphers                   string
-	//Agent                     string
+	// Agent                     string
 	OverriderCfgMapName string
 	SchemaLocalPath     string
 	FilterTenants       bool
@@ -142,7 +142,7 @@ type Params struct {
 	AS3PostDelay        int
 	ConfigWriter        writer.Writer
 	EventChan           chan interface{}
-	//Log the AS3 response body in Controller logs
+	// Log the AS3 response body in Controller logs
 	LogResponse               bool
 	ShareNodes                bool
 	RspChan                   chan interface{}
@@ -153,6 +153,7 @@ type Params struct {
 	unprocessableEntityStatus bool
 	DefaultRouteDomain        int
 	PoolMemberType            string
+	HTTPClientMetrics         bool
 }
 
 type failureContext struct {
@@ -181,16 +182,20 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		defaultRouteDomain:        params.DefaultRouteDomain,
 		poolMemberType:            params.PoolMemberType,
 		as3ActiveConfig:           AS3Config{tenantMap: make(map[string]interface{})},
-		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
-			configWriter: params.ConfigWriter},
+		l2l3Agent: L2L3Agent{
+			eventChan:    params.EventChan,
+			configWriter: params.ConfigWriter,
+		},
 		PostManager: NewPostManager(PostParams{
-			BIGIPUsername: params.BIGIPUsername,
-			BIGIPPassword: params.BIGIPPassword,
-			BIGIPURL:      params.BIGIPURL,
-			TrustedCerts:  params.TrustedCerts,
-			SSLInsecure:   params.SSLInsecure,
-			AS3PostDelay:  params.AS3PostDelay,
-			LogResponse:   params.LogResponse}),
+			BIGIPUsername:     params.BIGIPUsername,
+			BIGIPPassword:     params.BIGIPPassword,
+			BIGIPURL:          params.BIGIPURL,
+			TrustedCerts:      params.TrustedCerts,
+			SSLInsecure:       params.SSLInsecure,
+			AS3PostDelay:      params.AS3PostDelay,
+			LogResponse:       params.LogResponse,
+			HTTPClientMetrics: params.HTTPClientMetrics,
+		}),
 	}
 
 	if as3Manager.tls13CipherGroupReference == "" {
@@ -213,10 +218,9 @@ func updateTenantMap(tempAS3Config AS3Config) AS3Config {
 }
 
 func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
-
 	am.ResourceRequest = rsReq
 
-	//as3Config := am.as3ActiveConfig
+	// as3Config := am.as3ActiveConfig
 	as3Config := &AS3Config{
 		tenantMap: make(map[string]interface{}),
 	}
@@ -233,6 +237,7 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
 
 	return am.postAS3Config(*as3Config)
 }
+
 func (am *AS3Manager) getADC() map[string]interface{} {
 	var as3Obj map[string]interface{}
 
@@ -243,7 +248,6 @@ func (am *AS3Manager) getADC() map[string]interface{} {
 }
 
 func (am *AS3Manager) prepareTenantDeclaration(cfg *AS3Config, tenantName string) as3Declaration {
-
 	as3Obj := am.getADC()
 	adc, _ := as3Obj["declaration"].(map[string]interface{})
 
@@ -266,7 +270,7 @@ func (am *AS3Manager) processResponseCode(responseCode string, partition string,
 }
 
 func (am *AS3Manager) excludePartitionFromFailureTenantList(partition string) {
-	for tenant, _ := range am.failedContext.failedTenants {
+	for tenant := range am.failedContext.failedTenants {
 		if tenant == partition {
 			delete(am.failedContext.failedTenants, partition)
 		}
@@ -281,7 +285,7 @@ func (am *AS3Manager) processTenantDeletion(tempAS3Config AS3Config) (bool, stri
 	if len(deletedTenants) > 0 {
 		for _, partition := range deletedTenants {
 
-			//Update as3ActiveConfig
+			// Update as3ActiveConfig
 			delete(am.as3ActiveConfig.tenantMap, partition)
 
 			_, responseCode := am.DeleteAS3Tenant(partition)
@@ -292,7 +296,7 @@ func (am *AS3Manager) processTenantDeletion(tempAS3Config AS3Config) (bool, stri
 		}
 
 		resBool, resCode := processResponseCodeList(responseStatusList)
-		//Update as3ActiveConfig
+		// Update as3ActiveConfig
 		if resCode == responseStatusOk {
 			am.as3ActiveConfig.updateConfig(tempAS3Config)
 		}
@@ -307,7 +311,6 @@ func getResponseStatusList() map[string]int {
 }
 
 func (am *AS3Manager) processFilterTenants(tempAS3Config AS3Config) (bool, string) {
-
 	// Delete Tenants from as3ActiveConfig.tenantMap
 	_, deleteResponseCode := am.processTenantDeletion(tempAS3Config)
 
@@ -315,7 +318,7 @@ func (am *AS3Manager) processFilterTenants(tempAS3Config AS3Config) (bool, strin
 	for partition, tenant := range tempAS3Config.tenantMap {
 		if tempAS3Config.tenantIsValid(partition) && !reflect.DeepEqual(am.as3ActiveConfig.tenantMap[partition], tenant) {
 			tenantDecl := am.prepareTenantDeclaration(&tempAS3Config, partition)
-			//Update as3ActiveConfig
+			// Update as3ActiveConfig
 			am.as3ActiveConfig.tenantMap[partition] = tempAS3Config.tenantMap[partition]
 			am.as3ActiveConfig.updateConfig(tempAS3Config)
 
@@ -356,7 +359,6 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	if am.FilterTenants {
 		return am.processFilterTenants(tempAS3Config)
 	}
-
 	unifiedDecl := am.getUnifiedDeclaration(&tempAS3Config)
 	if unifiedDecl == "" {
 		return true, ""
@@ -403,24 +405,20 @@ func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {
 	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Obj)
 	adc, _ := as3Obj["declaration"].(map[string]interface{})
-
 	for tenantName, tenant := range cfg.resourceConfig {
 		adc[tenantName] = tenant
 	}
-
 	for _, cm := range cfg.configmaps {
 		for tenantName, tenant := range cm.config {
 			adc[tenantName] = tenant
 		}
 	}
-
 	for _, tnt := range am.getDeletedTenants(adc) {
 		// This config deletes the partition in BIG-IP
 		adc[tnt] = as3Tenant{
 			"class": "Tenant",
 		}
 	}
-
 	unifiedDecl, err := json.Marshal(as3Obj)
 	if err != nil {
 		log.Debugf("[AS3] Unified declaration: %v\n", err)
@@ -455,7 +453,6 @@ func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 	controlObj.initDefault(am.userAgent)
 	decl["controls"] = controlObj
 	if partition != "" {
-
 		decl[partition] = map[string]string{"class": "Tenant"}
 	}
 	data, _ := json.Marshal(as3Config)
@@ -488,7 +485,6 @@ func (am *AS3Manager) getTenantObjects(partitions []string) string {
 	_ = json.Unmarshal([]byte(baseAS3ConfigEmpty), &as3Config)
 	decl := as3Config["declaration"].(map[string]interface{})
 	for _, partition := range partitions {
-
 		decl[partition] = map[string]string{"class": "Tenant"}
 	}
 	data, _ := json.Marshal(as3Config)
@@ -509,7 +505,7 @@ func (am *AS3Manager) getDeletedTenants(curTenantMap map[string]interface{}) []s
 
 func (am *AS3Manager) getDeletedTenantsFromTenantMap(curTenantMap map[string]interface{}) []string {
 	var deletedTenants []string
-	for activeTenant, _ := range am.as3ActiveConfig.tenantMap {
+	for activeTenant := range am.as3ActiveConfig.tenantMap {
 		if _, found := curTenantMap[activeTenant]; !found {
 			deletedTenants = append(deletedTenants, activeTenant)
 		}
@@ -649,8 +645,8 @@ func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
 		return nil
 	}
 
-	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
-		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
+	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
+		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
 		bigIPAS3Version, as3SupportedVersion)
 }
 

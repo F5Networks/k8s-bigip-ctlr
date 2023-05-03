@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -25,9 +26,9 @@ import (
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -61,6 +62,8 @@ const (
 	Service = "Service"
 	//Pod  is a k8s native object
 	Pod = "Pod"
+	//Secret  is a k8s native object
+	K8sSecret = "Secret"
 	// Endpoints is a k8s native Endpoint Resource.
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
@@ -90,6 +93,7 @@ const (
 	LBServiceIPAMLabelAnnotation  = "cis.f5.com/ipamLabel"
 	HealthMonitorAnnotation       = "cis.f5.com/health"
 	LBServicePolicyNameAnnotation = "cis.f5.com/policyName"
+	LegacyHealthMonitorAnnotation = "virtual-server.f5.com/health"
 
 	//Antrea NodePortLocal support
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
@@ -99,9 +103,10 @@ const (
 	// AS3 Related constants
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version        = 3.38
-	defaultAS3Version = "3.38.0"
-	defaultAS3Build   = "3"
+	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
+	as3Version        = 3.41
+	defaultAS3Version = "3.41.0"
+	defaultAS3Build   = "1"
 )
 
 // NewController creates a new Controller Instance.
@@ -109,49 +114,48 @@ func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
 		namespaces:         make(map[string]bool),
-		crInformers:        make(map[string]*CRInformer),
-		nsInformers:        make(map[string]*NSInformer),
 		resources:          NewResourceStore(),
 		Agent:              params.Agent,
 		PoolMemberType:     params.PoolMemberType,
 		UseNodeInternal:    params.UseNodeInternal,
 		Partition:          params.Partition,
 		initState:          true,
-		SSLContext:         make(map[string]*v1.Secret),
 		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:         params.ShareNodes,
 		eventNotifier:      apm.NewEventNotifier(nil),
 		defaultRouteDomain: params.DefaultRouteDomain,
 		mode:               params.Mode,
 		namespaceLabel:     params.NamespaceLabel,
+		nodeLabelSelector:  params.NodeLabelSelector,
+		vxlanName:          params.VXLANName,
+		vxlanMode:          params.VXLANMode,
+		StaticRoutingMode:  params.StaticRoutingMode,
+		OrchestrationCNI:   params.OrchestrationCNI,
 	}
 
 	log.Debug("Controller Created")
 
+	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
+	ctlr.comInformers = make(map[string]*CommonInformer)
+	ctlr.nrInformers = make(map[string]*NRInformer)
+	ctlr.crInformers = make(map[string]*CRInformer)
+	ctlr.nsInformers = make(map[string]*NSInformer)
+	ctlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	switch ctlr.mode {
-	case OpenShiftMode:
+	case OpenShiftMode, KubernetesMode:
 		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
 		ctlr.routeLabel = params.RouteLabel
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
 		ctlr.processedHostPath = &processedHostPath
-		fallthrough
-	case KubernetesMode:
-		ctlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		ctlr.nativeResourceQueue = workqueue.NewNamedRateLimitingQueue(
-			workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
-		ctlr.esInformers = make(map[string]*EssentialInformer)
-		ctlr.nrInformers = make(map[string]*NRInformer)
 	default:
-		ctlr.crInformers = make(map[string]*CRInformer)
-		ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		ctlr.mode = CustomResourceMode
-		ctlr.rscQueue = workqueue.NewNamedRateLimitingQueue(
-			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 	}
 
-	//If pool-member-type type is nodeport and it's running in openshift mode (multi-partition)
-	if ctlr.PoolMemberType == "nodeport" && ctlr.mode == OpenShiftMode {
+	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
+	if ctlr.PoolMemberType == "nodeport" {
 		ctlr.shareNodes = true
 	}
 
@@ -185,16 +189,6 @@ func NewController(params Params) *Controller {
 		log.Error("Failed to Setup Informers")
 	}
 
-	err := ctlr.SetupNodePolling(
-		params.NodePollInterval,
-		params.NodeLabelSelector,
-		params.VXLANMode,
-		params.VXLANName,
-	)
-	if err != nil {
-		log.Errorf("Failed to Setup Node Polling: %v", err)
-	}
-
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
@@ -214,10 +208,35 @@ func NewController(params Params) *Controller {
 
 	go ctlr.Start()
 
+	go ctlr.setOtherSDNType()
+
 	return ctlr
 }
 
-//Register IPAM CRD
+// Set Other SDNType
+func (ctlr *Controller) setOtherSDNType() {
+	ctlr.TeemData.Lock()
+	defer ctlr.TeemData.Unlock()
+	if ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel" {
+		kubePods, err := ctlr.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
+		if nil != err {
+			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
+			return
+		}
+		for _, kPod := range kubePods.Items {
+			if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+				ctlr.TeemData.SDNType = "cilium"
+				return
+			}
+			if strings.Contains(kPod.Name, "calico") && kPod.Status.Phase == "Running" {
+				ctlr.TeemData.SDNType = "calico"
+				return
+			}
+		}
+	}
+}
+
+// Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
 	err := ipammachinery.RegisterCRD(ctlr.kubeAPIClient)
 	if err != nil {
@@ -225,7 +244,7 @@ func (ctlr *Controller) registerIPAMCRD() {
 	}
 }
 
-//Create IPAM CRD
+// Create IPAM CRD
 func (ctlr *Controller) createIPAMResource() error {
 
 	frameIPAMResourceName := func() string {
@@ -317,11 +336,9 @@ func createLabelSelector(label string) (labels.Selector, error) {
 func (ctlr *Controller) setupClients(config *rest.Config) error {
 	var kubeCRClient *versioned.Clientset
 	var err error
-	if ctlr.mode == CustomResourceMode {
-		kubeCRClient, err = versioned.NewForConfig(config)
-		if err != nil {
-			return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
-		}
+	kubeCRClient, err = versioned.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(config)
@@ -368,39 +385,37 @@ func (ctlr *Controller) setupInformers() error {
 func (ctlr *Controller) Start() {
 	log.Infof("Starting Controller")
 	defer utilruntime.HandleCrash()
+	defer ctlr.resourceQueue.ShutDown()
+
+	// start nsinformer in all modes
+	for _, nsInf := range ctlr.nsInformers {
+		nsInf.start()
+	}
+
+	// start comInformers for all modes
+	for _, inf := range ctlr.comInformers {
+		inf.start()
+	}
 	switch ctlr.mode {
-	case CustomResourceMode:
-		defer ctlr.rscQueue.ShutDown()
-		for _, inf := range ctlr.crInformers {
-			inf.start()
-		}
-	case OpenShiftMode:
-		defer ctlr.nativeResourceQueue.ShutDown()
-		for _, inf := range ctlr.esInformers {
-			inf.start()
-		}
+	case OpenShiftMode, KubernetesMode:
+		// nrInformers only with openShiftMode
 		for _, inf := range ctlr.nrInformers {
 			inf.start()
 		}
-	}
-
-	for _, nsInf := range ctlr.nsInformers {
-		nsInf.start()
+	default:
+		// start customer resource informers in custom resource mode only
+		for _, inf := range ctlr.crInformers {
+			inf.start()
+		}
 	}
 
 	if ctlr.ipamCli != nil {
 		go ctlr.ipamCli.Start()
 	}
 
-	ctlr.nodePoller.Run()
-
 	stopChan := make(chan struct{})
-	switch ctlr.mode {
-	case CustomResourceMode:
-		go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
-	case OpenShiftMode:
-		go wait.Until(ctlr.nativeResourceWorker, time.Second, stopChan)
-	}
+
+	go wait.Until(ctlr.nextGenResourceWorker, time.Second, stopChan)
 
 	<-stopChan
 	ctlr.Stop()
@@ -409,24 +424,26 @@ func (ctlr *Controller) Start() {
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	switch ctlr.mode {
-	case CustomResourceMode:
-		for _, inf := range ctlr.crInformers {
-			inf.stop()
-		}
-	case OpenShiftMode:
-		for _, inf := range ctlr.esInformers {
-			inf.stop()
-		}
+	case OpenShiftMode, KubernetesMode:
+		// stop native resource informers
 		for _, inf := range ctlr.nrInformers {
+			inf.stop()
+		}
+	default:
+		// stop custom resource informers
+		for _, inf := range ctlr.crInformers {
 			inf.stop()
 		}
 	}
 
+	// stop common informers & namespace informers in all modes
+	for _, inf := range ctlr.comInformers {
+		inf.stop()
+	}
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.stop()
 	}
 
-	ctlr.nodePoller.Stop()
 	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()

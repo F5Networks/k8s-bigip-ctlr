@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -119,12 +119,16 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
+					if strings.ContainsAny(path.Path, "*") {
+						log.Errorf("[CORE] Ingress path should not contain wildcard character '*' for ingress %v/%v", ing.Namespace, ing.Name)
+						continue
+					}
 					exists := false
 					for _, pl := range pools {
 						if path.Backend.ServicePort.StrVal != "" {
 							backendPort, err := GetServicePort(ns, path.Backend.ServiceName, svcIndexer, path.Backend.ServicePort.StrVal, ResourceTypeIngress)
 							if err != nil {
-								log.Warningf("[CORE] Error fetching service port: %v", err)
+								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 								continue
 							}
 							//Assigning backendPort to find existing pool entries
@@ -151,7 +155,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 					} else if path.Backend.ServicePort.StrVal != "" {
 						backendPort, err = GetServicePort(ns, path.Backend.ServiceName, svcIndexer, path.Backend.ServicePort.StrVal, ResourceTypeIngress)
 						if err != nil {
-							log.Warningf("[CORE] Error fetching service port: %v", err)
+							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 							continue
 						}
 						//Assigning backendPort to find existing pool entries
@@ -187,7 +191,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		if ing.Spec.Backend.ServicePort.StrVal != "" {
 			backendPort, err = GetServicePort(ns, ing.Spec.Backend.ServiceName, svcIndexer, ing.Spec.Backend.ServicePort.StrVal, ResourceTypeIngress)
 			if err != nil {
-				log.Warningf("[CORE] Error fetching service port: %v", err)
+				log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 			}
 		} else {
 			backendPort = ing.Spec.Backend.ServicePort.IntVal
@@ -224,7 +228,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	resources.Lock()
 	defer resources.Unlock()
 	// Check to see if we already have any Ingresses for this IP:Port
-	if oldCfg, exists := resources.GetByName(cfg.Virtual.Name); exists {
+	if oldCfg, exists := resources.GetByName(cfg.GetNameRef()); exists {
 		// If we do, use an existing config
 		cfg.CopyConfig(oldCfg)
 
@@ -334,9 +338,9 @@ func (appMgr *Manager) handleIngressTls(
 				secret := appMgr.rsrcSSLCtxt[tls.SecretName]
 				if secret == nil {
 					// No secret, so we assume the profile is a BIG-IP default
-					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s', "+
+					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s for ingress %s', "+
 						"parsing secretName as path instead.",
-						tls.SecretName, ing.ObjectMeta.Namespace)
+						tls.SecretName, ing.ObjectMeta.Namespace, ing.Name)
 					profRef := ConvertStringToProfileRef(
 						tls.SecretName, CustomProfileClient, ing.ObjectMeta.Namespace)
 					rsCfg.Virtual.AddOrUpdateProfile(profRef)
@@ -345,7 +349,7 @@ func (appMgr *Manager) handleIngressTls(
 				var err error
 				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
-					log.Warningf("[CORE] %v", err)
+					log.Warningf("[CORE] Error creating ssl profiles for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 					continue
 				}
 				updateState = updateState || cpUpdated
@@ -393,10 +397,10 @@ func (appMgr *Manager) handleIngressTls(
 		// State 2, set HTTP redirect iRule
 		log.Debugf("[CORE] TLS: Applying HTTP redirect iRule.")
 		ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
-		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
-			httpRedirectIRule(httpsPort, DEFAULT_PARTITION, appMgr.TeemData.Agent))
-		appMgr.addInternalDataGroup(HttpsRedirectDgName, DEFAULT_PARTITION)
-		ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
+		appMgr.addIRule(ruleName, rsCfg.Virtual.Partition,
+			httpRedirectIRule(httpsPort, rsCfg.Virtual.Partition, appMgr.TeemData.Agent))
+		appMgr.addInternalDataGroup(HttpsRedirectDgName, rsCfg.Virtual.Partition)
+		ruleName = JoinBigipPath(rsCfg.Virtual.Partition, ruleName)
 		rsCfg.Virtual.AddIRule(ruleName)
 		if nil != ing.Spec.Backend {
 			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
@@ -514,7 +518,7 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	resources.Lock()
 	defer resources.Unlock()
 	// Check to see if we have any Routes already saved for this VS type
-	if oldCfg, exists := resources.GetByName(rsName); exists {
+	if oldCfg, exists := resources.GetByName(NameRef{Name: rsName, Partition: DEFAULT_PARTITION}); exists {
 		// If we do, use an existing config
 		rsCfg.CopyConfig(oldCfg)
 
@@ -556,8 +560,6 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		route,
 		pStruct.protocol,
 		policyName,
-		rsName,
-		pool.Name,
 		rule,
 		urlRewriteRule,
 		appRootRules,
@@ -572,8 +574,6 @@ func (appMgr *Manager) handleRouteRules(
 	route *routeapi.Route,
 	protocol string,
 	policyName string,
-	virtualName string,
-	poolName string,
 	rule *Rule,
 	urlRewriteRule *Rule,
 	appRootRules []*Rule,
@@ -625,6 +625,10 @@ func (appMgr *Manager) handleRouteRules(
 					}
 					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
 						route.Spec.Host, path)
+					// Add redirect datagroup support for host header match as host and host:port
+					hostPort := route.Spec.Host + ":" + strconv.Itoa(int(DEFAULT_HTTP_PORT))
+					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
+						hostPort, path)
 					rc.AddRuleToPolicy(policyName, rule)
 					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, true)
 				}

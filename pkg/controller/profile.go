@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"reflect"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -9,31 +10,38 @@ import (
 // Creates a new ClientSSL profile from a Secret
 func (ctlr *Controller) createSecretClientSSLProfile(
 	rsCfg *ResourceConfig,
-	secret *v1.Secret,
+	secrets []*v1.Secret,
 	tlsCipher TLSCipher,
 	context string,
 ) (error, bool) {
 
-	if _, ok := secret.Data["tls.key"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.key' field not specified.",
-			secret.ObjectMeta.Name)
-		return err, false
+	var certificates []certificate
+	for _, secret := range secrets {
+		cert := certificate{}
+		if _, ok := secret.Data["tls.key"]; !ok {
+			err := fmt.Errorf("Invalid Secret '%v': 'tls.key' field not specified.",
+				secret.ObjectMeta.Name)
+			return err, false
+		} else {
+			cert.Key = string(secret.Data["tls.key"])
+		}
+		if _, ok := secret.Data["tls.crt"]; !ok {
+			err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
+				secret.ObjectMeta.Name)
+			return err, false
+		} else {
+			cert.Cert = string(secret.Data["tls.crt"])
+		}
+		certificates = append(certificates, cert)
 	}
 
-	if _, ok := secret.Data["tls.crt"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
-			secret.ObjectMeta.Name)
-		return err, false
-	}
-
-	return ctlr.createClientSSLProfile(rsCfg, string(secret.Data["tls.key"]), string(secret.Data["tls.crt"]), secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, tlsCipher, context)
+	return ctlr.createClientSSLProfile(rsCfg, certificates, secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context)
 }
 
 // Creates a new ClientSSL profile from a Secret
 func (ctlr *Controller) createClientSSLProfile(
 	rsCfg *ResourceConfig,
-	key string,
-	cert string,
+	certificates []certificate,
 	name string,
 	namespace string,
 	tlsCipher TLSCipher,
@@ -52,7 +60,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "", "", tlsCipher)
+		cp := NewCustomProfile(sni, []certificate{}, "", true, "", "", "", tlsCipher)
 		rsCfg.customProfiles[skey] = cp
 	}
 
@@ -68,8 +76,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	}
 	cp := NewCustomProfile(
 		profRef,
-		cert,
-		key,
+		certificates,
 		"",    // serverName
 		false, // sni
 		"",    // peerCertMode
@@ -82,7 +89,7 @@ func (ctlr *Controller) createClientSSLProfile(
 		ResourceName: rsCfg.GetName(),
 	}
 	if prof, ok := rsCfg.customProfiles[skey]; ok {
-		if prof != cp {
+		if !reflect.DeepEqual(prof, cp) {
 			rsCfg.customProfiles[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
@@ -98,24 +105,31 @@ func (ctlr *Controller) createClientSSLProfile(
 // Creates a new ServerSSL profile from a Secret
 func (ctlr *Controller) createSecretServerSSLProfile(
 	rsCfg *ResourceConfig,
-	secret *v1.Secret,
+	secrets []*v1.Secret,
 	tlsCipher TLSCipher,
 	context string,
 ) (error, bool) {
 
-	// tls.key is not mandatory for ServerSSL Profile
-	if _, ok := secret.Data["tls.crt"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
-			secret.ObjectMeta.Name)
-		return err, false
+	var certificates []certificate
+	for _, secret := range secrets {
+		cert := certificate{}
+		// tls.key is not mandatory for ServerSSL Profile
+		if _, ok := secret.Data["tls.crt"]; !ok {
+			err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
+				secret.ObjectMeta.Name)
+			return err, false
+		} else {
+			cert.Cert = string(secret.Data["tls.crt"])
+		}
+		certificates = append(certificates, cert)
 	}
-	return ctlr.createServerSSLProfile(rsCfg, string(secret.Data["tls.crt"]), "", secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, tlsCipher, context)
+	return ctlr.createServerSSLProfile(rsCfg, certificates, "", secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context)
 }
 
 // Creates a new ServerSSL profile from a Secret
 func (ctlr *Controller) createServerSSLProfile(
 	rsCfg *ResourceConfig,
-	cert string,
+	certificates []certificate,
 	certchain string,
 	name string,
 	namespace string,
@@ -135,7 +149,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "", "", tlsCipher)
+		cp := NewCustomProfile(sni, []certificate{}, "", true, "", "", "", tlsCipher)
 		rsCfg.customProfiles[skey] = cp
 	}
 	// TODO
@@ -150,8 +164,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	}
 	cp := NewCustomProfile(
 		profRef,
-		cert,
-		"",
+		certificates,
 		"",        // serverName
 		false,     // sni
 		"",        // peerCertMode
@@ -164,7 +177,7 @@ func (ctlr *Controller) createServerSSLProfile(
 		ResourceName: rsCfg.GetName(),
 	}
 	if prof, ok := rsCfg.customProfiles[skey]; ok {
-		if prof != cp {
+		if !reflect.DeepEqual(prof, cp) {
 			rsCfg.customProfiles[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true

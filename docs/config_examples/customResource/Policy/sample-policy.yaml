@@ -13,6 +13,9 @@ spec:
     firewallPolicy: /Common/AFM_Policy
     dos: /Common/dos
     botDefense: /Common/bot-defense
+    ipIntelligencePolicy: /Common/IP_Intelligence_Policy
+    allowVlans:
+      - /Common/external
     allowSourceRange:
       - 1.1.1.0/24
       - 2.2.2.0/24
@@ -22,7 +25,9 @@ spec:
       server: /Common/f5-tcp-wan
     udp: /Common/udp
     http: /Common/http
-    http2: /Common/http2
+    http2:
+      client: /Common/Samplehttp2Client
+      server: /Common/Samplehttp2Server
     profileL4: /Common/security-fastL4
     profileMultiplex: /Common/oneconnect
     logProfiles:

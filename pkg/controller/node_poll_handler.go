@@ -1,46 +1,54 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
-
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	v1 "k8s.io/api/core/v1"
 )
 
-func (ctlr *Controller) SetupNodePolling(
-	nodePollInterval int,
-	nodeLabelSelector string,
-	vxlanMode string,
-	vxlanName string,
-) error {
-	intervalFactor := time.Duration(nodePollInterval)
-	ctlr.nodePoller = pollers.NewNodePoller(ctlr.kubeClient, intervalFactor*time.Second, nodeLabelSelector)
-
-	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := ctlr.nodePoller.RegisterListener(ctlr.ProcessNodeUpdate)
-	if nil != err {
-		return fmt.Errorf("error registering node update listener: %v",
-			err)
+func (ctlr *Controller) SetupNodeProcessing() error {
+	//when there is update from node informer get list of nodes from nodeinformer cache
+	ns := ""
+	if ctlr.watchingAllNamespaces() {
+		ns = ""
+	} else {
+		for k := range ctlr.namespaces {
+			ns = k
+			break
+		}
 	}
-
-	if 0 != len(vxlanMode) {
+	appInf, _ := ctlr.getNamespacedCommonInformer(ns)
+	nodes := appInf.nodeInformer.GetIndexer().List()
+	var nodeslist []v1.Node
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		nodeslist = append(nodeslist, *node)
+	}
+	sort.Sort(NodeList(nodeslist))
+	ctlr.ProcessNodeUpdate(nodeslist)
+	// adding the bigip_monitored_nodes	metrics
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
+	if ctlr.StaticRoutingMode {
+		ctlr.processStaticRouteUpdate(nodes)
+	} else if 0 != len(ctlr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := vxlanName
-		cleanPath := strings.TrimLeft(vxlanName, "/")
+		tunnelName := ctlr.vxlanName
+		cleanPath := strings.TrimLeft(ctlr.vxlanName, "/")
 		slashPos := strings.Index(cleanPath, "/")
 		if slashPos != -1 {
 			tunnelName = cleanPath[slashPos+1:]
 		}
 		vxMgr, err := vxlan.NewVxlanMgr(
-			vxlanMode,
+			ctlr.vxlanMode,
 			tunnelName,
 			ctlr.UseNodeInternal,
 			ctlr.Agent.ConfigWriter,
@@ -51,12 +59,8 @@ func (ctlr *Controller) SetupNodePolling(
 		}
 
 		// Register vxMgr to watch for node updates to process fdb records
-		err = ctlr.nodePoller.RegisterListener(vxMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
-		if ctlr.Agent.EventChan != nil {
+		vxMgr.ProcessNodeUpdate(nodeslist)
+		if ctlr.Agent.EventChan != nil && !ctlr.Agent.disableARP {
 			// It handles arp entries related to PoolMembers
 			vxMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
 		}
@@ -67,13 +71,8 @@ func (ctlr *Controller) SetupNodePolling(
 
 // Check for a change in Node state
 func (ctlr *Controller) ProcessNodeUpdate(
-	obj interface{}, err error,
+	obj interface{},
 ) {
-	if nil != err {
-		log.Warningf("Unable to get list of nodes, err=%+v", err)
-		return
-	}
-
 	newNodes, err := ctlr.getNodes(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
@@ -88,7 +87,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 			// Handle NodeLabelUpdates
 			if ctlr.PoolMemberType == NodePort {
 				if ctlr.watchingAllNamespaces() {
-					crInf, _ := ctlr.getNamespacedInformer("")
+					crInf, _ := ctlr.getNamespacedCRInformer("")
 					virtuals := crInf.vsInformer.GetIndexer().List()
 					if len(virtuals) != 0 {
 						for _, virtual := range virtuals {
@@ -100,7 +99,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								vs,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
 						}
 					}
 					transportVirtuals := crInf.tsInformer.GetIndexer().List()
@@ -114,7 +113,21 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								vs,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
+						}
+					}
+					ingressLinks := crInf.ilInformer.GetIndexer().List()
+					if len(ingressLinks) != 0 {
+						for _, ingressLink := range ingressLinks {
+							il := ingressLink.(*cisapiv1.IngressLink)
+							qKey := &rqKey{
+								il.ObjectMeta.Namespace,
+								IngressLink,
+								il.ObjectMeta.Name,
+								il,
+								Update,
+							}
+							ctlr.resourceQueue.Add(qKey)
 						}
 					}
 
@@ -124,6 +137,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 					for ns, _ := range ctlr.namespaces {
 						virtuals := ctlr.getAllVirtualServers(ns)
 						transportVirtuals := ctlr.getAllTransportServers(ns)
+						ingressLinks := ctlr.getAllIngressLinks(ns)
 						for _, virtual := range virtuals {
 							qKey := &rqKey{
 								ns,
@@ -132,7 +146,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								virtual,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
 						}
 						for _, virtual := range transportVirtuals {
 							qKey := &rqKey{
@@ -142,7 +156,17 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								virtual,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
+						}
+						for _, ingressLink := range ingressLinks {
+							qKey := &rqKey{
+								ns,
+								IngressLink,
+								ingressLink.ObjectMeta.Name,
+								ingressLink,
+								Update,
+							}
+							ctlr.resourceQueue.Add(qKey)
 						}
 					}
 				}
@@ -186,6 +210,16 @@ func (ctlr *Controller) getNodes(
 
 	// Append list of nodes to watchedNodes
 	for _, node := range nodes {
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
 		nodeAddrs := node.Status.Addresses
 		for _, addr := range nodeAddrs {
 			if addr.Type == addrType {
@@ -224,4 +258,142 @@ func (ctlr *Controller) getNodesWithLabel(
 		}
 	}
 	return nodes
+}
+
+func ciliumPodCidr(annotation map[string]string) string {
+	if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation13]; ok {
+		return subnet
+	} else if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation12]; ok {
+		return subnet
+	}
+	return ""
+}
+
+func (ctlr *Controller) processStaticRouteUpdate(
+	nodes []interface{},
+) {
+	//if static-routing-mode process static routes
+	var addrType v1.NodeAddressType
+	if ctlr.UseNodeInternal {
+		addrType = v1.NodeInternalIP
+	} else {
+		addrType = v1.NodeExternalIP
+	}
+
+	routes := routeSection{}
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
+		route := routeConfig{}
+		// For ovn-k8s get pod subnet and node ip from annotation
+		if ctlr.OrchestrationCNI == OVN_K8S {
+			annotations := node.Annotations
+			if nodeSubnetAnn, ok := annotations[OVNK8sNodeSubnetAnnotation]; !ok {
+				log.Warningf("Node subnet annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+				continue
+			} else {
+				nodesubnet, err := parseNodeSubnet(nodeSubnetAnn, node.Name)
+				if err != nil {
+					log.Warningf("Node subnet annotation %v not properly configured for node %v:%v", OVNK8sNodeSubnetAnnotation, node.Name, err)
+					continue
+				}
+				route.Network = nodesubnet
+			}
+			if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
+				log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+				continue
+			} else {
+				nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
+				if err != nil {
+					log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
+					continue
+				}
+				route.Gateway = nodeIP
+				route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+			}
+
+		} else if ctlr.OrchestrationCNI == CILIUM_K8S {
+			nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
+			if nodesubnet == "" {
+				log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
+				continue
+			} else {
+				route.Network = nodesubnet
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+					}
+				}
+
+			}
+		} else {
+			//For k8s CNI like flannel, antrea etc we can get subnet from node spec
+			podCIDR := node.Spec.PodCIDR
+			if podCIDR != "" {
+				route.Network = podCIDR
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+					}
+				}
+			} else {
+				log.Debugf("podCIDR is not found on node %v so not adding the static route for node", node.Name)
+				continue
+			}
+		}
+		routes.Entries = append(routes.Entries, route)
+	}
+	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
+
+	if nil != err {
+		log.Warningf("Failed to write static routes config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote static route config section: %v", routes)
+		case e := <-errCh:
+			log.Warningf("Failed to write static route config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
+		}
+	}
+}
+
+func parseNodeSubnet(ann, nodeName string) (string, error) {
+	var subnetDict map[string]interface{}
+	json.Unmarshal([]byte(ann), &subnetDict)
+	if nodeSubnet, ok := subnetDict["default"]; ok {
+		return nodeSubnet.(string), nil
+	}
+	err := fmt.Errorf("%s annotation for "+
+		"node '%s' has invalid format; cannot validate node subnet. "+
+		"Should be of the form: '{\"default\":\"<node-subnet>\"}'", OVNK8sNodeSubnetAnnotation, nodeName)
+	return "", err
+}
+
+func parseNodeIP(ann, nodeName string) (string, error) {
+	var IPDict map[string]interface{}
+	json.Unmarshal([]byte(ann), &IPDict)
+	if IP, ok := IPDict["ipv4"]; ok {
+		ipmask := IP.(string)
+		nodeip := strings.Split(ipmask, "/")[0]
+		return nodeip, nil
+	}
+	err := fmt.Errorf("%s annotation for "+
+		"node '%s' has invalid format; cannot validate node IP. "+
+		"Should be of the form: '{\"ipv4\":\"<node-ip>\"}'", OVNK8sNodeIPAnnotation, nodeName)
+	return "", err
 }

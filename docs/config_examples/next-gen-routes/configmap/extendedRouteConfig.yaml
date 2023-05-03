@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: default-extended-route-spec
   namespace: kube-system
+  labels:
+    f5nr: "true"
 data:
   extendedSpec: |
     extendedRouteSpec:
@@ -10,21 +12,6 @@ data:
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
       allowOverride: true
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
-      healthMonitors:
-      - path: "mysite1.f5demo.com/app/health"
-        send: "HTTP GET /"
-        recv: "ok"
-        interval: 5
-        timeout: 10
-      - path: "mysite2.f5demo.com/"
-        send: "HTTP GET /"
-        recv: "ok"
-        interval: 5
-        timeout: 15
     - namespace: new
       vserverAddr: 10.8.3.12
       allowOverride: true

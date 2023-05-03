@@ -17,7 +17,7 @@
 package as3
 
 import (
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 )
 
 type (
@@ -143,7 +143,7 @@ type (
 	as3Service struct {
 		Layer4                 string            `json:"layer4,omitempty"`
 		Source                 string            `json:"source,omitempty"`
-		TranslateServerAddress bool              `json:"translateServerAddress,omitempty"`
+		TranslateServerAddress *bool             `json:"translateServerAddress,omitempty"`
 		TranslateServerPort    bool              `json:"translateServerPort,omitempty"`
 		Class                  string            `json:"class,omitempty"`
 		VirtualAddresses       []string          `json:"virtualAddresses,omitempty"`
@@ -162,19 +162,20 @@ type (
 	// - Monitor_HTTP
 	// - Monitor_HTTPS
 	as3Monitor struct {
-		Class             string  `json:"class,omitempty"`
-		Interval          int     `json:"interval,omitempty"`
-		MonitorType       string  `json:"monitorType,omitempty"`
-		TargetAddress     *string `json:"targetAddress,omitempty"`
-		Timeout           int     `json:"timeout,omitempty"`
-		TimeUnitilUp      *int    `json:"timeUntilUp,omitempty"`
-		Adaptive          *bool   `json:"adaptive,omitempty"`
-		Dscp              *int    `json:"dscp,omitempty"`
-		Receive           string  `json:"receive,omitempty"`
-		Send              string  `json:"send,omitempty"`
-		TargetPort        *int    `json:"targetPort,omitempty"`
-		ClientCertificate string  `json:"clientCertificate,omitempty"`
-		Ciphers           string  `json:"ciphers,omitempty"`
+		Class             string              `json:"class,omitempty"`
+		Interval          int                 `json:"interval,omitempty"`
+		MonitorType       string              `json:"monitorType,omitempty"`
+		TargetAddress     *string             `json:"targetAddress,omitempty"`
+		Timeout           int                 `json:"timeout,omitempty"`
+		TimeUnitilUp      *int                `json:"timeUntilUp,omitempty"`
+		Adaptive          bool                `json:"adaptive,omitempty"`
+		Dscp              *int                `json:"dscp,omitempty"`
+		Receive           string              `json:"receive,omitempty"`
+		Send              string              `json:"send,omitempty"`
+		TargetPort        *int                `json:"targetPort,omitempty"`
+		ClientCertificate string              `json:"clientCertificate,omitempty"`
+		Ciphers           string              `json:"ciphers,omitempty"`
+		ClientTLS         *as3ResourcePointer `json:"clientTLS,omitempty"`
 	}
 
 	// as3CABundle maps to CA_Bundle in AS3 Resources

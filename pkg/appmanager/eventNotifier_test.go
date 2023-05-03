@@ -22,20 +22,18 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/klog/v2"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
@@ -58,10 +56,6 @@ func NewFakeEvent(
 
 	// Only Ingress objects are supported more, others added easily here.
 	switch obj.(type) {
-	case *v1beta1.Ingress:
-		ing := obj.(*v1beta1.Ingress)
-		namespace = ing.ObjectMeta.Namespace
-		name = ing.ObjectMeta.Name
 	case *netv1.Ingress:
 		ing := obj.(*netv1.Ingress)
 		namespace = ing.ObjectMeta.Namespace
@@ -209,58 +203,22 @@ var _ = Describe("Event Notifier Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 
 			bindAddr := fmt.Sprintf("1.0.0.%d", ingNbr)
-			if apiVersion == "v1beta1" {
-				ing := test.NewIngress("ingress", "1", namespaces[ingNbr],
-					v1beta1.IngressSpec{
-						Backend: &v1beta1.IngressBackend{
-							ServiceName: svcName,
-							ServicePort: intstr.IntOrString{IntVal: svcPort},
-						},
+			ing := NewV1Ingress("ingress", "1", namespaces[ingNbr],
+				netv1.IngressSpec{
+					DefaultBackend: &netv1.IngressBackend{
+						Service: &netv1.IngressServiceBackend{Name: svcName, Port: netv1.ServiceBackendPort{Number: svcPort}},
 					},
-					map[string]string{
-						F5VsBindAddrAnnotation:  bindAddr,
-						F5VsPartitionAnnotation: "velcro",
-					},
-				)
-				r = mockMgr.addIngress(ing)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-			} else {
-				ing := NewV1Ingress("ingress", "1", namespaces[ingNbr],
-					netv1.IngressSpec{
-						DefaultBackend: &netv1.IngressBackend{
-							Service: &netv1.IngressServiceBackend{Name: svcName, Port: netv1.ServiceBackendPort{Number: svcPort}},
-						},
-					},
-					map[string]string{
-						F5VsBindAddrAnnotation:  bindAddr,
-						F5VsPartitionAnnotation: "velcro",
-					},
-				)
-				r = mockMgr.addV1Ingress(ing)
-				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-
-			}
+				},
+				map[string]string{
+					F5VsBindAddrAnnotation:  bindAddr,
+					F5VsPartitionAnnotation: "velcro",
+				},
+			)
+			r = mockMgr.addV1Ingress(ing)
+			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 
 		}
-		// TODO remove the tests for "ingress v1beta1" once v1beta1.Ingress is deprecated in k8s 1.22
-		It("multiple namespace ingress", func() {
-			// Deploy a Service and Ingress in each namespace
-			for i, _ := range namespaces {
-				deployIngress(i, "v1beta1")
-			}
 
-			// Make sure the ingress events are in the correct namespace.
-			for _, ns := range namespaces {
-				events := mockMgr.getFakeEvents(ns)
-				// This use case currently creates 2 events
-				// (ResourceConfigured and ServiceNotFound)
-				Expect(len(events)).To(Equal(2))
-				for _, event := range events {
-					// Regardless of length test, make sure all events match ns.
-					Expect(event.Namespace).To(Equal(ns))
-				}
-			}
-		})
 		It("multiple namespace v1 ingress", func() {
 			// Deploy a Service and Ingress in each namespace
 			for i, _ := range namespaces {

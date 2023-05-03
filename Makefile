@@ -105,7 +105,7 @@ vet:
 	$(CURDIR)/build-tools/vet.sh
 
 devel-image:
-	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-devel:latest -f build-tools/Dockerfile.(BASE_OS) .
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-devel:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 # Enable certain funtionalities only on a developer build
 dev-patch:
@@ -151,5 +151,5 @@ else
 endif
 
 crd-code-gen:
-	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr quay.io/f5networks/ciscrdcodegen:latest
+	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr/v2 quay.io/f5networks/ciscrdcodegen:latest
 	docker rm crdcodegen

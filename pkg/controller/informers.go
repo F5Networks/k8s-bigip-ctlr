@@ -27,9 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -57,6 +57,54 @@ var K8SCoreServices = map[string]bool{
 	"antrea":                      true,
 }
 
+var OSCPCoreServices = map[string]bool{
+	"openshift":                          true,
+	"metrics":                            true,
+	"api":                                true,
+	"check-endpoints":                    true,
+	"oauth-openshift":                    true,
+	"cco-metrics":                        true,
+	"machine-approver":                   true,
+	"node-tuning-operator":               true,
+	"performance-addon-operator-service": true,
+	"cluster-storage-operator-metrics":   true,
+	"csi-snapshot-controller-operator-metrics": true,
+	"csi-snapshot-webhook":                     true,
+	"cluster-version-operator":                 true,
+	"downloads":                                true,
+	"controller-manager":                       true,
+	"dns-default":                              true,
+	"image-registry-operator":                  true,
+	"router-internal-default":                  true,
+	"apiserver":                                true,
+	"scheduler":                                true,
+	"cluster-autoscaler-operator":              true,
+	"cluster-baremetal-operator-service":       true,
+	"cluster-baremetal-webhook-service":        true,
+	"machine-api-controllers":                  true,
+	"machine-api-operator":                     true,
+	"machine-api-operator-webhook":             true,
+	"machine-config-controller":                true,
+	"machine-config-daemon":                    true,
+	"certified-operators":                      true,
+	"community-operators":                      true,
+	"marketplace-operator-metrics":             true,
+	"redhat-marketplace":                       true,
+	"redhat-operators":                         true,
+	"openshift-state-metrics":                  true,
+	"telemeter-client":                         true,
+	"thanos-querier":                           true,
+	"multus-admission-controller":              true,
+	"network-metrics-service":                  true,
+	"network-check-source":                     true,
+	"network-check-target":                     true,
+	"catalog-operator-metrics":                 true,
+	"olm-operator-metrics":                     true,
+	"packageserver-service":                    true,
+	"sdn":                                      true,
+	"sdn-controller":                           true,
+}
+
 // start the VirtualServer informer
 func (crInfr *CRInformer) start() {
 	var cacheSyncs []cache.InformerSynced
@@ -80,27 +128,6 @@ func (crInfr *CRInformer) start() {
 		log.Infof("Starting IngressLink Informer")
 		go crInfr.ilInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.ilInformer.HasSynced)
-	}
-	if crInfr.ednsInformer != nil {
-		log.Infof("Starting ExternalDNS Informer")
-		go crInfr.ednsInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.ednsInformer.HasSynced)
-	}
-	if crInfr.svcInformer != nil {
-		go crInfr.svcInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.svcInformer.HasSynced)
-	}
-	if crInfr.epsInformer != nil {
-		go crInfr.epsInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.epsInformer.HasSynced)
-	}
-	if crInfr.plcInformer != nil {
-		go crInfr.plcInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.plcInformer.HasSynced)
-	}
-	if crInfr.podInformer != nil {
-		go crInfr.podInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.podInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS CRD Controller",
@@ -132,34 +159,55 @@ func (nrInfr *NRInformer) stop() {
 	close(nrInfr.stopCh)
 }
 
-func (esInfr *EssentialInformer) start() {
+func (comInfr *CommonInformer) start() {
 	var cacheSyncs []cache.InformerSynced
-	if esInfr.svcInformer != nil {
-		go esInfr.svcInformer.Run(esInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, esInfr.svcInformer.HasSynced)
+	if comInfr.svcInformer != nil {
+		go comInfr.svcInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.svcInformer.HasSynced)
 	}
-	if esInfr.epsInformer != nil {
-		go esInfr.epsInformer.Run(esInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, esInfr.epsInformer.HasSynced)
+	if comInfr.epsInformer != nil {
+		go comInfr.epsInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.epsInformer.HasSynced)
+	}
+	if comInfr.ednsInformer != nil {
+		log.Infof("Starting ExternalDNS Informer")
+		go comInfr.ednsInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.ednsInformer.HasSynced)
+	}
+	if comInfr.plcInformer != nil {
+		go comInfr.plcInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.plcInformer.HasSynced)
+	}
+	if comInfr.podInformer != nil {
+		go comInfr.podInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.podInformer.HasSynced)
+	}
+	if comInfr.nodeInformer != nil {
+		go comInfr.nodeInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.nodeInformer.HasSynced)
+	}
+	if comInfr.secretsInformer != nil {
+		go comInfr.secretsInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.secretsInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
-		esInfr.stopCh,
+		comInfr.stopCh,
 		cacheSyncs...,
 	)
 }
 
-func (esInfr *EssentialInformer) stop() {
-	close(esInfr.stopCh)
+func (comInfr *CommonInformer) stop() {
+	close(comInfr.stopCh)
 }
 
 func (ctlr *Controller) watchingAllNamespaces() bool {
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
-		if len(ctlr.esInformers) == 0 || len(ctlr.nrInformers) == 0 {
+		if len(ctlr.comInformers) == 0 || len(ctlr.nrInformers) == 0 {
 			return false
 		}
-		_, watchingAll := ctlr.esInformers[""]
+		_, watchingAll := ctlr.comInformers[""]
 		return watchingAll
 	case CustomResourceMode:
 		if len(ctlr.crInformers) == 0 {
@@ -172,7 +220,7 @@ func (ctlr *Controller) watchingAllNamespaces() bool {
 	return false
 }
 
-func (ctlr *Controller) getNamespacedInformer(
+func (ctlr *Controller) getNamespacedCRInformer(
 	namespace string,
 ) (*CRInformer, bool) {
 	if ctlr.watchingAllNamespaces() {
@@ -182,14 +230,14 @@ func (ctlr *Controller) getNamespacedInformer(
 	return crInf, found
 }
 
-func (ctlr *Controller) getNamespacedEssentialInformer(
+func (ctlr *Controller) getNamespacedCommonInformer(
 	namespace string,
-) (*EssentialInformer, bool) {
+) (*CommonInformer, bool) {
 	if ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
-	esInf, found := ctlr.esInformers[namespace]
-	return esInf, found
+	comInf, found := ctlr.comInformers[namespace]
+	return comInf, found
 }
 
 func (ctlr *Controller) getNamespacedNativeInformer(
@@ -233,25 +281,20 @@ func (ctlr *Controller) addNamespacedInformers(
 		return fmt.Errorf(
 			"Cannot watch all namespaces when already watching specific ones.")
 	}
+
+	// add common informers  in all modes
+	if _, found := ctlr.comInformers[namespace]; !found {
+		comInf := ctlr.newNamespacedCommonResourceInformer(namespace)
+		ctlr.addCommonResourceEventHandlers(comInf)
+		ctlr.comInformers[namespace] = comInf
+		if startInformer {
+			comInf.start()
+		}
+	}
+
 	switch ctlr.mode {
-	case CustomResourceMode:
-		if _, found := ctlr.crInformers[namespace]; found {
-			return nil
-		}
-		crInf := ctlr.newNamespacedCustomResourceInformer(namespace)
-		ctlr.addCustomResourceEventHandlers(crInf)
-		ctlr.crInformers[namespace] = crInf
-
-	case OpenShiftMode:
-		if _, found := ctlr.esInformers[namespace]; !found {
-			esInf := ctlr.newNamespacedEssentialResourceInformer(namespace)
-			ctlr.addEssentialResourceEventHandlers(esInf)
-			ctlr.esInformers[namespace] = esInf
-			if startInformer {
-				esInf.start()
-			}
-		}
-
+	case OpenShiftMode, KubernetesMode:
+		// Create native resource informers in openshift mode only
 		if _, found := ctlr.nrInformers[namespace]; !found {
 			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
 			ctlr.addNativeResourceEventHandlers(nrInf)
@@ -260,8 +303,18 @@ func (ctlr *Controller) addNamespacedInformers(
 				nrInf.start()
 			}
 		}
+	default:
+		// create customer resource informers in custom resource mode
+		// Enabling CRInformers only for custom resource mode
+		if _, found := ctlr.crInformers[namespace]; !found {
+			crInf := ctlr.newNamespacedCustomResourceInformer(namespace)
+			ctlr.addCustomResourceEventHandlers(crInf)
+			ctlr.crInformers[namespace] = crInf
+			if startInformer {
+				crInf.start()
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -270,39 +323,16 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 ) *CRInformer {
 	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.resourceSelector.String()
+		options.LabelSelector = ctlr.customResourceSelector.String()
 	}
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
 
 	crInf := &CRInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
-		svcInformer: cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"services",
-				namespace,
-				everything,
-			),
-			&corev1.Service{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
-		epsInformer: cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"endpoints",
-				namespace,
-				everything,
-			),
-			&corev1.Endpoints{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
 	}
 
 	crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
@@ -334,35 +364,6 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
-	crInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
-		ctlr.kubeCRClient,
-		namespace,
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		crOptions,
-	)
-
-	crInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
-		ctlr.kubeCRClient,
-		namespace,
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		crOptions,
-	)
-	//enable pod informer for nodeport local mode
-	if ctlr.PoolMemberType == NodePortLocal {
-		crInf.podInformer = cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"pods",
-				namespace,
-				everything,
-			),
-			&corev1.Pod{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-	}
 	return crInf
 }
 
@@ -381,7 +382,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		//appMgr.loadDefaultCert() why?
 
 		nrOptions := func(options *metav1.ListOptions) {
-			options.LabelSelector = ctlr.resourceSelector.String()
+			options.LabelSelector = ctlr.nativeResourceSelector.String()
 		}
 		//everything := func(options *metav1.ListOptions) {
 		//	options.LabelSelector = ""
@@ -421,17 +422,22 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 	return nrInformer
 }
 
-func (ctlr *Controller) newNamespacedEssentialResourceInformer(
+func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	namespace string,
-) *EssentialInformer {
-	log.Debugf("Creating Essential Resource Informers for Namespace: %v", namespace)
+) *CommonInformer {
+	log.Debugf("Creating Common Resource Informers for Namespace: %v", namespace)
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
 	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
-
-	esInf := &EssentialInformer{
+	crOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = ctlr.customResourceSelector.String()
+	}
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = ctlr.nodeLabelSelector
+	}
+	comInf := &CommonInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 		svcInformer: cache.NewSharedIndexInformer(
@@ -456,8 +462,59 @@ func (ctlr *Controller) newNamespacedEssentialResourceInformer(
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
+		secretsInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"secrets",
+				namespace,
+				everything,
+			),
+			&corev1.Secret{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"nodes",
+				"",
+				nodeOptions,
+			),
+			&corev1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
 	}
-	return esInf
+	comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
+		ctlr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+
+	comInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
+		ctlr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+	//enable pod informer for nodeport local mode and openshift mode
+	if ctlr.PoolMemberType == NodePortLocal || ctlr.mode == OpenShiftMode {
+		comInf.podInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"pods",
+				namespace,
+				everything,
+			),
+			&corev1.Pod{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
+	return comInf
 }
 
 func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
@@ -500,18 +557,11 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 			},
 		)
 	}
+}
 
-	if crInf.ednsInformer != nil {
-		crInf.ednsInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueExternalDNS(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj) },
-			})
-	}
-
-	if crInf.svcInformer != nil {
-		crInf.svcInformer.AddEventHandler(
+func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
+	if comInf.svcInformer != nil {
+		comInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
@@ -520,8 +570,8 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 		)
 	}
 
-	if crInf.epsInformer != nil {
-		crInf.epsInformer.AddEventHandler(
+	if comInf.epsInformer != nil {
+		comInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
@@ -530,8 +580,17 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 		)
 	}
 
-	if crInf.plcInformer != nil {
-		crInf.plcInformer.AddEventHandler(
+	if comInf.ednsInformer != nil {
+		comInf.ednsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueueExternalDNS(obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj) },
+			})
+	}
+
+	if comInf.plcInformer != nil {
+		comInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update) },
@@ -540,8 +599,8 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 		)
 	}
 
-	if crInf.podInformer != nil {
-		crInf.podInformer.AddEventHandler(
+	if comInf.podInformer != nil {
+		comInf.podInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
@@ -549,25 +608,23 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 			},
 		)
 	}
-}
 
-func (ctlr *Controller) addEssentialResourceEventHandlers(esInf *EssentialInformer) {
-	if esInf.svcInformer != nil {
-		esInf.svcInformer.AddEventHandler(
+	if comInf.nodeInformer != nil {
+		comInf.nodeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing() },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing() },
+				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing() },
 			},
 		)
 	}
 
-	if esInf.epsInformer != nil {
-		esInf.epsInformer.AddEventHandler(
+	if comInf.secretsInformer != nil {
+		comInf.secretsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueSecret(obj, Create) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueSecret(cur, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
 			},
 		)
 	}
@@ -621,7 +678,7 @@ func (ctlr *Controller) enqueueIPAM(obj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
@@ -645,7 +702,7 @@ func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 		event:     Update,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
@@ -664,7 +721,7 @@ func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 		event:     Delete,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
@@ -678,21 +735,34 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
+	// Skip virtual servers on status updates
+	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
+		return
+	}
 	updateEvent := true
+	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
+	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerHTTPPort != newVS.Spec.VirtualServerHTTPPort ||
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.Host != newVS.Spec.Host ||
 		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
-		oldVS.Spec.HostGroup != newVS.Spec.HostGroup {
+		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
+		oldVSPartition != newVSPartition {
 		log.Debugf("Enqueueing Old VirtualServer: %v", oldVS)
+
+		// delete vs from previous partition on priority when partition is changed
+		if oldVSPartition != newVSPartition {
+			ctlr.resources.updatePartitionPriority(oldVSPartition, 1)
+		}
+
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,
 			kind:      VirtualServer,
@@ -701,7 +771,7 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 			event:     Delete,
 		}
 		updateEvent = false
-		ctlr.rscQueue.Add(key)
+		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing VirtualServer: %v", newVS)
@@ -715,7 +785,7 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 	if updateEvent {
 		key.event = Update
 	}
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
@@ -729,7 +799,7 @@ func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 		event:     Delete,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
@@ -743,7 +813,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 		event:     event,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
@@ -757,18 +827,31 @@ func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
-
+	// Skip transport servers on status updates
+	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
+		return
+	}
+	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
+	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerPort != newVS.Spec.VirtualServerPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
-		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel {
+		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
+		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
+		oldVSPartition != newVSPartition {
 		log.Debugf("Enqueueing TransportServer: %v", oldVS)
+
+		// delete vs from previous partition on priority when partition is changed
+		if oldVSPartition != newVSPartition {
+			ctlr.resources.updatePartitionPriority(oldVSPartition, 1)
+		}
+
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,
 			kind:      TransportServer,
@@ -776,7 +859,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 			rsc:       oldObj,
 			event:     Delete,
 		}
-		ctlr.rscQueue.Add(key)
+		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing TransportServer: %v", newVS)
@@ -788,7 +871,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
@@ -802,7 +885,7 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 		event:     Delete,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
@@ -816,7 +899,7 @@ func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
 		event:     event,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
@@ -830,7 +913,7 @@ func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 		event:     Delete,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
@@ -844,7 +927,7 @@ func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
@@ -858,15 +941,24 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 		event:     Delete,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
 
+	oldILPartition := ctlr.getCRPartition(oldIngLink.Spec.Partition)
+	newILPartition := ctlr.getCRPartition(newIngLink.Spec.Partition)
 	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress ||
-		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel {
+		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel ||
+		oldILPartition != newILPartition {
+
+		// delete vs from previous partition on priority when partition is changed
+		if oldILPartition != newILPartition {
+			ctlr.resources.updatePartitionPriority(oldILPartition, 1)
+		}
+
 		key := &rqKey{
 			namespace: oldIngLink.ObjectMeta.Namespace,
 			kind:      IngressLink,
@@ -875,7 +967,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 			event:     Delete,
 		}
 
-		ctlr.rscQueue.Add(key)
+		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Infof("Enqueueing IngressLink: %v on Update", newIngLink)
@@ -887,7 +979,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
@@ -901,7 +993,7 @@ func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
@@ -917,7 +1009,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 			event:     Delete,
 		}
 
-		ctlr.rscQueue.Add(key)
+		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Infof("Enqueueing Updated ExternalDNS: %v", edns)
@@ -929,7 +1021,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 		event:     Create,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
@@ -943,7 +1035,7 @@ func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 		event:     Delete,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueService(obj interface{}) {
@@ -951,6 +1043,11 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
+	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[svc.Name]; ok {
+			return
+		}
 	}
 
 	log.Debugf("Enqueueing Service: %v", svc)
@@ -961,12 +1058,7 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 		rsc:       obj,
 		event:     Create,
 	}
-	switch ctlr.mode {
-	case KubernetesMode, OpenShiftMode:
-		ctlr.nativeResourceQueue.Add(key)
-	case CustomResourceMode:
-		ctlr.rscQueue.Add(key)
-	}
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
@@ -976,10 +1068,15 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[svc.Name]; ok {
+			return
+		}
+	}
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
-		!reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
+		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
 		log.Debugf("Enqueueing Old Service: %v", svc)
 		key := &rqKey{
 			namespace: svc.ObjectMeta.Namespace,
@@ -988,12 +1085,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 			rsc:       obj,
 			event:     Delete,
 		}
-		switch ctlr.mode {
-		case KubernetesMode, OpenShiftMode:
-			ctlr.nativeResourceQueue.Add(key)
-		case CustomResourceMode:
-			ctlr.rscQueue.Add(key)
-		}
+		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing Updated Service: %v", curSvc)
@@ -1004,12 +1096,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 		rsc:       cur,
 		event:     Create,
 	}
-	switch ctlr.mode {
-	case KubernetesMode, OpenShiftMode:
-		ctlr.nativeResourceQueue.Add(key)
-	case CustomResourceMode:
-		ctlr.rscQueue.Add(key)
-	}
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
@@ -1017,6 +1104,11 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
+	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[svc.Name]; ok {
+			return
+		}
 	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
@@ -1026,12 +1118,7 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-	switch ctlr.mode {
-	case KubernetesMode, OpenShiftMode:
-		ctlr.nativeResourceQueue.Add(key)
-	case CustomResourceMode:
-		ctlr.rscQueue.Add(key)
-	}
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
@@ -1039,6 +1126,11 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
 		return
+	}
+	if ctlr.mode == OpenShiftMode {
+		if _, ok := OSCPCoreServices[eps.Name]; ok {
+			return
+		}
 	}
 	log.Debugf("Enqueueing Endpoints: %v", eps)
 	key := &rqKey{
@@ -1048,13 +1140,21 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 		rsc:       obj,
 		event:     event,
 	}
+	ctlr.resourceQueue.Add(key)
+}
 
-	switch ctlr.mode {
-	case KubernetesMode, OpenShiftMode:
-		ctlr.nativeResourceQueue.Add(key)
-	case CustomResourceMode:
-		ctlr.rscQueue.Add(key)
+func (ctlr *Controller) enqueueSecret(obj interface{}, event string) {
+	secret := obj.(*corev1.Secret)
+	log.Debugf("Enqueueing Secrets: %v/%v", secret.Namespace, secret.Name)
+	key := &rqKey{
+		namespace: secret.ObjectMeta.Namespace,
+		kind:      K8sSecret,
+		rscName:   secret.ObjectMeta.Name,
+		rsc:       obj,
+		event:     event,
 	}
+	ctlr.resourceQueue.Add(key)
+
 }
 
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
@@ -1067,7 +1167,7 @@ func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 		rsc:       obj,
 		event:     event,
 	}
-	ctlr.nativeResourceQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
@@ -1085,14 +1185,14 @@ func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
 		event:     Update,
 		rsc:       cur,
 	}
-	ctlr.nativeResourceQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 	cm := obj.(*corev1.ConfigMap)
 
 	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
-	//if !ctlr.resourceSelector.Matches(labels.Set(cm.GetLabels())) &&
+	//if !ctlr.nativeResourceSelector.Matches(labels.Set(cm.GetLabels())) &&
 	//	ctlr.routeSpecCMKey != cm.Namespace+"/"+cm.Name {
 	//
 	//	return
@@ -1106,7 +1206,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 		rsc:       obj,
 		event:     event,
 	}
-	ctlr.nativeResourceQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
@@ -1120,7 +1220,7 @@ func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-	ctlr.nativeResourceQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
@@ -1134,7 +1234,7 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-	ctlr.nativeResourceQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueuePod(obj interface{}) {
@@ -1151,7 +1251,7 @@ func (ctlr *Controller) enqueuePod(obj interface{}) {
 		rsc:       obj,
 	}
 
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
@@ -1168,7 +1268,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-	ctlr.rscQueue.Add(key)
+	ctlr.resourceQueue.Add(key)
 }
 
 func (nsInfr *NSInformer) start() {
@@ -1235,12 +1335,7 @@ func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 		rsc:       obj,
 		event:     Create,
 	}
-	switch ctlr.mode {
-	case KubernetesMode, OpenShiftMode:
-		ctlr.nativeResourceQueue.Add(key)
-	case CustomResourceMode:
-		ctlr.rscQueue.Add(key)
-	}
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
@@ -1253,18 +1348,18 @@ func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-	switch ctlr.mode {
-	case KubernetesMode, OpenShiftMode:
-		ctlr.nativeResourceQueue.Add(key)
-	case CustomResourceMode:
-		ctlr.rscQueue.Add(key)
-	}
+	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 	for _, v := range labels {
 		if _, ok := K8SCoreServices[v]; ok {
 			return true
+		}
+		if ctlr.mode == OpenShiftMode {
+			if _, ok := OSCPCoreServices[v]; ok {
+				return true
+			}
 		}
 	}
 	return false

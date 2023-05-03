@@ -2,9 +2,10 @@ package controller
 
 import (
 	"encoding/json"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/ghttp"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -45,6 +46,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Name = "crd_vs_172.13.14.15"
 			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
+			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
 			rsCfg.Virtual.Policies = []nameRef{
 				{
 					Name:      "policy1",
@@ -197,28 +199,28 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			rsCfg2.customProfiles = make(map[SecretKey]CustomProfile)
+			cert := certificate{Cert: "crthash", Key: "keyhash"}
 			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_cssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
-				Name:       "default_svc_test_com_cssl",
-				Partition:  "test",
-				Context:    "clientside",
-				Cert:       "crthash",
-				Key:        "keyhash",
-				ServerName: "test.com",
-				SNIDefault: false,
+				Name:         "default_svc_test_com_cssl",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert},
+				SNIDefault:   false,
 			}
+			certOnly := certificate{Cert: "crthash"}
 			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_sssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
-				Name:       "default_svc_test_com_sssl",
-				Partition:  "test",
-				Context:    "serverside",
-				Cert:       "crthash",
-				ServerName: "test.com",
-				SNIDefault: false,
+				Name:         "default_svc_test_com_sssl",
+				Partition:    "test",
+				Context:      "serverside",
+				Certificates: []certificate{certOnly},
+				ServerName:   "test.com",
+				SNIDefault:   false,
 			}
 
 			config := ResourceConfigRequest{
@@ -227,8 +229,8 @@ var _ = Describe("Backend Tests", func() {
 				gtmConfig:          GTMConfig{},
 				defaultRouteDomain: 1,
 			}
-
-			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 
@@ -262,7 +264,8 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
 			decl := agent.createTenantAS3Declaration(config)
@@ -278,7 +281,8 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 
 			as3decl := agent.createTenantAS3Declaration(config)
 			var as3Config map[string]interface{}
@@ -291,71 +295,65 @@ var _ = Describe("Backend Tests", func() {
 			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
 		})
-	})
+		It("Handles Persistence Methods", func() {
+			svc := &as3Service{}
+			// Default persistence methods
+			defaultValues := []string{"cookie", "destination-address", "hash", "msrdp",
+				"sip-info", "source-address", "tls-session-id", "universal"}
+			for _, defaultValue := range defaultValues {
+				svc.addPersistenceMethod(defaultValue)
+				Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3MultiTypeParam(defaultValue)}))
+			}
 
-	It("DNS Config", func() {
-		var monitors []Monitor
-		monitors = append(monitors, Monitor{
-			Name:     "pool1_monitor",
-			Interval: 10,
-			Timeout:  10,
-			Type:     "http",
-			Send:     "GET /health",
+			// Persistence methods with no value and None
+			svc = &as3Service{}
+			svc.addPersistenceMethod("")
+			Expect(svc.PersistenceMethods).To(BeNil())
+			svc.addPersistenceMethod("none")
+			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{}))
+
+			// Custom persistence methods
+			svc.addPersistenceMethod("/Common/pm1")
+			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3ResourcePointer{BigIP: "/Common/pm1"}}))
+			svc.addPersistenceMethod("pm2")
+			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3ResourcePointer{BigIP: "pm2"}}))
 		})
-		dnsConfig := GTMConfig{
-			"test.com": WideIP{
-				DomainName: "test.com",
-				RecordType: "A",
-				LBMethod:   "round-robin",
-				Pools: []GSLBPool{
-					{
-						Name:       "pool1",
-						RecordType: "A",
-						LBMethod:   "round-robin",
-						Members:    []string{"vs1", "vs2"},
-						Monitors:   monitors,
-					},
-				},
-			},
-		}
-
-		config := ResourceConfigRequest{
-			ltmConfig:          make(LTMConfig),
-			shareNodes:         true,
-			gtmConfig:          dnsConfig,
-			defaultRouteDomain: 1,
-		}
-		config.ltmConfig["default"] = &PartitionConfig{}
-
-		writer := &test.MockWriter{
-			FailStyle: test.Success,
-			Sections:  make(map[string]interface{}),
-		}
-		agent := newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.ImmediateFail
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.Timeout
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.AsyncFail
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
 	})
 
 	Describe("GTM Config", func() {
 		var agent *Agent
 		BeforeEach(func() {
 			agent = newMockAgent(nil)
+			DEFAULT_PARTITION = "default"
 		})
+		// Commenting this test case
+		// with new GTM partition support we will not delete partition, instead we flush contents
+		//It("Empty GTM Config", func() {
+		//	adc := as3ADC{}
+		//	adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+		//		gtmConfig: GTMConfig{},
+		//	}, adc)
+		//
+		//	Expect(len(adc)).To(BeZero(), "Invalid GTM Config")
+		//})
 
-		It("Empty GTM Config", func() {
-			gtmTenantConfig := agent.createAS3GTMConfigADC(ResourceConfigRequest{})
-			Expect(gtmTenantConfig).To(BeNil(), "Invalid GTM Config")
+		It("Empty GTM Partition Config / Delete Case", func() {
+			adc := as3ADC{}
+			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+				gtmConfig: GTMConfig{
+					DEFAULT_PARTITION: GTMPartitionConfig{},
+				},
+			}, adc)
+			Expect(len(adc)).To(Equal(1), "Invalid GTM Config")
+
+			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
+			tenant := adc[DEFAULT_PARTITION].(as3Tenant)
+
+			Expect(tenant).To(HaveKey(as3SharedApplication))
+			sharedApp := tenant[as3SharedApplication].(as3Application)
+			Expect(len(sharedApp)).To(Equal(2))
+			Expect(sharedApp).To(HaveKeyWithValue("class", "Application"))
+			Expect(sharedApp).To(HaveKeyWithValue("template", "shared"))
 		})
 
 		It("Valid GTM Config", func() {
@@ -369,27 +367,35 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 			gtmConfig := GTMConfig{
-				"test.com": WideIP{
-					DomainName: "test.com",
-					RecordType: "A",
-					LBMethod:   "round-robin",
-					Pools: []GSLBPool{
-						{
-							Name:       "pool1",
+				DEFAULT_PARTITION: GTMPartitionConfig{
+					WideIPs: map[string]WideIP{
+						"test.com": WideIP{
+							DomainName: "test.com",
 							RecordType: "A",
 							LBMethod:   "round-robin",
-							Members:    []string{"vs1", "vs2"},
-							Monitors:   monitors,
+							Pools: []GSLBPool{
+								{
+									Name:       "pool1",
+									RecordType: "A",
+									LBMethod:   "round-robin",
+									Members:    []string{"vs1", "vs2"},
+									Monitors:   monitors,
+								},
+							},
 						},
 					},
 				},
 			}
-			gtmTenantConfig := agent.createAS3GTMConfigADC(ResourceConfigRequest{
-				gtmConfig: gtmConfig,
-			})
+			adc := agent.createAS3GTMConfigADC(
+				ResourceConfigRequest{gtmConfig: gtmConfig},
+				as3ADC{},
+			)
 
-			Expect(gtmTenantConfig).To(HaveKey(as3SharedApplication))
-			sharedApp := gtmTenantConfig[as3SharedApplication].(as3Application)
+			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
+			tenant := adc[DEFAULT_PARTITION].(as3Tenant)
+
+			Expect(tenant).To(HaveKey(as3SharedApplication))
+			sharedApp := tenant[as3SharedApplication].(as3Application)
 
 			Expect(sharedApp).To(HaveKey("test.com"))
 			Expect(sharedApp["test.com"].(as3GLSBDomain).Class).To(Equal("GSLB_Domain"))
@@ -403,11 +409,6 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Misc", func() {
-		It("Extracting virtual address", func() {
-			ipAddr := extractVirtualAddress("crd_1_2_3_4_tls_client")
-			Expect(ipAddr).To(Equal(AS3NameFormatter("1.2.3.4")), "Wrong or invalid virtual Address")
-		})
-
 		It("Service Address declaration", func() {
 			rsCfg := &ResourceConfig{
 				ServiceAddress: []ServiceAddress{
@@ -422,6 +423,12 @@ var _ = Describe("Backend Tests", func() {
 			val, ok := app["crd_service_address_1_2_3_4"]
 			Expect(ok).To(BeTrue())
 			Expect(val).NotTo(BeNil())
+		})
+		It("Test Deleted Partition", func() {
+			deletedPartition := getDeletedTenantDeclaration("test", "test")
+			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
+			deletedPartition = getDeletedTenantDeclaration("test", "default")
+			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})
 
@@ -440,6 +447,45 @@ var _ = Describe("Backend Tests", func() {
 		It("Verify two equal JSONs", func() {
 			ok := DeepEqualJSON(`{"key": "value"}`, `{"key": "value"}`)
 			Expect(ok).To(BeTrue())
+		})
+	})
+
+	Describe("Agent", func() {
+		var (
+			server *ghttp.Server
+			//body   []byte
+		)
+		BeforeEach(func() {
+			map1 := map[string]string{
+				"version":       "3.42.0",
+				"release":       "1",
+				"schemaCurrent": "3.41.0",
+				"schemaMinimum": "3.18.0",
+			}
+			// start a test http server
+			server = ghttp.NewServer()
+
+			statusCode := 200
+
+			server.AppendHandlers(
+				ghttp.CombineHandlers(
+					ghttp.VerifyRequest("GET", "/mgmt/shared/appsvcs/info"),
+					ghttp.RespondWithJSONEncoded(statusCode, map1),
+				))
+		})
+		AfterEach(func() {
+			server.Close()
+		})
+		It("New Agent", func() {
+			var agentParams AgentParams
+			agentParams.EnableIPV6 = true
+			agentParams.Partition = "test"
+			agentParams.VXLANName = "vxlan500"
+			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
+			agent := NewAgent(agentParams)
+			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.41.0"))
+			agent.Stop()
+
 		})
 	})
 

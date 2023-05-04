@@ -223,6 +223,27 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	}
 }
 
+// removeDeletedTenantsForBigIP will check the tenant exists on bigip or not
+// if tenant exists and rsConfig does not have tenant, update the tenant with empty PartitionConfig
+func (agent *Agent) removeDeletedTenantsForBigIP(rsConfig *ResourceConfigRequest, cisLabel string) {
+	//Fetching the latest BIGIP Configuration and identify if any tenant needs to be deleted
+	as3Config, err := agent.PostManager.GetAS3DeclarationFromBigIP()
+	if err != nil {
+		log.Errorf("[AS3] Could not fetch the latest AS3 declaration from BIG-IP")
+	}
+	for k, v := range as3Config {
+		if decl, ok := v.(map[string]interface{}); ok {
+			if label, found := decl["label"]; found && label == cisLabel && k != agent.Partition+"_gtm" {
+				if _, ok := rsConfig.ltmConfig[k]; !ok {
+					// adding an empty tenant to delete the tenant from BIGIP
+					priority := 1
+					rsConfig.ltmConfig[k] = &PartitionConfig{Priority: &priority}
+				}
+			}
+		}
+	}
+}
+
 // agentWorker blocks on postChan
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
@@ -634,10 +655,11 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 		sharedApp := as3Application{}
 		sharedApp["class"] = "Application"
 		sharedApp["template"] = "shared"
-
+		cisLabel := agent.Partition
 		tenantDecl := as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 		adc[DEFAULT_GTM_PARTITION] = tenantDecl
 
@@ -725,10 +747,15 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
+	cisLabel := agent.Partition
+	// if this is the first post delete the tenant which is monitored by CIS and current request does not contain it
+	if agent.firstPost {
+		agent.removeDeletedTenantsForBigIP(&config, cisLabel)
+	}
 	for tenant := range agent.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
 			// Remove partition
-			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
+			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant, cisLabel)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
@@ -740,7 +767,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		partitionConfig.PriorityMutex.RUnlock()
 		if len(partitionConfig.ResourceMap) == 0 {
 			// Remove partition
-			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName)
+			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName, cisLabel)
 			continue
 		}
 		// Create Shared as3Application object
@@ -766,13 +793,14 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 			"class":              "Tenant",
 			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 		adc[tenantName] = tenantDecl
 	}
 	return adc
 }
 
-func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
+func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string) as3Tenant {
 	if defaultPartition == tenant {
 		// Flush Partition contents
 		sharedApp := as3Application{}
@@ -781,6 +809,7 @@ func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
 		return as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 	}
 	return as3Tenant{

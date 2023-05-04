@@ -20,6 +20,8 @@ var _ = Describe("Backend Tests", func() {
 				Sections:  make(map[string]interface{}),
 			}
 			agent = newMockAgent(writer)
+			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"}}
+			agent.Partition = "test"
 			agent.userAgent = "as3"
 
 			mem1 = PoolMember{
@@ -289,7 +291,7 @@ var _ = Describe("Backend Tests", func() {
 
 			zero := 0
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-
+			agent.BIGIPURL = "https://192.168.1.1"
 			as3decl := agent.createTenantAS3Declaration(config)
 			var as3Config map[string]interface{}
 			_ = json.Unmarshal([]byte(as3decl), &as3Config)
@@ -431,9 +433,10 @@ var _ = Describe("Backend Tests", func() {
 			Expect(val).NotTo(BeNil())
 		})
 		It("Test Deleted Partition", func() {
-			deletedPartition := getDeletedTenantDeclaration("test", "test")
+			cisLabel := "test"
+			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel)
 			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
-			deletedPartition = getDeletedTenantDeclaration("test", "default")
+			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel)
 			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})

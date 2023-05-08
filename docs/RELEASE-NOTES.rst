@@ -16,6 +16,7 @@ Added Functionality
         * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only)
         * Support for setting http analytics profile from policy CR
         * Support for setting client and server ssl profiles from policy CR
+        * Support for a separate policy CR for HTTP VS in NextGen Routes.
     * Ingress
         *
     * CRD

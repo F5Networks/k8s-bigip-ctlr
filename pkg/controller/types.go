@@ -221,12 +221,7 @@ type (
 	Virtuals []Virtual
 
 	AnalyticsProfiles struct {
-		HTTPAnalyticsProfile HTTPAnalyticsProfile `json:"http,omitempty"`
-	}
-
-	HTTPAnalyticsProfile struct {
-		BigIP string `json:"bigip,omitempty"`
-		Apply string `json:"apply,omitempty"`
+		HTTPAnalyticsProfile string `json:"http,omitempty"`
 	}
 
 	ProfileTCP struct {
@@ -1167,11 +1162,12 @@ type (
 	}
 
 	ExtendedRouteGroupSpec struct {
-		VServerName   string `yaml:"vserverName"`
-		VServerAddr   string `yaml:"vserverAddr"`
-		AllowOverride string `yaml:"allowOverride"`
-		Policy        string `yaml:"policyCR,omitempty"`
-		Meta          Meta
+		VServerName        string `yaml:"vserverName"`
+		VServerAddr        string `yaml:"vserverAddr"`
+		AllowOverride      string `yaml:"allowOverride"`
+		Policy             string `yaml:"policyCR,omitempty"`
+		HTTPServerPolicyCR string `yaml:"httpServerPolicyCR,omitempty"`
+		Meta               Meta
 	}
 
 	Meta struct {

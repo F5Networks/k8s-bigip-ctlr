@@ -830,21 +830,10 @@ spec:
                       type: string
                       enum: [ low, high ]
                 iRuleList:
-                  type: object
-                  properties:
-                    insecure:
-                      type: array
-                      items:
-                        type: string
-                        pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-                    secure:
-                      type: array
-                      items:
-                        type: string
-                        pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-                    priority:
-                      type: string
-                      enum: [ low, high ]
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 profiles:
                   type: object
                   properties:
@@ -904,20 +893,12 @@ spec:
                             type: string
                             pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                           type: array
-
-                analyticsProfiles: 
-                  type: object
-                  properties:
-                    http:
+                    analyticsProfiles:
                       type: object
                       properties:
-                        apply:
-                          type: string
-                          enum: [http, https, both]
-                        bigip:
+                        http:
                           type: string
                           pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-
                 autoLastHop:
                   type: string
                   enum: [ default, auto, disable ]

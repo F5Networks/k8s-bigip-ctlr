@@ -1904,14 +1904,9 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
 	}
 
-	if plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP != "" &&
+	if plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile != "" &&
 		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
-		//  Apply : both or empty -> analytics will be applied for both HTTP and HTTPS
-		if plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply == "both" ||
-			plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply == "" ||
-			rsCfg.MetaData.Protocol == plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply {
-			rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = plc.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP
-		}
+		rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile = plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile
 	}
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
@@ -1931,14 +1926,14 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 
 	switch rsCfg.MetaData.Protocol {
 	case "https":
-		if len(plc.Spec.IRuleList.Secure) > 0 {
-			iRule = plc.Spec.IRuleList.Secure
+		if len(plc.Spec.IRuleList) > 0 {
+			iRule = plc.Spec.IRuleList
 		} else if plc.Spec.IRules.Secure != "" {
 			iRule = append(iRule, plc.Spec.IRules.Secure)
 		}
 	case "http":
-		if len(plc.Spec.IRuleList.InSecure) > 0 {
-			iRule = plc.Spec.IRuleList.InSecure
+		if len(plc.Spec.IRuleList) > 0 {
+			iRule = plc.Spec.IRuleList
 		} else if plc.Spec.IRules.InSecure != "" {
 			iRule = append(iRule, plc.Spec.IRules.InSecure)
 		}
@@ -1988,8 +1983,8 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	}
 
 	var iRule []string
-	if len(plc.Spec.IRuleList.InSecure) > 0 {
-		iRule = plc.Spec.IRuleList.InSecure
+	if len(plc.Spec.IRuleList) > 0 {
+		iRule = plc.Spec.IRuleList
 	} else if plc.Spec.IRules.InSecure != "" {
 		iRule = append(iRule, plc.Spec.IRules.InSecure)
 	}
@@ -2039,6 +2034,9 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 		}
 		if extdSpec.local.Policy != "" {
 			ergc.Policy = extdSpec.local.Policy
+		}
+		if extdSpec.local.HTTPServerPolicyCR != "" {
+			ergc.Policy = extdSpec.local.HTTPServerPolicyCR
 		}
 
 		return ergc, extdSpec.partition

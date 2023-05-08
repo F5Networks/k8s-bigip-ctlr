@@ -9,10 +9,6 @@ metadata:
   name: cr-policy1
   namespace: test
 spec:
-  iRuleList: {}
-  iRules: {}
-  l3Policies: {}
-  l7Policies: {}
   profiles:
     sslProfiles:
       clientProfiles:

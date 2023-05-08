@@ -1143,9 +1143,9 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	}
 	svc.AutoLastHop = cfg.Virtual.AutoLastHop
 
-	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP != "" {
+	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile != "" {
 		svc.HttpAnalyticsProfile = &as3ResourcePointer{
-			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP,
+			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile,
 		}
 	}
 	processCommonDecl(cfg, svc)

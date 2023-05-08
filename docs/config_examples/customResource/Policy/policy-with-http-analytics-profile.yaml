@@ -1,6 +1,8 @@
-# valid values for apply are [http, https, both]
 # if no value is specified for apply, then analytics profile will be applied for http and https VS
 # analyticsProfiles is supported in Virtual Server custom resource and NextGen routes
+# If it's used in Virtual Server custom resource, then it's applied to both http and https VS(as of now)
+# NOTE: Support for a separate policy CR for HTTP VS in Virtual Server custom resource will be added in the future.
+# In case of NextGen routes it can be applied to either http or https or both VS by using a combination of policyCR and httpServerPolicyCR in routeGroups
 apiVersion: cis.f5.com/v1
 kind: Policy
 metadata:
@@ -9,12 +11,6 @@ metadata:
   name: cr-policy1
   namespace: test
 spec:
-  analyticsProfiles:
-    http:
-      bigip: /Common/analytics
-      apply: http
-  iRuleList: {}
-  iRules: {}
-  l3Policies: {}
-  l7Policies: {}
-  profiles: {}
+  profiles:
+    analyticsProfiles:
+      http: /Common/analytics

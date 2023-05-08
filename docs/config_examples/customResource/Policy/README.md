@@ -12,9 +12,8 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | l3Policies  | Object | Optional | N/A     | BIG-IP l3Policies in Policy CR.                                                                                                                                                       |
 | ltmPolicies | Object | Optional | N/A     | BIG-IP LTM Policies in Policy CR.                                                                                                                                                     |
 | iRules      | Object | Optional | N/A     | BIG-IP iRules in Policy CR.                                                                                                                                                           |
- | iRuleList  |  Object | Optional | N/A    | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
-| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 
-| analyticsProfiles    | Object | Optional | N/A     | Configures different analytics profiles on BIGIP virtual server.                                                                                                                      |
+ | iRuleList  |  Array | Optional | N/A    | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
+| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.
 | tcp         | Object | Optional | N/A     | BIG-IP TCP client and server profiles in Policy CR.                                                                                                                                   |
 | snat        | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
 | autoLastHop    | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
@@ -51,18 +50,17 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | secure    | String | Optional | N/A     | Pathname of existing BIG-IP iRule.                              |
 | priority  | String | Optional | N/A     | Defines the level of priority. Allowed values are `low` and `high`. |
 
-### iRuleList Components
-
-| Parameter | Type  | Required | Default | Description                                                          |
-| --------- |-------| -------- | ------- | -------------------------------------------------------------------      |
-| insecure  | Array | Optional | N/A     | List of existing BIG-IP iRules to attach to insecure virtual on BIGIP |                                  
-| secure    | Array | Optional | N/A     | List of existing BIG-IP iRules to attach to secure virtual on BIGIP |                                 
-| priority  | Array | Optional | N/A     | Defines the level of priority. Allowed values are `low` and `high`. |
-
 **Note**:
 * iRules is used to refrence a single iRule existing on BIGIP to attach it to http or https virtual server, whereas iRuleList can be used to refrence a list of iRules existing on BIGIP to attach them to http or https virtualservers through the policy CR.
 * If both iRules and iRuleList are defined in the policy, iRuleList has higher precedence. 
 * To disable default iRules created by CIS , configure "none" value on insecure or secure parameters through iRules or iRuleList spec to remove them from http or https virtualserver accordingly.
+* In NextGen routes, iRuleList can be applied on either HTTP or HTTPS Virtual Server with the usage of httpServerPolicyCR in the route groups, whereas in all other cases it's applied to both HTTP and HTTPS VS(as of now).
+* If only policyCR is used and httpServerPolicyCR is not used in a route group and iRuleList is specified in the policyCR, then it's applied to both HTTP and HTTPS virtual servers.
+* If both policyCR and httpServerPolicyCR are used in a route group and iRuleList is specified only in the policyCR, then it's applied to only HTTPS virtual server.
+* If both policyCR and httpServerPolicyCR are used in a route group and iRuleList is specified only in the httpServerPolicyCR, then it's applied to only HTTP virtual server.
+* If both policyCR and httpServerPolicyCR are used in a route group and iRuleList is specified in policyCR and httpServerPolicyCR, then iRuleList specified in policyCR are applied to HTTPS VS and iRuleList specified in httpServerPolicyCR are applied to HTTP VS.
+* We recommend using iRuleList over iRules as using iRuleList one can specify one or more iRules.
+* We will be adding the support to specify httpServerPolicyCR in case of VS CRD as well to provide more control over which Virtual Server(HTTP/HTTPS) the policyCR is applied to.
 
 ### Profile Components
 
@@ -78,6 +76,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | profileL4          | String         | Optional | basic                                                             | The default value is `basic` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles. |
 | httpMrfRoutingEnabled    | Boolean | Optional | N/A     | Reference to Http mrf router on BIGIP.                                                                                                                                                                                                     |
 | sslProfiles    | Object | Optional | N/A     | Reference to existing ssl profiles on BIGIP. Policy sslProfiles will have the highest precedence and will override route level profiles                                                                                                    |
+| analyticsProfiles    | Object | Optional | N/A     | Configures different analytics profiles on BIGIP virtual server.                                                                                                                      |
 
 **Note**:
 * sslProfiles is only applicable to NextGen routes
@@ -92,15 +91,8 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 ### Analytics Profiles Components
 
 | Parameter | Type   | Required | Default         | Description                                                                                                                      |
-| --------- | ------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| http    | Object | Optional | N/A  | CIS will configure http analytics profile on virtual server.
-
-### HTTP Analytics Profile Components
-
-| Parameter | Type   | Required | Default         | Description                                                                                                                      |
-| --------- | ------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| bigip    | String | Optional | N/A  | Reference to existing http analytics profile on BIGIP
-| apply    | String | Optional | N/A  | allowed values are [http, https , both] 
+| --------- |--------| -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| http    | String | Optional | N/A  | Reference to existing http analytics profile on BIGIP |
 
 ### SSL Profile Components
 

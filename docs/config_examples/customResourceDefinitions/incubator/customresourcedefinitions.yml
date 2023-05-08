@@ -492,7 +492,7 @@ spec:
                       properties:
                         type:
                           type: string
-                          enum: [tcp, udp]
+                          enum: [tcp, udp, http, https]
                         interval:
                           type: integer
                         timeout:
@@ -505,6 +505,10 @@ spec:
                         reference:
                           type: string
                           enum: [bigip]
+                        send:
+                          type: string
+                        recv:
+                          type: string
                     monitors:
                       type: array
                       items:
@@ -512,7 +516,7 @@ spec:
                         properties:
                             type:
                               type: string
-                              enum: [ tcp, udp ]
+                              enum: [ tcp, udp, http, https ]
                             interval:
                               type: integer
                             timeout:
@@ -525,6 +529,10 @@ spec:
                             reference:
                               type: string
                               enum: [bigip]
+                            send:
+                              type: string
+                            recv:
+                              type: string
                     reselectTries:
                       type: integer
                       minimum: 0

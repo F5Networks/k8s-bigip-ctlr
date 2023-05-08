@@ -383,6 +383,29 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
 		})
 
+		It("Prepare Resource Config from a TransportServer with HTTP Monitor", func() {
+			ts := test.NewTransportServer(
+				"SampleTS",
+				namespace,
+				cisapiv1.TransportServerSpec{
+					Pool: cisapiv1.Pool{
+						Service:          "svc1",
+						ServicePort:      intstr.IntOrString{IntVal: 80},
+						ServiceNamespace: "test",
+						Monitor: cisapiv1.Monitor{
+							Type:       "http",
+							Send:       "GET /health",
+							Interval:   15,
+							Timeout:    10,
+							TargetPort: 80,
+						},
+					},
+				},
+			)
+			err := mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer with HTTP Monitor")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+		})
 		It("Prepare Resource Config from a TransportServer", func() {
 			ts := test.NewTransportServer(
 				"SampleTS",
@@ -403,6 +426,20 @@ var _ = Describe("Resource Config Tests", func() {
 								Timeout:    10,
 								Interval:   10,
 								TargetPort: 22,
+							},
+							{
+								Type:       "http",
+								Timeout:    20,
+								Interval:   20,
+								TargetPort: 32,
+							},
+							{
+								Type:       "http",
+								Timeout:    30,
+								Interval:   30,
+								TargetPort: 42,
+								Send:       "Get /api HTTP 1.1",
+								Recv:       "200",
 							},
 						},
 					},

@@ -18,6 +18,10 @@ spec:
         type: tcp
       - name: /Common/http
         reference: bigip
+      - interval: 10
+        targetPort: 8080
+        timeout: 10
+        type: http
     service: pytest-svc-1
     servicePort: 1344
   snat: auto

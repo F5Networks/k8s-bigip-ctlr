@@ -1728,8 +1728,8 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			Partition:  rsCfg.Virtual.Partition,
 			Type:       vs.Spec.Pool.Monitor.Type,
 			Interval:   vs.Spec.Pool.Monitor.Interval,
-			Send:       "",
-			Recv:       "",
+			Send:       vs.Spec.Pool.Monitor.Send,
+			Recv:       vs.Spec.Pool.Monitor.Recv,
 			Timeout:    vs.Spec.Pool.Monitor.Timeout,
 			TargetPort: vs.Spec.Pool.Monitor.TargetPort,
 		}
@@ -1756,8 +1756,8 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 					Partition:  rsCfg.Virtual.Partition,
 					Type:       monitor.Type,
 					Interval:   monitor.Interval,
-					Send:       "",
-					Recv:       "",
+					Send:       monitor.Send,
+					Recv:       monitor.Recv,
 					Timeout:    monitor.Timeout,
 					TargetPort: monitor.TargetPort,
 				}

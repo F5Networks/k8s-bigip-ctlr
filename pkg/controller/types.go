@@ -61,6 +61,7 @@ type (
 		nodeLabelSelector      string
 		vxlanMode              string
 		vxlanName              string
+		ciliumTunnelName       string
 		initialSvcCount        int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
@@ -106,6 +107,7 @@ type (
 		PoolMemberType     string
 		VXLANName          string
 		VXLANMode          string
+		CiliumTunnelName   string
 		UseNodeInternal    bool
 		NodePollInterval   int
 		NodeLabelSelector  string

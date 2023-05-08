@@ -55,16 +55,18 @@ type arpEntry struct {
 }
 
 type VxlanMgr struct {
-	mode       string
-	vxLAN      string
-	useNodeInt bool
-	config     writer.Writer
-	podChan    <-chan interface{}
+	mode             string
+	vxLAN            string
+	ciliumTunnelName string
+	useNodeInt       bool
+	config           writer.Writer
+	podChan          <-chan interface{}
 }
 
 func NewVxlanMgr(
 	mode string,
 	vxLAN string,
+	ciliumTunnelName string,
 	useNodeInternal bool,
 	config writer.Writer,
 	eventChan <-chan interface{},
@@ -82,11 +84,12 @@ func NewVxlanMgr(
 	}
 
 	vxMgr := &VxlanMgr{
-		mode:       mode,
-		vxLAN:      vxLAN,
-		useNodeInt: useNodeInternal,
-		config:     config,
-		podChan:    eventChan,
+		mode:             mode,
+		vxLAN:            vxLAN,
+		ciliumTunnelName: ciliumTunnelName,
+		useNodeInt:       useNodeInternal,
+		config:           config,
+		podChan:          eventChan,
 	}
 
 	return vxMgr, nil
@@ -206,6 +209,15 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 	return
 }
 
+func (vxm *VxlanMgr) handleARPForCilium() {
+	// Send Empty arp block as Cilium CNI does not require static ARP addition
+	doneCh, errCh, err := vxm.config.SendSection(
+		"vxlan-arp",
+		arpSection{},
+	)
+	vxm.handleVxLANMgrChannel(doneCh, errCh, err, arpSection{})
+}
+
 func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
 	arps := arpSection{}
 	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
@@ -213,14 +225,13 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
 		return
 	}
-	// Send Empty arp block as "Cilium doesnt require static ARP addition"
+	// Send Empty arp block as "Cilium does not require static ARP addition"
 	for _, kPod := range kubePods.Items {
-		if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
-			doneCh, errCh, err := vxm.config.SendSection(
-				"vxlan-arp",
-				arpSection{},
-			)
-			vxm.handleVxLANMgrChannel(doneCh, errCh, err, arpSection{})
+		if len(vxm.ciliumTunnelName) > 0 {
+			vxm.handleARPForCilium()
+			return
+		} else if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+			vxm.handleARPForCilium()
 			return
 		}
 	}

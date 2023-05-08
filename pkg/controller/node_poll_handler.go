@@ -50,6 +50,7 @@ func (ctlr *Controller) SetupNodeProcessing() error {
 		vxMgr, err := vxlan.NewVxlanMgr(
 			ctlr.vxlanMode,
 			tunnelName,
+			ctlr.ciliumTunnelName,
 			ctlr.UseNodeInternal,
 			ctlr.Agent.ConfigWriter,
 			ctlr.Agent.EventChan,

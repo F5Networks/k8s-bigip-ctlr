@@ -449,7 +449,7 @@ var _ = Describe("Main Tests", func() {
 			Expect(len(*openshiftSDNName)).To(Equal(0),
 				"Openshift sdn name variable should not be set.")
 			Expect(len(*flannelName)).To(Equal(0), "Flannel name variable should not be set.")
-
+			Expect(len(*ciliumTunnelName)).To(Equal(0), "Cilium name variable should not be set.")
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--namespace=testing",
@@ -478,13 +478,13 @@ var _ = Describe("Main Tests", func() {
 				"--bigip-url=bigip.example.com",
 				"--bigip-username=admin",
 				"--openshift-sdn-name=vxlan500",
-				"--flannel-name=vxlan500",
+				"--cilium-name=vxlan500",
 			}
 
 			flags.Parse(os.Args)
 			err = verifyArgs()
 			Expect(err).ToNot(BeNil())
-			Expect(err.Error()).To(Equal("Cannot have both openshift-sdn-name and flannel-name specified."))
+			Expect(err.Error()).To(Equal("Cannot have openshift-sdn-name,cilium-name specified"))
 		})
 
 		It("handles empty vxlan flags", func() {

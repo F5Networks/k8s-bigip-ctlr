@@ -151,6 +151,7 @@ type Manager struct {
 	AgentName     string
 	//vxlan
 	vxlanName         string
+	ciliumTunnelName  string
 	vxlanMode         string
 	configWriter      writer.Writer
 	staticRoutingMode bool
@@ -227,6 +228,7 @@ type Params struct {
 	//vxlan
 	VXLANName         string
 	VXLANMode         string
+	CiliumTunnelName  string
 	StaticRoutingMode bool
 	OrchestrationCNI  string
 }
@@ -396,6 +398,7 @@ func NewManager(params *Params) *Manager {
 		AgentName:              params.Agent,
 		vxlanName:              params.VXLANName,
 		vxlanMode:              params.VXLANMode,
+		ciliumTunnelName:       params.CiliumTunnelName,
 		eventChan:              params.EventChan,
 		configWriter:           params.ConfigWriter,
 		staticRoutingMode:      params.StaticRoutingMode,
@@ -3629,7 +3632,7 @@ func (appMgr *Manager) setOtherSDNType() {
 	if appMgr.TeemData.SDNType == "other" || appMgr.TeemData.SDNType == "flannel" {
 		kubePods, err := appMgr.kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 		if nil != err {
-			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
+			log.Errorf("Could not list Kubernetes Pods for CNI Check: %v", err)
 			return
 		}
 		for _, kPod := range kubePods.Items {
@@ -3681,6 +3684,7 @@ func (appMgr *Manager) setupNodeProcessing() error {
 		vxMgr, err := vxlan.NewVxlanMgr(
 			appMgr.vxlanMode,
 			tunnelName,
+			appMgr.ciliumTunnelName,
 			appMgr.UseNodeInternal(),
 			appMgr.configWriter,
 			appMgr.eventChan,

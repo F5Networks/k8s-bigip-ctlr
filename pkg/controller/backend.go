@@ -1134,6 +1134,17 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 				Use: serviceAddressName,
 			}
 			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
+				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					//Attach Service Address
+					serviceAddressName := createServiceAddressDecl(cfg, val, sharedApp)
+					//handle additional service addresses
+					asa := &as3ResourcePointer{
+						Use: serviceAddressName,
+					}
+					svc.VirtualAddresses = append(svc.VirtualAddresses, asa)
+				}
+			}
 			svc.VirtualPort = port
 		}
 	}

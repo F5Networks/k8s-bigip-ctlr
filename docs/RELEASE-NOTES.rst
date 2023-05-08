@@ -30,6 +30,7 @@ Added Functionality
 Bug Fixes
 ````````````
 * `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal
+* `Issue 2821 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2821>`_: Fix for additionalVirtualAddresses with serviceAddress config
 
 Upgrade notes
 ``````````````

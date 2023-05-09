@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"k8s.io/client-go/rest"
+	"os"
 	"sort"
 	"time"
 
@@ -251,4 +252,13 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 		return fmt.Errorf("cluster config not found for cluster: %v", svcKey.clusterName)
 	}
 	return nil
+}
+
+// if CIS is running in secondary then endPoint is mandatory
+// if endPoint is configured then CIS will exit
+func (ctlr *Controller) checkSecondaryCISConfig() {
+	if ctlr.cisType == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
+		log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
+		os.Exit(1)
+	}
 }

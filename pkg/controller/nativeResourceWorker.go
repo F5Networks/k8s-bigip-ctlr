@@ -959,6 +959,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
 		// Get Multicluster kube-config
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.MultiClusterConfigs)
+		ctlr.checkSecondaryCISConfig()
 		ctlr.stopDeletedGlobalCMMultiClusterInformers()
 		if err != nil {
 			return err, false
@@ -1860,6 +1861,29 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 
 		// Store the cluster keys which will be used to detect deletion of a cluster later
 		currentClusterSecretKeys[mcc.ClusterName] = struct{}{}
+
+		if ctlr.cisType == SecondaryCIS && mcc.HACIS == SecondaryCIS {
+			if mcc.PrimaryClusterEndPoint == "" {
+				// cis in secondary mode, primary cluster health check endpoint is required
+				// if endpoint is missing exit
+				log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
+				os.Exit(1)
+			} else {
+				ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
+					EndPoint:      mcc.PrimaryClusterEndPoint,
+					probeInterval: mcc.ProbeInterval,
+					retryInterval: mcc.RetryInterval,
+				}
+				// if probe and retry intervals are not given, set default values
+				if ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval == 0 {
+					ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval = 60
+				}
+				if ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval == 0 {
+					ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval = 15
+				}
+				ctlr.Agent.setPrimaryClusterHealthCheckEndPointType()
+			}
+		}
 
 		// Both cluster name and secret are mandatory
 		if mcc.ClusterName == "" || mcc.Secret == "" {

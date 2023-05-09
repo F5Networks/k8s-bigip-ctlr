@@ -60,7 +60,7 @@ var DEFAULT_GTM_PARTITION string
 func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
 	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
-	postMgr := NewPostManager(params.PostParams)
+	postMgr := NewPostManager(params)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
@@ -210,6 +210,7 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	// Case1: Put latest config into the channel
 	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
 	// Either Case1 or Case2 executes, which ensures the above
+
 	select {
 	case agent.postChan <- rsConfig:
 	case <-agent.postChan:
@@ -269,6 +270,20 @@ func (agent *Agent) agentWorker() {
 		if len(agent.incomingTenantDeclMap) == 0 {
 			agent.declUpdate.Unlock()
 			continue
+		}
+
+		// if endPoint is not empty means, cis is running in secondary mode
+		// check if the primary cis is up and running
+		if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+			if agent.PrimaryClusterHealthProbeParams.statusRunning {
+				// dont post the declaration
+				agent.declUpdate.Unlock()
+				continue
+			} else {
+				if agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged {
+					agent.removeDeletedTenantsForBigIP(&rsConfig, agent.Partition)
+				}
+			}
 		}
 
 		var updatedTenants []string
@@ -452,6 +467,15 @@ func (agent *Agent) retryWorker() {
 	for range agent.retryChan {
 
 		for len(agent.retryTenantDeclMap) != 0 {
+			// if endPoint is not empty -> cis is running in secondary mode
+			// check if the primary cis is up and running
+			if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+				if agent.PrimaryClusterHealthProbeParams.statusRunning {
+					agent.retryTenantDeclMap = make(map[string]*tenantParams)
+					// dont post the declaration
+					continue
+				}
+			}
 
 			agent.declUpdate.Lock()
 

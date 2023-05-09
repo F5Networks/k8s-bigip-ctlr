@@ -88,6 +88,7 @@ type (
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		multiClusterResources  *MultiClusterResourceStore
 		resourceContext
+		cisType string
 	}
 	resourceContext struct {
 		resourceQueue             workqueue.RateLimitingInterface
@@ -126,6 +127,7 @@ type (
 		RouteLabel         string
 		StaticRoutingMode  bool
 		OrchestrationCNI   string
+		CISType            string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -679,8 +681,9 @@ type (
 	}
 
 	AgentParams struct {
-		PostParams PostParams
-		GTMParams  GTMParams
+		PostParams                      PostParams
+		GTMParams                       GTMParams
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
 		Partition         string
 		LogLevel          string
@@ -699,7 +702,17 @@ type (
 		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams
-		firstPost bool
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		firstPost                       bool
+	}
+
+	PrimaryClusterHealthProbeParams struct {
+		EndPoint      string
+		EndPointType  string
+		statusRunning bool
+		statusChanged bool
+		probeInterval int
+		retryInterval int
 	}
 
 	PostParams struct {
@@ -1187,7 +1200,10 @@ type (
 		ClusterName string `yaml:"clusterName"`
 		Secret      string `yaml:"secret"`
 		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
-		HACIS string `yaml:"highAvailabilityCIS"`
+		HACIS                  string `yaml:"highAvailabilityCIS"`
+		PrimaryClusterEndPoint string `yaml:"primaryClusterEndPoint"`
+		ProbeInterval          int    `yaml:"probeInterval"`
+		RetryInterval          int    `yaml:"retryInterval"`
 	}
 
 	PoolIdentifier struct {

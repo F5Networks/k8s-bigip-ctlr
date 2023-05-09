@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
@@ -23,6 +24,7 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
@@ -1661,6 +1663,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
@@ -1742,6 +1745,7 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 	})

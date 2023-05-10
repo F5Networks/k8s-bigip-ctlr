@@ -320,18 +320,19 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                   ProfileTCP   `json:"tcp,omitempty"`
-	UDP                   string       `json:"udp,omitempty"`
-	HTTP                  string       `json:"http,omitempty"`
-	HTTP2                 ProfileHTTP2 `json:"http2,omitempty"`
-	RewriteProfile        string       `json:"rewriteProfile,omitempty"`
-	PersistenceProfile    string       `json:"persistenceProfile,omitempty"`
-	LogProfiles           []string     `json:"logProfiles,omitempty"`
-	ProfileL4             string       `json:"profileL4,omitempty"`
-	ProfileMultiplex      string       `json:"profileMultiplex,omitempty"`
-	HttpMrfRoutingEnabled *bool        `json:"httpMrfRoutingEnabled,omitempty"`
-	SSLProfiles           SSLProfiles  `json:"sslProfiles,omitempty"`
+	TCP                   ProfileTCP        `json:"tcp,omitempty"`
+	UDP                   string            `json:"udp,omitempty"`
+	HTTP                  string            `json:"http,omitempty"`
+	HTTP2                 ProfileHTTP2      `json:"http2,omitempty"`
+	RewriteProfile        string            `json:"rewriteProfile,omitempty"`
+	PersistenceProfile    string            `json:"persistenceProfile,omitempty"`
+	LogProfiles           []string          `json:"logProfiles,omitempty"`
+	ProfileL4             string            `json:"profileL4,omitempty"`
+	ProfileMultiplex      string            `json:"profileMultiplex,omitempty"`
+	HttpMrfRoutingEnabled *bool             `json:"httpMrfRoutingEnabled,omitempty"`
+	SSLProfiles           SSLProfiles       `json:"sslProfiles,omitempty"`
 	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
+	ProfileWebSocket      string            `json:"profileWebSocket,omitempty"`
 }
 type ProfileTCP struct {
 	Client string `json:"client,omitempty"`

@@ -1909,6 +1909,11 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile = plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile
 	}
 
+	//profileWebSocket is supported for service_HTTP and service_HTTPS
+	if plc.Spec.Profiles.ProfileWebSocket != "" &&
+		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
+		rsCfg.Virtual.ProfileWebSocket = plc.Spec.Profiles.ProfileWebSocket
+	}
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}

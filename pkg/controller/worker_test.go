@@ -1546,6 +1546,7 @@ var _ = Describe("Worker Tests", func() {
 							"/Common/Log all requests", "/Common/local-dos"},
 						ProfileL4:        " /Common/security-fastL4",
 						ProfileMultiplex: "/Common/oneconnect",
+						ProfileWebSocket: "/Common/websocket",
 						UDP:              "/Common/udp",
 					},
 				},
@@ -1761,6 +1762,8 @@ var _ = Describe("Worker Tests", func() {
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses[0]).To(Equal("10.16.0.1"))
 				//check irules
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.IRules)).To(Equal(4), "irules not propely attached")
+				//check websocket profile
+				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.ProfileWebSocket).To(Equal("/Common/websocket"))
 				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
 					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
 						Expect(len(rule.Actions)).To(Equal(3))

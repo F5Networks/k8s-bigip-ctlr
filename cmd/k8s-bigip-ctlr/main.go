@@ -107,13 +107,14 @@ var (
 	buildInfo string
 
 	// Flag sets and supported flags
-	flags         *pflag.FlagSet
-	globalFlags   *pflag.FlagSet
-	bigIPFlags    *pflag.FlagSet
-	kubeFlags     *pflag.FlagSet
-	vxlanFlags    *pflag.FlagSet
-	osRouteFlags  *pflag.FlagSet
-	gtmBigIPFlags *pflag.FlagSet
+	flags             *pflag.FlagSet
+	globalFlags       *pflag.FlagSet
+	bigIPFlags        *pflag.FlagSet
+	kubeFlags         *pflag.FlagSet
+	vxlanFlags        *pflag.FlagSet
+	osRouteFlags      *pflag.FlagSet
+	gtmBigIPFlags     *pflag.FlagSet
+	multiClusterFlags *pflag.FlagSet
 
 	// Custom Resource
 	customResourceMode *bool
@@ -205,6 +206,8 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	userAgentInfo      string
+
+	cisType *string
 )
 
 func _init() {
@@ -215,6 +218,7 @@ func _init() {
 	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.PanicOnError)
 	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.PanicOnError)
 	gtmBigIPFlags = pflag.NewFlagSet("GTM", pflag.PanicOnError)
+	multiClusterFlags = pflag.NewFlagSet("MultiCluster", pflag.PanicOnError)
 
 	// Flag wrapping
 	var err error
@@ -431,12 +435,17 @@ func _init() {
 		fmt.Fprintf(os.Stderr, "  GTM:\n%s\n", gtmBigIPFlags.FlagUsagesWrapped(width))
 	}
 
+	// MultiCluster Flags
+	cisType = multiClusterFlags.String("cis-type", "",
+		"Optional, determines in multi cluster env cis running as primary/secondary")
+
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
 	flags.AddFlagSet(kubeFlags)
 	flags.AddFlagSet(vxlanFlags)
 	flags.AddFlagSet(osRouteFlags)
 	flags.AddFlagSet(gtmBigIPFlags)
+	flags.AddFlagSet(multiClusterFlags)
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
@@ -446,6 +455,7 @@ func _init() {
 		vxlanFlags.Usage()
 		osRouteFlags.Usage()
 		gtmBigIPFlags.Usage()
+		multiClusterFlags.Usage()
 	}
 }
 
@@ -863,6 +873,7 @@ func initController(
 			RouteLabel:         *routeLabel,
 			StaticRoutingMode:  *staticRoutingMode,
 			OrchestrationCNI:   *orchestrationCNI,
+			CISType:            *cisType,
 		},
 	)
 

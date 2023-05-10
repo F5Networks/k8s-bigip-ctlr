@@ -37,10 +37,11 @@ const (
 	timeoutLarge  = 180 * time.Second
 )
 
-func NewPostManager(params PostParams) *PostManager {
+func NewPostManager(params AgentParams) *PostManager {
 	pm := &PostManager{
-		PostParams: params,
-		firstPost:  true,
+		PostParams:                      params.PostParams,
+		firstPost:                       true,
+		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
 	}
 	pm.setupBIGIPRESTClient()
 

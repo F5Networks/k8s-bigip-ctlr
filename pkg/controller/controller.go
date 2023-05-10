@@ -78,6 +78,10 @@ const (
 	NodePort = "nodeport"
 	Cluster  = "cluster"
 
+	SecondaryCIS = "secondary"
+	// Namespace is k8s namespace
+	HACIS = "HACIS"
+
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
 	IPAMNamespace = "kube-system"
@@ -118,28 +122,6 @@ const (
 func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
-<<<<<<< HEAD
-		namespaces:         make(map[string]bool),
-		resources:          NewResourceStore(),
-		Agent:              params.Agent,
-		PoolMemberType:     params.PoolMemberType,
-		UseNodeInternal:    params.UseNodeInternal,
-		Partition:          params.Partition,
-		initState:          true,
-		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
-		shareNodes:         params.ShareNodes,
-		eventNotifier:      apm.NewEventNotifier(nil),
-		defaultRouteDomain: params.DefaultRouteDomain,
-		mode:               params.Mode,
-		namespaceLabel:     params.NamespaceLabel,
-		nodeLabelSelector:  params.NodeLabelSelector,
-		vxlanName:          params.VXLANName,
-		vxlanMode:          params.VXLANMode,
-		ciliumTunnelName:   params.CiliumTunnelName,
-		StaticRoutingMode:  params.StaticRoutingMode,
-		OrchestrationCNI:   params.OrchestrationCNI,
-		multiClusterConfigs: clustermanager.NewMultiClusterConfig(),
-=======
 		namespaces:            make(map[string]bool),
 		resources:             NewResourceStore(),
 		Agent:                 params.Agent,
@@ -156,11 +138,12 @@ func NewController(params Params) *Controller {
 		nodeLabelSelector:     params.NodeLabelSelector,
 		vxlanName:             params.VXLANName,
 		vxlanMode:             params.VXLANMode,
+		ciliumTunnelName:      params.CiliumTunnelName,
 		StaticRoutingMode:     params.StaticRoutingMode,
 		OrchestrationCNI:      params.OrchestrationCNI,
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
 		multiClusterResources: newMultiClusterResourceStore(),
->>>>>>> 9110d075 (Multi cluster informers (#2840))
+		cisType:               params.CISType,
 	}
 
 	log.Debug("Controller Created")

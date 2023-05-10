@@ -1418,3 +1418,11 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 	}
 	return false
 }
+
+func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
+	log.Infof("Enqueueing on primary cluster down event")
+	key := &rqKey{
+		kind: HACIS,
+	}
+	ctlr.resourceQueue.Add(key)
+}

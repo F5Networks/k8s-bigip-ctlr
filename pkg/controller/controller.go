@@ -78,6 +78,10 @@ const (
 	NodePort = "nodeport"
 	Cluster  = "cluster"
 
+	SecondaryCIS = "secondary"
+	// Namespace is k8s namespace
+	HACIS = "HACIS"
+
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
 	IPAMNamespace = "kube-system"
@@ -136,6 +140,7 @@ func NewController(params Params) *Controller {
 		OrchestrationCNI:      params.OrchestrationCNI,
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
 		multiClusterResources: newMultiClusterResourceStore(),
+		cisType:               params.CISType,
 	}
 
 	log.Debug("Controller Created")

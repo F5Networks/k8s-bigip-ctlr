@@ -57,6 +57,12 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	ctlr.migrateIPAM()
 	if ctlr.mode == OpenShiftMode {
 		ctlr.processGlobalExtendedRouteConfig()
+
+		// when CIS is running in the secondary mode then enable health probe on the primary cluster
+		if ctlr.cisType == SecondaryCIS {
+			ctlr.firstPollPrimaryClusterHealthStatus()
+			go ctlr.probePrimaryClusterHealthStatus()
+		}
 	}
 	for ctlr.processResources() {
 	}
@@ -645,6 +651,8 @@ func (ctlr *Controller) processResources() bool {
 				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
 			}
 		}
+	case HACIS:
+		log.Debugf("posting data on primary cluster down event")
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}
@@ -660,7 +668,8 @@ func (ctlr *Controller) processResources() bool {
 		return true
 	}
 
-	if ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
+	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
+		(ctlr.cisType == SecondaryCIS && rKey.kind == HACIS) {
 		config := ResourceConfigRequest{
 			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,

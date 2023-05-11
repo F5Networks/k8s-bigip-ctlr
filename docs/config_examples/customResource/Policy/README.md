@@ -7,16 +7,16 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 ### Policy Components
 
 | Parameter   | Type   | Required | Default | Description                                                                                                                                                                           |
-|-------------| ------ | -------- |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|-------------|--------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | l7Policies  | Object | Optional | N/A     | BIG-IP l7Policies in Policy CR.                                                                                                                                                       |
 | l3Policies  | Object | Optional | N/A     | BIG-IP l3Policies in Policy CR.                                                                                                                                                       |
 | ltmPolicies | Object | Optional | N/A     | BIG-IP LTM Policies in Policy CR.                                                                                                                                                     |
 | iRules      | Object | Optional | N/A     | BIG-IP iRules in Policy CR.                                                                                                                                                           |
- | iRuleList  |  Array | Optional | N/A    | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
-| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.
+ | iRuleList   | List   | Optional | N/A     | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
+| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 |
 | tcp         | Object | Optional | N/A     | BIG-IP TCP client and server profiles in Policy CR.                                                                                                                                   |
 | snat        | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
-| autoLastHop    | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
+| autoLastHop | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
 
 ### L7 Policy Components
 
@@ -26,14 +26,14 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 
 ### L3 Policy Components
 
-| Parameter        | Type   | Required | Default | Description                                                                                                                                                                                                    |
-| ---------------- | ------ | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| botDefense       | String | Optional | N/A     | Pathname of the existing BIG-IP botDefense policy.                                                                                                                                                             |
-| dos              | String | Optional | N/A     | Pathname of existing BIG-IP DOS policy.                                                                                                                                                                        |
-| firewallPolicy   | String | Optional | N/A     | Pathname of existing BIG-IP firewall(AFM) policy.                                                                                                                                                              |
-| allowSourceRange | String | Optional | N/A     | Comma-separated list of CIDR addresses to allow inbound to services corresponding to VirtualServer CRD. Allowed values are comma-separated, CIDR formatted, IP addresses. For example: `1.2.3.4/32,2.2.2.0/24` |
-| allowVlans       | List of Vlans | Optional | NA | List of Vlan objects to allow traffic from towards virtual in BIGIP. Object configured in VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource.|
-| ipIntelligencePolicy       | String | Optional | NA | Pathname of existing BIG-IP ipIntelligence Policy.                                                                                                                                                                        | 
+| Parameter            | Type          | Required | Default | Description                                                                                                                                                                                                    |
+|----------------------|---------------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| botDefense           | String        | Optional | N/A     | Pathname of the existing BIG-IP botDefense policy.                                                                                                                                                             |
+| dos                  | String        | Optional | N/A     | Pathname of existing BIG-IP DOS policy.                                                                                                                                                                        |
+| firewallPolicy       | String        | Optional | N/A     | Pathname of existing BIG-IP firewall(AFM) policy.                                                                                                                                                              |
+| allowSourceRange     | String        | Optional | N/A     | Comma-separated list of CIDR addresses to allow inbound to services corresponding to VirtualServer CRD. Allowed values are comma-separated, CIDR formatted, IP addresses. For example: `1.2.3.4/32,2.2.2.0/24` |
+| allowVlans           | List of Vlans | Optional | NA      | List of Vlan objects to allow traffic from towards virtual in BIGIP. Object configured in VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource.                             |
+| ipIntelligencePolicy | String        | Optional | NA      | Pathname of existing BIG-IP ipIntelligence Policy.                                                                                                                                                             | 
 ### LTM Policy Components
 
 | Parameter | Type   | Required | Default | Description                                                         |
@@ -64,22 +64,30 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 
 ### Profile Components
 
-| Parameter          | Type           | Required | Default                                                           | Description                                                                                                                                                                                                                                |
-| ------------------ | -------------- | -------- | ----------------------------------------------------------------- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| udp                | String         | Optional | N/A                                                               | Pathname of existing BIG-IP UDP profile.                                                                                                                                                                                                   |
-| http               | String         | Optional | N/A                                                               | Pathname of existing BIG-IP HTTP profile.                                                                                                                                                                                                  |
-| https              | String         | Optional | N/A                                                               | Pathname of existing BIG-IP SSL profile.                                                                                                                                                                                                   |
-| http2              | String         | Optional | N/A                                                               | Pathname of existing BIG-IP HTTP2 profile.                                                                                                                                                                                                 |
-| logProfiles        | List of string | Optional | N/A                                                               | Pathname of existing BIG-IP log profile.                                                                                                                                                                                                   |
-| persistenceProfile | String         | Optional | VirtualServer uses `cookie` TransportServer uses `source-address` | CIS uses the AS3 default persistence profile. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP Persistence profiles and custom Persistence profiles.            |
-| profileMultiplex   | String         | Optional | N/A                                                               | CIS uses the AS3 default profileMultiplex profile. Allowed values are existing BIG-IP profileMultiplex profiles.                                                                                                                           |
-| profileL4          | String         | Optional | basic                                                             | The default value is `basic` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles. |
-| httpMrfRoutingEnabled    | Boolean | Optional | N/A     | Reference to Http mrf router on BIGIP.                                                                                                                                                                                                     |
-| sslProfiles    | Object | Optional | N/A     | Reference to existing ssl profiles on BIGIP. Policy sslProfiles will have the highest precedence and will override route level profiles                                                                                                    |
-| analyticsProfiles    | Object | Optional | N/A     | Configures different analytics profiles on BIGIP virtual server.                                                                                                                      |
+| Parameter             | Type           | Required | Default                                                           | Description                                                                                                                                                                                                                                |
+|-----------------------|----------------|----------|-------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| tcp                   | Object         | Optional | N/A                                                               | TCP Client & Server Profiles                                                                                                                                                                                                               |
+| udp                   | String         | Optional | N/A                                                               | Pathname of existing BIG-IP UDP profile.                                                                                                                                                                                                   |
+| http                  | String         | Optional | N/A                                                               | Pathname of existing BIG-IP HTTP profile.                                                                                                                                                                                                  |
+| https                 | String         | Optional | N/A                                                               | Pathname of existing BIG-IP SSL profile.                                                                                                                                                                                                   |
+| http2                 | Object         | Optional | N/A                                                               | HTTP2 Client & Server Profiles                                                                                                                                                                                                             |
+| logProfiles           | List of string | Optional | N/A                                                               | Pathname of existing BIG-IP log profile.                                                                                                                                                                                                   |
+| persistenceProfile    | String         | Optional | VirtualServer uses `cookie` TransportServer uses `source-address` | CIS uses the AS3 default persistence profile. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP Persistence profiles and custom Persistence profiles.            |
+| profileMultiplex      | String         | Optional | N/A                                                               | CIS uses the AS3 default profileMultiplex profile. Allowed values are existing BIG-IP profileMultiplex profiles.                                                                                                                           |
+| profileL4             | String         | Optional | basic                                                             | The default value is `basic` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles. |
+| httpMrfRoutingEnabled | Boolean        | Optional | N/A                                                               | Reference to Http mrf router on BIGIP.                                                                                                                                                                                                     |
+| sslProfiles           | Object         | Optional | N/A                                                               | Reference to existing ssl profiles on BIGIP. Policy sslProfiles will have the highest precedence and will override route level profiles                                                                                                    |
+| analyticsProfiles     | Object         | Optional | N/A                                                               | Configures different analytics profiles on BIGIP virtual server.                                                                                                                                                                           |
 
 **Note**:
 * sslProfiles is only applicable to NextGen routes
+
+### HTTP2 Profile Components
+
+| Parameter | Type   | Required | Default | Description                                           |
+| --------- | ------ | -------- |---------|-------------------------------------------------------|
+| client    | String | Required | N/A     | Reference to existing ingress HTTP2 profile on BIG-IP |
+| server    | String | Optional | N/A     | Reference to existing egress HTTP2 profile on BIG-IP  |
 
 ### TCP Profile Components
 
@@ -96,10 +104,10 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 
 ### SSL Profile Components
 
-| Parameter | Type   | Required | Default         | Description                                                                                                                      |
-| --------- | ------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| clientProfiles    | Array | Optional | N/A  | Reference to list of existing client SSL profiles on BIGIP
-| serverProfiles    | Array | Optional | N/A  | Reference to list of existing server SSL profiles on BIGIP
+| Parameter      | Type  | Required | Default | Description                                                |
+|----------------|-------|----------|---------|------------------------------------------------------------|
+| clientProfiles | Array | Optional | N/A     | Reference to list of existing client SSL profiles on BIGIP |
+| serverProfiles | Array | Optional | N/A     | Reference to list of existing server SSL profiles on BIGIP |
 
 **Note**:
 * SSL profile components are only applicable to NextGen routes

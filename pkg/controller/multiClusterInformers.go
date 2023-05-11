@@ -229,27 +229,53 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 			log.Errorf("unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
 			return err
 		}
-		if _, ok2 := ctlr.multiClusterNodeInformers[svcKey.clusterName]; !ok2 {
-			nodeInf := ctlr.getNodeInformer(svcKey.clusterName)
-			ctlr.addNodeEventUpdateHandler(&nodeInf)
-			nodeInf.start()
-			time.Sleep(100 * time.Millisecond)
-			ctlr.multiClusterNodeInformers[svcKey.clusterName] = &nodeInf
-			nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
-			var nodesList []corev1.Node
-			for _, obj := range nodesIntfc {
-				node := obj.(*corev1.Node)
-				nodesList = append(nodesList, *node)
-			}
-			sort.Sort(NodeList(nodesList))
-			nodes, err := ctlr.getNodes(nodesList)
-			if err != nil {
-				return err
-			}
-			nodeInf.oldNodes = nodes
+		err := ctlr.setupMultiClusterNodeInformers(svcKey.clusterName)
+		if err != nil {
+			return err
 		}
 	} else {
 		return fmt.Errorf("cluster config not found for cluster: %v", svcKey.clusterName)
+	}
+	return nil
+}
+
+// setupAndStartHAClusterInformers sets up and starts informers for the HA pair cluster
+func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) error {
+	restClient := ctlr.multiClusterConfigs.ClusterConfigs[clusterName].KubeClient.CoreV1().RESTClient()
+	// Setup informers with namespaces which are watched by CIS
+	for n := range ctlr.namespaces {
+		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {
+			log.Errorf("unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
+			return err
+		}
+	}
+	err := ctlr.setupMultiClusterNodeInformers(clusterName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// setupMultiClusterNodeInformers sets up and starts node informers for cluster if it hasn't been started
+func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string) error {
+	if _, ok := ctlr.multiClusterNodeInformers[clusterName]; !ok {
+		nodeInf := ctlr.getNodeInformer(clusterName)
+		ctlr.addNodeEventUpdateHandler(&nodeInf)
+		nodeInf.start()
+		time.Sleep(100 * time.Millisecond)
+		ctlr.multiClusterNodeInformers[clusterName] = &nodeInf
+		nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
+		var nodesList []corev1.Node
+		for _, obj := range nodesIntfc {
+			node := obj.(*corev1.Node)
+			nodesList = append(nodesList, *node)
+		}
+		sort.Sort(NodeList(nodesList))
+		nodes, err := ctlr.getNodes(nodesList)
+		if err != nil {
+			return err
+		}
+		nodeInf.oldNodes = nodes
 	}
 	return nil
 }

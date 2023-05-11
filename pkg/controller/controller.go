@@ -79,6 +79,7 @@ const (
 	Cluster  = "cluster"
 
 	SecondaryCIS = "secondary"
+	PrimaryCIS   = "primary"
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 

@@ -4,19 +4,19 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
-	"net/http"
-	"reflect"
-	"sort"
-	"strconv"
-	"sync"
-	"time"
-
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/workqueue"
+	"net/http"
+	"reflect"
+	"sort"
+	"strconv"
+	"sync"
+	"time"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
@@ -80,6 +80,7 @@ var _ = Describe("Worker Tests", func() {
 				IRules:           nil,
 				ServiceIPAddress: nil,
 			})
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.Partition = "test"
 		mockCtlr.Agent = &Agent{
 			postChan:            make(chan ResourceConfigRequest, 1),

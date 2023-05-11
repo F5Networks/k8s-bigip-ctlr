@@ -425,17 +425,12 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			pool.MultiClusterServices = multiClusterServices
 		}
 		// update the multicluster resource serviceMap with local cluster services
-		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-			ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route, "")
+
+		// update the multicluster resource serviceMap with HA pair cluster services
+		if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route, ctlr.multiClusterConfigs.HAPairCusterName)
 		}
-		svcKey := MultiClusterServiceKey{
-			clusterName: "",
-			serviceName: bs.Name,
-			namespace:   pool.ServiceNamespace,
-		}
-		ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
-		// update the clusterSvcMap
-		ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
 
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
@@ -1917,6 +1912,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 		return nil
 	}
 	currentClusterSecretKeys := make(map[string]struct{})
+	hACISPairConfig := false                       // Helps in ensuring that HA pair cluster config is provided in case of CIS running in HA mode
+	hACISPairConfigMeta := make(map[string]string) // Helps in detecting multiple primary/secondary clusters (if specified)
 	for _, mcc := range multiClusterConfigs {
 
 		// Store the cluster keys which will be used to detect deletion of a cluster later
@@ -1970,6 +1967,12 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 			// Skip processing the cluster config as it's already processed
 			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
 			// combination of cluster name and secret name
+			if _, ok := hACISPairConfigMeta[mcc.HACIS]; ok {
+				// Multiple primary/secondary clusters specified
+				return fmt.Errorf("multiple %s clusters specified in multicluster config", mcc.HACIS)
+			} else {
+				hACISPairConfigMeta[mcc.HACIS] = mcc.ClusterName
+			}
 			continue
 		}
 
@@ -2009,6 +2012,34 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 			log.Warningf(err.Error())
 			continue
 		}
+		if ctlr.cisType != "" && mcc.HACIS != "" {
+			// Check if multiple primary/secondary clusters are specified
+			if _, ok := hACISPairConfigMeta[mcc.HACIS]; ok {
+				return fmt.Errorf("multiple %s clusters specified in multicluster config", mcc.HACIS)
+			}
+			if ctlr.cisType == PrimaryCIS && mcc.HACIS == SecondaryCIS {
+				// Setup and start informers for secondary cluster
+				err := ctlr.setupAndStartHAClusterInformers(mcc.ClusterName)
+				if err != nil {
+					return err
+				}
+				hACISPairConfig = true
+				ctlr.multiClusterConfigs.HAPairCusterName = mcc.ClusterName
+			} else if ctlr.cisType == SecondaryCIS && mcc.HACIS == PrimaryCIS {
+				// Setup and start informers for primary cluster
+				err := ctlr.setupAndStartHAClusterInformers(mcc.ClusterName)
+				if err != nil {
+					return err
+				}
+				hACISPairConfig = true
+				ctlr.multiClusterConfigs.HAPairCusterName = mcc.ClusterName
+			}
+		}
+		// Ensure HA pair cluster config must be provided in case of CIS running in HA mode
+		if ctlr.cisType != "" && !hACISPairConfig {
+			return fmt.Errorf("CIS HA pair cluster config not specified for %s CIS.", ctlr.cisType)
+		}
+
 	}
 	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store
 	for clusterName, _ := range ctlr.resources.multiClusterConfigs {
@@ -2052,4 +2083,21 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 		KubeClient: kubeClient,
 	}
 	return nil
+}
+
+// updateMultiClusterResourceServiceMap updates the multiCluster rscSvcMap and clusterSvcMap
+func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConfig, rsRef resourceRef, bs RouteBackendCxt,
+	pool Pool, servicePort intstr.IntOrString, route *routeapi.Route, clusterName string) {
+	if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+		ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	}
+	svcKey := MultiClusterServiceKey{
+		clusterName: clusterName,
+		serviceName: bs.Name,
+		namespace:   pool.ServiceNamespace,
+	}
+	ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
+	// update the clusterSvcMap
+	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name,
+		route.Spec.Path)
 }

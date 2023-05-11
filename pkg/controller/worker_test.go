@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
@@ -79,6 +80,7 @@ var _ = Describe("Worker Tests", func() {
 				IRules:           nil,
 				ServiceIPAddress: nil,
 			})
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.Partition = "test"
 		mockCtlr.Agent = &Agent{
 			postChan:            make(chan ResourceConfigRequest, 1),

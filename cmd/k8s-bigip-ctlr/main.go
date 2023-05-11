@@ -205,8 +205,7 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	userAgentInfo      string
-
-	cisType *string
+	cisType            *string
 )
 
 func _init() {

@@ -1971,7 +1971,8 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 	} else {
 		if namespaces, ok := ctlr.multiClusterPoolInformers[svcKey.clusterName]; ok {
 			for namespace, poolInf := range namespaces {
-				if svcKey.namespace == namespace {
+				// namespace = "" for HA pair cluster if cis watches all namespaces
+				if svcKey.namespace == namespace || namespace == "" {
 					mSvcInf := poolInf.svcInformer
 					mItem, mFound, _ := mSvcInf.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
 					if !mFound {
@@ -1989,12 +1990,42 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 	return nil, svc
 }
 
+// updatePoolMembersForResources updates the pool members for service present in the provided Pool
 func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
+	var poolMembers []PoolMember
 	// for local cluster
+	poolMembers = append(poolMembers,
+		ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+			pool.NodeMemberLabel, "")...)
+
+	// for HA cluster pair service
+	if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+		poolMembers = append(poolMembers,
+			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairCusterName)...)
+	}
+	// For multiCluster services
+	for _, mcs := range pool.MultiClusterServices {
+		// Update pool members for all the multi cluster services specified in the route annotations
+		// Ensure cluster services of the HA pair cluster (if specified as multi cluster service in route annotations)
+		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
+		// already populated while updating the HA cluster pair service pool members above
+		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairCusterName != mcs.ClusterName {
+			poolMembers = append(poolMembers,
+				ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
+					pool.NodeMemberLabel, mcs.ClusterName)...)
+		}
+	}
+	pool.Members = poolMembers
+}
+
+// fetchPoolMembersForService returns pool members associated with a service created in specified cluster
+func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNamespace string,
+	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string) []PoolMember {
 	svcKey := MultiClusterServiceKey{
-		serviceName: pool.ServiceName,
-		namespace:   pool.ServiceNamespace,
-		clusterName: "",
+		serviceName: serviceName,
+		namespace:   serviceNamespace,
+		clusterName: clusterName,
 	}
 	if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 		ctlr.resources.poolMemCache[svcKey] = &poolMembersInfo{
@@ -2007,34 +2038,10 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 	var poolMembers []PoolMember
 	if svc != nil {
-		_ = ctlr.processService(svc, nil, "")
-		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, pool.ServicePort, pool.NodeMemberLabel)...)
+		_ = ctlr.processService(svc, nil, clusterName)
+		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, servicePort, nodeMemberLabel)...)
 	}
-	// For multiCluster services
-	for _, mcs := range pool.MultiClusterServices {
-		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok {
-			mSvcKey := MultiClusterServiceKey{
-				mcs.SvcName,
-				mcs.ClusterName,
-				mcs.Namespace,
-			}
-			if _, ok = ctlr.resources.poolMemCache[mSvcKey]; !ok {
-				ctlr.resources.poolMemCache[mSvcKey] = &poolMembersInfo{
-					memberMap: make(map[portRef][]PoolMember),
-				}
-			}
-			err, mSvc := ctlr.fetchService(mSvcKey)
-			if err != nil {
-				log.Errorf("%v", err)
-				continue
-			}
-			if mSvc != nil {
-				_ = ctlr.processService(mSvc, nil, mSvcKey.clusterName)
-				poolMembers = append(poolMembers, ctlr.getPoolMembersForService(mSvcKey, mcs.ServicePort, pool.NodeMemberLabel)...)
-			}
-		}
-	}
-	pool.Members = poolMembers
+	return poolMembers
 }
 
 func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {

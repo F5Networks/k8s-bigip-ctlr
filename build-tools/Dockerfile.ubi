@@ -45,7 +45,7 @@ RUN microdnf update -y && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt && \
     python3 -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf remove libedit openssh openssh-clients perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less shadow-utils -y && \
+    microdnf remove libedit openssh openssh-clients perl-Git  perl-TermReadKey git-core git-core-doc git less shadow-utils -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 USER ctlr

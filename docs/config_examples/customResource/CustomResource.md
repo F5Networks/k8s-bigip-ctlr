@@ -128,6 +128,13 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 | name | String | Required | NA | Refrence to health monitor name existing on bigip                                                                                  |
 | reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip                                                                      |
 
+**TCP Profile Components**
+
+| PARAMETER   | TYPE    | REQUIRED | DEFAULT     | DESCRIPTION                                                                                   |
+|-------------|---------|----------|-------------|-----------------------------------------------------------------------------------------------|
+| client      | String  | Required | Custom_TCP  | CIS uses the AS3 default TCP client profile. Allowed values are existing BIG-IP TCP Client profiles.|
+| server      | String  | Optional | NA          | Allowed values are existing BIG-IP TCP Server profiles. **Note: Server TCP Profile can only be used along with Client profile.**|
+
 **Note**:
 * monitor can be a reference to existing helathmonitor on bigip in which case, name and reference are required parameters.
 * For creating health monitor object on bigip with UserInput type, send, interval are required parameters.
@@ -147,14 +154,14 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 
 **TLSProfile Components**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| termination | String | Required | NA |  Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough] |
-| clientSSL | String | Required | NA | Single ClientSSL Profile on the BIG-IP OR a kubernetes secret.|
-| clientSSLs | String | Required | NA | Multiple ClientSSL Profiles on the BIG-IP OR list of kubernetes secrets.|
-| serverSSL | String | Optional | NA | Single ServerSSL Profile on the BIG-IP OR a kubernetes secret.|
-| serverSSLs | String | Optional | NA | Multiple ServerSSL Profiles on the BIG-IP OR list of kubernetes secrets.|
-| reference | String | Required | NA | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only |
+| PARAMETER   | TYPE           | REQUIRED    | DEFAULT | DESCRIPTION                                                                                         |
+|-------------|----------------|-------------|---------|-----------------------------------------------------------------------------------------------------|
+| termination | String         | Required    | NA      | Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough]            |
+| clientSSL   | String         | Required    | NA      | Single ClientSSL Profile on the BIG-IP OR a kubernetes secret.                                      |
+| clientSSLs  | List of string | Required    | NA      | Multiple ClientSSL Profiles on the BIG-IP OR list of kubernetes secrets.                            |
+| serverSSL   | String         | Optional    | NA      | Single ServerSSL Profile on the BIG-IP OR a kubernetes secret.                                      |
+| serverSSLs  | List of string | Optional    | NA      | Multiple ServerSSL Profiles on the BIG-IP OR list of kubernetes secrets.                            |
+| reference   | String         | Required    | NA      | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only |
 
 **Note**:
 * CIS has a 1:1 mapping for a domain(CommonName) and BIG-IP-VirtualServer.
@@ -226,6 +233,14 @@ Note: **monitors** take priority over **monitor** if both are provided in TS spe
 | routeAdvertisement | String | Optional | “disable” | If true, the route is advertised. Values: “enable”, “disable”, “selective”, “always”, “any”, “all” |
 | spanningEnabled | Boolean | Optional | false | Enable all BIG-IP systems in device group to listen for and process traffic on the same virtual address |
 | trafficGroup | String | Optional | "default" | Specifies the traffic group which the Service_Address belongs. |
+
+**TCP Profile Components**
+
+| PARAMETER   | TYPE    | REQUIRED | DEFAULT     | DESCRIPTION                                                                                   |
+|-------------|---------|----------|-------------|-----------------------------------------------------------------------------------------------|
+| client      | String  | Required | Custom_TCP  | CIS uses the AS3 default TCP client profile. Allowed values are existing BIG-IP TCP Client profiles.|
+| server      | String  | Optional | NA          | Allowed values are existing BIG-IP TCP Server profiles. **Note: Server TCP Profile can only be used along with Client profile.**|
+
 
 **Health Monitor**
 

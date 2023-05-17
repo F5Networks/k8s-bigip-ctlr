@@ -87,8 +87,9 @@ type (
 		OrchestrationCNI       string
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		multiClusterResources  *MultiClusterResourceStore
+		cisType                string
+		haModeType             HAModeType
 		resourceContext
-		cisType string
 	}
 	resourceContext struct {
 		resourceQueue             workqueue.RateLimitingInterface
@@ -1141,6 +1142,7 @@ type (
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
 		MultiClusterConfigs       []MultiClusterConfig `yaml:"multiClusterConfigs"`
+		HAClusterConfig           HAClusterConfig      `yaml:"highAvailabilityClusterConfigs"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1195,15 +1197,37 @@ const (
 	TLSVerion1_3 TLSVersion = "1.3"
 )
 
+type HAModeType string
+
+const (
+	Active  HAModeType = "active"
+	StandBy HAModeType = "standby"
+	//Ratio         HAModeType = "ratio"
+)
+
 type (
 	MultiClusterConfig struct {
 		ClusterName string `yaml:"clusterName"`
 		Secret      string `yaml:"secret"`
-		// HACIS determines whether cluster config belongs to primary/secondary/external cluster
-		HACIS                  string `yaml:"highAvailabilityCIS"`
-		PrimaryClusterEndPoint string `yaml:"primaryClusterEndPoint"`
-		ProbeInterval          int    `yaml:"probeInterval"`
-		RetryInterval          int    `yaml:"retryInterval"`
+	}
+
+	HAClusterConfig struct {
+		HAMode                 HAMode         `yaml:"mode"`
+		PrimaryClusterEndPoint string         `yaml:"primaryClusterEndPoint"`
+		ProbeInterval          int            `yaml:"probeInterval"`
+		RetryInterval          int            `yaml:"retryInterval"`
+		PrimaryCluster         ClusterDetails `yaml:"primaryCluster"`
+		SecondaryCluster       ClusterDetails `yaml:"secondaryCluster"`
+	}
+
+	HAMode struct {
+		// type can be active, standby, ratio
+		Type HAModeType `yaml:"type"`
+	}
+
+	ClusterDetails struct {
+		ClusterName string `yaml:"clusterName"`
+		Secret      string `yaml:"secret"`
 	}
 
 	PoolIdentifier struct {

@@ -13,15 +13,21 @@ metadata:
   namespace: kube-system
 data:
   extendedSpec: |
-    multiClusterConfigs:
-    - clusterName: cluster1
-      secret: default/kubeconfig1
-      highAvailabilityCIS: secondary
+    highAvailabilityClusterConfigs:
       primaryClusterEndPoint: http://10.145.72.114:8001
       probeInterval: 30
       retryInterval: 3
-    - clusterName: cluster2
-      secret: default/kubeconfig2
+      primaryCluster:
+        clusterName: cluster1
+        secret: default/kubeconfig1
+      secondaryCluster:
+        clusterName: cluster2
+        secret: default/kubeconfig2
+    multiClusterConfigs:
+    - clusterName: cluster3
+      secret: default/kubeconfig3
+    - clusterName: cluster4
+      secret: default/kubeconfig4
     extendedRouteSpec:
     - allowOverride: false
       namespace: foo

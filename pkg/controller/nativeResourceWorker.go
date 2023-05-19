@@ -394,8 +394,9 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route, "")
 
 		// update the multicluster resource serviceMap with HA pair cluster services
-		if ctlr.multiClusterConfigs.HAPairCusterName != "" {
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route, ctlr.multiClusterConfigs.HAPairCusterName)
+		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route,
+				ctlr.multiClusterConfigs.HAPairCusterName)
 		}
 
 		// Update the pool Members
@@ -953,7 +954,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
 		// Get Multicluster kube-config
-		err := ctlr.readMultiClusterConfigFromGlobalCM(es.MultiClusterConfigs)
+		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
 		ctlr.checkSecondaryCISConfig()
 		ctlr.stopDeletedGlobalCMMultiClusterInformers()
 		if err != nil {
@@ -1835,7 +1836,7 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 }
 
 // readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
-func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs []MultiClusterConfig) error {
+func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
 	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
 		log.Infof("No multi cluster config provided.")
 		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
@@ -1851,25 +1852,30 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 		}
 		return nil
 	}
-	currentClusterSecretKeys := make(map[string]struct{})
-	hACISPairConfig := false                       // Helps in ensuring that HA pair cluster config is provided in case of CIS running in HA mode
-	hACISPairConfigMeta := make(map[string]string) // Helps in detecting multiple primary/secondary clusters (if specified)
-	for _, mcc := range multiClusterConfigs {
 
-		// Store the cluster keys which will be used to detect deletion of a cluster later
-		currentClusterSecretKeys[mcc.ClusterName] = struct{}{}
-
-		if ctlr.cisType == SecondaryCIS && mcc.HACIS == SecondaryCIS {
-			if mcc.PrimaryClusterEndPoint == "" {
+	hACluster := true
+	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
+		// Set the active or standby mode for the HA cluster
+		if haClusterConfig.HAMode == (HAMode{}) || haClusterConfig.HAMode.Type == "" {
+			ctlr.haModeType = StandBy
+		} else if haClusterConfig.HAMode.Type == Active || haClusterConfig.HAMode.Type == StandBy {
+			ctlr.haModeType = haClusterConfig.HAMode.Type
+		} else {
+			log.Errorf("Invalid Type of high availability mode specified, supported values (active, standby)")
+			os.Exit(1)
+		}
+		// Set up health probe
+		if ctlr.cisType == SecondaryCIS {
+			if haClusterConfig.PrimaryClusterEndPoint == "" {
 				// cis in secondary mode, primary cluster health check endpoint is required
 				// if endpoint is missing exit
 				log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
 				os.Exit(1)
 			} else {
 				ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
-					EndPoint:      mcc.PrimaryClusterEndPoint,
-					probeInterval: mcc.ProbeInterval,
-					retryInterval: mcc.RetryInterval,
+					EndPoint:      haClusterConfig.PrimaryClusterEndPoint,
+					probeInterval: haClusterConfig.ProbeInterval,
+					retryInterval: haClusterConfig.RetryInterval,
 				}
 				// if probe and retry intervals are not given, set default values
 				if ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval == 0 {
@@ -1882,20 +1888,107 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 			}
 		}
 
+		// Set up the informers for the HA clusters
+		if ctlr.cisType == PrimaryCIS {
+			if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+				// Both cluster name and secret are mandatory
+				if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
+					log.Errorf("clusterName or secret not provided in haClusterConfig: %v",
+						haClusterConfig.SecondaryCluster)
+					os.Exit(1)
+				}
+				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
+					haClusterConfig.SecondaryCluster.ClusterName)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+				err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+					MultiClusterConfig{
+						ClusterName: haClusterConfig.SecondaryCluster.ClusterName,
+						Secret:      haClusterConfig.SecondaryCluster.Secret},
+					false)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+
+				// Setup and start informers for secondary cluster in case of active-active mode HA cluster
+				if haClusterConfig.HAMode.Type == Active {
+					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
+					if err != nil {
+						return err
+					}
+				}
+				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
+			} else {
+				hACluster = false
+			}
+		}
+		if ctlr.cisType == SecondaryCIS {
+			if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+				// Both cluster name and secret are mandatory
+				if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
+					log.Errorf("clusterName or secret not provided in haClusterConfig: %v",
+						haClusterConfig.PrimaryCluster)
+					os.Exit(1)
+				}
+				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
+					haClusterConfig.PrimaryCluster.ClusterName)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+				err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+					MultiClusterConfig{
+						ClusterName: haClusterConfig.PrimaryCluster.ClusterName,
+						Secret:      haClusterConfig.PrimaryCluster.Secret},
+					false)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+
+				// Setup and start informers for primary cluster in case of active-active mode HA cluster
+				if haClusterConfig.HAMode.Type == Active {
+					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
+					if err != nil {
+						return err
+					}
+				}
+				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.PrimaryCluster.ClusterName
+			} else {
+				hACluster = false
+			}
+		}
+	} else {
+		hACluster = false
+	}
+
+	if ctlr.cisType != "" && !hACluster {
+		log.Errorf("High availability cluster config not provided")
+		os.Exit(1)
+	}
+
+	currentClusterSecretKeys := make(map[string]struct{})
+	for _, mcc := range multiClusterConfigs {
+
+		// Store the cluster keys which will be used to detect deletion of a cluster later
+		currentClusterSecretKeys[mcc.ClusterName] = struct{}{}
+
 		// Both cluster name and secret are mandatory
 		if mcc.ClusterName == "" || mcc.Secret == "" {
 			log.Warningf("clusterName or secret not provided in multiClusterConfig")
 			continue
 		}
 
-		// Check if secret is in the desired format of <namespace>/<secret name>
-		splits := strings.Split(mcc.Secret, "/")
-		if len(splits) != 2 {
-			log.Warningf("secret: %s should be in the format namespace/secret-name", mcc.Secret)
+		// Fetch the secret containing kubeconfig creds
+		kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(mcc.Secret, mcc.ClusterName)
+
+		if err != nil {
+			log.Warning(err.Error())
 			continue
 		}
-		secretNamespace := splits[0]
-		secretName := splits[1]
 
 		// Update the new valid cluster config to the multiClusterConfigs cache if not already present
 		if _, ok := ctlr.resources.multiClusterConfigs[mcc.ClusterName]; !ok {
@@ -1907,79 +2000,15 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(multiClusterConfigs [
 			// Skip processing the cluster config as it's already processed
 			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
 			// combination of cluster name and secret name
-			if _, ok := hACISPairConfigMeta[mcc.HACIS]; ok {
-				// Multiple primary/secondary clusters specified
-				return fmt.Errorf("multiple %s clusters specified in multicluster config", mcc.HACIS)
-			} else {
-				hACISPairConfigMeta[mcc.HACIS] = mcc.ClusterName
-			}
 			continue
 		}
 
-		// Fetch the secret containing kubeconfig creds
-		comInf, ok := ctlr.getNamespacedCommonInformer(secretNamespace)
-		if !ok {
-			log.Warningf("informer not found for namespace: %v", secretNamespace)
-		}
-		var obj interface{}
-		var exist bool
-		var err error
-		var kubeConfigSecret *v1.Secret
-		if comInf != nil && comInf.secretsInformer != nil {
-			obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(mcc.Secret)
-			if err != nil {
-				log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
-					mcc.Secret, mcc.ClusterName, err)
-			}
-		}
-		if !exist {
-			log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", mcc.Secret, mcc.ClusterName)
-			// During start up the informers may not be updated so, try to fetch secret using kubeClient
-			kubeConfigSecret, err = ctlr.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName, metav1.GetOptions{})
-			if err != nil {
-				log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
-					mcc.Secret, mcc.ClusterName, err)
-				continue
-			}
-		}
-		// Fetch the kubeconfig data from the secret
-		if kubeConfigSecret == nil {
-			kubeConfigSecret = obj.(*v1.Secret)
-		}
 		// Update the clusterKubeConfig
 		err = ctlr.updateClusterConfigStore(kubeConfigSecret, mcc, false)
 		if err != nil {
 			log.Warningf(err.Error())
 			continue
 		}
-		if ctlr.cisType != "" && mcc.HACIS != "" {
-			// Check if multiple primary/secondary clusters are specified
-			if _, ok := hACISPairConfigMeta[mcc.HACIS]; ok {
-				return fmt.Errorf("multiple %s clusters specified in multicluster config", mcc.HACIS)
-			}
-			if ctlr.cisType == PrimaryCIS && mcc.HACIS == SecondaryCIS {
-				// Setup and start informers for secondary cluster
-				err := ctlr.setupAndStartHAClusterInformers(mcc.ClusterName)
-				if err != nil {
-					return err
-				}
-				hACISPairConfig = true
-				ctlr.multiClusterConfigs.HAPairCusterName = mcc.ClusterName
-			} else if ctlr.cisType == SecondaryCIS && mcc.HACIS == PrimaryCIS {
-				// Setup and start informers for primary cluster
-				err := ctlr.setupAndStartHAClusterInformers(mcc.ClusterName)
-				if err != nil {
-					return err
-				}
-				hACISPairConfig = true
-				ctlr.multiClusterConfigs.HAPairCusterName = mcc.ClusterName
-			}
-		}
-		// Ensure HA pair cluster config must be provided in case of CIS running in HA mode
-		if ctlr.cisType != "" && !hACISPairConfig {
-			return fmt.Errorf("CIS HA pair cluster config not specified for %s CIS.", ctlr.cisType)
-		}
-
 	}
 	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store
 	for clusterName, _ := range ctlr.resources.multiClusterConfigs {
@@ -2017,9 +2046,8 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 		return fmt.Errorf("failed to create kubeClient from kube-config fetched from secret %s for the "+
 			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
 	}
-	// Update the clusteKubeConfig store
+	// Update the clusterKubeConfig store
 	ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName] = clustermanager.ClusterConfig{
-		HACIS:      strings.ToLower(mcc.HACIS),
 		KubeClient: kubeClient,
 	}
 	return nil
@@ -2040,4 +2068,47 @@ func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConf
 	// update the clusterSvcMap
 	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name,
 		route.Spec.Path)
+}
+
+// fetchKubeConfigSecret fetches the kubeConfig secret associated with a cluster
+func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string) (*v1.Secret, error) {
+
+	// Check if secret is in the desired format of <namespace>/<secret name>
+	splits := strings.Split(secret, "/")
+	if len(splits) != 2 {
+		return nil, fmt.Errorf("secret: %s should be in the format namespace/secret-name", secret)
+	}
+	secretNamespace := splits[0]
+	secretName := splits[1]
+
+	comInf, ok := ctlr.getNamespacedCommonInformer(secretNamespace)
+	if !ok {
+		log.Warningf("informer not found for namespace: %v", secretNamespace)
+	}
+	var obj interface{}
+	var exist bool
+	var err error
+	var kubeConfigSecret *v1.Secret
+	if comInf != nil && comInf.secretsInformer != nil {
+		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secretName)
+		if err != nil {
+			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+				secretName, clusterName, err)
+		}
+	}
+	if !exist {
+		log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", secretName, clusterName)
+		// During start up the informers may not be updated so, try to fetch secret using kubeClient
+		kubeConfigSecret, err = ctlr.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
+			metav1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+				secretName, clusterName, err)
+		}
+	}
+	// Fetch the kubeconfig data from the secret
+	if kubeConfigSecret == nil {
+		kubeConfigSecret = obj.(*v1.Secret)
+	}
+	return kubeConfigSecret, nil
 }

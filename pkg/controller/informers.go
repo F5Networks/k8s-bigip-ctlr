@@ -1275,7 +1275,22 @@ func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 }
 
 func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
-	pod := obj.(*corev1.Pod)
+	var pod *corev1.Pod
+	switch obj.(type) {
+	case *corev1.Pod:
+		pod = obj.(*corev1.Pod)
+	case cache.DeletedFinalStateUnknown:
+		dFSUObj := obj.(cache.DeletedFinalStateUnknown)
+		pod, _ = dFSUObj.Obj.(*corev1.Pod)
+		if pod == nil {
+			log.Warningf("Unknown object received as pod deletion event: %v", dFSUObj.Key)
+			return
+		}
+	default:
+		log.Warningf("Unknown object received as pod deletion event: %v", obj)
+		return
+	}
+
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return

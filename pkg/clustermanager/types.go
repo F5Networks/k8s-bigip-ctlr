@@ -12,12 +12,16 @@ type (
 	}
 
 	ClusterConfig struct {
-		HACIS      string
 		KubeClient kubernetes.Interface
 		// Maintain a mapping of managed resources -> services and services -> resources
 		//ManagedResources
 		// Maintain a mapping of managed informers -> services and services -> informers
 		//ManagedInformers
+	}
+
+	// MultiClusterConfig defines a structure for holding cluster configuration
+	HAClusterConfig struct {
+		ClusterConfigs map[string]ClusterConfig
 	}
 
 	//ManagedResources struct {

@@ -251,7 +251,7 @@ func (ctlr *Controller) processResources() bool {
 		cm := rKey.rsc.(*v1.ConfigMap)
 		err, ok := ctlr.processConfigMap(cm, rscDelete)
 		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 			break
 		}
 
@@ -2054,7 +2054,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			pool.NodeMemberLabel, "")...)
 
 	// for HA cluster pair service
-	if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairCusterName)...)

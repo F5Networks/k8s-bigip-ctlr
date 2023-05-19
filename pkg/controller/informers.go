@@ -1274,30 +1274,22 @@ func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	ctlr.resourceQueue.Add(key)
 }
 
-<<<<<<< HEAD
-func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
-	var pod *corev1.Pod
+func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
+	pod := obj.(*corev1.Pod)
 	switch obj.(type) {
 	case *corev1.Pod:
 		pod = obj.(*corev1.Pod)
 	case cache.DeletedFinalStateUnknown:
-		// Sometimes the watch deletion event gets missed leading to unknown final "resting" state of the object,
-		// In such a scenario the object received is of type DeletedFinalStateUnknown and there are chances that
-		// included `Obj` is stale. Handle such scenario gracefully.
 		dFSUObj := obj.(cache.DeletedFinalStateUnknown)
 		pod, _ = dFSUObj.Obj.(*corev1.Pod)
 		if pod == nil {
-			log.Warningf("Unknown object received in pod deletion event: %v", dFSUObj.Key)
+			log.Warningf("Unknown object received as pod deletion event: %v", dFSUObj.Key)
 			return
 		}
 	default:
-		log.Warningf("Unknown object received in pod deletion event: %v", obj)
+		log.Warningf("Unknown object received as pod deletion event: %v", obj)
 		return
 	}
-=======
-func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
-	pod := obj.(*corev1.Pod)
->>>>>>> 9110d075 (Multi cluster informers (#2840))
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return

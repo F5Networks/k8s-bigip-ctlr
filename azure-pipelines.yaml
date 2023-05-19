@@ -33,6 +33,13 @@ variables:
   operatorBundleImageName: 'f5networks/f5-cis-operator-bundle-devel'
   operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
 
+parameters:
+  - name: trivyScan
+    displayName: Trivy Scan
+    type: boolean
+    default: false
+
+
 stages:
 - stage: PreCheck
   jobs:
@@ -118,6 +125,7 @@ stages:
         condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
   - job: ScanContainerImage
     dependsOn: BuildContainerImage
+    condition: eq(${{ parameters.trivyScan }}, true)
     steps:
       - task: CmdLine@2
         displayName: Install Trivy

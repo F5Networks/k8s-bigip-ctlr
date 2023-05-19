@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"sync"
 )
@@ -517,8 +518,18 @@ var _ = Describe("Informers Tests", func() {
 			pod.Labels["app"] = "kube-dns"
 			mockCtlr.enqueuePod(pod)
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
-			mockCtlr.enqueueDeletedPod(pod)
+			// Verify CIS handles DeletedFinalStateUnknown pod object
+			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: pod})
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
+
+			// Verify CIS handles DeletedFinalStateUnknown pod object in case it doesn't have any pod Obj referenced
+			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: nil})
+			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
+
+			// Verify CIS handles scenarios when unexpected objects are received in pod deletion event
+			mockCtlr.enqueueDeletedPod(nil)
+			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
+
 		})
 
 		It("Secret", func() {

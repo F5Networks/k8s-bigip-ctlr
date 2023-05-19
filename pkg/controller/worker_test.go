@@ -205,9 +205,6 @@ var _ = Describe("Worker Tests", func() {
 		It("Create IPAM Custom Resource", func() {
 			err := mockCtlr.createIPAMResource()
 			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
-			err = mockCtlr.createIPAMResource()
-			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
-
 		})
 
 		It("Get IPAM Resource", func() {

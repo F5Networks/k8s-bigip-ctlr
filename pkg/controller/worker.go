@@ -1593,6 +1593,26 @@ func (ctlr *Controller) requestIP(ipamLabel string, host string, key string) (st
 		return "", InvalidInput
 	}
 
+	// Add all processed IPAM entries till first PostCall.
+	if !ctlr.firstPostResponse {
+		if ctlr.cacheIPAMHostSpecs == (CacheIPAM{}) {
+			ctlr.cacheIPAMHostSpecs = CacheIPAM{
+				IPAM: &ficV1.IPAM{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "IPAM",
+						APIVersion: "v1",
+					},
+				},
+			}
+		}
+		ctlr.cacheIPAMHostSpecs.Lock()
+		ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs = append(ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs, &ficV1.HostSpec{
+			Host:      host,
+			Key:       key,
+			IPAMLabel: ipamLabel,
+		})
+		ctlr.cacheIPAMHostSpecs.Unlock()
+	}
 	if host != "" {
 		//For VS server
 		for _, ipst := range ipamCR.Status.IPStatus {

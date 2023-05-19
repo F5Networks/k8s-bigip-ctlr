@@ -297,21 +297,6 @@ func (ctlr *Controller) createIPAMResource() error {
 		return nil
 	}
 
-	if strings.Contains(err.Error(), "already exists") {
-		err = ctlr.ipamCli.Delete(IPAMNamespace, crName, metaV1.DeleteOptions{})
-		if err != nil {
-			log.Debugf("[ipam] Delete failed. Error: %s", err.Error())
-		}
-
-		time.Sleep(3 * time.Second)
-
-		ipamCR, err = ctlr.ipamCli.Create(f5ipam)
-		if err == nil {
-			log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
-			return nil
-		}
-	}
-
 	log.Debugf("[ipam] error while creating IPAM custom resource. %v", err.Error())
 	return err
 }

@@ -107,9 +107,12 @@ Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k
   **Note:** Please update "bigip-partition" name in AS3 declaration with the partition name to be deleted.
 * Install F5 CRDs:
   - Install the F5 CRDs using following Commands:
-  ```sh
-  kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
-  ```
+    ```sh
+    export CIS_VERSION=<cis-version>
+    # For example
+    # export CIS_VERSION=v2.12.0
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+    ```
   
 ## Configuration
 

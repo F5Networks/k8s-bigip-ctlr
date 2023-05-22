@@ -518,7 +518,7 @@ func (ctlr *Controller) processResources() bool {
 	case Pod:
 		pod := rKey.rsc.(*v1.Pod)
 		_ = ctlr.processPod(pod, rscDelete)
-		svc := ctlr.GetServicesForPod(pod)
+		svc := ctlr.GetServicesForPod(pod, rKey.clusterName)
 		if nil == svc {
 			break
 		}
@@ -3719,15 +3719,33 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnno
 	return podList
 }
 
-func (ctlr *Controller) GetServicesForPod(pod *v1.Pod) *v1.Service {
-	comInf, ok := ctlr.getNamespacedCommonInformer(pod.Namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", pod.Namespace)
+func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.Service {
+	var services []interface{}
+	var err error
+	if clusterName == "" {
+		comInf, ok := ctlr.getNamespacedCommonInformer(pod.Namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", pod.Namespace)
+			return nil
+		}
+		services, err = comInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
+		if err != nil {
+			log.Debugf("Unable to find services for namespace %v with error: %v", pod.Namespace, err)
+		}
+	} else if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
+		poolInf, found := ctlr.multiClusterPoolInformers[clusterName][pod.Namespace]
+		if !found {
+			log.Errorf("Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
+			return nil
+		}
+		services, err = poolInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
+		if err != nil {
+			log.Debugf("Unable to find services for namespace %v in cluster %s with error: %v", pod.Namespace,
+				clusterName, err)
+		}
+	} else {
+		log.Errorf("Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
 		return nil
-	}
-	services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
-	if err != nil {
-		log.Debugf("Unable to find services for namespace %v with error: %v", pod.Namespace, err)
 	}
 	for _, obj := range services {
 		svc := obj.(*v1.Service)

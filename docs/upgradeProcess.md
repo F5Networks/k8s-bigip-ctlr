@@ -285,3 +285,6 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
   * This setting is exclusive for NextGen mode and not applicable for CRD resources
   * Policy level ssl profiles will have the highest precedence and will override route level profiles
   * In CRD mode CIS will process ssl profiles from tls profile
+
+**_Functionality Change:_**
+* If AS3 >= v3.44 & CIS 2.13.0, when multiple client SSL profiles are specified for a VS then CIS sets the first SSL profile (sorted in alphabetical order of their names) as default profile for SNI. In earlier version it was set by AS3.

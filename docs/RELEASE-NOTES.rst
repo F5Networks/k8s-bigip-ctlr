@@ -29,6 +29,7 @@ Added Functionality
     * Static route support added for ovn-k8s,flannel, cilium and antrea CNI.
     * Support for operator in openshift 4.12
     * Add --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
+    * Add support for AS3 3.45.0
 
 Bug Fixes
 ````````````

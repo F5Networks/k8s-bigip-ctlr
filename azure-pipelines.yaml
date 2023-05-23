@@ -116,6 +116,30 @@ stages:
           docker push $(docker_repo):$(BUILD_VERSION)
         displayName: 'Push image to DockerHub'
         condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+  - job: ScanContainerImage
+    dependsOn: BuildContainerImage
+    steps:
+      - task: CmdLine@2
+        displayName: Install Trivy
+        inputs:
+          script: |
+            sudo apt-get install wget apt-transport-https gnupg lsb-release
+            wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+            echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+            sudo apt-get update
+            sudo apt-get install trivy
+      - task: CmdLine@2
+        displayName: "Run trivy scan"
+        inputs:
+          script: |
+            trivy image --format template --template "@junit.tpl" -o test.xml --severity HIGH,CRITICAL $(quay_path):$(Build.SourceVersion)
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: 'JUnit'
+          testResultsFiles: '**/test.xml'
+          mergeTestResults: true
+          failTaskOnFailedTests: false
+          testRunTitle: 'Trivy - Vulnerabilities Summary'
 - stage: Charts
   dependsOn: PreCheck
   jobs:

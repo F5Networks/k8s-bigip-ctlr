@@ -48,9 +48,9 @@ var _ = Describe("AS3Manager Tests", func() {
 	var mockMgr *mockAS3Manager
 	BeforeEach(func() {
 		mockMgr = newMockAS3Manager(&Params{
-			As3Version:       "3.41.0",
-			As3Release:       "3.41.0-1",
-			As3SchemaVersion: "3.41.0",
+			As3Version:       "3.45.0",
+			As3Release:       "3.45.0-5",
+			As3SchemaVersion: "3.45.0",
 		})
 		mockMgr.Resources = &AgentResources{}
 	})
@@ -334,7 +334,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				{
 					tenant: "test",
 					status: http.StatusOK,
-					body:   `{"version":"3.42.1", "release":"r1", "schemaCurrent":"test"}`,
+					body:   `{"version":"3.92.1", "release":"r1", "schemaCurrent":"test"}`,
 				},
 			}, http.MethodGet)
 			Expect(mockMgr.IsBigIPAppServicesAvailable()).To(BeNil())

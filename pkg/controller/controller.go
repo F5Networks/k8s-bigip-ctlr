@@ -104,9 +104,9 @@ const (
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
 	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
-	as3Version        = 3.41
-	defaultAS3Version = "3.41.0"
-	defaultAS3Build   = "1"
+	as3Version        = 3.45
+	defaultAS3Version = "3.45.0"
+	defaultAS3Build   = "5"
 )
 
 // NewController creates a new Controller Instance.
@@ -295,21 +295,6 @@ func (ctlr *Controller) createIPAMResource() error {
 	if err == nil {
 		log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
 		return nil
-	}
-
-	if strings.Contains(err.Error(), "already exists") {
-		err = ctlr.ipamCli.Delete(IPAMNamespace, crName, metaV1.DeleteOptions{})
-		if err != nil {
-			log.Debugf("[ipam] Delete failed. Error: %s", err.Error())
-		}
-
-		time.Sleep(3 * time.Second)
-
-		ipamCR, err = ctlr.ipamCli.Create(f5ipam)
-		if err == nil {
-			log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
-			return nil
-		}
 	}
 
 	log.Debugf("[ipam] error while creating IPAM custom resource. %v", err.Error())

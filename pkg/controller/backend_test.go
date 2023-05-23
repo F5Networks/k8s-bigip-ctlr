@@ -457,9 +457,9 @@ var _ = Describe("Backend Tests", func() {
 		)
 		BeforeEach(func() {
 			map1 := map[string]string{
-				"version":       "3.42.0",
+				"version":       "3.92.0",
 				"release":       "1",
-				"schemaCurrent": "3.41.0",
+				"schemaCurrent": "3.45.0",
 				"schemaMinimum": "3.18.0",
 			}
 			// start a test http server
@@ -483,7 +483,7 @@ var _ = Describe("Backend Tests", func() {
 			agentParams.VXLANName = "vxlan500"
 			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
 			agent := NewAgent(agentParams)
-			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.41.0"))
+			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.45.0"))
 			agent.Stop()
 
 		})

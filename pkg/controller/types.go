@@ -71,6 +71,7 @@ type (
 		oldNodes               []Node
 		UseNodeInternal        bool
 		initState              bool
+		firstPostResponse      bool
 		dgPath                 string
 		shareNodes             bool
 		ipamCli                *ipammachinery.IPAMClient
@@ -82,6 +83,7 @@ type (
 		ipamHostSpecEmpty      bool
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
+		cacheIPAMHostSpecs     CacheIPAM
 		resourceContext
 	}
 	resourceContext struct {
@@ -394,7 +396,10 @@ type (
 		Weight            int32              `json:"weight,omitempty"`
 		AlternateBackends []AlternateBackend `json:"alternateBackends"`
 	}
-
+	CacheIPAM struct {
+		IPAM *ficV1.IPAM
+		sync.Mutex
+	}
 	// AlternateBackends lists backend svc of A/B
 	AlternateBackend struct {
 		Service          string `json:"service"`

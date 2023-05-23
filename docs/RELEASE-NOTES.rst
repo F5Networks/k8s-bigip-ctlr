@@ -26,6 +26,7 @@ Added Functionality
         * Support setting http mrf router option from policy CR(applicable only to VS cr)
         * Support for setting http analytics profile from policy CR
         * Support HTTP Monitor for Transport Server CR
+        * Support webSocket Profile in Policy CR
     * Static route support added for ovn-k8s,flannel, cilium and antrea CNI.
     * Support for operator in openshift 4.12
     * Add --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration

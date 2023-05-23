@@ -1159,6 +1159,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile,
 		}
 	}
+	//set websocket profile
+	if cfg.Virtual.ProfileWebSocket != "" {
+		svc.ProfileWebSocket = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileWebSocket,
+		}
+	}
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

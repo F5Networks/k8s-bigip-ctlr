@@ -204,6 +204,7 @@ type (
 		LogProfiles                []string              `json:"logProfiles,omitempty"`
 		ProfileL4                  string                `json:"profileL4,omitempty"`
 		ProfileMultiplex           string                `json:"profileMultiplex,omitempty"`
+		ProfileWebSocket           string                `json:"profileWebSocket,omitempty"`
 		ProfileDOS                 string                `json:"profileDOS,omitempty"`
 		ProfileBotDefense          string                `json:"profileBotDefense,omitempty"`
 		TCP                        ProfileTCP            `json:"tcp,omitempty"`
@@ -946,6 +947,7 @@ type (
 		HttpMrfRoutingEnabled  bool                 `json:"httpMrfRoutingEnabled,omitempty"`
 		IpIntelligencePolicy   as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
 		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
+		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

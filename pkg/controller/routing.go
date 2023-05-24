@@ -1166,7 +1166,8 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 				be.Name,
 				port,
 				"",
-				"",
+				route.Spec.Host,
+				route.Spec.Path,
 			)
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)

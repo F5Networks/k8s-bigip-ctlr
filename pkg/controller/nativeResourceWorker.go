@@ -401,7 +401,8 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				bs.Name,
 				servicePort,
 				"",
-				"",
+				route.Spec.Host,
+				route.Spec.Path,
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
@@ -523,7 +524,8 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		route.Spec.To.Name,
 		servicePort,
 		"",
-		"",
+		route.Spec.Host,
+		route.Spec.Path,
 	)
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
@@ -702,6 +704,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	return &rls
 }
 
+// UpdatePoolHealthMonitors we need to call this method on update of pod/ pool members update
 func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg *ResourceConfig) {
 
 	//Get routes for service
@@ -720,7 +723,8 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		service.Name,
 		servicePort,
 		"",
-		"",
+		route.Spec.Host,
+		route.Spec.Path,
 	)
 	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
 	if svcPods != nil && len(svcPods) > 0 {
@@ -845,39 +849,6 @@ func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Servi
 		}
 	}
 	return nil
-}
-
-func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool, clusterName string) {
-	namespace := svc.Namespace
-	routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
-	if !ok {
-		return
-	}
-	svcDepRscKey := MultiClusterServiceKey{
-		serviceName: svc.Name,
-		namespace:   svc.Namespace,
-		clusterName: clusterName,
-	}
-	for rsName, rsMeta := range ctlr.getSvcDepResources(svcDepRscKey) {
-		rsCfg := ctlr.getVirtualServer(rsMeta.partition, rsName)
-		if rsCfg == nil {
-			continue
-		}
-		freshRsCfg := &ResourceConfig{}
-		freshRsCfg.copyConfig(rsCfg)
-		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
-			if ctlr.PoolMemberType == NodePort {
-				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
-			} else {
-				ctlr.updatePoolMembersForCluster(freshRsCfg, ns)
-			}
-		}
-		if updatePoolHealthMon {
-			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
-			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
-		}
-		_ = ctlr.resources.setResourceConfig(rsMeta.partition, rsName, freshRsCfg)
-	}
 }
 
 func (ctlr *Controller) processGlobalExtendedRouteConfig() {

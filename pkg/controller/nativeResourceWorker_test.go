@@ -142,7 +142,7 @@ var _ = Describe("Routes", func() {
 			dg, ok := mockCtlr.resources.ltmConfig["test"].ResourceMap["samplevs_443"].IntDgMap[mapKey]
 			Expect(ok).To(BeTrue(), "datagroup should be created for passthrough route")
 			Expect(dg[ns].Records[0].Name).To(BeEquivalentTo("foo.com"), "Invalid vsHostname in datagroup")
-			Expect(dg[ns].Records[0].Data).To(BeEquivalentTo("foo_80_default"), "Invalid vsHostname in datagroup")
+			Expect(dg[ns].Records[0].Data).To(BeEquivalentTo("foo_80_default_foo_com_foo"), "Invalid vsHostname in datagroup")
 		})
 
 		It("Route Admit Status", func() {

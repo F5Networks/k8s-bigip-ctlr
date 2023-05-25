@@ -48,10 +48,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 	annotationsUsed := &AnnotationsUsed{}
 	var policySSLProfiles rgPlcSSLProfiles
-	plc, err := ctlr.getRouteGroupPolicy(extdSpec)
-	if err != nil {
-		return err
-	}
+	plc, policyErr := ctlr.getRouteGroupPolicy(extdSpec)
+
 	if plc != nil && len(plc.Spec.Profiles.SSLProfiles.ClientProfiles) > 0 {
 		policySSLProfiles.clientSSLs = plc.Spec.Profiles.SSLProfiles.ClientProfiles
 		policySSLProfiles.serverSSLs = plc.Spec.Profiles.SSLProfiles.ServerProfiles
@@ -77,6 +75,11 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			}
 		}
 		return nil
+	}
+
+	// Delayed handling policyErr to ensure VS deletion is not missed in case resources related to VS have been deleted
+	if policyErr != nil {
+		return policyErr
 	}
 
 	portStructs := getVirtualPortsForRoutes(routes)

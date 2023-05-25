@@ -205,6 +205,7 @@ type (
 	// as3TLSServerCertificates maps to TLS_Server_certificates in AS3 Resources
 	as3TLSServerCertificates struct {
 		Certificate string `json:"certificate,omitempty"`
+		SNIDefault  bool   `json:"sniDefault,omitempty"`
 	}
 
 	// as3TLSClient maps to TLS_Client in AS3 Resources

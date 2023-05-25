@@ -157,6 +157,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application, partition s
 func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application, partition string) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
+	svcNameMap := make(map[string]struct{})
 	// TLS Certificates are available in CustomProfiles
 	for key, prof := range am.Profs {
 		if prof.Partition == partition {
@@ -168,6 +169,7 @@ func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application, part
 			if ok := am.createUpdateTLSServer(prof, svcName, sharedApp); ok {
 				// Create Certificate only if the corresponding TLSServer is created
 				createCertificateDecl(prof, sharedApp)
+				svcNameMap[svcName] = struct{}{}
 			} else {
 				createUpdateCABundle(prof, caBundleName, sharedApp)
 				if tlsClient == nil {
@@ -181,6 +183,23 @@ func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application, part
 					// then it indicates that secure-serverssl needs to be added
 					tlsClient.ValidateCertificate = true
 				}
+			}
+		}
+	}
+
+	// if AS3 version on bigIP is lower than 3.44 then don't enable sniDefault, as it's only supported from AS3 v3.44 onwards
+	if am.bigIPAS3Version < 3.44 {
+		return
+	}
+	for svcName, _ := range svcNameMap {
+		if _, ok := sharedApp[svcName].(*as3Service); ok {
+			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+			if !ok {
+				continue
+			}
+			if len(tlsServer.Certificates) > 1 {
+				tlsServer.Certificates[0].SNIDefault = true
 			}
 		}
 	}

@@ -186,6 +186,7 @@ func (agent *Agent) IsBigIPAppServicesAvailable() error {
 		log.Errorf("[AS3] Error while converting AS3 version to float")
 		return err
 	}
+	agent.bigIPAS3Version = bigIPAS3Version
 	if bigIPAS3Version >= as3SupportedVersion && bigIPAS3Version <= as3Version {
 		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", version)
 		return nil
@@ -743,7 +744,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName)
 
 		// Process CustomProfiles
-		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
+		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, agent.bigIPAS3Version)
 
 		// Process Profiles
 		processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
@@ -1433,9 +1434,10 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 	}
 }
 
-func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
+func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as3Version float64) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
+	svcNameMap := make(map[string]struct{})
 	// TLS Certificates are available in CustomProfiles
 	for _, rsCfg := range rsMap {
 		// Sort customProfiles so that they are processed in orderly manner
@@ -1451,6 +1453,7 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 			if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
 				// Create Certificate only if the corresponding TLSServer is created
 				createCertificateDecl(prof, sharedApp)
+				svcNameMap[svcName] = struct{}{}
 			} else {
 				createUpdateCABundle(prof, caBundleName, sharedApp)
 				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
@@ -1463,6 +1466,22 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 					// then it indicates that secure-serverssl needs to be added
 					tlsClient.ValidateCertificate = true
 				}
+			}
+		}
+	}
+	// if AS3 version on bigIP is lower than 3.44 then don't enable sniDefault, as it's only supported from AS3 v3.44 onwards
+	if as3Version < 3.44 {
+		return
+	}
+	for svcName, _ := range svcNameMap {
+		if _, ok := sharedApp[svcName].(*as3Service); ok {
+			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+			if !ok {
+				continue
+			}
+			if len(tlsServer.Certificates) > 1 {
+				tlsServer.Certificates[0].SNIDefault = true
 			}
 		}
 	}

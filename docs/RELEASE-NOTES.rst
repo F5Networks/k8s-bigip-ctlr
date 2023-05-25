@@ -41,7 +41,7 @@ Bug Fixes
 Upgrade notes
 ``````````````
 * Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
-
+* If AS3 >= v3.44 & CIS 2.13.0, when specifying multiple client SSL profiles for a VS, CIS sets the first SSL profile (sorted in alphabetical order of their names) as the default profile for SNI. In earlier versions, AS3 used to set it.
 
 2.12.1
 -------------

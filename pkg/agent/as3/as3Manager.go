@@ -119,6 +119,7 @@ type AS3Manager struct {
 	shareNodes                bool
 	defaultRouteDomain        int
 	poolMemberType            string
+	bigIPAS3Version           float64
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -631,6 +632,7 @@ func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
 		log.Errorf("[AS3] Error while converting AS3 version to float")
 		return err
 	}
+	am.bigIPAS3Version = bigIPAS3Version
 	if bigIPAS3Version >= as3SupportedVersion && bigIPAS3Version <= as3Version {
 		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", version)
 		return nil

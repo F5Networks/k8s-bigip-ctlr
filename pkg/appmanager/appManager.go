@@ -97,7 +97,7 @@ type Manager struct {
 	// App informer support
 	vsQueue      workqueue.RateLimitingInterface
 	appInformers map[string]*appInformer
-	as3Informer  *appInformer
+	nodeInformer *nodeInformer
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer
@@ -484,6 +484,38 @@ func (appMgr *Manager) removeNamespaceLocked(namespace string) error {
 	return nil
 }
 
+// AddNodeInformer to watch the node udpates
+func (appMgr *Manager) AddNodeInformer(resyncPeriod time.Duration) error {
+	appMgr.informersMutex.Lock()
+	defer appMgr.informersMutex.Unlock()
+
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = appMgr.nodeLabelSelector
+	}
+	appMgr.nodeInformer = &nodeInformer{
+		stopCh: make(chan struct{}),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				appMgr.restClientv1,
+				"nodes",
+				"",
+				nodeOptions,
+			),
+			&v1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+	}
+	appMgr.nodeInformer.nodeInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.setupNodeProcessing() },
+			UpdateFunc: func(obj, cur interface{}) { appMgr.setupNodeProcessing() },
+			DeleteFunc: func(obj interface{}) { appMgr.setupNodeProcessing() },
+		},
+	)
+	return nil
+}
+
 // AddNamespaceLabelInformer spins an informer to watch all namespaces with matching label
 func (appMgr *Manager) AddNamespaceLabelInformer(
 	labelSelector labels.Selector,
@@ -701,6 +733,11 @@ type serviceQueueKey struct {
 	Operation    string
 }
 
+type nodeInformer struct {
+	nodeInformer cache.SharedIndexInformer
+	stopCh       chan struct{}
+}
+
 type appInformer struct {
 	namespace        string
 	cfgMapInformer   cache.SharedIndexInformer
@@ -711,7 +748,6 @@ type appInformer struct {
 	secretInformer   cache.SharedIndexInformer
 	ingClassInformer cache.SharedIndexInformer
 	podInformer      cache.SharedIndexInformer
-	nodeInformer     cache.SharedIndexInformer
 	stopCh           chan struct{}
 }
 
@@ -723,9 +759,6 @@ func (appMgr *Manager) newAppInformer(
 	log.Debugf("[CORE] Creating new app informer")
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
-	}
-	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = appMgr.nodeLabelSelector
 	}
 	appInf := appInformer{
 		namespace: namespace,
@@ -767,18 +800,6 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
-
-	appInf.nodeInformer = cache.NewSharedIndexInformer(
-		cache.NewFilteredListWatchFromClient(
-			appMgr.restClientv1,
-			"nodes",
-			"",
-			nodeOptions,
-		),
-		&v1.Node{},
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
 
 	//For nodeport mode, disable ep informer
 	if appMgr.poolMemberType != NodePort {
@@ -925,16 +946,6 @@ func (appMgr *Manager) newAppInformer(
 				AddFunc:    func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeCreate) },
 				UpdateFunc: func(obj, cur interface{}) { appMgr.enqueuePod(cur, OprTypeUpdate) },
 				DeleteFunc: func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeDelete) },
-			},
-		)
-	}
-
-	if appInf.nodeInformer != nil {
-		appInf.nodeInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.setupNodeProcessing() },
-				UpdateFunc: func(obj, cur interface{}) { appMgr.setupNodeProcessing() },
-				DeleteFunc: func(obj interface{}) { appMgr.setupNodeProcessing() },
 			},
 		)
 	}
@@ -1118,9 +1129,6 @@ func (appInf *appInformer) start() {
 	if nil != appInf.podInformer {
 		go appInf.podInformer.Run(appInf.stopCh)
 	}
-	if nil != appInf.nodeInformer {
-		go appInf.nodeInformer.Run(appInf.stopCh)
-	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
@@ -1143,9 +1151,6 @@ func (appInf *appInformer) waitForCacheSync() {
 	}
 	if nil != appInf.cfgMapInformer {
 		cacheSyncs = append(cacheSyncs, appInf.cfgMapInformer.HasSynced)
-	}
-	if nil != appInf.nodeInformer {
-		cacheSyncs = append(cacheSyncs, appInf.nodeInformer.HasSynced)
 	}
 	if nil != appInf.ingClassInformer {
 		cacheSyncs = append(cacheSyncs, appInf.ingClassInformer.HasSynced)
@@ -1180,13 +1185,14 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer appMgr.vsQueue.ShutDown()
 	defer appMgr.nsQueue.ShutDown()
-
+	// start and sync node informer.
+	appMgr.startAndSyncNodeInformer()
 	if nil != appMgr.nsInformer {
 		// Using one worker for namespace label changes.
 		appMgr.startAndSyncNamespaceInformer(stopCh)
 		go wait.Until(appMgr.namespaceWorker, time.Second, stopCh)
 	}
-
+	// start and sync App informer
 	appMgr.startAndSyncAppInformers()
 
 	// Using only one virtual server worker currently.
@@ -1194,6 +1200,14 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 
 	<-stopCh
 	appMgr.stopAppInformers()
+	close(appMgr.nodeInformer.stopCh)
+}
+
+func (appMgr *Manager) startAndSyncNodeInformer() {
+	appMgr.informersMutex.Lock()
+	defer appMgr.informersMutex.Unlock()
+	go appMgr.nodeInformer.nodeInformer.Run(appMgr.nodeInformer.stopCh)
+	cache.WaitForCacheSync(appMgr.nodeInformer.stopCh, appMgr.nodeInformer.nodeInformer.HasSynced)
 }
 
 func (appMgr *Manager) startAndSyncNamespaceInformer(stopCh <-chan struct{}) {
@@ -1214,9 +1228,6 @@ func (appMgr *Manager) startAppInformersLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.start()
 	}
-	if nil != appMgr.as3Informer {
-		appMgr.as3Informer.start()
-	}
 }
 
 func (appMgr *Manager) waitForCacheSync() {
@@ -1229,9 +1240,6 @@ func (appMgr *Manager) waitForCacheSyncLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.waitForCacheSync()
 	}
-	if nil != appMgr.as3Informer {
-		appMgr.as3Informer.waitForCacheSync()
-	}
 }
 
 func (appMgr *Manager) stopAppInformers() {
@@ -1239,9 +1247,6 @@ func (appMgr *Manager) stopAppInformers() {
 	defer appMgr.informersMutex.Unlock()
 	for _, appInf := range appMgr.appInformers {
 		appInf.stopInformers()
-	}
-	if nil != appMgr.as3Informer {
-		appMgr.as3Informer.stopInformers()
 	}
 }
 
@@ -3651,17 +3656,7 @@ func (appMgr *Manager) setOtherSDNType() {
 func (appMgr *Manager) setupNodeProcessing() error {
 	// Register appMgr to watch for node updates to keep track of watched nodes
 	//when there is update from node informer get list of nodes from nodeinformer cache
-	ns := ""
-	if appMgr.watchingAllNamespacesLocked() {
-		ns = ""
-	} else {
-		for _, k := range appMgr.GetAllWatchedNamespaces() {
-			ns = k
-			break
-		}
-	}
-	appInf, _ := appMgr.getNamespaceInformer(ns)
-	nodes := appInf.nodeInformer.GetIndexer().List()
+	nodes := appMgr.nodeInformer.nodeInformer.GetIndexer().List()
 	var nodeslist []v1.Node
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)

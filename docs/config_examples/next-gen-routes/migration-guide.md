@@ -161,9 +161,12 @@ Sample Route:
 ### Migrating to NextGenRoutes
 #### Step-1: Install the CRDs
   - Install the F5 CRDs using following Commands:
-  
+
     ```sh
-    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+    export CIS_VERSION=<cis-version>
+    # For example
+    # export CIS_VERSION=v2.12.0
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
     ```
 
 #### Step-2 Creating Extended ConfigMap using defaultRouteGroup

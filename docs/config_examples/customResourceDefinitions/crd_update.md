@@ -10,7 +10,10 @@ Custom resources can appear and disappear in a running cluster through dynamic r
 * Install F5 CRDs
   - Install the F5 CRDs using following Commands:
   ```sh
-  kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+  export CIS_VERSION=<cis-version>
+  # For example
+  # export CIS_VERSION=v2.12.0
+  kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
   ```
 
 ## Updating Custom Resource Definitions
@@ -19,12 +22,13 @@ Currently, all 2.x.x releases support v1 version of CRDs.
 
 Below are changes which need attention. Please refer [release notes](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst), [upgrade documentation](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/upgradeProcess.md) for complete details.
 
-| Version        | Change
-|----------------|------------------------------------------------------------------
-|  CIS 2.7.0     | Renamed EDNS resource name from **externaldnss** to **externaldns**
-|  FIC 0.1.5     | Renamed IPAM resource name from **f5ipam** CRD to **ipam**
+| Version    | Change                                                                      |
+|------------|-----------------------------------------------------------------------------|
+| CIS 2.7.0  | Renamed EDNS resource name from **externaldnss** to **externaldns**         |
+| FIC 0.1.5  | Renamed IPAM resource name from **f5ipam** CRD to **ipam**                  |
+| CIS 2.13.0 | schema change for http2 profile in policy CRD from **string** to **object** |
 
-Below steps are applicable for updating CRDs manually or via helm or operator.
+Below steps are applicable for updating CRDs regardless of CIS installation method (manually or via helm or operator).
 
 ### Before an update 
 
@@ -48,7 +52,19 @@ kubectl get plc -A -o yaml > plc_backup.yaml
   ```sh
   kubectl get edns -A -o yaml > edns_backup.yaml
   ```
+* For CIS version >= 2.13.0, If you are using http2 profile in the policy CR update the http2 profile from string to object as follows:
+  ```yaml
+  #Before update 
+  http2: /Common/http2
+  ```
   
+  ```yaml
+  #After Update 
+  http2:
+    client: /Common/http2
+  ```
+**Note**: If Policy CR is not updated with the latest schema CIS will not process the policy CR for any resource. 
+
 ### After an update
 
 * Recreate the resources from the backup file if needed. 

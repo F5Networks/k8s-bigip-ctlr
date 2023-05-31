@@ -1,47 +1,47 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.13.0
 -------------
 
 Added Functionality
 ```````````````````
 **What’s new:**
     * Next generation routes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
-        * Fix issue with liveness probe in NextGen
-        * Skip processing OSCP system services to enhance performance
-        * NextGen Route controller takes precedence over Legacy Route deployment parameters
-        * Add Support of server-side http2 profile
-        * Support setting Auto-LastHop option from policy CR
-        * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only)
-        * Support for setting http analytics profile from policy CR
-        * Support for setting client and server ssl profiles from policy CR
         * Support for a separate policy CR for HTTP VS in NextGen Routes.
-    * Ingress
-        *
+        * NextGen Route controller takes precedence over Legacy Route deployment parameters
     * CRD
-        * Support for configuring multiple iRules with policyCR
-        * Add Support for AB deployment with VS CR
-        * Add Support of ServerSide HTTP2 Profile in Policy CR and VS CR
-        * Support setting http mrf router option from policy CR(applicable only to VS cr)
-        * Support for setting http analytics profile from policy CR
-        * Support HTTP Monitor for Transport Server CR
-        * Support webSocket Profile in Policy CR
+        * Support webSocket Profile in Policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-websocket-profile.yaml>`_.
+        * Support for server-side http2 profile using policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_.
+        * Support setting Auto-LastHop option from policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-autoLastHop.yaml>`_.
+        * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only), See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-httpMrfRouter.yaml>`_.
+        * Support for setting http analytics profile from policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-http-analytics-profile.yaml>`_.
+        * Support for configuring multiple iRules with policyCR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-multiple-irules.yaml>`_.
+        * Support for setting client and server ssl profiles from policy CR for NextGen Routes only, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-client-server-ssl-profile.yaml>`_.
+        * Support for AB deployment with VS CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServerWithTLSProfile/virtual-with-alternatebackends/virtual-with-ab.yaml>`_.
+        * Support of ServerSide HTTP2 Profile for VS CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/http2>`_.
+        * Support HTTP Monitor for Transport Server CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/TransportServer/monitors-transport-server.yaml>`_.
     * Static route support added for ovn-k8s,flannel, cilium and antrea CNI.
+    * New parameter --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
     * Support for operator in openshift 4.12
-    * Add --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
-    * Add support for AS3 3.45.0
+    * Support for AS3 3.45.0
 
 Bug Fixes
 ````````````
 * `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal
 * `Issue 2821 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2821>`_: Fix for additionalVirtualAddresses with serviceAddress config
 * `Issue 2550 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2550>`_: Ability to specify monitors for TransportServer CR
+* Fix for recreating the LTM objects when CIS restarts in IPAM mode.
+* Improved error handling for GTM objects with cccl-gtm-agent.
+* Fix crash issue with liveness probe in NextGen routes
+* Fix for improper ARPs update in NextGen routes
+* Skip processing OSCP system services to enhance performance in NextGen Routes
 
 Upgrade notes
 ``````````````
-* Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
-* If AS3 >= v3.44 & CIS 2.13.0, when specifying multiple client SSL profiles for a VS, CIS sets the first SSL profile (sorted in alphabetical order of their names) as the default profile for SNI. In earlier versions, AS3 used to set it.
+* Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly `example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_.
+* Upgrade the CRDs schema using `CRD Update Guide <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/crd_update.md>`_, if you are using custom resources.
+* In AS3 >= v3.44 & CIS >= 2.13.0, CIS sets the first SSL profile (sorted in alphabetical order of their names) as default profile for SNI if multiple client SSL certificates used for a VS as kubernetes secrets. AS3 used to set the default SNI in earlier version.
 
 2.12.1
 -------------

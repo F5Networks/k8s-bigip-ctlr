@@ -38,7 +38,7 @@ Compatibility Matrix
 | v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes                | v3.41       | v0.1.8      | v0.0.4            | v0.0.23           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.12.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes                | v3.41       | v0.1.9      | v0.0.4            | v0.0.24           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.12.1     | v16.0          | v1.24              | v4.12.0*                                                      | Yes | Yes                | v3.41       | v0.1.9      | v0.0.4            | v0.0.24           | Red Hat Enterprise Linux release 9.1 (Plow)         |
-| v2.13.0     | v16.0          | v1.24              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.13.0     | v16.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 

@@ -1076,10 +1076,19 @@ func (ctlr *Controller) processVirtualServers(
 		// TODO: Add Route Domain
 		var rsName string
 		if virtual.Spec.VirtualServerName != "" {
-			rsName = formatCustomVirtualServerName(
-				virtual.Spec.VirtualServerName,
-				portStruct.port,
-			)
+			if virtual.Spec.HostGroup != "" {
+				//Ignore virtualServerName if hostgroup is configured on virtual
+				log.Warningf("virtualServerName is ignored as hostgroup is configured on virtualserver %v", virtual.Name)
+				rsName = formatVirtualServerName(
+					ip,
+					portStruct.port,
+				)
+			} else {
+				rsName = formatCustomVirtualServerName(
+					virtual.Spec.VirtualServerName,
+					portStruct.port,
+				)
+			}
 		} else {
 			rsName = formatVirtualServerName(
 				ip,

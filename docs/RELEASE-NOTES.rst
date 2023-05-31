@@ -14,6 +14,7 @@ Bug Fixes
 ````````````
 * Exclude the removal of static ARP entries for Flannel CNI during CIS restart
 * `Issue 2800 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2800>`_: Fix monitor not creating for VS CRD when send string is missing
+* `Issue 2867 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2867>`_: Ignore virtualServerName if hostGroup configured
 
 2.13.0
 -------------

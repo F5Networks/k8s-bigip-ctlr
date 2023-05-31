@@ -12,6 +12,7 @@ Added Functionality
         *
 Bug Fixes
 ````````````
+* Exclude the removal of static ARP entries for Flannel CNI during CIS restart
 
 2.13.0
 -------------

@@ -36,6 +36,7 @@ Added Functionality
         * Support HTTP Monitor for Transport Server CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/TransportServer/monitors-transport-server.yaml>`_.
     * Static route support added for ovn-k8s,flannel, cilium and antrea CNI.
     * New parameter --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
+    * Support for kubernetes 1.27
     * Support for operator in openshift 4.12
     * Support for AS3 3.45.0
 

@@ -497,7 +497,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 			if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
 				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
-			} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+			} else if pl.Monitor.Type != "" {
 				if pl.Name == "" {
 					monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
 				}

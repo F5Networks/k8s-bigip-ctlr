@@ -751,6 +751,10 @@ func GetNamespaces(appMgr *appmanager.Manager) {
 func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	label := resource.DefaultConfigMapLabel
 
+	err := appMgr.AddNodeInformer(resyncPeriod)
+	if nil != err {
+		log.Warningf("[INIT] Failed to add node informer for the controller:%v", err)
+	}
 	if len(*namespaceLabel) == 0 {
 		// For periodic monitoring
 		// Non monitoring namespaces will not be processed

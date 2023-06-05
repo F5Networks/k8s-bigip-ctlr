@@ -1039,6 +1039,8 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(err).To(BeNil())
 			mockMgr.appMgr.useNodeInternal = true
 			mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{namespace}}
+			_ = mockMgr.appMgr.AddNodeInformer(0)
+			mockMgr.appMgr.startAndSyncNodeInformer()
 			// Ingress first
 			ingressConfig := netv1.IngressSpec{
 				IngressClassName: &IngressClassName,
@@ -1067,8 +1069,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			node := test.NewNode("node1", "1", false,
 				[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
 			mockMgr.addNode(node, namespace)
-			appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
-			Expect(len(appInf.nodeInformer.GetIndexer().List())).To(Equal(1))
+			Expect(len(mockMgr.appMgr.nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(1))
 
 			// Create the services
 			fooSvc := test.NewService("foo", "1", namespace, "NodePort",

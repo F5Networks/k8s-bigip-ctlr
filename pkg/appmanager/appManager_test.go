@@ -406,8 +406,7 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 }
 
 func (m *mockAppManager) addNode(node *v1.Node, ns string) {
-	appInf, _ := m.appMgr.getNamespaceInformer(ns)
-	appInf.nodeInformer.GetStore().Add(node)
+	m.appMgr.nodeInformer.nodeInformer.GetStore().Add(node)
 	m.appMgr.setupNodeProcessing()
 }
 

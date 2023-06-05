@@ -17,6 +17,9 @@ Bug Fixes
 * `Issue 2867 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2867>`_: Ignore virtualServerName if hostGroup configured
 * `Issue 2898 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2898>`_: Fix for CIS crash with namespace-label parameter
 * `Issue 2778 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2778>`_: Fix hostless VS with IPAM to work with hostgroup
+* `Issue 2908 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2908>`_: Fix for CIS crash while updating the route status
+
+
 2.13.0
 -------------
 

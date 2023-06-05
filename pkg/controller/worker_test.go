@@ -1084,7 +1084,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.matchSvcSelectorPodLabels(map[string]string{}, pod1.Labels)).To(Equal(false))
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, map[string]string{})).To(Equal(false))
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
-			Expect(mockCtlr.checkCoreserviceLabels(pod1.Labels)).To(Equal(false))
+			Expect(mockCtlr.checkCoreservices(pod1.Labels, pod1.ObjectMeta.Namespace)).To(Equal(false))
 			var pods []*v1.Pod
 			pods = append(pods, pod1, pod2)
 			//Verify endpoints

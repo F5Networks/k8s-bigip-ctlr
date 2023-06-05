@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"k8s.io/client-go/rest"
 	"reflect"
+	"strings"
 	"time"
 
 	routeapi "github.com/openshift/api/route/v1"
@@ -1217,7 +1218,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 	//	return
 	//}
 
-	log.Debugf("Enqueueing ConfigMap: %v", cm)
+	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: cm.ObjectMeta.Namespace,
 		kind:      ConfigMap,
@@ -1231,7 +1232,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 
-	log.Debugf("Enqueueing ConfigMap: %v", cm)
+	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: cm.ObjectMeta.Namespace,
 		kind:      ConfigMap,
@@ -1259,10 +1260,10 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
 	//skip if pod belongs to coreService
-	if ctlr.checkCoreserviceLabels(pod.Labels) {
+	if ctlr.checkCoreservices(pod.Labels, pod.ObjectMeta.Namespace) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v", pod)
+	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	key := &rqKey{
 		namespace:   pod.ObjectMeta.Namespace,
 		kind:        Pod,
@@ -1292,10 +1293,10 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 	}
 
 	//skip if pod belongs to coreService
-	if ctlr.checkCoreserviceLabels(pod.Labels) {
+	if ctlr.checkCoreservices(pod.Labels, pod.ObjectMeta.Namespace) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v", pod)
+	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	key := &rqKey{
 		namespace:   pod.ObjectMeta.Namespace,
 		kind:        Pod,
@@ -1398,12 +1399,16 @@ func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
+func (ctlr *Controller) checkCoreservices(labels map[string]string, podNamespace string) bool {
 	for _, v := range labels {
 		if _, ok := K8SCoreServices[v]; ok {
 			return true
 		}
 		if ctlr.mode == OpenShiftMode {
+			// Return if pod falls under Openshift system namespace
+			if strings.HasPrefix(podNamespace, "openshift-") {
+				return true
+			}
 			if _, ok := OSCPCoreServices[v]; ok {
 				return true
 			}

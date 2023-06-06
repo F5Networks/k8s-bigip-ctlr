@@ -868,23 +868,6 @@ func initController(
 	return ctlr
 }
 
-// TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
-// it is used to create informer for v1 ingress
-func getk8sVersion() string {
-	var versionInfo map[string]string
-	var err error
-	var vInfo []byte
-	rc := kubeClient.Discovery().RESTClient()
-	if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(context.TODO()); err == nil {
-		// support k8s
-		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
-			// return fmt.Sprintf(versionInfo["gitVersion"])
-			return fmt.Sprintf(versionInfo["gitVersion"])
-		}
-	}
-	return ""
-}
-
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1104,7 +1087,6 @@ func main() {
 	if *filterTenants {
 		appMgr.AgentCIS.Clean(resource.DEFAULT_PARTITION)
 	}
-	appMgr.K8sVersion = getk8sVersion()
 	if *agent == cisAgent.AS3Agent && !(*disableTeems) {
 		key := appMgr.AgentCIS.GetBigipRegKey()
 		td.RegistrationKey = key

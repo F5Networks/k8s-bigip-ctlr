@@ -44,6 +44,9 @@ func (mo MockOut) Write(p []byte) (n int, err error) {
 }
 
 var _ = Describe("Main Tests", func() {
+	BeforeEach(func() {
+		watchAllNamespaces = false
+	})
 	Describe("Main Tests", func() {
 		It("sets up the config", func() {
 			configWriter := &test.MockWriter{
@@ -254,6 +257,100 @@ var _ = Describe("Main Tests", func() {
 			argError = verifyArgs()
 			Expect(argError).ToNot(BeNil())
 			Expect(isNodePort).To(BeFalse())
+
+			// Verify if bigIPPartition is Common
+			os.Args = []string{
+				"--bigip-partition=Common",
+			}
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil())
+
+			// Invalid static route mode with nodeport mode
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--bigip-partition=velcro1",
+				"--bigip-partition=velcro2",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--pool-member-type=nodeport",
+				"--static-routing-mode=true",
+			}
+			*bigIPPartitions = []string{}
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil())
+
+			// Invalid static route mode with openshiftSDNName
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--openshift-sdn-name=flannel-vxlan",
+				"--static-routing-mode=true",
+				"--pool-member-type=cluster",
+			}
+			*bigIPPartitions = []string{}
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil())
+
+			// Invalid override-as3-declaration
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--pool-member-type=cluster",
+				"--override-as3-declaration=invalid",
+			}
+			*bigIPPartitions = []string{}
+			*openshiftSDNName = ""
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil())
+
+			// Invalid controller mode
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--pool-member-type=cluster",
+				"--controller-mode=invalid",
+			}
+			*bigIPPartitions = []string{}
+			*overriderAS3CfgmapName = ""
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil())
+
+			// Invalid route spec configmap in openshift mode
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--pool-member-type=cluster",
+				"--controller-mode=openshift",
+				"--route-spec-configmap=invalid",
+			}
+			*bigIPPartitions = []string{}
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil())
+
+			// Valid route spec configmap in openshift mode
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--pool-member-type=cluster",
+				"--controller-mode=openshift",
+				"--route-spec-configmap=kube-config/ecm",
+				"--route-label=systest",
+			}
+			*bigIPPartitions = []string{}
+			*overriderAS3CfgmapName = ""
+			*routeSpecConfigmap = ""
+			*routeLabel = ""
+			flags.Parse(os.Args)
+			argError = verifyArgs()
+			Expect(argError).To(BeNil())
 		})
 
 		It("verifies Common not in list of partitions", func() {
@@ -697,6 +794,35 @@ var _ = Describe("Main Tests", func() {
 			Expect(as3Params.Ciphers).To(Equal("DEFAULT"))
 			Expect(as3Params.AS3PostDelay).To(Equal(0))
 			Expect(as3Params.PoolMemberType).To(Equal("cluster"))
+		})
+
+		It("Verify GetNamespaces", func() {
+			// Get watching namespaces when both namespaces and namespaceLabel not used
+			appMngr := appmanager.Manager{}
+			GetNamespaces(&appMngr)
+			Expect(len(appMngr.WatchedNS.Namespaces)).To(Equal(0))
+			Expect(len(appMngr.WatchedNS.NamespaceLabel)).To(Equal(0))
+
+			// Get watching namespaces when namespaces are used
+			namespaces = &[]string{"ns1", "ns2"}
+			GetNamespaces(&appMngr)
+			Expect(len(appMngr.WatchedNS.Namespaces)).To(Equal(2))
+			Expect(len(appMngr.WatchedNS.NamespaceLabel)).To(Equal(0))
+
+			// Get watching namespaces when both namespaces and namespaceLabel are used
+			appMngr = appmanager.Manager{}
+			nsLabel := "env=test"
+			namespaceLabel = &nsLabel
+			GetNamespaces(&appMngr)
+			Expect(len(appMngr.WatchedNS.Namespaces)).To(Equal(0))
+			Expect(len(appMngr.WatchedNS.NamespaceLabel)).To(Equal(0))
+
+			// Get watching namespaces when namespaceLabel is used
+			namespaces = &[]string{}
+			GetNamespaces(&appMngr)
+			Expect(len(appMngr.WatchedNS.Namespaces)).To(Equal(0))
+			Expect(len(appMngr.WatchedNS.NamespaceLabel)).NotTo(Equal(0))
+
 		})
 	})
 

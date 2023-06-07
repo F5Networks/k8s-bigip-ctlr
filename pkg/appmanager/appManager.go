@@ -140,7 +140,6 @@ type Manager struct {
 	// Processed routes for updating Admit Status
 	agRspChan          chan interface{}
 	processAgentLabels func(map[string]string, string, string) bool
-	K8sVersion         string
 	TeemData           *teem.TeemsData
 	defaultRouteDomain int
 	poolMemberType     string

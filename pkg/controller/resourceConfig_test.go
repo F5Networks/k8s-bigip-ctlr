@@ -1181,6 +1181,89 @@ var _ = Describe("Resource Config Tests", func() {
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
+
+		It("Handle TLS for AB Virtual Server", func() {
+			vs1 := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:           "test.com",
+					TLSProfileName: "SampleTLS",
+					Pools: []cisapiv1.Pool{
+						{
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+							Weight: 70,
+							AlternateBackends: []cisapiv1.AlternateBackend{
+								{
+									Service:          "svc1-b",
+									ServiceNamespace: "test2",
+									Weight:           30,
+								},
+							},
+						},
+					},
+				},
+			)
+			tlsProf1 := test.NewTLSProfile("SampleTLS", namespace, cisapiv1.TLSProfileSpec{
+				TLS: cisapiv1.TLS{
+					ClientSSL: "/Common/clientssl",
+					ServerSSL: "/Common/serverssl",
+					Reference: BIGIP,
+				},
+			})
+
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Process TLS for AB Virtual Server")
+			nameRef := NameRef{
+				Name: "My_VS_80_ab_deployment_dg",
+			}
+			Expect(rsCfg.IntDgMap[nameRef]["test2"].Records[0].Name).To(Equal("test.com/foo"), "Failed to Process TLS for AB Virtual Server")
+
+			// path = /
+			vs1.Spec.Pools[0].Path = "/"
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Process TLS for AB Virtual Server")
+			Expect(rsCfg.IntDgMap[nameRef]["test2"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
+
+			// TLSPassthrough
+			tlsProf1.Spec.TLS.Termination = TLSPassthrough
+			vs1.Spec.Pools[0].Path = "/"
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+			nameRef = NameRef{
+				Name: "My_VS_80_ssl_passthrough_servername_dg",
+			}
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(rsCfg.IntDgMap[nameRef]["default"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
+
+			// Weight = 0
+			vs1.Spec.Pools[0].Weight = 0
+			vs1.Spec.Pools[0].AlternateBackends[0].Weight = 0
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+			nameRef = NameRef{
+				Name: "My_VS_80_ssl_passthrough_servername_dg",
+			}
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(rsCfg.IntDgMap[nameRef]["default"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
+
+		})
 	})
 
 	Describe("SNAT in policy CRD", func() {

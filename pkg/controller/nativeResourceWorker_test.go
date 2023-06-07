@@ -614,6 +614,34 @@ extendedRouteSpec:
 			//No pool members should present
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools[0].Members)).To(Equal(0))
 
+			// EDNS with Monitor type other than http/https
+			barEDNS.Spec.Pools[0].Monitor.Type = "tcp"
+			mockCtlr.addEDNS(barEDNS)
+			mockCtlr.processExternalDNS(barEDNS, false)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(2))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
+			Expect(strings.Contains(gtmConfig["pytest-bar-1.com"].Pools[0].Members[0], "routes_10.8_3_12_dev"))
+			Expect(gtmConfig["pytest-bar-1.com"].Pools[0].Monitors[0].Type).To(Equal(barEDNS.Spec.Pools[0].Monitor.Type))
+
+			// EDNS with monitors
+			barEDNS.Spec.Pools[0].Monitors = []cisapiv1.Monitor{
+				cisapiv1.Monitor{
+					Type:     "http",
+					Interval: 10,
+					Timeout:  10,
+				},
+			}
+			mockCtlr.addEDNS(barEDNS)
+			mockCtlr.processExternalDNS(barEDNS, false)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(2))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
+			Expect(strings.Contains(gtmConfig["pytest-bar-1.com"].Pools[0].Members[0], "routes_10.8_3_12_dev"))
+			Expect(gtmConfig["pytest-bar-1.com"].Pools[0].Monitors[0].Type).To(Equal(barEDNS.Spec.Pools[0].Monitors[0].Type))
+
 		})
 		It("Check Host-Path Map functions", func() {
 			spec1 := routeapi.RouteSpec{

@@ -18,7 +18,10 @@ package resource
 
 import (
 	"fmt"
+	"k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 	"os"
 	"sort"
 
@@ -865,6 +868,37 @@ var _ = Describe("Resource Config Tests", func() {
 
 		})
 
+		It("FormatIngressPoolName", func() {
+			Expect(FormatIngressPoolName("default", "svc1")).To(Equal("ingress_default_svc1"))
+		})
+
+		It("GetRouteCanonicalServiceName", func() {
+			Expect(GetRouteCanonicalServiceName(&routeapi.Route{Spec: routeapi.RouteSpec{To: routeapi.RouteTargetReference{Name: "svc1"}}})).To(Equal("svc1"))
+		})
+
+		It("GetRouteAssociatedRuleNames", func() {
+			anno := make(map[string]string)
+			anno["virtual-server.f5.com/whitelist-source-range"] = "10.244.0.0/28"
+			rt := &routeapi.Route{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "route1",
+					Namespace:   "default",
+					Annotations: anno,
+				},
+				Spec: routeapi.RouteSpec{
+					To: routeapi.RouteTargetReference{Name: "svc1"},
+				},
+			}
+			expectedRuleNames := []string{"openshift_route_default_route1",
+				"openshift_route_default_route1-reset"}
+			Expect(GetRouteAssociatedRuleNames(rt)).To(Equal(expectedRuleNames))
+
+			anno = make(map[string]string)
+			anno["virtual-server.f5.com/allow-source-range"] = "10.244.0.0/28"
+			rt.Annotations = anno
+			Expect(GetRouteAssociatedRuleNames(rt)).To(Equal(expectedRuleNames))
+
+		})
 	})
 
 	Describe("Config Manipulation", func() {
@@ -2221,6 +2255,240 @@ var _ = Describe("Resource Config Tests", func() {
 
 		})
 
+	})
+
+	Describe("Verify ResourceConfig Helper functions", func() {
+
+		It("Test GetNameRef", func() {
+			cfg := ResourceConfig{
+				Virtual: Virtual{Name: "vs1", Partition: "test"},
+			}
+			Expect(cfg.GetNameRef()).To(Equal(NameRef{Name: "vs1", Partition: "test"}))
+		})
+
+		It("Test GetByName", func() {
+			rs := &Resources{
+				RsMap: make(map[NameRef]*ResourceConfig),
+			}
+			rs.RsMap[NameRef{Name: "vs1", Partition: "test"}] = &ResourceConfig{}
+			resource, ok := rs.GetByName(NameRef{Name: "vs1", Partition: "test"})
+			Expect(ok).To(BeTrue())
+			Expect(resource).NotTo(BeNil())
+		})
+
+		It("Test FormatRoutePoolName", func() {
+			Expect(FormatRoutePoolName("default", "svc1")).To(Equal("openshift_default_svc1"))
+		})
+
+		It("Test DeleteWhitelistCondition", func() {
+			policy := Policy{
+				Name:     "policy1",
+				Strategy: "first-match",
+				Rules: Rules{
+					&Rule{
+						Name: "test-reset",
+						Conditions: []*Condition{
+							{},
+						},
+					},
+				},
+			}
+			cfg := ResourceConfig{
+				Policies: Policies{
+					policy,
+				},
+			}
+			cfg.DeleteWhitelistCondition()
+			Expect(len(cfg.Policies)).To(Equal(1))
+			Expect(len(cfg.Policies[0].Rules)).To(Equal(0))
+			Expect(policy.RemoveRuleAt(2)).To(BeFalse())
+
+		})
+		It("Test MakeCertificateFileName", func() {
+			Expect(MakeCertificateFileName("test", "")).To(Equal(".crt"))
+			Expect(MakeCertificateFileName("test", "cert1")).To(Equal("/test/cert1.crt"))
+		})
+		It("Test ExtractCertificateName", func() {
+			Expect(ExtractCertificateName("test/cert1.crt")).To(Equal("cert1"))
+		})
+		It("Test FormatIngressSslProfileName", func() {
+			Expect(FormatIngressSslProfileName("default/secret1")).To(Equal("default/secret1"))
+			Expect(FormatIngressSslProfileName("secret1")).To(Equal("secret1"))
+			Expect(FormatIngressSslProfileName("a/b/c")).To(Equal("a/b/c"))
+		})
+		It("Test ConvertStringToProfileRef", func() {
+			Expect(ConvertStringToProfileRef("prof1", "bigip", "test")).To(Equal(ProfileRef{Name: "prof1", Context: "bigip", Partition: DEFAULT_PARTITION, Namespace: "test"}))
+			Expect(ConvertStringToProfileRef("a/b/c", "bigip", "test")).To(Equal(ProfileRef{Context: "bigip", Namespace: "test"}))
+		})
+		It("Test NewCustomProfiles", func() {
+			Expect(NewCustomProfiles().Profs).NotTo(BeNil())
+		})
+		It("Test AgentCfgMap Init", func() {
+			cm := &AgentCfgMap{}
+			label := make(map[string]string)
+			getEP := func(string, string) []Member { return nil }
+			cm.Init("test1", "default", "", label, getEP)
+			Expect(cm.Name).To(Equal("test1"))
+			Expect(cm.Namespace).To(Equal("default"))
+		})
+		It("Test UpdatePolicy", func() {
+			rs := &Resources{
+				RsMap: make(map[NameRef]*ResourceConfig),
+			}
+			policy := Policy{
+				Name:     "plc1",
+				Strategy: "first-match",
+				Rules: Rules{
+					&Rule{
+						Name: "rule1",
+						Conditions: []*Condition{
+							{},
+						},
+					},
+				},
+			}
+			cfg := &ResourceConfig{
+				Policies: Policies{
+					policy,
+				},
+			}
+			nr := NameRef{Name: "vs1", Partition: "test"}
+			rs.RsMap[nr] = cfg
+			policyName := "plc1"
+			ruleName := "rule1"
+			rs.UpdatePolicy(nr, policyName, ruleName)
+			Expect(rs.RsMap[nr]).NotTo(BeNil())
+			Expect(len(rs.RsMap[nr].Policies)).To(Equal(1))
+			Expect(len(rs.RsMap[nr].Policies[0].Rules)).To(Equal(0))
+		})
+		It("Test DeleteKeyRef", func() {
+			rs := &Resources{
+				RsMap: make(map[NameRef]*ResourceConfig),
+				rm:    make(map[ServiceKey]resourceList),
+			}
+			cfg := &ResourceConfig{}
+			nr := NameRef{Name: "vs1", Partition: "test"}
+			rs.RsMap[nr] = cfg
+			sKey := ServiceKey{ServiceName: "svc1"}
+			nameRef := NameRef{Name: "test1"}
+			Expect(rs.DeleteKeyRef(sKey, nameRef)).To(BeFalse())
+
+			rs.rm[sKey] = make(map[NameRef]bool)
+			Expect(rs.DeleteKeyRef(sKey, nameRef)).To(BeFalse())
+			rs.rm[sKey][nameRef] = true
+			Expect(rs.DeleteKeyRef(sKey, nameRef)).To(BeTrue())
+
+		})
+
+		It("Test GetAllWithName", func() {
+			rs := &Resources{
+				RsMap: make(map[NameRef]*ResourceConfig),
+				rm:    make(map[ServiceKey]resourceList),
+			}
+			cfg := &ResourceConfig{Virtual: Virtual{Name: "vs1", Partition: "test"}}
+			nr := NameRef{Name: "vs1", Partition: "test"}
+			rs.RsMap[nr] = cfg
+			rs.rm = make(map[ServiceKey]resourceList)
+			svcKey := ServiceKey{ServiceName: "svc1"}
+			rs.rm[svcKey] = make(map[NameRef]bool)
+			rs.rm[svcKey][nr] = true
+			cfgs, keys := rs.GetAllWithName(nr)
+			Expect(len(cfgs)).To(Equal(1))
+			Expect(len(keys)).To(Equal(1))
+		})
+
+		It("Test InternalDataGroupRecords Sorting", func() {
+			dg := InternalDataGroupRecords([]InternalDataGroupRecord{
+				{Name: "test1", Data: "data1"},
+				{Name: "test3", Data: "data3"},
+				{Name: "test2", Data: "data2"},
+			})
+			sort.Sort(dg)
+			expectedDG := InternalDataGroupRecords([]InternalDataGroupRecord{
+				{Name: "test1", Data: "data1"},
+				{Name: "test2", Data: "data2"},
+				{Name: "test3", Data: "data3"},
+			})
+			Expect(dg).To(Equal(expectedDG))
+		})
+
+		It("Test GetServicePort", func() {
+			// svc in test namespace
+			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			fooPorts := []v1.ServicePort{{Port: 80}}
+			svc1 := test.NewService("svc1", "1", "test", "Cluster", fooPorts)
+			err1 := indexer.Add(svc1)
+			Expect(err1).To(BeNil())
+			port, err := GetServicePort("default", "svc1", indexer, "", ResourceTypeRoute)
+			Expect(err).NotTo(BeNil())
+			Expect(port).To(Equal(int32(0)))
+
+			// svc in default namespace
+			svc2 := test.NewService("svc2", "1", "default", "Cluster", fooPorts)
+			err1 = indexer.Add(svc2)
+			Expect(err1).To(BeNil())
+			port, err = GetServicePort("default", "svc2", indexer, "", ResourceTypeRoute)
+			Expect(err).To(BeNil())
+			Expect(port).To(Equal(int32(80)))
+
+			// Invalid case with portname
+			port, err = GetServicePort("default", "svc2", indexer, "port1", ResourceTypeRoute)
+			Expect(err).NotTo(BeNil())
+			Expect(port).To(Equal(int32(0)))
+
+			// Valid case with portname
+			fooPorts = []v1.ServicePort{{Port: 80, Name: "port1"}}
+			svc3 := test.NewService("svc3", "1", "default", "Cluster", fooPorts)
+			err1 = indexer.Add(svc3)
+			Expect(err1).To(BeNil())
+			port, err = GetServicePort("default", "svc3", indexer, "port1", ResourceTypeRoute)
+			Expect(err).To(BeNil())
+			Expect(port).To(Equal(int32(80)))
+		})
+
+		It("Test Contains", func() {
+			Expect(Contains(nil, nil)).To(BeFalse())
+			Expect(Contains("a", "a")).To(BeFalse())
+			Expect(Contains([]string{"a"}, []string{"b"})).To(BeFalse())
+			Expect(Contains([]string{"a"}, []string{"a"})).To(BeFalse())
+			Expect(Contains([]string{}, "")).To(BeFalse())
+			Expect(Contains([]string{"a"}, "a")).To(BeTrue())
+		})
+
+		It("Test IsAnnotationRule", func() {
+			Expect(IsAnnotationRule("app-root")).To(BeTrue())
+			Expect(IsAnnotationRule("rule1")).To(BeFalse())
+		})
+
+		It("Test SetAnnotationRulesForRoute", func() {
+			urlRewriteRule := &Rule{}
+			rc := &ResourceConfig{
+				Policies: []Policy{
+					{
+						Name:     "plc1",
+						Strategy: "first-match",
+					},
+				},
+			}
+			SetAnnotationRulesForRoute("plc1", urlRewriteRule, nil, rc, false)
+			Expect(len(rc.Policies[0].Rules)).To(Equal(1))
+
+			appRootRules := []*Rule{
+				&Rule{Name: "rule1"},
+				&Rule{Name: "rule2"},
+			}
+			rc = &ResourceConfig{
+				Policies: []Policy{
+					{
+						Name:     "plc1",
+						Strategy: "first-match",
+					},
+				},
+			}
+			SetAnnotationRulesForRoute("plc1", nil, appRootRules, rc, false)
+			Expect(len(rc.Policies[0].Rules)).To(Equal(2))
+
+		})
 	})
 
 })

@@ -321,6 +321,15 @@ func (m *mockController) addPod(pod *v1.Pod) {
 	}
 }
 
+func (m *mockController) updatePod(pod *v1.Pod) {
+	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
+	cusInf.podInformer.GetStore().Update(pod)
+
+	if m.resourceQueue != nil {
+		m.enqueuePod(pod)
+	}
+}
+
 func (m *mockController) deletePod(pod v1.Pod) {
 	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Delete(pod)
@@ -360,6 +369,22 @@ func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
 func (m *mockController) addNode(node *v1.Node, ns string) {
 	comInf, _ := m.getNamespacedCommonInformer(ns)
 	comInf.nodeInformer.GetStore().Add(node)
+	if m.resourceQueue != nil {
+		m.SetupNodeProcessing()
+	}
+}
+
+func (m *mockController) updateNode(node *v1.Node, ns string) {
+	comInf, _ := m.getNamespacedCommonInformer(ns)
+	comInf.nodeInformer.GetStore().Update(node)
+	if m.resourceQueue != nil {
+		m.SetupNodeProcessing()
+	}
+}
+
+func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
+	comInf, _ := m.getNamespacedCommonInformer(ns)
+	comInf.nodeInformer.GetIndexer().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing()
 	}

@@ -1343,8 +1343,8 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
 				return nil
 			}
-			// Empty host with IPAM label is invalid for a Virtual Server
-			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" {
+			// Empty host and hostGroup with IPAM label is invalid for a Virtual Server
+			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" && vrt.Spec.HostGroup == "" {
 				log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
 				return nil
 			}

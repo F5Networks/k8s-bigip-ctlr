@@ -1217,7 +1217,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 	//	return
 	//}
 
-	log.Debugf("Enqueueing ConfigMap: %v", cm)
+	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: cm.ObjectMeta.Namespace,
 		kind:      ConfigMap,
@@ -1231,7 +1231,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 
-	log.Debugf("Enqueueing ConfigMap: %v", cm)
+	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: cm.ObjectMeta.Namespace,
 		kind:      ConfigMap,
@@ -1262,7 +1262,7 @@ func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v", pod)
+	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	key := &rqKey{
 		namespace:   pod.ObjectMeta.Namespace,
 		kind:        Pod,
@@ -1295,7 +1295,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v", pod)
+	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	key := &rqKey{
 		namespace:   pod.ObjectMeta.Namespace,
 		kind:        Pod,

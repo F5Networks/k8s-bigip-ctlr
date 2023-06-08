@@ -121,9 +121,9 @@ Below is the sample MultiCluster Configs with HA in Extended Global ConfigMap.
 If you are using the High Availability setup with multi-cluster, you need to specify ```--cis-type``` parameter to define the primary and secondary cluster:
 
 
-| Parameter | Required | Description                                                                         | Allowed Values       |
-|-----------|----------|-------------------------------------------------------------------------------------|----------------------|
-| cis-type  | Optional | Specify whether CIS run as primary or secondary in case of high availability setup. | primary or secondary |
+| Parameter | Type   | Required | Description                                                                         | Allowed Values       |
+|-----------|--------|----------|-------------------------------------------------------------------------------------|----------------------|
+| cis-type  | String | Optional | Specify whether CIS run as primary or secondary in case of high availability setup. | primary or secondary |
 
 Following is the sample deployment for primary CIS deployment.
 
@@ -159,29 +159,29 @@ Note: Update the ```cis-type``` to *secondary* for secondary CIS deployment.
 
 #### multiClusterConfigs Parameters
 
-| Parameter   | Required  | Description                                                               | Default | Examples                |
-|-------------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
-| clusterName | Mandatory | Name of the cluster                                                       | -       | cluster1                |
-| secret      | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
+| Parameter   | Type   | Required  | Description                                                               | Default | Examples                |
+|-------------|--------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
+| clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
+| secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 
 
 
 #### highAvailabilityClusterConfigs Parameters
 
-| Parameter              | Required  | Description                                                             | Default | Examples                  |
-|------------------------|-----------|-------------------------------------------------------------------------|---------|---------------------------|
-| mode                   | Optional  | Type of high availability mode                                          | -       | -                         |
-| primaryClusterEndPoint | Mandatory | Endpoint to check health of primary cluster                             | -       | http://10.145.72.114:8001 |
-| probeInterval          | Optional  | Time interval between health check (in seconds)                         | 60      | 30                        |
-| retryInterval          | Optional  | Time interval between recheck when primary cluster is down (in seconds) | 15      | 3                         |
-| primaryCluster         | Mandatory | Primary cluster config                                                  | -       | -                         |
-| secondaryCluster       | Mandatory | Secondary cluster config                                                | -       | -                         |
+| Parameter              | Type    | Required  | Description                                                             | Default | Examples                  |
+|------------------------|---------|-----------|-------------------------------------------------------------------------|---------|---------------------------|
+| mode                   | Object  | Optional  | Type of high availability mode                                          | -       | -                         |
+| primaryClusterEndPoint | String  | Mandatory | Endpoint to check health of primary cluster                             | -       | http://10.145.72.114:8001 |
+| probeInterval          | Integer | Optional  | Time interval between health check (in seconds)                         | 60      | 30                        |
+| retryInterval          | Integer | Optional  | Time interval between recheck when primary cluster is down (in seconds) | 15      | 3                         |
+| primaryCluster         | Object  | Mandatory | Primary cluster config                                                  | -       | -                         |
+| secondaryCluster       | Object  | Mandatory | Secondary cluster config                                                | -       | -                         |
 
 
 ##### mode Parameters
-| Parameter | Required | Description                                     | Default | Examples |
-|-----------|----------|-------------------------------------------------|---------|----------|
-| type      | Optional | Type of high availability mode (active/standby) | standby | active   |
+| Parameter | Type   | Required | Description                                     | Default | Examples |
+|-----------|--------|----------|-------------------------------------------------|---------|----------|
+| type      | String | Optional | Type of high availability mode (active/standby) | standby | active   |
 
 Specifies whether the HA cluster is configured with active mode or standby mode
 * If mode Type: active, CIS fetches service from both the HA clusters whenever it's referenced in Route Spec.
@@ -190,10 +190,10 @@ Specifies whether the HA cluster is configured with active mode or standby mode
 
 ##### primaryCluster/secondaryCluster Parameters
 
-| Parameter   | Required  | Description                                                               | Default | Examples                |
-|-------------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
-| clusterName | Mandatory | Name of the cluster                                                       | -       | cluster1                |
-| secret      | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
+| Parameter   | Type   | Required  | Description                                                               | Default | Examples                |
+|-------------|--------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
+| clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
+| secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 
 
 **Note**: In order to run CIS in high availability mode cis-type parameter (primary/secondary) needs to be set in the CIS deployment arguments.
@@ -221,12 +221,12 @@ virtual-server.f5.com/multiClusterServices:
 
 #### Route Annotation Parameters
 
-| Parameter   | Required  | Description                                             | Default | Examples |
-|-------------|-----------|---------------------------------------------------------|---------|----------|
-| clusterName | Mandatory | Name of the cluster                                     | -       | cluster1 |
-| svcName     | Mandatory | Name of the service                                     | -       | svc-1    |
-| namespace   | Mandatory | Namespace where the service is created                  | -       | test     |
-| port        | Optional  | port of the service  (for named port use string value ) | -       | 80       |
+| Parameter   | Type       | Required  | Description                                             | Default | Examples |
+|-------------|------------|-----------|---------------------------------------------------------|---------|----------|
+| clusterName | String     | Mandatory | Name of the cluster                                     | -       | cluster1 |
+| svcName     | String     | Mandatory | Name of the service                                     | -       | svc-1    |
+| namespace   | String     | Mandatory | Namespace where the service is created                  | -       | test     |
+| port        | String/Int | Optional  | port of the service  (for named port use string value ) | -       | 80       |
 
 
 ## Known issues

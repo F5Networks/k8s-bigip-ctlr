@@ -2672,7 +2672,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.updateHostPathMap(route1.CreationTimestamp, key)
 				_, ok := mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
 				Expect(ok).To(BeTrue())
-				mockMgr.appMgr.enqueueRoute(route1, OprTypeDelete)
+				mockMgr.appMgr.deleteHostPathMapEntry(route1)
 				_, ok = mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
 				Expect(ok).To(BeFalse())
 				spec2 := routeapi.RouteSpec{

@@ -89,7 +89,7 @@ func (appMgr *Manager) updateRouteAdmitStatusAll() {
 		return
 	}
 	// Check whether we are processing this route.
-	// Else, clean the route metadata if we add any in past.
+	// Else, clean the route metadata if we add any in the past.
 	for _, aRoute := range allRoutes.Items {
 		routeKey := fmt.Sprintf("%v/%v", aRoute.Namespace, aRoute.Name)
 		if _, ok := processedRoutes[routeKey]; !ok {
@@ -117,6 +117,11 @@ func (appMgr *Manager) updateRouteAdmitStatus(
 	message string,
 	status v1.ConditionStatus,
 ) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("CIS recovered from the panic caused by route status update: %v\n")
+		}
+	}()
 	for retryCount := 0; retryCount < 3; retryCount++ {
 		route := appMgr.fetchRoute(rscKey)
 		if route == nil {

@@ -730,6 +730,7 @@ type serviceQueueKey struct {
 	ResourceKind string
 	ResourceName string
 	Operation    string
+	Object       interface{}
 }
 
 type nodeInformer struct {
@@ -1073,11 +1074,11 @@ func (appMgr *Manager) enqueueIngressUpdate(cur, old interface{}, operation stri
 
 func (appMgr *Manager) enqueueRoute(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidRoute(obj); ok {
-		if operation == OprTypeDelete {
-			appMgr.deleteHostPathMapEntry(obj)
-		}
 		for _, key := range keys {
 			key.Operation = operation
+			if operation == OprTypeDelete {
+				key.Object = obj
+			}
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -2023,6 +2024,9 @@ func (appMgr *Manager) syncRoutes(
 	appInf *appInformer,
 	dgMap InternalDataGroupMap,
 ) error {
+	if sKey.Operation == OprTypeDelete && sKey.ResourceKind == Routes {
+		appMgr.deleteHostPathMapEntry(sKey.Object)
+	}
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
 		log.Warningf("[CORE] Unable to list routes for namespace '%v': %v",
@@ -3613,18 +3617,17 @@ func (appMgr *Manager) updateHostPathMap(timestamp metav1.Time, key string) {
 func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
 	// This function deletes the route entry from processedHostPath
 	route := obj.(*routeapi.Route)
+	var key string
+	if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+		key = route.Spec.Host + "/"
+	} else {
+		key = route.Spec.Host + route.Spec.Path
+	}
 	appMgr.processedHostPath.Lock()
 	defer appMgr.processedHostPath.Unlock()
-	for hostPath, routeTimestamp := range appMgr.processedHostPath.processedHostPathMap {
-		var key string
-		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
-			key = route.Spec.Host + "/"
-		} else {
-			key = route.Spec.Host + route.Spec.Path
-		}
-		if routeTimestamp == route.CreationTimestamp && hostPath == key {
-			// Deleting the ProcessedHostPath map if route's path is changed
-			delete(appMgr.processedHostPath.processedHostPathMap, hostPath)
+	if routeTimestamp, ok := appMgr.processedHostPath.processedHostPathMap[key]; ok {
+		if routeTimestamp == route.CreationTimestamp {
+			delete(appMgr.processedHostPath.processedHostPathMap, key)
 		}
 	}
 }

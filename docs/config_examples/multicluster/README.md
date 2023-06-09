@@ -1,4 +1,4 @@
-# MultiClusterSupport(Preview)
+# OpenShift Multi-Cluster Support (Preview)
 
 This page documents the behaviour of MultiClusterSupport. This is a preview release which supports limited features and is not recommended to use in production environments. Check the Known Issues section for more information on features not supported.
 

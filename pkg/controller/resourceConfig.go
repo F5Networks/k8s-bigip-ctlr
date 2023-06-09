@@ -2024,6 +2024,11 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 		return nil, ""
 	}
 
+	// check if defaultRouteGroup is used
+	if extdSpec.defaultrg != nil {
+		return extdSpec.defaultrg, extdSpec.partition
+	}
+
 	if extdSpec.override && extdSpec.local != nil {
 		ergc := &ExtendedRouteGroupSpec{
 			VServerName:   extdSpec.global.VServerName,

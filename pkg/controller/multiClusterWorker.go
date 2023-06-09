@@ -31,13 +31,18 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 
 				// update the multi cluster resource map
-				ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+				if _, ok := ctlr.multiClusterResources.rscSvcMap[rscKey]; !ok {
+					ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+				}
 				ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey] = MultiClusterServiceConfig{
 					svcPort: svc.ServicePort,
 				}
 
 				// if informer not found for cluster, setup and start informer
-				if _, found := ctlr.multiClusterPoolInformers[svc.ClusterName]; !found {
+				_, clusterKeyFound := ctlr.multiClusterPoolInformers[svc.ClusterName]
+				if !clusterKeyFound {
+					ctlr.setupAndStartMultiClusterInformers(svcKey)
+				} else if _, found := ctlr.multiClusterPoolInformers[svc.ClusterName][svc.Namespace]; !found {
 					ctlr.setupAndStartMultiClusterInformers(svcKey)
 				}
 			} else {

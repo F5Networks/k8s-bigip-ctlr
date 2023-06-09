@@ -1808,21 +1808,6 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 
 // readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
 func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
-	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
-		log.Infof("No multi cluster config provided.")
-		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
-		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
-			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
-				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
-			}
-		}
-		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
-			for clusterName, _ := range ctlr.resources.multiClusterConfigs {
-				delete(ctlr.resources.multiClusterConfigs, clusterName)
-			}
-		}
-		return nil
-	}
 
 	hACluster := true
 	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
@@ -1939,6 +1924,25 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	if ctlr.cisType != "" && !hACluster {
 		log.Errorf("High availability cluster config not provided")
 		os.Exit(1)
+	}
+
+	// Check if multiClusterConfigs are specified for external clusters
+	// If multiClusterConfigs is not specified, then clean up any old external cluster related config in case user had
+	// specified multiClusterConfig earlier and now removed those configs
+	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
+		log.Infof("No multi cluster config provided.")
+		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
+		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
+			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
+				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
+			}
+		}
+		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
+			for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+				delete(ctlr.resources.multiClusterConfigs, clusterName)
+			}
+		}
+		return nil
 	}
 
 	currentClusterSecretKeys := make(map[string]struct{})

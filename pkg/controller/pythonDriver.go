@@ -207,3 +207,10 @@ func (agent *Agent) healthCheckPythonDriver() {
 	bigIPPrometheus.RegisterMetrics(agent.PostManager.HTTPClientMetrics)
 	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
 }
+
+func (agent *Agent) enableMetrics() {
+	// Expose Prometheus metrics
+	http.Handle("/metrics", promhttp.Handler())
+	bigIPPrometheus.RegisterMetrics(agent.PostManager.HTTPClientMetrics)
+	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
+}

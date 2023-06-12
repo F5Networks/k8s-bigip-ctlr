@@ -1849,7 +1849,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 				// Both cluster name and secret are mandatory
 				if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
-					log.Errorf("clusterName or secret not provided in haClusterConfig: %v",
+					log.Errorf("Secondary clusterName or secret not provided in haClusterConfig: %v",
 						haClusterConfig.SecondaryCluster)
 					os.Exit(1)
 				}
@@ -1879,13 +1879,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
 			} else {
 				hACluster = false
+
 			}
 		}
 		if ctlr.cisType == SecondaryCIS {
 			if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 				// Both cluster name and secret are mandatory
 				if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
-					log.Errorf("clusterName or secret not provided in haClusterConfig: %v",
+					log.Errorf("Primary clusterName or secret not provided in haClusterConfig: %v",
 						haClusterConfig.PrimaryCluster)
 					os.Exit(1)
 				}
@@ -1922,7 +1923,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	}
 
 	if ctlr.cisType != "" && !hACluster {
-		log.Errorf("High availability cluster config not provided")
+		log.Errorf("Either High availability cluster config not provided or --cis-type is provided in Standalone Mode")
 		os.Exit(1)
 	}
 

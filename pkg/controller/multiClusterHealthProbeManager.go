@@ -65,7 +65,9 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 	defer func() {
 		postMgr.httpClient.Timeout = timeOut
 	}()
-	log.Debugf("posting GET Check Primary Cluster Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+	if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
+		log.Debugf("posting GET Check Primary Cluster Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+	}
 	postMgr.httpClient.Timeout = 10 * time.Second
 
 	httpResp := postMgr.httpGetReq(req)
@@ -104,7 +106,9 @@ func (postMgr *PostManager) httpGetReq(request *http.Request) *http.Response {
 	httpResp, err := postMgr.httpClient.Do(request)
 
 	if err != nil {
-		log.Errorf("REST call error: %v ", err)
+		if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
+			log.Errorf("REST call error: %v ", err)
+		}
 		return nil
 	}
 

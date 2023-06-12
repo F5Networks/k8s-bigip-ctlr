@@ -147,6 +147,9 @@ func NewAgent(params AgentParams) *Agent {
 			gtm,
 			params.PythonBaseDir,
 		)
+	} else {
+		// we only enable metrics as pythondriver is not initialized for ipv6
+		go agent.enableMetrics()
 	}
 	// Set the AS3 version for the agent
 	err = agent.IsBigIPAppServicesAvailable()

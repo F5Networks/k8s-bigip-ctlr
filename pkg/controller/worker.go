@@ -423,7 +423,7 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 
-		_ = ctlr.processService(svc, nil, rKey.clusterName)
+		_ = ctlr.processService(svc, rKey.clusterName)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
@@ -497,7 +497,7 @@ func (ctlr *Controller) processResources() bool {
 		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 			break
 		}
-		_ = ctlr.processService(svc, ep, rKey.clusterName)
+		_ = ctlr.processService(svc, rKey.clusterName)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
@@ -531,7 +531,7 @@ func (ctlr *Controller) processResources() bool {
 		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 			break
 		}
-		_ = ctlr.processService(svc, nil, rKey.clusterName)
+		_ = ctlr.processService(svc, rKey.clusterName)
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
@@ -2093,7 +2093,7 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	}
 	var poolMembers []PoolMember
 	if svc != nil {
-		_ = ctlr.processService(svc, nil, clusterName)
+		_ = ctlr.processService(svc, clusterName)
 		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, servicePort, nodeMemberLabel)...)
 	}
 	return poolMembers
@@ -2762,7 +2762,6 @@ func (ctlr *Controller) processLBServices(
 
 func (ctlr *Controller) processService(
 	svc *v1.Service,
-	eps *v1.Endpoints,
 	clusterName string,
 ) error {
 	namespace := svc.Namespace
@@ -2786,18 +2785,23 @@ func (ctlr *Controller) processService(
 			pmi.memberMap[portKey] = members
 		}
 	case Cluster:
-		if eps == nil {
-			comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
-			if !ok {
-				log.Errorf("Informer not found for namespace: %v", namespace)
-				return fmt.Errorf("unable to process Service: %v", svcKey)
+		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return fmt.Errorf("unable to process Service: %v", svcKey)
+		}
+		epInf := comInf.epsInformer
+		item, found, _ := epInf.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
+		if !found {
+			return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
+		}
+		eps, _ := item.(*v1.Endpoints)
+		if len(eps.Subsets) == 0 {
+			for _, port := range pmi.portSpec {
+				portKey := portRef{name: port.Name, port: port.Port}
+				var members []PoolMember
+				pmi.memberMap[portKey] = members
 			}
-			epInf := comInf.epsInformer
-			item, found, _ := epInf.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
-			if !found {
-				return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
-			}
-			eps, _ = item.(*v1.Endpoints)
 		}
 		for _, subset := range eps.Subsets {
 			for _, p := range subset.Ports {

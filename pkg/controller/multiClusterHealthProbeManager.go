@@ -133,6 +133,7 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 		// only process when the cis is initialized
 		status := ctlr.Agent.PostManager.checkPrimaryClusterHealthStatus()
 		// if status is changed i.e from up -> down / down -> up
+		ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Lock()
 		if ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning != status {
 			ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = true
 			// if primary cis id down then post the config
@@ -145,6 +146,7 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 		} else {
 			ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = false
 		}
+		ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 		// wait for configured probeInterval
 		time.Sleep(time.Duration(ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
 	}

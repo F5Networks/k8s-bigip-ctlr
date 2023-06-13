@@ -945,7 +945,13 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		pool.Class = "Pool"
 		pool.ReselectTries = v.ReselectTries
 		pool.ServiceDownAction = v.ServiceDownAction
+		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
+			// Skip duplicate pool members
+			if _, ok := poolMemberSet[val]; ok {
+				continue
+			}
+			poolMemberSet[val] = struct{}{}
 			var member as3PoolMember
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port

@@ -1672,6 +1672,29 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 			return false
 		}
 	}
+	// Validate multiCluster service annotation has valid cluster names
+	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+		var clusterSvcs []MultiClusterServiceReference
+		err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+		if err == nil {
+			ctlr.multiClusterResources.Lock()
+			defer ctlr.multiClusterResources.Unlock()
+			for _, svc := range clusterSvcs {
+				if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; !ok {
+					message := fmt.Sprintf("Discarding route %v/%v as credentials for cluster %v does not exist in extended configmap", route.Name, route.Namespace,
+						svc.ClusterName)
+					log.Errorf(message)
+					go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+					return false
+				}
+			}
+		} else {
+			message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", resource.MultiClusterServicesAnnotation, route.Name, route.Namespace)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+	}
 	return true
 }
 

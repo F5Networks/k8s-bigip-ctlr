@@ -286,6 +286,9 @@ func (agent *Agent) agentWorker() {
 				continue
 			} else {
 				if agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged {
+					agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Lock()
+					agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = false
+					agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 					agent.removeDeletedTenantsForBigIP(&rsConfig, agent.Partition)
 				}
 			}
@@ -616,7 +619,8 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
 	agent.tenantPriorityMap = make(map[string]int)
 	for tenant, cfg := range agent.createAS3LTMAndGTMConfigADC(config) {
-		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
+		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) ||
+			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && agent.PrimaryClusterHealthProbeParams.statusChanged) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
 			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
@@ -773,7 +777,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	cisLabel := agent.Partition
 	// if this is the first post delete the tenant which is monitored by CIS and current request does not contain it
-	if agent.firstPost {
+	if agent.firstPost && agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
 		agent.removeDeletedTenantsForBigIP(&config, cisLabel)
 	}
 	for tenant := range agent.cachedTenantDeclMap {

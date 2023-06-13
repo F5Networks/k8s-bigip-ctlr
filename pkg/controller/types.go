@@ -747,6 +747,7 @@ type (
 	}
 
 	PrimaryClusterHealthProbeParams struct {
+		paramLock     *sync.RWMutex
 		EndPoint      string
 		EndPointType  string
 		statusRunning bool

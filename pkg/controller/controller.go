@@ -83,6 +83,10 @@ const (
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 
+	// Primary cluster health probe
+	DefaultProbeInterval = 60
+	DefaultRetryInterval = 15
+
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
 	IPAMNamespace = "kube-system"

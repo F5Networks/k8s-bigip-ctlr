@@ -627,7 +627,6 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
 			// delete entry from retryTenantDeclMap if any
 			delete(agent.retryTenantDeclMap, tenant)
-
 			log.Debugf("[AS3] No change in %v tenant configuration", tenant)
 		}
 	}

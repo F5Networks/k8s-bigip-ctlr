@@ -2163,12 +2163,14 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 
 // updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
 func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig) {
-	ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Lock()
-	defer ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 	// Initialize PrimaryClusterHealthProbeParams if it's the first time
 	if ctlr.Agent.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
-		ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{}
+		ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
+			paramLock: &sync.RWMutex{},
+		}
 	}
+	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	defer ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 	// Check if primary cluster health probe endpoint has been updated and set the endpoint type
 	if ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint != haClusterConfig.PrimaryClusterEndPoint {
 		ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint = haClusterConfig.PrimaryClusterEndPoint

@@ -285,11 +285,10 @@ func (agent *Agent) agentWorker() {
 				agent.declUpdate.Unlock()
 				continue
 			} else {
-				if agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged {
-					agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Lock()
-					agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = false
-					agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Unlock()
-					agent.removeDeletedTenantsForBigIP(&rsConfig, agent.Partition)
+				if agent.PrimaryClusterHealthProbeParams.statusChanged {
+					agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+					agent.PrimaryClusterHealthProbeParams.statusChanged = false
+					agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 				}
 			}
 		}
@@ -627,7 +626,10 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
 			// delete entry from retryTenantDeclMap if any
 			delete(agent.retryTenantDeclMap, tenant)
-			log.Debugf("[AS3] No change in %v tenant configuration", tenant)
+			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
+			if agent.PrimaryClusterHealthProbeParams.EndPoint == "" || !agent.PrimaryClusterHealthProbeParams.statusRunning {
+				log.Debugf("[AS3] No change in %v tenant configuration", tenant)
+			}
 		}
 	}
 
@@ -775,8 +777,11 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	cisLabel := agent.Partition
-	// if this is the first post delete the tenant which is monitored by CIS and current request does not contain it
-	if agent.firstPost && agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
+	// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
+	// if it's secondary CIS and primary CIS is down and statusChanged is true
+	if agent.firstPost ||
+		(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
+			agent.PrimaryClusterHealthProbeParams.statusChanged) {
 		agent.removeDeletedTenantsForBigIP(&config, cisLabel)
 	}
 	for tenant := range agent.cachedTenantDeclMap {

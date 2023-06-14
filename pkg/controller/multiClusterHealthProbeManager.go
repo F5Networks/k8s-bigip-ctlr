@@ -131,28 +131,28 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 			continue
 		}
 		// only process when the cis is initialized
-		status := ctlr.Agent.PostManager.checkPrimaryClusterHealthStatus()
+		status := ctlr.Agent.checkPrimaryClusterHealthStatus()
 		// if status is changed i.e from up -> down / down -> up
-		ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Lock()
-		if ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning != status {
-			ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = true
+		ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+		if ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning != status {
+			ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = true
 			// if primary cis id down then post the config
 			if !status {
-				ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning = false
+				ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = false
 				ctlr.enqueuePrimaryClusterProbeEvent()
 			} else {
-				ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning = true
+				ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = true
 			}
 		} else {
-			ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = false
+			ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = false
 		}
-		ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+		ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 		// wait for configured probeInterval
-		time.Sleep(time.Duration(ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
+		time.Sleep(time.Duration(ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
 	}
 }
 
 func (ctlr *Controller) firstPollPrimaryClusterHealthStatus() {
-	ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning = ctlr.Agent.PostManager.checkPrimaryClusterHealthStatus()
-	ctlr.Agent.PostManager.PrimaryClusterHealthProbeParams.statusChanged = true
+	ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = ctlr.Agent.checkPrimaryClusterHealthStatus()
+	ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = true
 }

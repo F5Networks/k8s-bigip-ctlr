@@ -26,7 +26,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -62,7 +61,6 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		// when CIS is running in the secondary mode then enable health probe on the primary cluster
 		if ctlr.cisType == SecondaryCIS {
 			ctlr.firstPollPrimaryClusterHealthStatus()
-			ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock = &sync.RWMutex{}
 			go ctlr.probePrimaryClusterHealthStatus()
 		}
 	}

@@ -3,8 +3,8 @@ kind: Route
 metadata:
   annotations:
     virtual-server.f5.com/clientssl: /Common/foo-clientssl
-    virtual-server.f5.com/health: '[{"path": "pytest-foo-1.com/","send": "HTTP GET
-      pytest-foo-1.com/", "recv": "","interval": 2,"timeout": 5,  "type": "http"}]'
+    virtual-server.f5.com/health: '[{"send": "HTTP GET pytest-foo-1.com/", 
+        "recv": "","interval": 2,"timeout": 5,  "type": "http"}]'
   labels:
     f5type: systest
   name: svc-pytest-foo-1-com

@@ -6,7 +6,6 @@ metadata:
     virtual-server.f5.com/health: |
       [
         {
-          "path": "pytest-bar-1.com/",
           "send": "HTTP GET /",
           "interval": 5,
           "timeout": 10,

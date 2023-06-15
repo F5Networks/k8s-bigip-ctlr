@@ -169,11 +169,12 @@ type (
 		Active       bool
 		ResourceType string
 		// resource name as key, resource kind as value
-		baseResources map[string]string
-		namespace     string
-		hosts         []string
-		Protocol      string
-		httpTraffic   string
+		baseResources   map[string]string
+		namespace       string
+		hosts           []string
+		Protocol        string
+		httpTraffic     string
+		defaultPoolType string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -931,7 +932,7 @@ type (
 		ServerTLS              as3MultiTypeParam    `json:"serverTLS,omitempty"`
 		IRules                 as3MultiTypeParam    `json:"iRules,omitempty"`
 		Redirect80             *bool                `json:"redirect80,omitempty"`
-		Pool                   string               `json:"pool,omitempty"`
+		Pool                   *as3ResourcePointer  `json:"pool,omitempty"`
 		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
 		Firewall               as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
 		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`

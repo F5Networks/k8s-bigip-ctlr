@@ -9,7 +9,7 @@ Added Functionality
     * Ingress
         *
     * CRD
-        *
+        * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/`_
 Bug Fixes
 ````````````
 

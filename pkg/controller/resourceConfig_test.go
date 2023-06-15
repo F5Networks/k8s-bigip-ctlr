@@ -361,6 +361,99 @@ var _ = Describe("Resource Config Tests", func() {
 
 		})
 
+		It("Validate default pool in Virtual server with svc", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					DefaultPool: cisapiv1.DefaultPool{
+						Reference:   ServiceRef,
+						Service:     "svc1",
+						ServicePort: intstr.IntOrString{IntVal: 80},
+						Monitors: []cisapiv1.Monitor{
+							{
+								Type:       "http",
+								Send:       "GET /health",
+								Interval:   15,
+								Timeout:    10,
+								TargetPort: 80,
+							},
+							{
+								Type:       "tcp",
+								Send:       "GET /health",
+								Interval:   15,
+								Timeout:    10,
+								TargetPort: 80,
+							},
+							{
+								Name:      "/Common/monitor",
+								Reference: "bigip",
+							},
+						},
+					},
+				},
+			)
+			mockCtlr.handleDefaultPool(rsCfg, vs)
+			Expect(rsCfg.Virtual.PoolName).To(Equal("svc1_80_default_test_com"), "Failed to process default pool for VirtualServer")
+			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to process default pool for VirtualServer")
+			Expect(len(rsCfg.Monitors)).To(Equal(2), "Failed to process default pool for VirtualServer")
+		})
+
+		It("Validate default pool in Virtual server with bigip reference", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					DefaultPool: cisapiv1.DefaultPool{
+						Reference: BIGIP,
+						Name:      "/Common/default_pool_svc1",
+					},
+				},
+			)
+			mockCtlr.handleDefaultPool(rsCfg, vs)
+			Expect(rsCfg.Virtual.PoolName).To(Equal("/Common/default_pool_svc1"), "Failed to process default pool for VirtualServer")
+			Expect(len(rsCfg.Pools)).To(Equal(0), "Failed to process default pool for VirtualServer")
+			Expect(len(rsCfg.Monitors)).To(Equal(0), "Failed to process default pool for VirtualServer")
+		})
+
+		It("Validate default pool in Virtual server with bigip reference", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					DefaultPool: cisapiv1.DefaultPool{
+						Reference: BIGIP,
+						Name:      "/Common/default_pool_svc1",
+					},
+				},
+			)
+			mockCtlr.handleDefaultPool(rsCfg, vs)
+			Expect(rsCfg.Virtual.PoolName).To(Equal("/Common/default_pool_svc1"), "Failed to process default pool for VirtualServer")
+			Expect(len(rsCfg.Pools)).To(Equal(0), "Failed to process default pool for VirtualServer")
+			Expect(len(rsCfg.Monitors)).To(Equal(0), "Failed to process default pool for VirtualServer")
+		})
+
 		It("Prepare Resource Config from a TransportServer", func() {
 			ts := test.NewTransportServer(
 				"SampleTS",
@@ -969,7 +1062,7 @@ var _ = Describe("Resource Config Tests", func() {
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
 					Pools: []cisapiv1.Pool{
-						cisapiv1.Pool{
+						{
 							Path:    "/path",
 							Service: "svc1",
 						},
@@ -1180,6 +1273,53 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
+		})
+
+		It("VS with TLS and default pool", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			vs.Spec.DefaultPool = cisapiv1.DefaultPool{
+				Reference:   ServiceRef,
+				Service:     "svc1",
+				ServicePort: intstr.IntOrString{IntVal: 80},
+				Monitors: []cisapiv1.Monitor{
+					{
+						Type:       "http",
+						Send:       "GET /health",
+						Interval:   15,
+						Timeout:    10,
+						TargetPort: 80,
+					},
+					{
+						Type:       "tcp",
+						Send:       "GET /health",
+						Interval:   15,
+						Timeout:    10,
+						TargetPort: 80,
+					},
+					{
+						Name:      "/Common/monitor",
+						Reference: "bigip",
+					},
+				},
+			}
+			tlsProf.Spec.TLS.Termination = TLSEdge
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+
+			profRef := ProfileRef{
+				Name:         "clientssl",
+				Partition:    "Common",
+				Context:      CustomProfileClient,
+				Namespace:    namespace,
+				BigIPProfile: true,
+			}
+			rsCfg.Virtual.PoolName = "default_pool_svc1"
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1), "Failed to Process TLS Termination: Edge")
+			Expect(rsCfg.Virtual.Profiles[0]).To(Equal(profRef), "Failed to Process TLS Termination: Edge")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(3), "Failed to process default pool for VirtualServer")
 		})
 
 		It("Handle TLS for AB Virtual Server", func() {

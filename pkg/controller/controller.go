@@ -84,6 +84,7 @@ const (
 	// TLS Terminations
 	TLSEdge             = "edge"
 	AllowSourceRange    = "allowSourceRange"
+	DefaultPool         = "defaultPool"
 	TLSReencrypt        = "reencrypt"
 	TLSPassthrough      = "passthrough"
 	TLSRedirectInsecure = "redirect"

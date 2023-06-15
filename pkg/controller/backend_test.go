@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
+	"strings"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -44,6 +45,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.MetaData.Active = true
 			rsCfg.MetaData.ResourceType = VirtualServer
 			rsCfg.Virtual.Name = "crd_vs_172.13.14.15"
+			rsCfg.Virtual.PoolName = "default_pool_svc1"
 			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
@@ -189,8 +191,10 @@ var _ = Describe("Backend Tests", func() {
 
 			rsCfg2 := &ResourceConfig{}
 			rsCfg2.MetaData.Active = false
+			rsCfg2.MetaData.defaultPoolType = BIGIP
 			rsCfg2.MetaData.ResourceType = VirtualServer
 			rsCfg2.Virtual.Name = "crd_vs_172.13.14.16"
+			rsCfg.Virtual.PoolName = "default_pool_svc2"
 			rsCfg2.Pools = Pools{
 				Pool{
 					Name:    "pool1",
@@ -237,6 +241,8 @@ var _ = Describe("Backend Tests", func() {
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(string(decl), "default_pool_svc1"))
+			Expect(strings.Contains(string(decl), "default_pool_svc2"))
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}
@@ -369,7 +375,7 @@ var _ = Describe("Backend Tests", func() {
 			gtmConfig := GTMConfig{
 				DEFAULT_PARTITION: GTMPartitionConfig{
 					WideIPs: map[string]WideIP{
-						"test.com": WideIP{
+						"test.com": {
 							DomainName: "test.com",
 							RecordType: "A",
 							LBMethod:   "round-robin",

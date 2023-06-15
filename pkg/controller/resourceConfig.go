@@ -103,6 +103,8 @@ const (
 	Secret = "secret"
 	// reference for routes
 	Certificate = "certificate"
+	// reference for service“
+	ServiceRef = "service"
 )
 
 // constants for SSL options
@@ -275,7 +277,6 @@ func formatCustomVirtualServerName(name string, port int32) string {
 }
 
 func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string) string {
-
 	poolName := pool.Name
 	if poolName == "" {
 		targetPort := pool.ServicePort
@@ -289,7 +290,22 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 		}
 		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host)
 	}
+	return poolName
+}
 
+func (ctlr *Controller) framePoolNameForDefaultPool(ns string, pool cisapiv1.DefaultPool, host string) string {
+	poolName := pool.Name
+	if poolName == "" {
+		targetPort := pool.ServicePort
+		if (intstr.IntOrString{}) == targetPort {
+			svcNamespace := ns
+			if pool.ServiceNamespace != "" {
+				svcNamespace = pool.ServiceNamespace
+			}
+			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
+		}
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host)
+	}
 	return poolName
 }
 
@@ -514,31 +530,31 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				}
 				monitors = append(monitors, monitor)
 			} else if pl.Monitors != nil {
-				for _, monitor := range pl.Monitors {
-					if monitor.Name != "" && monitor.Reference == BIGIP {
-						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+				for _, mtr := range pl.Monitors {
+					if mtr.Name != "" && mtr.Reference == BIGIP {
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: mtr.Name, Reference: mtr.Reference})
 					} else {
 						var formatPort intstr.IntOrString
-						if monitor.TargetPort != 0 {
-							formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+						if mtr.TargetPort != 0 {
+							formatPort = intstr.IntOrString{IntVal: mtr.TargetPort}
 						} else {
 							formatPort = pl.ServicePort
 						}
-						if monitor.Name == "" {
-							monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, monitor.Type, formatPort, vs.Spec.Host, pl.Path)
+						if mtr.Name == "" {
+							monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, mtr.Type, formatPort, vs.Spec.Host, pl.Path)
 						}
 						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 						monitor := Monitor{
 							Name:       monitorName,
 							Partition:  rsCfg.Virtual.Partition,
-							Type:       monitor.Type,
-							Interval:   monitor.Interval,
-							Send:       monitor.Send,
-							Recv:       monitor.Recv,
-							Timeout:    monitor.Timeout,
-							TargetPort: monitor.TargetPort,
+							Type:       mtr.Type,
+							Interval:   mtr.Interval,
+							Send:       mtr.Send,
+							Recv:       mtr.Recv,
+							Timeout:    mtr.Timeout,
+							TargetPort: mtr.TargetPort,
 						}
-						rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+						monitors = append(monitors, monitor)
 					}
 				}
 			} else {
@@ -549,8 +565,12 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			pools = append(pools, pool)
 		}
 	}
+
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
+
+	// handle the default pool for virtual
+	ctlr.handleDefaultPool(rsCfg, vs)
 
 	// set the SNAT policy to auto if it's not defined by end user
 	if vs.Spec.SNAT == "" {
@@ -638,6 +658,75 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, vs.Spec.Host)
 	}
 	return nil
+}
+
+// Handle the default pool for virtual server
+func (ctlr *Controller) handleDefaultPool(
+	rsCfg *ResourceConfig,
+	vs *cisapiv1.VirtualServer,
+) {
+	// if it's an insecure virtual server and vs traffic is redirect or none, we should not add the default pool
+	if rsCfg.MetaData.Protocol == HTTP && len(vs.Spec.TLSProfileName) > 0 && (vs.Spec.HTTPTraffic == TLSRedirectInsecure || vs.Spec.HTTPTraffic == TLSNoInsecure) {
+		return
+	}
+	if !reflect.DeepEqual(vs.Spec.DefaultPool, cisapiv1.DefaultPool{}) {
+		if vs.Spec.DefaultPool.Reference == BIGIP && vs.Spec.DefaultPool.Name != "" {
+			rsCfg.Virtual.PoolName = vs.Spec.DefaultPool.Name
+			rsCfg.MetaData.defaultPoolType = BIGIP
+		} else if vs.Spec.DefaultPool.Reference == ServiceRef {
+			rsCfg.Virtual.PoolName = ctlr.framePoolNameForDefaultPool(vs.Namespace, vs.Spec.DefaultPool, vs.Spec.Host)
+			targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.DefaultPool.Service, vs.Spec.DefaultPool.ServicePort)
+			if (intstr.IntOrString{}) == targetPort {
+				targetPort = vs.Spec.DefaultPool.ServicePort
+			}
+			svcNamespace := vs.Namespace
+			if vs.Spec.DefaultPool.ServiceNamespace != "" {
+				svcNamespace = vs.Spec.DefaultPool.ServiceNamespace
+			}
+			pool := Pool{
+				Name:              rsCfg.Virtual.PoolName,
+				Partition:         rsCfg.Virtual.Partition,
+				ServiceName:       vs.Spec.DefaultPool.Service,
+				ServiceNamespace:  svcNamespace,
+				ServicePort:       targetPort,
+				NodeMemberLabel:   vs.Spec.DefaultPool.NodeMemberLabel,
+				Balance:           vs.Spec.DefaultPool.Balance,
+				ReselectTries:     vs.Spec.DefaultPool.ReselectTries,
+				ServiceDownAction: vs.Spec.DefaultPool.ServiceDownAction,
+			}
+			if vs.Spec.DefaultPool.Monitors != nil {
+				for _, mtr := range vs.Spec.DefaultPool.Monitors {
+					var monitorName string
+					if mtr.Name != "" && mtr.Reference == BIGIP {
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: mtr.Name, Reference: mtr.Reference})
+					} else {
+						var formatPort intstr.IntOrString
+						if mtr.TargetPort != 0 {
+							formatPort = intstr.IntOrString{IntVal: mtr.TargetPort}
+						} else {
+							formatPort = vs.Spec.DefaultPool.ServicePort
+						}
+						if mtr.Name == "" {
+							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "")
+						}
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+						mntr := Monitor{
+							Name:       monitorName,
+							Partition:  rsCfg.Virtual.Partition,
+							Type:       mtr.Type,
+							Interval:   mtr.Interval,
+							Send:       mtr.Send,
+							Recv:       mtr.Recv,
+							Timeout:    mtr.Timeout,
+							TargetPort: mtr.TargetPort,
+						}
+						rsCfg.Monitors = append(rsCfg.Monitors, mntr)
+					}
+				}
+			}
+			rsCfg.Pools = append(rsCfg.Pools, pool)
+		}
+	}
 }
 
 func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules *Rules) {
@@ -862,6 +951,11 @@ func (ctlr *Controller) handleTLS(
 				rsCfg.Virtual.Partition,
 				rsCfg.Virtual.AllowSourceRange,
 				tlsContext.httpPort)
+		}
+		// create data group for default pool
+		if len(rsCfg.Virtual.PoolName) > 0 {
+			updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, DefaultPoolsDgName),
+				rsCfg.Virtual.Partition, tlsContext.namespace, DefaultPool, rsCfg.Virtual.PoolName, DataGroupType)
 		}
 		ctlr.handleDataGroupIRules(
 			rsCfg,
@@ -1525,6 +1619,9 @@ func (pol *Policy) AddRules(rls *Rules) {
 func (cfg *ResourceConfig) GetName() string {
 	return cfg.Virtual.Name
 }
+
+// Internal data group for default pool of a virtual server.
+const DefaultPoolsDgName = "default_pool_servername_dg"
 
 // Internal data group for reencrypt termination.
 const ReencryptHostsDgName = "ssl_reencrypt_servername_dg"

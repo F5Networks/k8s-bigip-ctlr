@@ -834,7 +834,8 @@ func initController(
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" {
+	// ARP not required for nodeport mode
+	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" || *poolMemberType == "nodeport" {
 		agentParams.DisableARP = true
 	}
 
@@ -1004,7 +1005,7 @@ func main() {
 	}
 	// When CIS configured in OCP cluster mode disable ARP in globalSection
 	disableARP := false
-	if *openshiftSDNName != "" || *staticRoutingMode == true {
+	if *openshiftSDNName != "" || *staticRoutingMode == true || *poolMemberType == "nodeport" {
 		disableARP = true
 	}
 

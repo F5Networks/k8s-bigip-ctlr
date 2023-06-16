@@ -3823,7 +3823,11 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 			log.Debugf("Unable to find services for namespace %v with error: %v", pod.Namespace, err)
 		}
 	} else if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
-		poolInf, found := ctlr.multiClusterPoolInformers[clusterName][pod.Namespace]
+		var poolInf *MultiClusterPoolInformer
+		var found bool
+		if poolInf, found = ctlr.multiClusterPoolInformers[clusterName][""]; !found {
+			poolInf, found = ctlr.multiClusterPoolInformers[clusterName][pod.Namespace]
+		}
 		if !found {
 			log.Errorf("Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
 			return nil

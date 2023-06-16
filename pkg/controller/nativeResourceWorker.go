@@ -1891,7 +1891,8 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 
 // readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
 func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
-
+	primaryClusterName := ""
+	secondaryClusterName := ""
 	hACluster := true
 	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
 		// Set the active or standby mode for the HA cluster
@@ -1925,6 +1926,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 						haClusterConfig.SecondaryCluster)
 					os.Exit(1)
 				}
+				secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
 				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
 					haClusterConfig.SecondaryCluster.ClusterName)
 				if err != nil {
@@ -1962,6 +1964,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 						haClusterConfig.PrimaryCluster)
 					os.Exit(1)
 				}
+				primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
 				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
 					haClusterConfig.PrimaryCluster.ClusterName)
 				if err != nil {
@@ -2007,11 +2010,19 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
 		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
+				// Avoid deleting HA cluster related configs
+				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+					continue
+				}
 				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
 			}
 		}
 		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+				// Avoid deleting HA cluster related configs
+				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+					continue
+				}
 				delete(ctlr.resources.multiClusterConfigs, clusterName)
 			}
 		}

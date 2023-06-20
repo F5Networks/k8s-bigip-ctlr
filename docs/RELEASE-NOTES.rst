@@ -6,6 +6,8 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
+    * Configmap
+        * Support AS3 logLevel and persist parameters in configmap
     * Ingress
         *
     * CRD

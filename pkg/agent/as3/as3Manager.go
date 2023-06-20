@@ -120,6 +120,8 @@ type AS3Manager struct {
 	defaultRouteDomain        int
 	poolMemberType            string
 	bigIPAS3Version           float64
+	as3LogLevel               *string
+	as3DeclarationPersistence *bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -419,6 +421,14 @@ func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {
 		adc[tnt] = as3Tenant{
 			"class": "Tenant",
 		}
+	}
+	// Update AS3 logLevel parameter if specified
+	if am.as3LogLevel != nil {
+		as3Obj["logLevel"] = *am.as3LogLevel
+	}
+	// Update AS3 persist parameter if specified
+	if am.as3DeclarationPersistence != nil {
+		as3Obj["persist"] = *am.as3DeclarationPersistence
 	}
 	unifiedDecl, err := json.Marshal(as3Obj)
 	if err != nil {

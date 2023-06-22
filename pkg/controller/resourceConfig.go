@@ -470,7 +470,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	snat = DEFAULT_SNAT
 	var pools Pools
 	var rules *Rules
-	var monitors []Monitor
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
@@ -478,13 +477,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		backendSvcs := ctlr.GetPoolBackends(&pl)
 		for _, SvcBackend := range backendSvcs {
 			poolName := ctlr.framePoolNameForVs(vs.Namespace, pl, vs.Spec.Host, SvcBackend)
-			//check for custom monitor
-			var monitorName string
-			if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
-				monitorName = pl.Monitor.Name
-			} else {
-				monitorName = pl.Name + "-monitor"
-			}
 
 			if _, ok := framedPools[poolName]; ok {
 				// Pool with same name framed earlier, so skipping this pool
@@ -511,55 +503,19 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ReselectTries:     pl.ReselectTries,
 				ServiceDownAction: pl.ServiceDownAction,
 			}
-			if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
-			} else if (pl.Monitor.Send != "" && pl.Monitor.Type != "") || pl.Monitor.Type == "tcp" {
-				if pl.Name == "" {
-					monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
-				}
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-				monitor := Monitor{
-					Name:       monitorName,
-					Partition:  rsCfg.Virtual.Partition,
-					Type:       pl.Monitor.Type,
-					Interval:   pl.Monitor.Interval,
-					Send:       pl.Monitor.Send,
-					Recv:       pl.Monitor.Recv,
-					Timeout:    pl.Monitor.Timeout,
-					TargetPort: pl.Monitor.TargetPort,
-				}
-				monitors = append(monitors, monitor)
+			if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
+				ctlr.createVirtualServerMonitor(pl.Monitor, &pool, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
+					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name)
 			} else if pl.Monitors != nil {
-				for _, mtr := range pl.Monitors {
-					if mtr.Name != "" && mtr.Reference == BIGIP {
-						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: mtr.Name, Reference: mtr.Reference})
+				var formatPort intstr.IntOrString
+				for _, monitor := range pl.Monitors {
+					if monitor.TargetPort != 0 {
+						formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
 					} else {
-						var formatPort intstr.IntOrString
-						if mtr.TargetPort != 0 {
-							formatPort = intstr.IntOrString{IntVal: mtr.TargetPort}
-						} else {
-							formatPort = pl.ServicePort
-						}
-						if mtr.Name == "" {
-							monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, mtr.Type, formatPort, vs.Spec.Host, pl.Path)
-						}
-						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-						monitor := Monitor{
-							Name:       monitorName,
-							Partition:  rsCfg.Virtual.Partition,
-							Type:       mtr.Type,
-							Interval:   mtr.Interval,
-							Send:       mtr.Send,
-							Recv:       mtr.Recv,
-							Timeout:    mtr.Timeout,
-							TargetPort: mtr.TargetPort,
-						}
-						monitors = append(monitors, monitor)
+						formatPort = pl.ServicePort
 					}
-				}
-			} else {
-				if pl.Monitor.Type != "" && pl.Monitor.Send == "" {
-					log.Warningf("missing send string in monitor. skipping monitor for virtual server: %v", vs.ObjectMeta.Name)
+					ctlr.createVirtualServerMonitor(monitor, &pool, rsCfg, formatPort, vs.Spec.Host, pl.Path,
+						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name)
 				}
 			}
 			pools = append(pools, pool)
@@ -567,7 +523,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
-	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 
 	// handle the default pool for virtual
 	ctlr.handleDefaultPool(rsCfg, vs)
@@ -658,6 +613,75 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, vs.Spec.Host)
 	}
 	return nil
+}
+
+func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
+	formatPort intstr.IntOrString, host, path, vsName string) {
+	if !reflect.DeepEqual(monitor, Monitor{}) {
+		if monitor.Reference == BIGIP {
+			if monitor.Name != "" {
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+			} else {
+				log.Errorf("missing monitor name with bigip reference in virtual server: %v", vsName)
+				return
+			}
+		} else {
+			if (monitor.Type == HTTPS || monitor.Type == HTTP) && monitor.Send == "" {
+				log.Errorf("missing send string for monitor. skipping monitor for virtual server: %v", vsName)
+				return
+			}
+
+			monitorName := monitor.Name
+			if monitorName == "" {
+				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host, path)
+			}
+
+			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+			monitor := Monitor{
+				Name:       monitorName,
+				Partition:  rsCfg.Virtual.Partition,
+				Type:       monitor.Type,
+				Interval:   monitor.Interval,
+				Send:       monitor.Send,
+				Recv:       monitor.Recv,
+				Timeout:    monitor.Timeout,
+				TargetPort: monitor.TargetPort,
+			}
+			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+		}
+	}
+}
+
+func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
+	formatPort intstr.IntOrString, vsNamespace, vsName string) {
+	if !reflect.DeepEqual(monitor, Monitor{}) {
+		if monitor.Reference == BIGIP {
+			if monitor.Name != "" {
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+			} else {
+				log.Errorf("missing monitor name with bigip reference in transport server: %v", vsNamespace+"/"+vsName)
+				return
+			}
+		} else {
+			monitorName := monitor.Name
+			if monitorName == "" {
+				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "")
+			}
+
+			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+			monitor := Monitor{
+				Name:       monitorName,
+				Partition:  rsCfg.Virtual.Partition,
+				Type:       monitor.Type,
+				Interval:   monitor.Interval,
+				Send:       monitor.Send,
+				Recv:       monitor.Recv,
+				Timeout:    monitor.Timeout,
+				TargetPort: monitor.TargetPort,
+			}
+			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+		}
+	}
 }
 
 // Handle the default pool for virtual server
@@ -1793,13 +1817,6 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		vs.Spec.Pool,
 		"",
 	)
-	//check for custom monitor
-	var monitorName string
-	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
-		monitorName = vs.Spec.Pool.Monitor.Name
-	} else {
-		monitorName = poolName + "-monitor"
-	}
 	svcNamespace := vs.Namespace
 	if vs.Spec.Pool.ServiceNamespace != "" {
 		svcNamespace = vs.Spec.Pool.ServiceNamespace
@@ -1820,54 +1837,19 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ReselectTries:     vs.Spec.Pool.ReselectTries,
 		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
 	}
-	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
-		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName, Reference: vs.Spec.Pool.Monitor.Reference})
-	} else if vs.Spec.Pool.Monitor.Type != "" {
-		if vs.Spec.Pool.Name == "" {
-			monitorName = formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort, "", "")
-		}
-		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-
-		monitor := Monitor{
-			Name:       monitorName,
-			Partition:  rsCfg.Virtual.Partition,
-			Type:       vs.Spec.Pool.Monitor.Type,
-			Interval:   vs.Spec.Pool.Monitor.Interval,
-			Send:       vs.Spec.Pool.Monitor.Send,
-			Recv:       vs.Spec.Pool.Monitor.Recv,
-			Timeout:    vs.Spec.Pool.Monitor.Timeout,
-			TargetPort: vs.Spec.Pool.Monitor.TargetPort,
-		}
-		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+	if !reflect.DeepEqual(vs.Spec.Pool.Monitor, cisapiv1.Monitor{}) {
+		ctlr.createTransportServerMonitor(vs.Spec.Pool.Monitor, &pool, rsCfg, vs.Spec.Pool.ServicePort,
+			vs.ObjectMeta.Namespace, vs.ObjectMeta.Name)
 	} else if vs.Spec.Pool.Monitors != nil {
-		pl := vs.Spec.Pool
-		for _, monitor := range pl.Monitors {
-			if monitor.Name != "" && monitor.Reference == BIGIP {
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+		var formatPort intstr.IntOrString
+		for _, monitor := range vs.Spec.Pool.Monitors {
+			if monitor.TargetPort != 0 {
+				formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
 			} else {
-				var formatPort intstr.IntOrString
-				if monitor.TargetPort != 0 {
-					formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
-				} else {
-					formatPort = pl.ServicePort
-				}
-
-				if monitor.Name == "" {
-					monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, "", "")
-				}
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
-				monitor := Monitor{
-					Name:       monitorName,
-					Partition:  rsCfg.Virtual.Partition,
-					Type:       monitor.Type,
-					Interval:   monitor.Interval,
-					Send:       monitor.Send,
-					Recv:       monitor.Recv,
-					Timeout:    monitor.Timeout,
-					TargetPort: monitor.TargetPort,
-				}
-				rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+				formatPort = vs.Spec.Pool.ServicePort
 			}
+			ctlr.createTransportServerMonitor(monitor, &pool, rsCfg, formatPort,
+				vs.ObjectMeta.Namespace, vs.ObjectMeta.Name)
 		}
 	}
 

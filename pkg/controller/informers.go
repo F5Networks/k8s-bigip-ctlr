@@ -145,9 +145,7 @@ func (nrInfr *NRInformer) start() {
 	var cacheSyncs []cache.InformerSynced
 	if nrInfr.routeInformer != nil {
 		go nrInfr.routeInformer.Run(nrInfr.stopCh)
-		go nrInfr.cmInformer.Run(nrInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, nrInfr.routeInformer.HasSynced)
-		cacheSyncs = append(cacheSyncs, nrInfr.cmInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
@@ -186,6 +184,10 @@ func (comInfr *CommonInformer) start() {
 	if comInfr.secretsInformer != nil {
 		go comInfr.secretsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.secretsInformer.HasSynced)
+	}
+	if comInfr.cmInformer != nil {
+		go comInfr.cmInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.cmInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
@@ -377,16 +379,6 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 	case OpenShiftMode:
 		// Ensure the default server cert is loaded
 		//appMgr.loadDefaultCert() why?
-
-		nrOptions := func(options *metav1.ListOptions) {
-			options.LabelSelector = ctlr.nativeResourceSelector.String()
-		}
-		//everything := func(options *metav1.ListOptions) {
-		//	options.LabelSelector = ""
-		//}
-
-		restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
-
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -399,18 +391,6 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 				},
 			},
 			&routeapi.Route{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-
-		nrInformer.cmInformer = cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"configmaps",
-				namespace,
-				nrOptions,
-			),
-			&corev1.ConfigMap{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
@@ -524,6 +504,23 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
+	// start the cm informer if it's specified in deployment
+	if ctlr.globalExtendedCMKey != "" {
+		nrOptions := func(options *metav1.ListOptions) {
+			options.LabelSelector = ctlr.nativeResourceSelector.String()
+		}
+		comInf.cmInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"configmaps",
+				namespace,
+				nrOptions,
+			),
+			&corev1.ConfigMap{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
 	//enable pod informer for nodeport local mode and openshift mode
 	if ctlr.PoolMemberType == NodePortLocal || ctlr.mode == OpenShiftMode {
 		comInf.podInformer = cache.NewSharedIndexInformer(
@@ -643,12 +640,8 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 		)
 	}
 
-}
-
-func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
-
-	if nrInf.cmInformer != nil {
-		nrInf.cmInformer.AddEventHandler(
+	if comInf.cmInformer != nil {
+		comInf.cmInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj, Create) },
 				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj, Update) },
@@ -657,6 +650,9 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 		)
 	}
 
+}
+
+func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 	if nrInf.routeInformer != nil {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
@@ -1213,7 +1209,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 
 	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
 	//if !ctlr.nativeResourceSelector.Matches(labels.Set(cm.GetLabels())) &&
-	//	ctlr.routeSpecCMKey != cm.Namespace+"/"+cm.Name {
+	//	ctlr.globalExtendedCMKey != cm.Namespace+"/"+cm.Name {
 	//
 	//	return
 	//}

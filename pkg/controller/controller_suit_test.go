@@ -331,7 +331,7 @@ func (m *mockController) deletePod(pod v1.Pod) {
 }
 
 func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Add(cm)
 
 	if m.resourceQueue != nil {
@@ -340,7 +340,7 @@ func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
 }
 
 func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Delete(cm)
 
 	if m.resourceQueue != nil {

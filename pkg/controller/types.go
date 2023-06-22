@@ -101,7 +101,7 @@ type (
 		nodeInformer              *NodeInformer
 		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
 		multiClusterNodeInformers map[string]*NodeInformer
-		routeSpecCMKey            string
+		globalExtendedCMKey       string
 		routeLabel                string
 		namespaceLabelMode        bool
 		processedHostPath         *ProcessedHostPath
@@ -109,26 +109,26 @@ type (
 
 	// Params defines parameters
 	Params struct {
-		Config             *rest.Config
-		Namespaces         []string
-		NamespaceLabel     string
-		Partition          string
-		Agent              *Agent
-		PoolMemberType     string
-		VXLANName          string
-		VXLANMode          string
-		UseNodeInternal    bool
-		NodePollInterval   int
-		NodeLabelSelector  string
-		ShareNodes         bool
-		IPAM               bool
-		DefaultRouteDomain int
-		Mode               ControllerMode
-		RouteSpecConfigmap string
-		RouteLabel         string
-		StaticRoutingMode  bool
-		OrchestrationCNI   string
-		CISType            string
+		Config                      *rest.Config
+		Namespaces                  []string
+		NamespaceLabel              string
+		Partition                   string
+		Agent                       *Agent
+		PoolMemberType              string
+		VXLANName                   string
+		VXLANMode                   string
+		UseNodeInternal             bool
+		NodePollInterval            int
+		NodeLabelSelector           string
+		ShareNodes                  bool
+		IPAM                        bool
+		DefaultRouteDomain          int
+		Mode                        ControllerMode
+		GlobalExtendedSpecConfigmap string
+		RouteLabel                  string
+		StaticRoutingMode           bool
+		OrchestrationCNI            string
+		CISType                     string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -150,6 +150,7 @@ type (
 		plcInformer     cache.SharedIndexInformer
 		podInformer     cache.SharedIndexInformer
 		secretsInformer cache.SharedIndexInformer
+		cmInformer      cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
@@ -157,7 +158,6 @@ type (
 		namespace     string
 		stopCh        chan struct{}
 		routeInformer cache.SharedIndexInformer
-		cmInformer    cache.SharedIndexInformer
 	}
 
 	NodeInformer struct {

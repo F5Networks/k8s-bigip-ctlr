@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"sync"
@@ -378,18 +379,18 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name                 string                         `json:"name"`
-		MultiClusterServices []MultiClusterServiceReference `json:"_"`
-		Partition            string                         `json:"-"`
-		ServiceName          string                         `json:"-"`
-		ServiceNamespace     string                         `json:"-"`
-		ServicePort          intstr.IntOrString             `json:"-"`
-		Balance              string                         `json:"loadBalancingMethod,omitempty"`
-		Members              []PoolMember                   `json:"members"`
-		NodeMemberLabel      string                         `json:"-"`
-		MonitorNames         []MonitorName                  `json:"monitors,omitempty"`
-		ReselectTries        int32                          `json:"reselectTries,omitempty"`
-		ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
+		Name                 string                                  `json:"name"`
+		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
+		Partition            string                                  `json:"-"`
+		ServiceName          string                                  `json:"-"`
+		ServiceNamespace     string                                  `json:"-"`
+		ServicePort          intstr.IntOrString                      `json:"-"`
+		Balance              string                                  `json:"loadBalancingMethod,omitempty"`
+		Members              []PoolMember                            `json:"members"`
+		NodeMemberLabel      string                                  `json:"-"`
+		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
+		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
+		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -1260,12 +1261,5 @@ type (
 		svcInformer cache.SharedIndexInformer
 		epsInformer cache.SharedIndexInformer
 		podInformer cache.SharedIndexInformer
-	}
-
-	MultiClusterServiceReference struct {
-		ClusterName string             `json:"clusterName"`
-		SvcName     string             `json:"svcName"`
-		Namespace   string             `json:"namespace"`
-		ServicePort intstr.IntOrString `json:"port"`
 	}
 )

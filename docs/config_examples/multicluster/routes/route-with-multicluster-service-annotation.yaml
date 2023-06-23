@@ -2,7 +2,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   annotations:
-    virtual-server.f5.com/multiClusterServices: '[{"clusterName": "cluster2", "svcName":
+    virtual-server.f5.com/multiClusterServices: '[{"clusterName": "cluster2", "serviceName":
           "svc", "namespace": "default", "port": "8080" }]'
     # you can define either service port or target port in the port value
   labels:

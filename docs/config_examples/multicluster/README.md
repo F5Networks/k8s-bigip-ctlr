@@ -212,19 +212,53 @@ virtual-server.f5.com/multiClusterServices:
 '[
      {
          "clusterName": "cluster2", 
-         "svcName": "svc-pytest-foo-1-com", 
+         "serviceName": "svc-pytest-foo-1-com",
          "namespace": "foo", 
          "port": 80 
      }
 ]'
 ```
+### Virutal Server Pool with Multi-ClusterServices
+Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the VS Pool as mentioned below:
+```
+  pools:
+  - path: /tea
+    serviceNamespace: tea
+    service: svc-2
+    servicePort: 80
+    extendedServiceReferences:
+    - clusterName: cluster2
+      namespace: ns1
+      port: 8080
+      serviceName: svc-1
+    - clusterName: cluster3
+      namespace: ns2
+      port: 80
+      serviceName: svc-ext-1
+```
 
-#### Route Annotation Parameters
+### Transport Server Pool with Multi-ClusterServices
+Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the TS Pool as mentioned below:
+```
+  pool:
+    service: svc-1
+    servicePort: 8181
+    extendedServiceReferences:
+    - clusterName: cluster2
+      serviceName: svc-1
+      namespace: ns1
+      port: 8181
+    - clusterName: cluster3
+      serviceName: svc-ext-1
+      namespace: ns2
+      port: 8282
+```
+#### Route Annotation / VS or TS MultiClusterServices Parameters
 
 | Parameter   | Type       | Required  | Description                                             | Default | Examples |
 |-------------|------------|-----------|---------------------------------------------------------|---------|----------|
 | clusterName | String     | Mandatory | Name of the cluster                                     | -       | cluster1 |
-| svcName     | String     | Mandatory | Name of the service                                     | -       | svc-1    |
+| serviceName | String     | Mandatory | Name of the service                                     | -       | svc-1    |
 | namespace   | String     | Mandatory | Namespace where the service is created                  | -       | test     |
 | port        | String/Int | Optional  | port of the service  (for named port use string value ) | -       | 80       |
 

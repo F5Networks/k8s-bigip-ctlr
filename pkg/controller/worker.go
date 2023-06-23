@@ -2715,17 +2715,40 @@ func (ctlr *Controller) processService(
 			pmi.memberMap[portKey] = members
 		}
 	case Cluster:
-		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", namespace)
-			return fmt.Errorf("unable to process Service: %v", svcKey)
+		var eps *v1.Endpoints
+		if clusterName == "" {
+			comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+			if !ok {
+				log.Errorf("Informer not found for namespace: %v", namespace)
+				return fmt.Errorf("unable to process Service: %v", svcKey)
+			}
+			epInf := comInf.epsInformer
+			item, found, _ := epInf.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
+			if !found {
+				return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
+			}
+			eps, _ = item.(*v1.Endpoints)
+		} else {
+			if _, ok := ctlr.multiClusterPoolInformers[svcKey.clusterName]; ok {
+				var poolInf *MultiClusterPoolInformer
+				var found bool
+				if poolInf, found = ctlr.multiClusterPoolInformers[clusterName][""]; !found {
+					poolInf, found = ctlr.multiClusterPoolInformers[clusterName][svcKey.namespace]
+				}
+				if !found {
+					return fmt.Errorf("Informer not found for namespace: %v in cluster: %s", svcKey.namespace, clusterName)
+				}
+
+				mEpInf := poolInf.epsInformer
+				mItem, mFound, _ := mEpInf.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+				if !mFound {
+					return fmt.Errorf("Endpoints for service '#{svcKey}' not found!")
+				}
+				eps, _ = mItem.(*v1.Endpoints)
+
+			}
 		}
-		epInf := comInf.epsInformer
-		item, found, _ := epInf.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
-		if !found {
-			return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
-		}
-		eps, _ := item.(*v1.Endpoints)
+
 		if len(eps.Subsets) == 0 {
 			for _, port := range pmi.portSpec {
 				portKey := portRef{name: port.Name, port: port.Port}

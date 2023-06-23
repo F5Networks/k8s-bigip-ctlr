@@ -7,6 +7,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	v1 "k8s.io/api/core/v1"
+	"net"
 	"reflect"
 	"sort"
 	"strings"
@@ -54,7 +55,8 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 		return nil
 	}
 	if ctlr.StaticRoutingMode {
-		ctlr.processStaticRouteUpdate(nodesIntfc)
+		clusterNodes := ctlr.getNodesFromAllClusters()
+		ctlr.processStaticRouteUpdate(clusterNodes)
 	} else if 0 != len(ctlr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
 		tunnelName := ctlr.vxlanName
@@ -216,6 +218,15 @@ func (ctlr *Controller) getNodesWithLabel(
 	return nodes
 }
 
+func ciliumPodCidr(annotation map[string]string) string {
+	if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation13]; ok {
+		return subnet
+	} else if subnet, ok := annotation[CiliumK8sNodeSubnetAnnotation12]; ok {
+		return subnet
+	}
+	return ""
+}
+
 func (ctlr *Controller) processStaticRouteUpdate(
 	nodes []interface{},
 ) {
@@ -265,9 +276,25 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					continue
 				}
 				route.Gateway = nodeIP
-				route.Name = fmt.Sprintf("k8s-route-%v", nodeIP)
+				route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
 			}
 
+		} else if ctlr.OrchestrationCNI == CILIUM_K8S {
+			nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
+			if nodesubnet == "" {
+				log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
+				continue
+			} else {
+				route.Network = nodesubnet
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+					}
+				}
+
+			}
 		} else {
 			//For k8s CNI like flannel, antrea etc we can get subnet from node spec
 			podCIDR := node.Spec.PodCIDR
@@ -277,7 +304,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 				for _, addr := range nodeAddrs {
 					if addr.Type == addrType {
 						route.Gateway = addr.Address
-						route.Name = fmt.Sprintf("k8s-route-%v", addr.Address)
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
 					}
 				}
 			} else {
@@ -307,7 +334,24 @@ func parseNodeSubnet(ann, nodeName string) (string, error) {
 	var subnetDict map[string]interface{}
 	json.Unmarshal([]byte(ann), &subnetDict)
 	if nodeSubnet, ok := subnetDict["default"]; ok {
-		return nodeSubnet.(string), nil
+		switch nodeSubnetObj := nodeSubnet.(type) {
+		case string:
+			return nodeSubnet.(string), nil
+		case []interface{}:
+			for _, subnet := range nodeSubnetObj {
+				ip, _, err := net.ParseCIDR(subnet.(string))
+				if err != nil {
+					log.Errorf("Unable to parse cidr for subnet %v with err %v", subnet, err)
+				} else {
+					//check for ipv4 address
+					if nil != ip.To4() {
+						return subnet.(string), nil
+					}
+				}
+			}
+		default:
+			return "", fmt.Errorf("Unsupported annotation format")
+		}
 	}
 	err := fmt.Errorf("%s annotation for "+
 		"node '%s' has invalid format; cannot validate node subnet. "+

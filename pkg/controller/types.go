@@ -339,11 +339,15 @@ type (
 	}
 
 	WideIP struct {
-		DomainName string     `json:"name"`
-		RecordType string     `json:"recordType"`
-		LBMethod   string     `json:"LoadBalancingMode"`
-		Pools      []GSLBPool `json:"pools"`
-		UID        string
+		DomainName         string     `json:"name"`
+		RecordType         string     `json:"recordType"`
+		LBMethod           string     `json:"LoadBalancingMode"`
+		PersistenceEnabled bool       `json:"persistenceEnabled"`
+		PersistCidrIPv4    uint8      `json:"persistCidrIpv4"`
+		PersistCidrIPv6    uint8      `json:"persistCidrIpv6"`
+		TTLPersistence     uint32     `json:"ttlPersistence"`
+		Pools              []GSLBPool `json:"pools"`
+		UID                string
 	}
 
 	GSLBPool struct {
@@ -1053,11 +1057,15 @@ type (
 
 	// as3GLSBDomain maps to GSLB_Domain in AS3 Resources
 	as3GLSBDomain struct {
-		Class      string              `json:"class"`
-		DomainName string              `json:"domainName"`
-		RecordType string              `json:"resourceRecordType"`
-		LBMode     string              `json:"poolLbMode"`
-		Pools      []as3GSLBDomainPool `json:"pools"`
+		Class              string              `json:"class"`
+		DomainName         string              `json:"domainName"`
+		RecordType         string              `json:"resourceRecordType"`
+		LBMode             string              `json:"poolLbMode"`
+		PersistenceEnabled bool                `json:"persistenceEnabled"`
+		PersistCidrIPv4    uint8               `json:"persistCidrIpv4"`
+		PersistCidrIPv6    uint8               `json:"persistCidrIpv6"`
+		TTLPersistence     uint32              `json:"ttlPersistence"`
+		Pools              []as3GSLBDomainPool `json:"pools"`
 	}
 
 	as3GSLBDomainPool struct {

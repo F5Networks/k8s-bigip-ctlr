@@ -458,7 +458,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	var pools Pools
 	var rules *Rules
 	var monitors []Monitor
-
+	rsRef := resourceRef{
+		name:      vs.Name,
+		namespace: vs.Namespace,
+		kind:      VirtualServer,
+	}
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
 
@@ -496,6 +500,13 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			ReselectTries:     pl.ReselectTries,
 			ServiceDownAction: pl.ServiceDownAction,
 		}
+		svcKey := MultiClusterServiceKey{
+			serviceName: pl.Service,
+			clusterName: "",
+			namespace:   pl.ServiceNamespace,
+		}
+		// update the pool identifier for service
+		ctlr.updatePoolIdentifierForService(svcKey, rsRef, pl.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {
@@ -548,6 +559,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				}
 			}
 		}
+		// update the multicluster resource serviceMap with local cluster services
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
 		pools = append(pools, pool)
 	}
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
@@ -1690,6 +1703,18 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ReselectTries:     vs.Spec.Pool.ReselectTries,
 		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
 	}
+	svcKey := MultiClusterServiceKey{
+		serviceName: vs.Spec.Pool.Service,
+		clusterName: "",
+		namespace:   vs.Spec.Pool.ServiceNamespace,
+	}
+	rsRef := resourceRef{
+		name:      vs.Name,
+		namespace: vs.Namespace,
+		kind:      TransportServer,
+	}
+	// update the pool identifier for service
+	ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
 	// Update the pool Members
 	ctlr.updatePoolMembersForResources(&pool)
 	if len(pool.Members) > 0 {
@@ -1745,6 +1770,8 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			}
 		}
 	}
+	// update the multicluster resource serviceMap with local cluster services
+	ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 
 	rsCfg.Virtual.Mode = vs.Spec.Mode
 	rsCfg.Virtual.IpProtocol = vs.Spec.Type
@@ -1816,6 +1843,18 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		ServicePort:      svcPort.TargetPort,
 		NodeMemberLabel:  "",
 	}
+	svcKey := MultiClusterServiceKey{
+		serviceName: svc.Name,
+		clusterName: "",
+		namespace:   svc.Namespace,
+	}
+	rsRef := resourceRef{
+		name:      svc.Name,
+		namespace: svc.Namespace,
+		kind:      Service,
+	}
+	// update the pool identifier for service
+	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
 	// Update the pool Members
 	ctlr.updatePoolMembersForResources(&pool)
 	if len(pool.Members) > 0 {
@@ -1853,6 +1892,8 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	if rsCfg.Virtual.SNAT == "" {
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	}
+	// update the multicluster resource serviceMap with local cluster services
+	ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, pool.ServicePort, "")
 
 	return nil
 }

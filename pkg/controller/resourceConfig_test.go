@@ -209,6 +209,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			_ = mockCtlr.addNamespacedInformers(namespace, false)
 
 			rsCfg = &ResourceConfig{}
@@ -1122,6 +1123,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(

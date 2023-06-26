@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"os"
 	"strings"
 	"time"
@@ -139,8 +140,6 @@ func NewController(params Params) *Controller {
 		mode:                  params.Mode,
 		namespaceLabel:        params.NamespaceLabel,
 		nodeLabelSelector:     params.NodeLabelSelector,
-		vxlanName:             params.VXLANName,
-		vxlanMode:             params.VXLANMode,
 		StaticRoutingMode:     params.StaticRoutingMode,
 		OrchestrationCNI:      params.OrchestrationCNI,
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
@@ -220,6 +219,26 @@ func NewController(params Params) *Controller {
 		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
 		_ = ctlr.createIPAMResource()
+	}
+	// setup vxlan manager
+	if len(params.VXLANName) > 0 && len(params.VXLANMode) > 0 {
+		tunnelName := params.VXLANName
+		cleanPath := strings.TrimLeft(params.VXLANName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos != -1 {
+			tunnelName = cleanPath[slashPos+1:]
+		}
+		vxlanMgr, err := vxlan.NewVxlanMgr(
+			params.VXLANMode,
+			tunnelName,
+			ctlr.UseNodeInternal,
+			ctlr.Agent.ConfigWriter,
+			ctlr.Agent.EventChan,
+		)
+		if nil != err {
+			log.Errorf("error creating vxlan manager: %v", err)
+		}
+		ctlr.vxlanMgr = vxlanMgr
 	}
 
 	go ctlr.responseHandler(ctlr.Agent.respChan)
@@ -437,6 +456,10 @@ func (ctlr *Controller) Start() {
 		go ctlr.ipamCli.Start()
 	}
 
+	if ctlr.vxlanMgr != nil {
+		ctlr.vxlanMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
+	}
+
 	stopChan := make(chan struct{})
 
 	go wait.Until(ctlr.nextGenResourceWorker, time.Second, stopChan)
@@ -480,5 +503,8 @@ func (ctlr *Controller) Stop() {
 	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
+	}
+	if ctlr.Agent.EventChan != nil {
+		close(ctlr.Agent.EventChan)
 	}
 }

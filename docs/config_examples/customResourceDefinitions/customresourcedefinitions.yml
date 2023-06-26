@@ -623,21 +623,6 @@ spec:
                 loadBalanceMethod:
                   type: string
                   pattern: '^[a-z]+[a-z_-]+[a-z]+$'
-                persistenceEnabled:
-                  type: boolean
-                persistCidrIpv4:
-                  type: integer
-                  minimum: 0
-                  maximum: 32
-                persistCidrIpv6:
-                  type: integer
-                  minimum: 0
-                  maximum: 128
-                ttlPersistence:
-                  type: integer
-                  format: int64
-                  minimum: 0
-                  maximum: 4294967295
                 pools:
                   type: array
                   items:

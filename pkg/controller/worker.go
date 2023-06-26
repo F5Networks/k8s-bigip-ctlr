@@ -3958,3 +3958,16 @@ func createLabel(label string) (labels.Selector, error) {
 	}
 	return l, nil
 }
+
+func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
+	var nodes []interface{}
+	//for local cluster
+	nodes = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
+	//fetch nodes from other clusters
+	if ctlr.multiClusterNodeInformers != nil {
+		for _, nodeInf := range ctlr.multiClusterNodeInformers {
+			nodes = append(nodes, nodeInf.nodeInformer.GetIndexer().List()...)
+		}
+	}
+	return nodes
+}

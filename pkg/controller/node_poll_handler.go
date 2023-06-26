@@ -55,7 +55,8 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 		return nil
 	}
 	if ctlr.StaticRoutingMode {
-		ctlr.processStaticRouteUpdate(nodesIntfc)
+		clusterNodes := ctlr.getNodesFromAllClusters()
+		ctlr.processStaticRouteUpdate(clusterNodes)
 	} else if 0 != len(ctlr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
 		tunnelName := ctlr.vxlanName

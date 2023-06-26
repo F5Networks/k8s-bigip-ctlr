@@ -254,14 +254,10 @@ type ExternalDNS struct {
 }
 
 type ExternalDNSSpec struct {
-	DomainName         string    `json:"domainName"`
-	DNSRecordType      string    `json:"dnsRecordType"`
-	LoadBalanceMethod  string    `json:"loadBalanceMethod"`
-	PersistenceEnabled bool      `json:"persistenceEnabled""`
-	PersistCidrIPv4    uint8     `json:"persistCidrIpv4"`
-	PersistCidrIPv6    uint8     `json:"persistCidrIpv6"`
-	TTLPersistence     uint32    `json:"ttlPersistence"`
-	Pools              []DNSPool `json:"pools"`
+	DomainName        string    `json:"domainName"`
+	DNSRecordType     string    `json:"dnsRecordType"`
+	LoadBalanceMethod string    `json:"loadBalanceMethod"`
+	Pools             []DNSPool `json:"pools"`
 }
 
 type DNSPool struct {

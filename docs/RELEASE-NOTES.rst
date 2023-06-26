@@ -10,6 +10,7 @@ Added Functionality
         *
     * CRD
         * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/`_
+        * Support PERSISTENCE capability for service published through EDNS
 Bug Fixes
 ````````````
 

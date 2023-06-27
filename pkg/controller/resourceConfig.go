@@ -497,7 +497,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 			if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
 				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
-			} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+			} else if (pl.Monitor.Send != "" && pl.Monitor.Type != "") || pl.Monitor.Type == "tcp" {
 				if pl.Name == "" {
 					monitorName = formatMonitorName(svcNamespace, SvcBackend.Name, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
 				}
@@ -540,6 +540,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						}
 						rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 					}
+				}
+			} else {
+				if pl.Monitor.Type != "" && pl.Monitor.Send == "" {
+					log.Warningf("missing send string in monitor. skipping monitor for virtual server: %v", vs.ObjectMeta.Name)
 				}
 			}
 			pools = append(pools, pool)
@@ -2022,6 +2026,11 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 
 	if !ok {
 		return nil, ""
+	}
+
+	// check if defaultRouteGroup is used
+	if extdSpec.defaultrg != nil {
+		return extdSpec.defaultrg, extdSpec.partition
 	}
 
 	if extdSpec.override && extdSpec.local != nil {

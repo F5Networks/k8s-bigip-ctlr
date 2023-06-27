@@ -97,7 +97,7 @@ type Manager struct {
 	// App informer support
 	vsQueue      workqueue.RateLimitingInterface
 	appInformers map[string]*appInformer
-	as3Informer  *appInformer
+	nodeInformer *nodeInformer
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer
@@ -140,7 +140,6 @@ type Manager struct {
 	// Processed routes for updating Admit Status
 	agRspChan          chan interface{}
 	processAgentLabels func(map[string]string, string, string) bool
-	K8sVersion         string
 	TeemData           *teem.TeemsData
 	defaultRouteDomain int
 	poolMemberType     string
@@ -484,6 +483,38 @@ func (appMgr *Manager) removeNamespaceLocked(namespace string) error {
 	return nil
 }
 
+// AddNodeInformer to watch the node udpates
+func (appMgr *Manager) AddNodeInformer(resyncPeriod time.Duration) error {
+	appMgr.informersMutex.Lock()
+	defer appMgr.informersMutex.Unlock()
+
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = appMgr.nodeLabelSelector
+	}
+	appMgr.nodeInformer = &nodeInformer{
+		stopCh: make(chan struct{}),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				appMgr.restClientv1,
+				"nodes",
+				"",
+				nodeOptions,
+			),
+			&v1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+	}
+	appMgr.nodeInformer.nodeInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.setupNodeProcessing() },
+			UpdateFunc: func(obj, cur interface{}) { appMgr.setupNodeProcessing() },
+			DeleteFunc: func(obj interface{}) { appMgr.setupNodeProcessing() },
+		},
+	)
+	return nil
+}
+
 // AddNamespaceLabelInformer spins an informer to watch all namespaces with matching label
 func (appMgr *Manager) AddNamespaceLabelInformer(
 	labelSelector labels.Selector,
@@ -699,6 +730,12 @@ type serviceQueueKey struct {
 	ResourceKind string
 	ResourceName string
 	Operation    string
+	Object       interface{}
+}
+
+type nodeInformer struct {
+	nodeInformer cache.SharedIndexInformer
+	stopCh       chan struct{}
 }
 
 type appInformer struct {
@@ -711,7 +748,6 @@ type appInformer struct {
 	secretInformer   cache.SharedIndexInformer
 	ingClassInformer cache.SharedIndexInformer
 	podInformer      cache.SharedIndexInformer
-	nodeInformer     cache.SharedIndexInformer
 	stopCh           chan struct{}
 }
 
@@ -723,9 +759,6 @@ func (appMgr *Manager) newAppInformer(
 	log.Debugf("[CORE] Creating new app informer")
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
-	}
-	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = appMgr.nodeLabelSelector
 	}
 	appInf := appInformer{
 		namespace: namespace,
@@ -767,18 +800,6 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
-
-	appInf.nodeInformer = cache.NewSharedIndexInformer(
-		cache.NewFilteredListWatchFromClient(
-			appMgr.restClientv1,
-			"nodes",
-			"",
-			nodeOptions,
-		),
-		&v1.Node{},
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
 
 	//For nodeport mode, disable ep informer
 	if appMgr.poolMemberType != NodePort {
@@ -929,16 +950,6 @@ func (appMgr *Manager) newAppInformer(
 		)
 	}
 
-	if appInf.nodeInformer != nil {
-		appInf.nodeInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.setupNodeProcessing() },
-				UpdateFunc: func(obj, cur interface{}) { appMgr.setupNodeProcessing() },
-				DeleteFunc: func(obj interface{}) { appMgr.setupNodeProcessing() },
-			},
-		)
-	}
-
 	if true == appMgr.manageIngress {
 		log.Infof("[CORE] Handling Ingress resource events.")
 		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
@@ -1063,11 +1074,11 @@ func (appMgr *Manager) enqueueIngressUpdate(cur, old interface{}, operation stri
 
 func (appMgr *Manager) enqueueRoute(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidRoute(obj); ok {
-		if operation == OprTypeDelete {
-			appMgr.deleteHostPathMapEntry(obj)
-		}
 		for _, key := range keys {
 			key.Operation = operation
+			if operation == OprTypeDelete {
+				key.Object = obj
+			}
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -1118,9 +1129,6 @@ func (appInf *appInformer) start() {
 	if nil != appInf.podInformer {
 		go appInf.podInformer.Run(appInf.stopCh)
 	}
-	if nil != appInf.nodeInformer {
-		go appInf.nodeInformer.Run(appInf.stopCh)
-	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
@@ -1143,9 +1151,6 @@ func (appInf *appInformer) waitForCacheSync() {
 	}
 	if nil != appInf.cfgMapInformer {
 		cacheSyncs = append(cacheSyncs, appInf.cfgMapInformer.HasSynced)
-	}
-	if nil != appInf.nodeInformer {
-		cacheSyncs = append(cacheSyncs, appInf.nodeInformer.HasSynced)
 	}
 	if nil != appInf.ingClassInformer {
 		cacheSyncs = append(cacheSyncs, appInf.ingClassInformer.HasSynced)
@@ -1180,13 +1185,14 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer appMgr.vsQueue.ShutDown()
 	defer appMgr.nsQueue.ShutDown()
-
+	// start and sync node informer.
+	appMgr.startAndSyncNodeInformer()
 	if nil != appMgr.nsInformer {
 		// Using one worker for namespace label changes.
 		appMgr.startAndSyncNamespaceInformer(stopCh)
 		go wait.Until(appMgr.namespaceWorker, time.Second, stopCh)
 	}
-
+	// start and sync App informer
 	appMgr.startAndSyncAppInformers()
 
 	// Using only one virtual server worker currently.
@@ -1194,6 +1200,14 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 
 	<-stopCh
 	appMgr.stopAppInformers()
+	close(appMgr.nodeInformer.stopCh)
+}
+
+func (appMgr *Manager) startAndSyncNodeInformer() {
+	appMgr.informersMutex.Lock()
+	defer appMgr.informersMutex.Unlock()
+	go appMgr.nodeInformer.nodeInformer.Run(appMgr.nodeInformer.stopCh)
+	cache.WaitForCacheSync(appMgr.nodeInformer.stopCh, appMgr.nodeInformer.nodeInformer.HasSynced)
 }
 
 func (appMgr *Manager) startAndSyncNamespaceInformer(stopCh <-chan struct{}) {
@@ -1214,9 +1228,6 @@ func (appMgr *Manager) startAppInformersLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.start()
 	}
-	if nil != appMgr.as3Informer {
-		appMgr.as3Informer.start()
-	}
 }
 
 func (appMgr *Manager) waitForCacheSync() {
@@ -1229,9 +1240,6 @@ func (appMgr *Manager) waitForCacheSyncLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.waitForCacheSync()
 	}
-	if nil != appMgr.as3Informer {
-		appMgr.as3Informer.waitForCacheSync()
-	}
 }
 
 func (appMgr *Manager) stopAppInformers() {
@@ -1239,9 +1247,6 @@ func (appMgr *Manager) stopAppInformers() {
 	defer appMgr.informersMutex.Unlock()
 	for _, appInf := range appMgr.appInformers {
 		appInf.stopInformers()
-	}
-	if nil != appMgr.as3Informer {
-		appMgr.as3Informer.stopInformers()
 	}
 }
 
@@ -2019,6 +2024,9 @@ func (appMgr *Manager) syncRoutes(
 	appInf *appInformer,
 	dgMap InternalDataGroupMap,
 ) error {
+	if sKey.Operation == OprTypeDelete && sKey.ResourceKind == Routes {
+		appMgr.deleteHostPathMapEntry(sKey.Object)
+	}
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
 		log.Warningf("[CORE] Unable to list routes for namespace '%v': %v",
@@ -3609,18 +3617,17 @@ func (appMgr *Manager) updateHostPathMap(timestamp metav1.Time, key string) {
 func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
 	// This function deletes the route entry from processedHostPath
 	route := obj.(*routeapi.Route)
+	var key string
+	if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+		key = route.Spec.Host + "/"
+	} else {
+		key = route.Spec.Host + route.Spec.Path
+	}
 	appMgr.processedHostPath.Lock()
 	defer appMgr.processedHostPath.Unlock()
-	for hostPath, routeTimestamp := range appMgr.processedHostPath.processedHostPathMap {
-		var key string
-		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
-			key = route.Spec.Host + "/"
-		} else {
-			key = route.Spec.Host + route.Spec.Path
-		}
-		if routeTimestamp == route.CreationTimestamp && hostPath == key {
-			// Deleting the ProcessedHostPath map if route's path is changed
-			delete(appMgr.processedHostPath.processedHostPathMap, hostPath)
+	if routeTimestamp, ok := appMgr.processedHostPath.processedHostPathMap[key]; ok {
+		if routeTimestamp == route.CreationTimestamp {
+			delete(appMgr.processedHostPath.processedHostPathMap, key)
 		}
 	}
 }
@@ -3651,17 +3658,7 @@ func (appMgr *Manager) setOtherSDNType() {
 func (appMgr *Manager) setupNodeProcessing() error {
 	// Register appMgr to watch for node updates to keep track of watched nodes
 	//when there is update from node informer get list of nodes from nodeinformer cache
-	ns := ""
-	if appMgr.watchingAllNamespacesLocked() {
-		ns = ""
-	} else {
-		for _, k := range appMgr.GetAllWatchedNamespaces() {
-			ns = k
-			break
-		}
-	}
-	appInf, _ := appMgr.getNamespaceInformer(ns)
-	nodes := appInf.nodeInformer.GetIndexer().List()
+	nodes := appMgr.nodeInformer.nodeInformer.GetIndexer().List()
 	var nodeslist []v1.Node
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)

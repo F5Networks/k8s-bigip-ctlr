@@ -1463,6 +1463,11 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 	message string,
 	status v1.ConditionStatus,
 ) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("CIS recovered from the panic caused by route status update: %v\n")
+		}
+	}()
 	for retryCount := 0; retryCount < 3; retryCount++ {
 		route := ctlr.fetchRoute(rscKey)
 		if route == nil {

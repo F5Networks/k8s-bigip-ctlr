@@ -1076,10 +1076,19 @@ func (ctlr *Controller) processVirtualServers(
 		// TODO: Add Route Domain
 		var rsName string
 		if virtual.Spec.VirtualServerName != "" {
-			rsName = formatCustomVirtualServerName(
-				virtual.Spec.VirtualServerName,
-				portStruct.port,
-			)
+			if virtual.Spec.HostGroup != "" {
+				//Ignore virtualServerName if hostgroup is configured on virtual
+				log.Warningf("virtualServerName is ignored as hostgroup is configured on virtualserver %v", virtual.Name)
+				rsName = formatVirtualServerName(
+					ip,
+					portStruct.port,
+				)
+			} else {
+				rsName = formatCustomVirtualServerName(
+					virtual.Spec.VirtualServerName,
+					portStruct.port,
+				)
+			}
 		} else {
 			rsName = formatVirtualServerName(
 				ip,
@@ -1334,10 +1343,21 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
 				return nil
 			}
-			// Empty host with IPAM label is invalid for a Virtual Server
-			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" {
-				log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
+			// Empty host and hostGroup with IPAM label is invalid for a Virtual Server
+			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" && vrt.Spec.HostGroup == "" {
+				log.Errorf("Hostless VS %v is configured with IPAM label: %v and missing HostGroup", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
 				return nil
+			}
+
+			// Empty host with empty IPAM label is invalid
+			if vrt.Spec.Host == "" && vrt.Spec.VirtualServerAddress == "" && len(vrt.Spec.AdditionalVirtualServerAddresses) == 0 {
+				if vrt.Spec.IPAMLabel == "" && vrt.Spec.HostGroup != "" {
+					log.Errorf("Hostless VS %v is configured with missing IPAM label", vrt.ObjectMeta.Name)
+					return nil
+				}
+				if vrt.Spec.IPAMLabel == "" {
+					continue
+				}
 			}
 		}
 

@@ -352,6 +352,61 @@ var _ = Describe("Worker Tests", func() {
 				ipamCR = mockCtlr.getIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(0), errHint+"IP Address Not released")
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
+
+				// ReleaseIP with hostgroup in use
+				key = "foo_hg"
+				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				// Update status
+				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						IP:        "10.10.10.1",
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+
+				// VS
+				vs := test.NewVirtualServer(
+					"SampleVS",
+					namespace,
+					cisapiv1.VirtualServerSpec{
+						VirtualServerAddress: "10.1.1.1",
+						HostGroup:            "foo",
+					},
+				)
+				mockCtlr.addVirtualServer(vs)
+				ns := make(map[string]bool)
+				ns["default"] = true
+				mockCtlr.namespaces = ns
+				ip = mockCtlr.releaseIP("test", host, key)
+				ipamCR = mockCtlr.getIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).NotTo(Equal(0), errHint+"IP Address Not released")
+				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
+
+				// TS
+				ts := test.NewTransportServer(
+					"SampleTS",
+					namespace,
+					cisapiv1.TransportServerSpec{
+						VirtualServerAddress: "10.1.1.1",
+						HostGroup:            "foo",
+					},
+				)
+				mockCtlr.addTransportServer(ts)
+				ip = mockCtlr.releaseIP("test", host, key)
+				ipamCR = mockCtlr.getIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).NotTo(Equal(0), errHint+"IP Address Not released")
+				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
+
 			}
 		})
 
@@ -1469,6 +1524,7 @@ var _ = Describe("Worker Tests", func() {
 					IngressLink:     make(map[string]int),
 					VirtualServer:   make(map[string]int),
 					TransportServer: make(map[string]int),
+					IPAMSvcLB:       make(map[string]int),
 				},
 			}
 
@@ -1929,12 +1985,23 @@ var _ = Describe("Worker Tests", func() {
 				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 				newIpamCR := ipamCR.DeepCopy()
 
+				svc2 := svc.DeepCopy()
+				svc2.Name = "test1"
+				svc2.Spec.Type = v1.ServiceTypeLoadBalancer
+				mockCtlr.addService(svc2)
+				mockCtlr.processResources()
+
 				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
 					{
 						IPAMLabel: "test",
 						Host:      host,
 						IP:        "10.10.10.1",
 						Key:       key,
+					},
+					{
+						IPAMLabel: "test",
+						IP:        "10.10.10.2",
+						Key:       "default/test1_svc",
 					},
 				}
 				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
@@ -2163,6 +2230,7 @@ var _ = Describe("Worker Tests", func() {
 			It("Transport Server Validation", func() {
 				go mockCtlr.Agent.agentWorker()
 				go mockCtlr.Agent.retryWorker()
+				_ = mockCtlr.Agent.respChan
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
 
 				mockCtlr.addEndpoints(fooEndpts)
@@ -2218,6 +2286,7 @@ var _ = Describe("Worker Tests", func() {
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				rscUpdateMeta.id = 3
 
+				delete(rscUpdateMeta.failedTenants, "test")
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
 				time.Sleep(10 * time.Millisecond)
@@ -3650,6 +3719,199 @@ extendedRouteSpec:
 				time.Sleep(10 * time.Millisecond)
 
 			})
+		})
+	})
+
+	Describe("Processing VS, TS, IL, SvcLB on pod update", func() {
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.Partition = "test"
+			mockCtlr.Agent = &Agent{
+				postChan:            make(chan ResourceConfigRequest, 1),
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				respChan:            make(chan resourceStatusMeta, 1),
+				retryTenantDeclMap:  make(map[string]*tenantParams),
+				PostManager: &PostManager{
+					PostParams: PostParams{
+						BIGIPURL: "10.10.10.1",
+					},
+				},
+			}
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			_ = mockCtlr.addNamespacedInformers("default", false)
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					VirtualServer:   make(map[string]int),
+					IngressLink:     make(map[string]int),
+					TransportServer: make(map[string]int),
+				},
+			}
+			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
+				mockCtlr.kubeCRClient,
+				namespace,
+				0,
+				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+				func(options *metav1.ListOptions) {
+					options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+				},
+			)
+			mockCtlr.crInformers["default"].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
+				mockCtlr.kubeCRClient,
+				namespace,
+				0,
+				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+				func(options *metav1.ListOptions) {
+					options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+				},
+			)
+		})
+		It("Virtual Server processing on pod update", func() {
+			mockCtlr.PoolMemberType = NodePortLocal
+			mockCtlr.ipamCli = nil
+			labels := make(map[string]string)
+			labels["app"] = "dev"
+			mockCtlr.comInformers[namespace] = mockCtlr.newNamespacedCommonResourceInformer(namespace)
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 80,
+					Name: "port0",
+				},
+			}
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"svc1", "1", "node0", namespace, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			mockCtlr.processResources()
+
+			// Create service
+			svc1 := "svc1"
+			svc := test.NewService(svc1, "1", namespace, "Cluster", fooPorts)
+			svc.Spec.Selector = labels
+			svc.Labels = labels
+			mockCtlr.addService(svc)
+			mockCtlr.processResources()
+
+			// Create pod
+			pod := &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pod",
+					Namespace: namespace,
+					Labels:    labels,
+				},
+			}
+			cnt := v1.Container{
+				Ports: []v1.ContainerPort{
+					v1.ContainerPort{
+						ContainerPort: 80,
+						Protocol:      v1.ProtocolTCP,
+					},
+				},
+			}
+			pod.Spec.Containers = append(pod.Spec.Containers, cnt)
+			mockCtlr.addPod(pod)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+			// Create VS
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					VirtualServerAddress: "10.1.1.1",
+					HostGroup:            "foo",
+					Pools: []cisapiv1.Pool{{
+						Name:    "pool1",
+						Service: svc1,
+					}},
+				},
+			)
+			mockCtlr.addVirtualServer(vs)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+			mockCtlr.updatePod(pod)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+			// Create TS
+			ts := test.NewTransportServer(
+				"SampleTS",
+				namespace,
+				cisapiv1.TransportServerSpec{
+					VirtualServerAddress: "10.1.1.1",
+					HostGroup:            "invalid",
+					Pool: cisapiv1.Pool{
+						Name:    "pool1",
+						Service: svc1,
+					},
+				},
+			)
+			mockCtlr.addTransportServer(ts)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+			mockCtlr.updatePod(pod)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+
+			// Create IL
+			var (
+				selctor = &metav1.LabelSelector{
+					MatchLabels: labels,
+				}
+			)
+			il := test.NewIngressLink("ingresslink1", namespace, "1",
+				cisapiv1.IngressLinkSpec{
+					VirtualServerAddress: "",
+					Selector:             selctor,
+				})
+			mockCtlr.addIngressLink(il)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+			// Update pod
+			mockCtlr.updatePod(pod)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+
+			// Create SvcLB
+			svc.Spec.Type = v1.ServiceTypeLoadBalancer
+			mockCtlr.addService(svc)
+			mockCtlr.processResources()
+
+			mockCtlr.updatePod(pod)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+
+			// nlp annotations
+			svc.Annotations = make(map[string]string)
+			svc.Annotations[NPLSvcAnnotation] = "true"
+			mockCtlr.addService(svc)
+			mockCtlr.processResources()
+
+			// Update Endpoints
+			mockCtlr.addEndpoints(fooEndpts)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+
+			// nodeport service
+			svc.Spec.Type = v1.ServiceTypeNodePort
+			mockCtlr.addService(svc)
+			mockCtlr.processResources()
+
+			// Update Endpoints
+			mockCtlr.addEndpoints(fooEndpts)
+			mockCtlr.processResources()
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Virtual Server")
+
 		})
 	})
 })

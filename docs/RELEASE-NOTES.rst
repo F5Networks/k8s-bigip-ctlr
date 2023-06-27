@@ -1,6 +1,19 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.13.1
+-------------
+Bug Fixes
+````````````
+* Fix removal of static ARP entries for Flannel CNI during CIS restart
+* `Issue 2800 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2800>`_: Fix monitor not creating for VS CRD when send string is missing
+* `Issue 2867 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2867>`_: Ignore virtualServerName if hostGroup configured
+* `Issue 2898 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2898>`_: Fix for CIS crash with namespace-label parameter
+* `Issue 2778 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2778>`_: Fix for hostless VS does not work with IPAM
+* `Issue 2908 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2908>`_: Fix for CIS crash while updating the route status
+* `Issue 2912 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2912>`_: Enable metrics with ipv6 mode
+
+
 2.13.0
 -------------
 

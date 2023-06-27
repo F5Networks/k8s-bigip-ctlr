@@ -18,6 +18,8 @@ package vxlan
 
 import (
 	"context"
+	"time"
+
 	// appManager is only used because we need the Member type (can't mock it)
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
@@ -370,5 +372,55 @@ var _ = Describe("VxlanMgr Tests", func() {
 			},
 		}
 		Expect(section).To(Equal(expected))
+
+		// CiliumTunnel
+		cilliumPod := flannelPod.DeepCopy()
+		vxMgr.ciliumTunnelName = "cliliumTunnel"
+		fakeClient.CoreV1().Pods("default").Update(context.TODO(), cilliumPod, metav1.UpdateOptions{})
+
+		pod = []resource.Member{
+			resource.Member{
+				Address: "1.2.3.4",
+			},
+		}
+		eventChan <- pod
+
+		Eventually(func() int {
+			return mock.WrittenTimes
+		}).Should(Equal(1))
+		mock.Lock()
+		section, ok = mock.Sections["vxlan-arp"].(arpSection)
+		mock.Unlock()
+		Expect(ok).To(BeTrue())
+
+		expected = arpSection{
+			Entries: []arpEntry{
+				arpEntry{
+					Name:    "k8s-1.2.3.4",
+					IPAddr:  "1.2.3.4",
+					MACAddr: "12:ab:34:cd:56:ef",
+				},
+			},
+		}
+		Expect(section).To(Equal(expected))
+		time.Sleep(time.Millisecond * 2)
+
+		// pod name contains cilium
+		delete(mock.Sections, "vxlan-arp")
+		cilliumPod2 := cilliumPod.DeepCopy()
+		cilliumPod2.Name = "test_pod_cilium"
+		vxMgr.ciliumTunnelName = ""
+		fakeClient.CoreV1().Pods("default").Create(context.TODO(), cilliumPod2, metav1.CreateOptions{})
+		cilliumPod2.Status.Phase = "Running"
+		fakeClient.CoreV1().Pods("default").Update(context.TODO(), cilliumPod2, metav1.UpdateOptions{})
+		eventChan <- pod
+		Eventually(func() int {
+			return mock.WrittenTimes
+		}).Should(Equal(3))
+		mock.Lock()
+		section, ok = mock.Sections["vxlan-arp"].(arpSection)
+		mock.Unlock()
+		Expect(ok).To(BeTrue())
+		Expect(section).To(Equal(arpSection{}))
 	})
 })

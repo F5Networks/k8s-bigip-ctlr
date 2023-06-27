@@ -25,15 +25,12 @@ import (
 
 	"sort"
 
-	//"strconv"
-	"strings"
-	"sync"
-
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	//"strconv"
+	"strings"
 
 	routeapi "github.com/openshift/api/route/v1"
-	"k8s.io/api/extensions/v1beta1"
 )
 
 type RouteList []*routeapi.Route
@@ -125,132 +122,6 @@ func formatIngressRuleName(host, path, pool string) string {
 		rule = fmt.Sprintf("ingress_%s_%s_%s", host, path, pool)
 	}
 	return rule
-}
-
-// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
-func processIngressRules(
-	ing *v1beta1.IngressSpec,
-	urlRewriteMap map[string]string,
-	whitelistSourceRanges []string,
-	appRootMap map[string]string,
-	pools []Pool,
-	partition string,
-) (*Rules, map[string]string, map[string][]string) {
-	var err error
-	var uri, poolName string
-	var rl *Rule
-	var urlRewriteRules []*Rule
-	var appRootRules []*Rule
-
-	rlMap := make(RuleMap)
-	wildcards := make(RuleMap)
-	urlRewriteRefs := make(map[string]string)
-	appRootRefs := make(map[string][]string)
-
-	for _, rule := range ing.Rules {
-		if nil != rule.IngressRuleValue.HTTP {
-			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				uri = rule.Host + path.Path
-				for _, pool := range pools {
-					if path.Backend.ServiceName == pool.ServiceName {
-						poolName = pool.Name
-					}
-				}
-				if poolName == "" {
-					continue
-				}
-				ruleName := formatIngressRuleName(rule.Host, path.Path, poolName)
-				// This blank name gets overridden by an ordinal later on
-				rl, err = createRule(uri, poolName, partition, ruleName)
-				if nil != err {
-					log.Warningf("[CORE] Error configuring rule: %v", err)
-					return nil, nil, nil
-				}
-				if true == strings.HasPrefix(uri, "*.") {
-					wildcards[uri] = rl
-				} else {
-					rlMap[uri] = rl
-				}
-
-				// Process url-rewrite annotation
-				if urlRewriteTargetedVal, ok := urlRewriteMap[uri]; ok == true {
-					urlRewriteRule := ProcessURLRewrite(uri, urlRewriteTargetedVal, MultiServiceIngressType)
-					urlRewriteRules = append(urlRewriteRules, urlRewriteRule)
-					urlRewriteRefs[poolName] = urlRewriteRule.Name
-				}
-
-				// Process app-root annotation
-				if appRootTargetedVal, ok := appRootMap[rule.Host]; ok == true {
-					appRootRulePair := ProcessAppRoot(uri, appRootTargetedVal, fmt.Sprintf("/%s/%s", partition, poolName), MultiServiceIngressType)
-					appRootRules = append(appRootRules, appRootRulePair...)
-					if len(appRootRulePair) == 2 {
-						appRootRefs[poolName] = append(appRootRefs[poolName], appRootRulePair[0].Name)
-						appRootRefs[poolName] = append(appRootRefs[poolName], appRootRulePair[1].Name)
-					}
-				}
-				poolName = ""
-			}
-		}
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	sortrules := func(r RuleMap, rls *Rules, ordinal int) {
-		for _, v := range r {
-			*rls = append(*rls, v)
-		}
-		sort.Sort(sort.Reverse(*rls))
-		for _, v := range *rls {
-			v.Ordinal = ordinal
-			ordinal++
-		}
-		wg.Done()
-	}
-
-	rls := Rules{}
-	go sortrules(rlMap, &rls, 0)
-
-	w := Rules{}
-	go sortrules(wildcards, &w, len(rlMap))
-
-	wg.Wait()
-
-	rls = append(rls, w...)
-
-	if len(appRootRules) != 0 {
-		rls = append(rls, appRootRules...)
-	}
-	if len(urlRewriteRules) != 0 {
-		rls = append(rls, urlRewriteRules...)
-	}
-
-	if len(whitelistSourceRanges) != 0 {
-		// Add whitelist entries to each rule.
-		//
-		// Whitelist rules are added as other conditions on the rule so that
-		// the whitelist is actually enforced. The whitelist entries cannot
-		// be separate rules because of the matching strategy that is used.
-		//
-		// The matching strategy used is first-match. Therefore, if the
-		// whitelist were a separate rule, and they did not match, then
-		// further rules will be processed and this is not what the function
-		// of a whitelist should be.
-		//
-		// Whitelists should be used to *prevent* access. So they need to be
-		// a separate condition of *each* rule.
-		for _, x := range rls {
-			cond := Condition{
-				Tcp:     true,
-				Address: true,
-				Matches: true,
-				Name:    "0",
-				Values:  whitelistSourceRanges,
-			}
-			x.Conditions = append(x.Conditions, &cond)
-		}
-	}
-
-	return &rls, urlRewriteRefs, appRootRefs
 }
 
 func httpRedirectIRule(port int32, partition string, agent string) string {

@@ -751,6 +751,10 @@ func GetNamespaces(appMgr *appmanager.Manager) {
 func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	label := resource.DefaultConfigMapLabel
 
+	err := appMgr.AddNodeInformer(resyncPeriod)
+	if nil != err {
+		log.Warningf("[INIT] Failed to add node informer for the controller:%v", err)
+	}
 	if len(*namespaceLabel) == 0 {
 		// For periodic monitoring
 		// Non monitoring namespaces will not be processed
@@ -830,7 +834,8 @@ func initController(
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" {
+	// ARP not required for nodeport mode
+	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" || *poolMemberType == "nodeport" {
 		agentParams.DisableARP = true
 	}
 
@@ -862,23 +867,6 @@ func initController(
 	)
 
 	return ctlr
-}
-
-// TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
-// it is used to create informer for v1 ingress
-func getk8sVersion() string {
-	var versionInfo map[string]string
-	var err error
-	var vInfo []byte
-	rc := kubeClient.Discovery().RESTClient()
-	if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(context.TODO()); err == nil {
-		// support k8s
-		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
-			// return fmt.Sprintf(versionInfo["gitVersion"])
-			return fmt.Sprintf(versionInfo["gitVersion"])
-		}
-	}
-	return ""
 }
 
 func main() {
@@ -1017,7 +1005,7 @@ func main() {
 	}
 	// When CIS configured in OCP cluster mode disable ARP in globalSection
 	disableARP := false
-	if *openshiftSDNName != "" || *staticRoutingMode == true {
+	if *openshiftSDNName != "" || *staticRoutingMode == true || *poolMemberType == "nodeport" {
 		disableARP = true
 	}
 
@@ -1100,7 +1088,6 @@ func main() {
 	if *filterTenants {
 		appMgr.AgentCIS.Clean(resource.DEFAULT_PARTITION)
 	}
-	appMgr.K8sVersion = getk8sVersion()
 	if *agent == cisAgent.AS3Agent && !(*disableTeems) {
 		key := appMgr.AgentCIS.GetBigipRegKey()
 		td.RegistrationKey = key

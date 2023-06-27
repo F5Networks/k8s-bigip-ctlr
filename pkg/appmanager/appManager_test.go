@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -140,7 +140,6 @@ func newMockAppManager(params *Params) *mockAppManager {
 
 func (m *mockAppManager) startNonLabelMode(namespaces []string) error {
 	ls, err := labels.Parse(DefaultConfigMapLabel)
-	m.appMgr.K8sVersion = "v1.19.6"
 	if err != nil {
 		return fmt.Errorf("failed to parse Label Selector string: %v", err)
 	}
@@ -406,8 +405,7 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 }
 
 func (m *mockAppManager) addNode(node *v1.Node, ns string) {
-	appInf, _ := m.appMgr.getNamespaceInformer(ns)
-	appInf.nodeInformer.GetStore().Add(node)
+	m.appMgr.nodeInformer.nodeInformer.GetStore().Add(node)
 	m.appMgr.setupNodeProcessing()
 }
 
@@ -2674,7 +2672,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.updateHostPathMap(route1.CreationTimestamp, key)
 				_, ok := mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
 				Expect(ok).To(BeTrue())
-				mockMgr.appMgr.enqueueRoute(route1, OprTypeDelete)
+				mockMgr.appMgr.deleteHostPathMapEntry(route1)
 				_, ok = mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
 				Expect(ok).To(BeFalse())
 				spec2 := routeapi.RouteSpec{
@@ -3666,6 +3664,30 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: nsDefault}, NameRef{Name: FormatConfigMapVSName(cfgNsDefault), Partition: "velcro"})
 				Expect(ok).To(BeFalse(), "Config map should be accessible.")
+			})
+
+			It("Verify Configmap processing ", func() {
+				ns1 := "ns1"
+				ns2 := "ns2"
+				mockMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.AS3Agent)
+				mockMgr.appMgr.AgentCIS.Init(&as3.Params{})
+
+				err := mockMgr.startNonLabelMode([]string{ns1, ns2})
+				Expect(err).To(BeNil())
+				node := test.NewNode("node1", "1", false,
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+				Expect(err).To(BeNil())
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+				Expect(err).To(BeNil(), "Should not fail listing nodes.")
+				mockMgr.processNodeUpdate(n.Items)
+
+				cfgNs1 := test.NewConfigMap("foomap", "1", ns1,
+					map[string]string{
+						"template": configmapFoo,
+					})
+				r := mockMgr.addConfigMap(cfgNs1)
+				Expect(r).To(BeTrue(), "Config map should be processed.")
 			})
 
 			It("handles added and removed namespaces", func() {

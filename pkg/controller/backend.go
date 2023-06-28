@@ -856,7 +856,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 			createServiceDecl(cfg, sharedApp, tenant)
 		case TransportServer:
 			//Create AS3 Service for transport virtual server
-			createTransportServiceDecl(cfg, sharedApp)
+			createTransportServiceDecl(cfg, sharedApp, tenant)
 		}
 	}
 }
@@ -992,16 +992,23 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			)
 		}
 		svc.PolicyEndpoint = peps
-	case numPolicies == 0:
-		// No policies since we need to handle the pool name.
-		ps := strings.Split(cfg.Virtual.PoolName, "/")
-		if cfg.Virtual.PoolName != "" {
-			svc.Pool = fmt.Sprintf("/%s/%s/%s",
+	}
+	// Attach the default pool if pool name is present for virtual.
+	if cfg.Virtual.PoolName != "" {
+		var poolPointer as3ResourcePointer
+		if cfg.MetaData.defaultPoolType == BIGIP {
+			poolPointer.BigIP = cfg.Virtual.PoolName
+		} else {
+			ps := strings.Split(cfg.Virtual.PoolName, "/")
+			poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
 				tenant,
 				as3SharedApplication,
-				ps[len(ps)-1])
+				ps[len(ps)-1],
+			)
 		}
+		svc.Pool = &poolPointer
 	}
+
 	if cfg.Virtual.TLSTermination != TLSPassthrough {
 		svc.Layer4 = cfg.Virtual.IpProtocol
 		svc.Source = "0.0.0.0/0"
@@ -1648,7 +1655,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 transport Service for CRD
-func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
+func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
 	svc := &as3Service{}
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
@@ -1752,7 +1759,14 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.VirtualPort = port
 		}
 	}
-	svc.Pool = cfg.Virtual.PoolName
+	var poolPointer as3ResourcePointer
+	ps := strings.Split(cfg.Virtual.PoolName, "/")
+	poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+		tenant,
+		as3SharedApplication,
+		ps[len(ps)-1],
+	)
+	svc.Pool = &poolPointer
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

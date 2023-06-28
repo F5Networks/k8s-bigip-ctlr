@@ -1366,6 +1366,12 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			continue
 		}
 
+		// skip the virtuals with different default pool
+		if !reflect.DeepEqual(currentVS.Spec.DefaultPool, vrt.Spec.DefaultPool) {
+			log.Errorf("%v/%v and %v/%v VS should have same default pool.", vrt.Namespace, vrt.Name, currentVS.Namespace, currentVS.Name)
+			continue
+		}
+
 		// Check for duplicate path entries among virtuals
 		uniquePaths, ok := uniqueHostPathMap[vrt.Spec.Host]
 		if !ok {

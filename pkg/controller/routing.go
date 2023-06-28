@@ -870,7 +870,12 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 						}
 					}
                 }
-                set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+				# handle the default pool for virtual server
+				set default_class "/%[1]s/%[2]s_default_pool_servername_dg"
+                 if { [class exists $default_class] } { 
+                    set dflt_pool [class match -value "defaultPool" equals $default_class]
+                 }
+                
                 # Handle requests sent to unknown hosts.
                 # For valid hosts, Send the request to respective pool.
                 if { not [info exists dflt_pool] } then {
@@ -881,6 +886,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
                 } else {
                 	pool $dflt_pool
                 }
+				set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
                 if { [class exists $ab_class] } {
                     set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
                     if { $selected_pool == "" } then {

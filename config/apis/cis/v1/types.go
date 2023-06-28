@@ -35,6 +35,7 @@ type VirtualServerSpec struct {
 	VirtualServerName                string           `json:"virtualServerName,omitempty"`
 	VirtualServerHTTPPort            int32            `json:"virtualServerHTTPPort,omitempty"`
 	VirtualServerHTTPSPort           int32            `json:"virtualServerHTTPSPort,omitempty"`
+	DefaultPool                      DefaultPool      `json:"defaultPool,omitempty"`
 	Pools                            []Pool           `json:"pools,omitempty"`
 	TLSProfileName                   string           `json:"tlsProfileName,omitempty"`
 	HTTPTraffic                      string           `json:"httpTraffic,omitempty"`
@@ -62,6 +63,20 @@ type ServiceAddress struct {
 	RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
 	TrafficGroup       string `json:"trafficGroup,omitempty"`
 	SpanningEnabled    bool   `json:"spanningEnabled,omitempty"`
+}
+
+// DefaultPool defines default pool object in BIG-IP.
+type DefaultPool struct {
+	Name              string             `json:"name,omitempty"`
+	Service           string             `json:"service"`
+	ServicePort       intstr.IntOrString `json:"servicePort"`
+	NodeMemberLabel   string             `json:"nodeMemberLabel,omitempty"`
+	Monitors          []Monitor          `json:"monitors"`
+	Balance           string             `json:"loadBalancingMethod,omitempty"`
+	ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
+	ReselectTries     int32              `json:"reselectTries,omitempty"`
+	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
+	Reference         string             `json:"reference,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.

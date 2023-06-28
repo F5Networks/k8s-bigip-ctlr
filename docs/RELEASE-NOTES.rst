@@ -5,19 +5,25 @@ Next Release
 
 Added Functionality
 ```````````````````
-**What’s new:**
+**What's new:**
     * Ingress
         *
     * CRD
         *
 Bug Fixes
 ````````````
-* Exclude the removal of static ARP entries for Flannel CNI during CIS restart
-* `Issue 2800 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2800>`_: Add validation message for monitor when send string is missing
+
+2.13.1
+-------------
+Bug Fixes
+````````````
+* Fix removal of static ARP entries for Flannel CNI during CIS restart
+* `Issue 2800 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2800>`_: Fix monitor not creating for VS CRD when send string is missing
 * `Issue 2867 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2867>`_: Ignore virtualServerName if hostGroup configured
 * `Issue 2898 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2898>`_: Fix for CIS crash with namespace-label parameter
-* `Issue 2778 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2778>`_: Fix hostless VS with IPAM to work with hostgroup
+* `Issue 2778 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2778>`_: Fix for hostless VS does not work with IPAM
 * `Issue 2908 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2908>`_: Fix for CIS crash while updating the route status
+* `Issue 2912 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2912>`_: Enable metrics with ipv6 mode
 
 
 2.13.0
@@ -51,7 +57,6 @@ Bug Fixes
 * `Issue 2632 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2632>`_: Fix hubmode support with NodePortLocal
 * `Issue 2821 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2821>`_: Fix for additionalVirtualAddresses with serviceAddress config
 * `Issue 2550 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2550>`_: Ability to specify monitors for TransportServer CR
-* `Issue 2912 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2912>`_: Enable metrics with ipv6 mode
 * Fix for recreating the LTM objects when CIS restarts in IPAM mode.
 * Improved error handling for GTM objects with cccl-gtm-agent.
 * Fix crash issue with liveness probe in NextGen routes

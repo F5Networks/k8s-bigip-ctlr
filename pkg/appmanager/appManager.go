@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"reflect"
 	"sort"
 	"strconv"
@@ -3817,7 +3818,24 @@ func parseNodeSubnet(ann, nodeName string) (string, error) {
 	var subnetDict map[string]interface{}
 	json.Unmarshal([]byte(ann), &subnetDict)
 	if nodeSubnet, ok := subnetDict["default"]; ok {
-		return nodeSubnet.(string), nil
+		switch nodeSubnetObj := nodeSubnet.(type) {
+		case string:
+			return nodeSubnet.(string), nil
+		case []interface{}:
+			for _, subnet := range nodeSubnetObj {
+				ip, _, err := net.ParseCIDR(subnet.(string))
+				if err != nil {
+					log.Errorf("Unable to parse cidr for subnet %v with err %v", subnet, err)
+				} else {
+					//check for ipv4 address
+					if nil != ip.To4() {
+						return subnet.(string), nil
+					}
+				}
+			}
+		default:
+			return "", fmt.Errorf("Unsupported annotation format")
+		}
 	}
 	err := fmt.Errorf("%s annotation for "+
 		"node '%s' has invalid format; cannot validate node subnet. "+

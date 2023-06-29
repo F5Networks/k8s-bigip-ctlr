@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"sync"
@@ -401,20 +402,20 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name                 string                         `json:"name"`
-		Partition            string                         `json:"-"`
-		ServiceName          string                         `json:"-"`
-		ServiceNamespace     string                         `json:"-"`
-		ServicePort          intstr.IntOrString             `json:"-"`
-		Balance              string                         `json:"loadBalancingMethod,omitempty"`
-		Members              []PoolMember                   `json:"members"`
-		NodeMemberLabel      string                         `json:"-"`
-		MonitorNames         []MonitorName                  `json:"monitors,omitempty"`
-		ReselectTries        int32                          `json:"reselectTries,omitempty"`
-		ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
-		Weight               int32                          `json:"weight,omitempty"`
-		AlternateBackends    []AlternateBackend             `json:"alternateBackends"`
-		MultiClusterServices []MultiClusterServiceReference `json:"_"`
+		Name                 string                                  `json:"name"`
+		Partition            string                                  `json:"-"`
+		ServiceName          string                                  `json:"-"`
+		ServiceNamespace     string                                  `json:"-"`
+		ServicePort          intstr.IntOrString                      `json:"-"`
+		Balance              string                                  `json:"loadBalancingMethod,omitempty"`
+		Members              []PoolMember                            `json:"members"`
+		NodeMemberLabel      string                                  `json:"-"`
+		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
+		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
+		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
+		Weight               int32                                   `json:"weight,omitempty"`
+		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
+		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -1321,12 +1322,5 @@ type (
 		svcInformer cache.SharedIndexInformer
 		epsInformer cache.SharedIndexInformer
 		podInformer cache.SharedIndexInformer
-	}
-
-	MultiClusterServiceReference struct {
-		ClusterName string             `json:"clusterName"`
-		SvcName     string             `json:"svcName"`
-		Namespace   string             `json:"namespace"`
-		ServicePort intstr.IntOrString `json:"port"`
 	}
 )

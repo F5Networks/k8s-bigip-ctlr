@@ -411,14 +411,14 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 		}
-		var multiClusterServices []MultiClusterServiceReference
+		var multiClusterServices []cisapiv1.MultiClusterServiceReference
 		if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 			for svc, config := range svcs {
-				multiClusterServices = append(multiClusterServices, MultiClusterServiceReference{
-					svc.clusterName,
-					svc.serviceName,
-					svc.namespace,
-					config.svcPort,
+				multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+					ClusterName: svc.clusterName,
+					SvcName:     svc.serviceName,
+					Namespace:   svc.namespace,
+					ServicePort: config.svcPort,
 				})
 				// update the clusterSvcMap
 				ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
@@ -1710,7 +1710,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	}
 	// Validate multiCluster service annotation has valid cluster names
 	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
-		var clusterSvcs []MultiClusterServiceReference
+		var clusterSvcs []cisapiv1.MultiClusterServiceReference
 		err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 		if err == nil {
 			ctlr.multiClusterResources.Lock()

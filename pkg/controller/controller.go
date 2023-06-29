@@ -162,7 +162,6 @@ func NewController(params Params) *Controller {
 	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
-		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
 		ctlr.routeLabel = params.RouteLabel
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
@@ -170,6 +169,8 @@ func NewController(params Params) *Controller {
 	default:
 		ctlr.mode = CustomResourceMode
 	}
+	// set extended spec configmap for all
+	ctlr.globalExtendedCMKey = params.GlobalExtendedSpecConfigmap
 
 	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
 	if ctlr.PoolMemberType == "nodeport" {

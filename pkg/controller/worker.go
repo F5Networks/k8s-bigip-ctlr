@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"reflect"
 	"sort"
@@ -55,14 +56,15 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
 	ctlr.setInitialResourceCount()
 	ctlr.migrateIPAM()
-	if ctlr.mode == OpenShiftMode {
-		ctlr.processGlobalExtendedRouteConfig()
+	// process the extended configmap if present
+	if ctlr.globalExtendedCMKey != "" {
+		ctlr.processGlobalExtendedConfigMap()
+	}
 
-		// when CIS is running in the secondary mode then enable health probe on the primary cluster
-		if ctlr.cisType == SecondaryCIS {
-			ctlr.firstPollPrimaryClusterHealthStatus()
-			go ctlr.probePrimaryClusterHealthStatus()
-		}
+	// when CIS is running in the secondary mode then enable health probe on the primary cluster
+	if ctlr.cisType == SecondaryCIS {
+		ctlr.firstPollPrimaryClusterHealthStatus()
+		go ctlr.probePrimaryClusterHealthStatus()
 	}
 	for ctlr.processResources() {
 	}
@@ -610,7 +612,7 @@ func (ctlr *Controller) processResources() bool {
 				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
 			}
 			if ctlr.namespaceLabelMode {
-				ctlr.processGlobalExtendedRouteConfig()
+				ctlr.processGlobalExtendedConfigMap()
 			} else {
 				if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
 					_ = ctlr.processRoutes(routeGroup, triggerDelete)
@@ -3821,6 +3823,47 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 		delete(ctlr.resources.nplStore, podKey)
 	}
 	return nil
+}
+
+func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error, bool) {
+	startTime := time.Now()
+	defer func() {
+		endTime := time.Now()
+		key := cm.Namespace + string('/') + cm.Name
+		if ctlr.globalExtendedCMKey == key {
+			log.Debugf("Finished syncing extended global spec configmap: %v/%v (%v)",
+				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		} else {
+			log.Debugf("Finished syncing extended local spec configmap: %v/%v (%v)",
+				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		}
+
+	}()
+	ersData := cm.Data
+	es := extendedSpec{}
+	//log.Debugf("GCM: %v", cm.Data)
+	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
+	if err != nil {
+		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
+	}
+	if ctlr.isGlobalExtendedCM(cm) {
+		// Get Multicluster kube-config
+		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
+		ctlr.checkSecondaryCISConfig()
+		ctlr.stopDeletedGlobalCMMultiClusterInformers()
+		if err != nil {
+			return err, false
+		}
+	}
+	// Process the routeSpec defined in extended configMap
+	if ctlr.mode == OpenShiftMode {
+		if ctlr.isGlobalExtendedCM(cm) {
+			return ctlr.processRouteConfigFromGlobalCM(es, isDelete)
+		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
+			return ctlr.processRouteConfigFromLocalCM(es, isDelete, cm.Namespace)
+		}
+	}
+	return nil, true
 }
 
 // getPolicyFromLBService gets the policy attached to the service and returns it

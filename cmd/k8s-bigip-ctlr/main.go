@@ -187,7 +187,8 @@ var (
 	clientSSL        *string
 	serverSSL        *string
 
-	routeSpecConfigmap *string
+	extendedSpecConfigmap *string
+	routeSpecConfigmap    *string
 
 	gtmBigIPURL      *string
 	gtmBigIPUsername *string
@@ -262,6 +263,11 @@ func _init() {
 		"Optional, to put the controller to process desired resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
 		"Optional, CIS uses this value as default Route Domain in BIG-IP ")
+	routeSpecConfigmap = globalFlags.String("route-spec-configmap", "",
+		"Required, specify a configmap that holds additional spec for routes"+
+			" if controller-mode is 'openshift'")
+	extendedSpecConfigmap = globalFlags.String("extended-spec-configmap", "",
+		"Required, specify a configmap that holds additional spec for controller. It's a required parameter if controller-mode is 'openshift'")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -411,11 +417,6 @@ func _init() {
 	serverSSL = osRouteFlags.String("default-server-ssl", "",
 		"Optional, specify a user-created server ssl profile to be used as"+
 			" default for SNI for Route virtual servers")
-
-	routeSpecConfigmap = osRouteFlags.String("route-spec-configmap", "",
-		"Required, specify a configmap that holds additional spec for routes"+
-			" if controller-mode is 'openshift'")
-
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsagesWrapped(width))
 	}
@@ -550,7 +551,18 @@ func verifyArgs() error {
 	} else {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
-
+	if len(*extendedSpecConfigmap) > 0 {
+		if len(strings.Split(*extendedSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --extended-spec-configmap" +
+				"Usage: --extended-spec-configmap=<namespace>/<configmap-name>")
+		}
+	}
+	if len(*routeSpecConfigmap) > 0 {
+		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		}
+	}
 	if *staticRoutingMode == true {
 		if isNodePort || *poolMemberType == "nodeportlocal" {
 			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
@@ -609,16 +621,15 @@ func verifyArgs() error {
 				"Usage: --override-as3-declaration=<namespace>/<configmap-name>")
 		}
 	}
-
 	switch *controllerMode {
 	case "",
 		string(controller.CustomResourceMode),
 		string(controller.KubernetesMode):
 		break
 	case string(controller.OpenShiftMode):
-		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
-			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
-				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		if len(*extendedSpecConfigmap) == 0 && len(*routeSpecConfigmap) == 0 {
+			return fmt.Errorf("--route-spec-configmap or --extended-spec-configmap parameter is required in openshift mode\n" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name> or --extended-spec-configmap=<namespace>/<configmap-name>")
 		}
 		if len(*routeLabel) > 0 {
 			*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
@@ -850,29 +861,36 @@ func initController(
 
 	agent := controller.NewAgent(agentParams)
 
+	var globalSpecConfigMap *string
+	if *extendedSpecConfigmap != "" {
+		globalSpecConfigMap = extendedSpecConfigmap
+	} else {
+		globalSpecConfigMap = routeSpecConfigmap
+	}
+
 	ctlr := controller.NewController(
 		controller.Params{
-			Config:             config,
-			Namespaces:         *namespaces,
-			NamespaceLabel:     *namespaceLabel,
-			Partition:          (*bigIPPartitions)[0],
-			Agent:              agent,
-			PoolMemberType:     *poolMemberType,
-			VXLANName:          vxlanName,
-			VXLANMode:          vxlanMode,
-			CiliumTunnelName:   *ciliumTunnelName,
-			UseNodeInternal:    *useNodeInternal,
-			NodePollInterval:   *nodePollInterval,
-			NodeLabelSelector:  *nodeLabelSelector,
-			IPAM:               *ipam,
-			ShareNodes:         *shareNodes,
-			DefaultRouteDomain: *defaultRouteDomain,
-			Mode:               controller.ControllerMode(*controllerMode),
-			RouteSpecConfigmap: *routeSpecConfigmap,
-			RouteLabel:         *routeLabel,
-			StaticRoutingMode:  *staticRoutingMode,
-			OrchestrationCNI:   *orchestrationCNI,
-			CISType:            *cisType,
+			Config:                      config,
+			Namespaces:                  *namespaces,
+			NamespaceLabel:              *namespaceLabel,
+			Partition:                   (*bigIPPartitions)[0],
+			Agent:                       agent,
+			PoolMemberType:              *poolMemberType,
+			VXLANName:                   vxlanName,
+			VXLANMode:                   vxlanMode,
+			CiliumTunnelName:            *ciliumTunnelName,
+			UseNodeInternal:             *useNodeInternal,
+			NodePollInterval:            *nodePollInterval,
+			NodeLabelSelector:           *nodeLabelSelector,
+			IPAM:                        *ipam,
+			ShareNodes:                  *shareNodes,
+			DefaultRouteDomain:          *defaultRouteDomain,
+			Mode:                        controller.ControllerMode(*controllerMode),
+			GlobalExtendedSpecConfigmap: *globalSpecConfigMap,
+			RouteLabel:                  *routeLabel,
+			StaticRoutingMode:           *staticRoutingMode,
+			OrchestrationCNI:            *orchestrationCNI,
+			CISType:                     *cisType,
 		},
 	)
 

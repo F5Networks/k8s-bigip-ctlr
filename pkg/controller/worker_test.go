@@ -96,6 +96,7 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
 		mockCtlr.mode = CustomResourceMode
+		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
@@ -2853,6 +2854,7 @@ var _ = Describe("Worker Tests", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = OpenShiftMode
 			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
@@ -2927,7 +2929,7 @@ var _ = Describe("Worker Tests", func() {
 			data := make(map[string]string)
 			BeforeEach(func() {
 				cmName := "samplecfgmap"
-				mockCtlr.routeSpecCMKey = namespace + "/" + cmName
+				mockCtlr.globalExtendedCMKey = namespace + "/" + cmName
 				routeGroup := "default"
 				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 					override: true,
@@ -3023,9 +3025,6 @@ extendedRouteSpec:
 `
 				mockCtlr.processConfigMap(cm, false)
 				mockCtlr.processConfigMap(localCM, false)
-			})
-			It("Process Local ConfigMap", func() {
-
 			})
 		})
 		Describe("Process Route", func() {
@@ -3142,6 +3141,7 @@ extendedRouteSpec:
 						AutoLastHop: "default",
 					},
 				}
+<<<<<<< HEAD
 
 				// InsecureVSPolicy
 				insecureVSPolicy = &cisapiv1.Policy{
@@ -3152,10 +3152,13 @@ extendedRouteSpec:
 					Spec: cisapiv1.PolicySpec{},
 				}
 
+=======
+>>>>>>> e8044148 (Code Refactoring for extended configmap support in crd mode (#2946))
 				// ConfigMap
 				cmName := "escm"
 				cmNamespace := "system"
-				mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+				mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+				mockCtlr.comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace)
 				mockCtlr.resources = NewResourceStore()
 				data := make(map[string]string)
 				cm = test.NewConfigMap(
@@ -3212,7 +3215,6 @@ extendedRouteSpec:
 
 			It("Test Liveness Probe", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
-
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
 				mockCtlr.Agent.ccclGTMAgent = true

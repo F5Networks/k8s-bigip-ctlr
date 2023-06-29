@@ -27,6 +27,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
+		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -204,7 +205,7 @@ var _ = Describe("Routes", func() {
 			var data map[string]string
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
 
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
@@ -397,7 +398,7 @@ var _ = Describe("Routes", func() {
 			var data map[string]string
 			cmName := "escm"
 			cmNamespace := "kube-system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
 
 			data = make(map[string]string)
 			mockCtlr.Partition = "default"
@@ -1361,7 +1362,7 @@ extendedRouteSpec:
 		BeforeEach(func() {
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
 
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
@@ -1568,14 +1569,14 @@ extendedRouteSpec:
       vserverName: latestserver
 `
 
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, true)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -1809,7 +1810,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 		BeforeEach(func() {
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
 
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
@@ -1868,7 +1869,7 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 		BeforeEach(func() {
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
 
 			data = make(map[string]string)
 			cm = test.NewConfigMap(

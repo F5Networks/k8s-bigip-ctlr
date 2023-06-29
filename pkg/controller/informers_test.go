@@ -736,7 +736,7 @@ var _ = Describe("Informers Tests", func() {
 
 		It("Global ConfigMap", func() {
 			cmName := "samplecfgmap"
-			mockCtlr.routeSpecCMKey = namespace + "/" + cmName
+			mockCtlr.globalExtendedCMKey = namespace + "/" + cmName
 			cm := test.NewConfigMap(
 				cmName,
 				"v1",

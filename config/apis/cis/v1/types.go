@@ -66,20 +66,28 @@ type ServiceAddress struct {
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
-	Name              string             `json:"name,omitempty"`
-	Path              string             `json:"path,omitempty"`
-	Service           string             `json:"service"`
-	ServicePort       intstr.IntOrString `json:"servicePort"`
-	NodeMemberLabel   string             `json:"nodeMemberLabel,omitempty"`
-	Monitor           Monitor            `json:"monitor"`
-	Monitors          []Monitor          `json:"monitors"`
-	Rewrite           string             `json:"rewrite,omitempty"`
-	Balance           string             `json:"loadBalancingMethod,omitempty"`
-	WAF               string             `json:"waf,omitempty"`
-	ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
-	ReselectTries     int32              `json:"reselectTries,omitempty"`
-	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
-	HostRewrite       string             `json:"hostRewrite,omitempty"`
+	Name                 string                         `json:"name,omitempty"`
+	Path                 string                         `json:"path,omitempty"`
+	Service              string                         `json:"service"`
+	ServicePort          intstr.IntOrString             `json:"servicePort"`
+	NodeMemberLabel      string                         `json:"nodeMemberLabel,omitempty"`
+	Monitor              Monitor                        `json:"monitor"`
+	Monitors             []Monitor                      `json:"monitors"`
+	Rewrite              string                         `json:"rewrite,omitempty"`
+	Balance              string                         `json:"loadBalancingMethod,omitempty"`
+	WAF                  string                         `json:"waf,omitempty"`
+	ServiceNamespace     string                         `json:"serviceNamespace,omitempty"`
+	ReselectTries        int32                          `json:"reselectTries,omitempty"`
+	ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
+	HostRewrite          string                         `json:"hostRewrite,omitempty"`
+	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
+}
+
+type MultiClusterServiceReference struct {
+	ClusterName string             `json:"clusterName"`
+	SvcName     string             `json:"serviceName"`
+	Namespace   string             `json:"namespace"`
+	ServicePort intstr.IntOrString `json:"port"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

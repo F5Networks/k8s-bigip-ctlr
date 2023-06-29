@@ -1,6 +1,9 @@
 package controller
 
-import log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+import (
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+)
 import "encoding/json"
 
 func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRef, annotation string) {
@@ -11,7 +14,7 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 		return
 	}
 
-	var clusterSvcs []MultiClusterServiceReference
+	var clusterSvcs []cisapiv1.MultiClusterServiceReference
 	err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 	if err == nil {
 		ctlr.multiClusterResources.Lock()

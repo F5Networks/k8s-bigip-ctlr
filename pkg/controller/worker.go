@@ -2370,8 +2370,15 @@ func (ctlr *Controller) processLBServices(
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
 			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+			var hostnames []string
+			if _, ok := rsMap[rsName]; ok {
+				hostnames = rsMap[rsName].MetaData.hosts
+			}
 			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
+			if len(hostnames) > 0 {
+				ctlr.ProcessAssociatedExternalDNS(hostnames)
+			}
 			continue
 		}
 
@@ -2386,6 +2393,11 @@ func (ctlr *Controller) processLBServices(
 			ip,
 			portSpec.Port,
 		)
+		//set host if annotation present on service
+		host, ok := svc.Annotations[LBServiceHostAnnotation]
+		if ok {
+			rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, host)
+		}
 		processingError := false
 		// Handle policy
 		plc, err := ctlr.getPolicyFromLBService(svc)
@@ -2422,6 +2434,9 @@ func (ctlr *Controller) processLBServices(
 		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
 		rsMap[rsName] = rsCfg
+		if len(rsCfg.MetaData.hosts) > 0 {
+			ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
+		}
 	}
 
 	return nil

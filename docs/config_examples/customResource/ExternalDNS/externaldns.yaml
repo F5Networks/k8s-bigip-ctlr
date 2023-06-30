@@ -12,6 +12,9 @@ spec:
   - dnsRecordType: A
     loadBalanceMethod: round-robin
     dataServerName: /Common/GSLBServer
+    persistenceEnabled: true
+    persistCidrIpv4: 24
+    ttlPersistence: 1000
     monitor:
       type: https
       send: "GET /"

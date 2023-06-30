@@ -163,6 +163,7 @@ Following is the sample deployment for primary CIS deployment:
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 
+**Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in multiClusterConfigs.
 
 
 #### highAvailabilityClusterConfigs Parameters

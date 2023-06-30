@@ -1819,6 +1819,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			log.Errorf("Invalid Type of high availability mode specified, supported values (active, standby)")
 			os.Exit(1)
 		}
+
+		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
+		}
+		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
+		}
+
 		// Set up health probe
 		if ctlr.cisType == SecondaryCIS {
 			if haClusterConfig.PrimaryClusterEndPoint == "" {
@@ -1841,7 +1849,6 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 						haClusterConfig.SecondaryCluster)
 					os.Exit(1)
 				}
-				secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
 				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
 					haClusterConfig.SecondaryCluster.ClusterName)
 				if err != nil {
@@ -1868,7 +1875,6 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
 			} else {
 				hACluster = false
-
 			}
 		}
 		if ctlr.cisType == SecondaryCIS {
@@ -1879,7 +1885,6 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 						haClusterConfig.PrimaryCluster)
 					os.Exit(1)
 				}
-				primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
 				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
 					haClusterConfig.PrimaryCluster.ClusterName)
 				if err != nil {
@@ -1956,6 +1961,12 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			continue
 		}
 
+		// Check and discard multiCluster config if an HA cluster is used as external cluster
+		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName {
+			log.Warningf("Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in multiClusterConfigs.", mcc.ClusterName)
+			continue
+		}
+
 		// Fetch the secret containing kubeconfig creds
 		kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(mcc.Secret, mcc.ClusterName)
 
@@ -1987,6 +1998,10 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store
 	for clusterName, _ := range ctlr.resources.multiClusterConfigs {
 		if _, ok := currentClusterSecretKeys[clusterName]; !ok {
+			// Ensure HA cluster config is not deleted
+			if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+				continue
+			}
 			// Delete config from the cached valid mutiClusterConfig data
 			delete(ctlr.resources.multiClusterConfigs, clusterName)
 			// Delegate the deletion of cluster from the clusterConfig store to updateClusterConfigStore so that any

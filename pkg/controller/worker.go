@@ -247,9 +247,6 @@ func (ctlr *Controller) processResources() bool {
 		}
 
 	case ConfigMap:
-		if ctlr.mode != OpenShiftMode {
-			break
-		}
 		cm := rKey.rsc.(*v1.ConfigMap)
 		err, ok := ctlr.processConfigMap(cm, rscDelete)
 		if err != nil {
@@ -344,6 +341,21 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
+		rscRefKey := resourceRef{
+			kind:      TransportServer,
+			name:      virtual.Name,
+			namespace: virtual.Namespace,
+		}
+		if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
+			// Skip processing for create event if already processed
+			if rKey.event == Create {
+				break
+			}
+			// Remove resource key from processedNativeResources on delete event
+			if rKey.event == Delete {
+				delete(ctlr.resources.processedNativeResources, rscRefKey)
+			}
+		}
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
@@ -2510,6 +2522,13 @@ func (ctlr *Controller) processTransportServers(
 
 	ctlr.updateSvcDepResources(rsName, rsCfg)
 
+	// Add TS resource key to processedNativeResources to mark it as processed
+	ctlr.resources.processedNativeResources[resourceRef{
+		kind:      TransportServer,
+		namespace: virtual.Namespace,
+		name:      virtual.Name,
+	}] = struct{}{}
+
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
 
@@ -3934,6 +3953,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	}
 	if ctlr.isGlobalExtendedCM(cm) {
 		// Get Multicluster kube-config
+		if isDelete {
+			// Handle configmap deletion
+			es.HAClusterConfig = HAClusterConfig{}
+		}
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
 		ctlr.checkSecondaryCISConfig()
 		ctlr.stopDeletedGlobalCMMultiClusterInformers()
@@ -3947,6 +3970,50 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			return ctlr.processRouteConfigFromGlobalCM(es, isDelete)
 		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
 			return ctlr.processRouteConfigFromLocalCM(es, isDelete, cm.Namespace)
+		}
+	} else {
+		// Re-process all the VS and TS resources
+		for resRef, _ := range ctlr.resources.processedNativeResources {
+			var rs interface{}
+			var exists bool
+			var err error
+			var crInf *CRInformer
+			crInf, _ = ctlr.crInformers[""]
+			switch resRef.kind {
+			case VirtualServer:
+				// Fetch the latest VS
+				if crInf != nil {
+					rs, exists, err = crInf.vsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
+				} else if _, ok := ctlr.crInformers[resRef.namespace]; ok {
+					rs, exists, err = ctlr.crInformers[resRef.namespace].vsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
+				}
+			case TransportServer:
+				// Fetch the latest TS
+				if crInf != nil {
+					rs, exists, err = crInf.tsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
+				} else if _, ok := ctlr.crInformers[resRef.namespace]; ok {
+					rs, exists, err = ctlr.crInformers[resRef.namespace].tsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
+				}
+			default:
+				// Don't process other resources except VS and TS
+				continue
+			}
+			// Skip processing if resource could not be fetched
+			if !exists || err != nil {
+				continue
+			}
+			key := &rqKey{
+				namespace: resRef.namespace,
+				kind:      resRef.kind,
+				rscName:   resRef.name,
+				rsc:       rs,
+				event:     Update,
+			}
+			ctlr.resourceQueue.Add(key)
 		}
 	}
 	return nil, true

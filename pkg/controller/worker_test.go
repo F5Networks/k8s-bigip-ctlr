@@ -2502,9 +2502,10 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
 
-				newTS.Spec.Partition = ""
-				newTS.Spec.VirtualServerAddress = "10.0.0.15"
-				mockCtlr.updateTransportServer(ts, &newTS)
+				oldTS := *ts
+				ts.Spec.Partition = ""
+				ts.Spec.VirtualServerAddress = "10.0.0.15"
+				mockCtlr.updateTransportServer(&oldTS, ts)
 				mockCtlr.processResources()
 				// Simulating partition priority update to zero by response handler on successfully posting the priority
 				// tenant update

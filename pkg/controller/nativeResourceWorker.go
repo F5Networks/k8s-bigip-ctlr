@@ -392,11 +392,11 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			pool.MultiClusterServices = multiClusterServices
 		}
 		// update the multicluster resource serviceMap with local cluster services
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route, "")
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 
 		// update the multicluster resource serviceMap with HA pair cluster services
 		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs, pool, servicePort, route,
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
 				ctlr.multiClusterConfigs.HAPairCusterName)
 		}
 
@@ -2043,20 +2043,19 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 }
 
 // updateMultiClusterResourceServiceMap updates the multiCluster rscSvcMap and clusterSvcMap
-func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConfig, rsRef resourceRef, bs RouteBackendCxt,
-	pool Pool, servicePort intstr.IntOrString, route *routeapi.Route, clusterName string) {
+func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConfig, rsRef resourceRef, serviceName, path string,
+	pool Pool, servicePort intstr.IntOrString, clusterName string) {
 	if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
 		ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
 	}
 	svcKey := MultiClusterServiceKey{
 		clusterName: clusterName,
-		serviceName: bs.Name,
+		serviceName: serviceName,
 		namespace:   pool.ServiceNamespace,
 	}
 	ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
 	// update the clusterSvcMap
-	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name,
-		route.Spec.Path)
+	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, path)
 }
 
 // fetchKubeConfigSecret fetches the kubeConfig secret associated with a cluster

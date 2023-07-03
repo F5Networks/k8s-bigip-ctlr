@@ -63,8 +63,6 @@ type (
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
 		nodeLabelSelector      string
-		vxlanMode              string
-		vxlanName              string
 		vxlanMgr               *vxlan.VxlanMgr
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface

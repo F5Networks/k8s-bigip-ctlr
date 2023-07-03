@@ -102,7 +102,7 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}) {
 			vxm.vxLAN)
 		return
 	}
-
+	log.Debugf("[VxLAN] Processing Node Updates for FDB")
 	var records []fdbRecord
 	var addrType v1.NodeAddressType
 	if vxm.useNodeInt {

@@ -1279,6 +1279,7 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 				port,
 				"",
 				host,
+				path,
 			)
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)

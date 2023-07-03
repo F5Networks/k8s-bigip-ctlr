@@ -4,9 +4,8 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
-import "encoding/json"
 
-func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRef, annotation string) {
+func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRef, clusterSvcs []cisapiv1.MultiClusterServiceReference) {
 
 	// if no external cluster is configured skip processing
 	if len(ctlr.multiClusterConfigs.ClusterConfigs) == 0 {
@@ -14,47 +13,44 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 		return
 	}
 
-	var clusterSvcs []cisapiv1.MultiClusterServiceReference
-	err := json.Unmarshal([]byte(annotation), &clusterSvcs)
-	if err == nil {
-		ctlr.multiClusterResources.Lock()
-		defer ctlr.multiClusterResources.Unlock()
+	ctlr.multiClusterResources.Lock()
+	defer ctlr.multiClusterResources.Unlock()
 
-		for _, svc := range clusterSvcs {
-			if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; ok {
-				svcKey := MultiClusterServiceKey{
-					serviceName: svc.SvcName,
-					namespace:   svc.Namespace,
-					clusterName: svc.ClusterName,
-				}
-
-				if ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] == nil {
-					ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
-				}
-				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
-
-				// update the multi cluster resource map
-				if _, ok := ctlr.multiClusterResources.rscSvcMap[rscKey]; !ok {
-					ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
-				}
-				ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey] = MultiClusterServiceConfig{
-					svcPort: svc.ServicePort,
-				}
-
-				// if informer not found for cluster, setup and start informer
-				_, clusterKeyFound := ctlr.multiClusterPoolInformers[svc.ClusterName]
-				if !clusterKeyFound {
-					ctlr.setupAndStartMultiClusterInformers(svcKey)
-				} else if _, found := ctlr.multiClusterPoolInformers[svc.ClusterName][svc.Namespace]; !found {
-					ctlr.setupAndStartMultiClusterInformers(svcKey)
-				}
-			} else {
-				log.Warningf("invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
+	for _, svc := range clusterSvcs {
+		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; ok {
+			svcKey := MultiClusterServiceKey{
+				serviceName: svc.SvcName,
+				namespace:   svc.Namespace,
+				clusterName: svc.ClusterName,
 			}
+
+			if ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] == nil {
+				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+			}
+			if _, ok := ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey]; !ok {
+				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+			}
+
+			// update the multi cluster resource map
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[rscKey]; !ok {
+				ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+			}
+			ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey] = MultiClusterServiceConfig{
+				svcPort: svc.ServicePort,
+			}
+
+			// if informer not found for cluster, setup and start informer
+			_, clusterKeyFound := ctlr.multiClusterPoolInformers[svc.ClusterName]
+			if !clusterKeyFound {
+				ctlr.setupAndStartMultiClusterInformers(svcKey)
+			} else if _, found := ctlr.multiClusterPoolInformers[svc.ClusterName][svc.Namespace]; !found {
+				ctlr.setupAndStartMultiClusterInformers(svcKey)
+			}
+		} else {
+			log.Warningf("invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
 		}
-	} else {
-		log.Warningf("unable to read service mapping for resource %v", rscKey)
 	}
+
 }
 
 func (ctlr *Controller) deleteResourceExternalClusterSvcReference(mSvcKey MultiClusterServiceKey) {
@@ -86,6 +82,7 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 						if len(poolIdsMap) == 0 {
 							delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey], port)
 							//delete the poolMem Cache as well
+							log.Debugf("Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
 							delete(ctlr.resources.poolMemCache, mSvcKey)
 						} else {
 							ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][port] = poolIdsMap

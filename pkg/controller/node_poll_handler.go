@@ -5,7 +5,6 @@ import (
 	"fmt"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	v1 "k8s.io/api/core/v1"
 	"net"
 	"reflect"
@@ -16,28 +15,8 @@ import (
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	var nodesIntfc []interface{}
-	// at the controller start up just set the initial nodes for controller and don't process anything else
-	if ctlr.initState {
-		if clusterName == "" && len(ctlr.oldNodes) != len(ctlr.nodeInformer.nodeInformer.GetIndexer().List()) {
-			nodesIntfc = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
-			var nodesList []v1.Node
-			for _, obj := range nodesIntfc {
-				node := obj.(*v1.Node)
-				nodesList = append(nodesList, *node)
-			}
-			sort.Sort(NodeList(nodesList))
-			nodes, err := ctlr.getNodes(nodesList)
-			if err != nil {
-				return err
-			}
-			ctlr.oldNodes = nodes
-			bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
-		}
-		return nil
-	}
 	if clusterName == "" {
 		nodesIntfc = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
-		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(nodesIntfc)))
 	} else {
 		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 			nodesIntfc = nodeInf.nodeInformer.GetIndexer().List()
@@ -51,42 +30,18 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	}
 	sort.Sort(NodeList(nodesList))
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
+	// adding the bigip_monitored_nodes	metrics
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}
 	if ctlr.StaticRoutingMode {
 		clusterNodes := ctlr.getNodesFromAllClusters()
 		ctlr.processStaticRouteUpdate(clusterNodes)
-	} else if 0 != len(ctlr.vxlanMode) {
-		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := ctlr.vxlanName
-		cleanPath := strings.TrimLeft(ctlr.vxlanName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos != -1 {
-			tunnelName = cleanPath[slashPos+1:]
-		}
-		if ctlr.vxlanMgr == nil {
-			vxMgr, err := vxlan.NewVxlanMgr(
-				ctlr.vxlanMode,
-				tunnelName,
-				ctlr.ciliumTunnelName,
-				ctlr.UseNodeInternal,
-				ctlr.Agent.ConfigWriter,
-				ctlr.Agent.EventChan,
-			)
-			if nil != err {
-				return fmt.Errorf("error creating vxlan manager: %v", err)
-			}
-			ctlr.vxlanMgr = vxMgr
-		}
+	} else if ctlr.vxlanMgr != nil {
 		// Register vxMgr to watch for node updates to process fdb records
 		ctlr.vxlanMgr.ProcessNodeUpdate(nodesList)
-		if ctlr.Agent.EventChan != nil {
-			// It handles arp entries related to PoolMembers
-			ctlr.vxlanMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
-		}
 	}
-
 	return nil
 }
 
@@ -98,28 +53,41 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 		return
 	}
 	// process the node and update the all pool members for the cluster
-	if clusterName == "" {
-		// Compare last set of nodes with new one
-		if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
-			log.Debugf("Processing Node Updates")
-			// Update node cache
-			ctlr.oldNodes = newNodes
-			if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-				ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
+	if !ctlr.initState {
+		if clusterName == "" {
+			// Compare last set of nodes with new one
+			if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
+				log.Debugf("Processing Node Updates for current cluster")
+				// Update node cache
+				ctlr.oldNodes = newNodes
+				if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+					ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
+				}
+			}
+		} else {
+			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
+				// Compare last set of nodes with new one
+				if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
+					log.Debugf("Processing Node Updates for %v", clusterName)
+					// Update node cache
+					nodeInf.oldNodes = newNodes
+					if ctlr.multiClusterResources.clusterSvcMap != nil {
+						if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+							ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
+						}
+					}
+				}
 			}
 		}
 	} else {
-		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-			// Compare last set of nodes with new one
-			if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
-				log.Debugf("Processing Node Updates")
+		// Initialize controller nodes on our first pass through
+		log.Debugf("Initialising controller monitored kubernetes nodes.")
+		if clusterName == "" {
+			ctlr.oldNodes = newNodes
+		} else {
+			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 				// Update node cache
 				nodeInf.oldNodes = newNodes
-				if ctlr.multiClusterResources.clusterSvcMap != nil {
-					if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-						ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-					}
-				}
 			}
 		}
 	}
@@ -238,7 +206,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 	} else {
 		addrType = v1.NodeExternalIP
 	}
-
+	log.Debugf("Processing Node Updates for static routes")
 	routes := routeSection{}
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)

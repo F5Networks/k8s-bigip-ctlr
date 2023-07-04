@@ -24,13 +24,9 @@ import (
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-
-	"k8s.io/api/extensions/v1beta1"
 )
 
-// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) assignHealthMonitorsByPath(
-	ing *v1beta1.Ingress, // used in Ingress case for logging events
 	rulesMap HostToPathMap,
 	monitors AnnotationHealthMonitors,
 ) error {
@@ -51,18 +47,12 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 		if false == found {
 			msg := "Rule not found for Health Monitor host " + host
 			log.Warningf("[CORE] %s", msg)
-			if ing != nil {
-				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg)
-			}
 			continue
 		}
 		ruleData, found := pm[path]
 		if false == found {
 			msg := "Rule not found for Health Monitor path " + mon.Path
 			log.Warningf("[CORE] %s", msg)
-			if ing != nil {
-				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg)
-			}
 			continue
 		}
 		ruleData.HealthMon = mon
@@ -150,7 +140,7 @@ func (appMgr *Manager) handleRouteHealthMonitors(
 	htpMap := make(HostToPathMap)
 	htpMap["*"] = ruleItem
 
-	err := appMgr.assignHealthMonitorsByPath(nil, htpMap, monitors)
+	err := appMgr.assignHealthMonitorsByPath(htpMap, monitors)
 	if nil != err {
 		log.Errorf("[CORE] %s", err.Error())
 		// If this monitor exists already, remove it

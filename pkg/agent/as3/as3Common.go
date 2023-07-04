@@ -345,15 +345,14 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, partition 
 			)
 		}
 		svc.PolicyEndpoint = peps
-	case numPolicies == 0:
-		// No policies since we need to handle the pool name.
+	}
+	// Add the default pool if present
+	if cfg.Virtual.PoolName != "" {
 		ps := strings.Split(cfg.Virtual.PoolName, "/")
-		if cfg.Virtual.PoolName != "" {
-			svc.Pool = fmt.Sprintf("/%s/%s/%s",
-				partition,
-				as3SharedApplication,
-				as3FormattedString(ps[len(ps)-1], cfg.MetaData.ResourceType))
-		}
+		svc.Pool = fmt.Sprintf("/%s/%s/%s",
+			partition,
+			as3SharedApplication,
+			as3FormattedString(ps[len(ps)-1], cfg.MetaData.ResourceType))
 	}
 
 	svc.Layer4 = cfg.Virtual.IpProtocol

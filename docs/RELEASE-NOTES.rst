@@ -14,7 +14,7 @@ Added Functionality
         * Support PERSISTENCE capability for service published through EDNS
 Bug Fixes
 ````````````
-
+    * `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
 2.13.1
 -------------
 Bug Fixes

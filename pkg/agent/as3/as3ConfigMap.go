@@ -25,6 +25,9 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 	var as3Cfgmaps []*AS3ConfigMap
 	var overriderAS3CfgmapData string
 
+	// Reset AS3 persist and logLevel values
+	am.as3DeclarationPersistence = nil
+	am.as3LogLevel = nil
 	// Process rscCfgMap if present in Resource Request
 	for _, rscCfgMap := range am.ResourceRequest.AgentCfgmaps {
 		cfgmapType, ok := am.isValidConfigmap(rscCfgMap)
@@ -152,6 +155,21 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 
 	// convert tmp to map[string]interface{}, This conversion will help in traversing the as3 object
 	templateJSON := tmp.(map[string]interface{})
+
+	if logLevel, ok := templateJSON["logLevel"]; ok {
+		if val, ok := logLevel.(string); ok {
+			am.as3LogLevel = &val
+		} else {
+			log.Errorf("Invalid AS3 logLevel: %v specified. Using default logLevel value.", logLevel)
+		}
+	}
+	if persist, ok := templateJSON["persist"]; ok {
+		if val, ok := persist.(bool); ok {
+			am.as3DeclarationPersistence = &val
+		} else {
+			log.Errorf("Invalid AS3 persist: %v specified. Using default persist value.", persist)
+		}
+	}
 
 	dec := (templateJSON["declaration"]).(map[string]interface{})
 

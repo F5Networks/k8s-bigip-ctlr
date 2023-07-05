@@ -14,6 +14,7 @@ Added Functionality
         * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/`_
         * `Issue 2785 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2785>`_: Add EDNS support for service typeLB.
         * Support PERSISTENCE capability for service published through EDNS
+        * Wildcard domain support for EDNS
 Bug Fixes
 ````````````
 * `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
@@ -496,7 +497,7 @@ Added Functionality
         * New Status column for VirtualServer and TransportServer CR. `GitHub issue <https://github.com/F5Networks/k8s-bigip-ctlr/issues/1659>`_
         * EDNS:
             * TCP type monitor support for EDNS
-            * Renamed EDNS resource name from externaldnss to externaldns. `CRD definition <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml#L370>`_
+            * Renamed EDNS resource name from externaldnss to externaldns. `CRD definition <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
     * ConfigMap:
         * Tenant based AS3 declarations support for configmaps using ``--filter-tenants`` deployment option.
     * Ingress:
@@ -524,7 +525,7 @@ Bug Fixes
 
 Note
 ````
-* Renamed EDNS resource name from externaldnss to externaldns. Refer to latest EDNS CRD definition `here <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml#L370>`_. This latest EDNS schema is compatible only with CIS version >=2.7.0
+* Renamed EDNS resource name from externaldnss to externaldns. Refer to latest EDNS CRD definition `here <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_. This latest EDNS schema is compatible only with CIS version >=2.7.0
 * Validated IPv6 with calico CNI on k8s 1.22 setup
 * Log4j vulnerability does not impact CIS and FIC code base ☺️
 

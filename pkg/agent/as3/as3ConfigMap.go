@@ -21,6 +21,7 @@ const (
 func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 	[]*AS3ConfigMap,
 	string,
+	error,
 ) {
 	var as3Cfgmaps []*AS3ConfigMap
 	var overriderAS3CfgmapData string
@@ -64,7 +65,11 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 				}
 			}
 
-			tenantMap, endPoints := am.processCfgMap(rscCfgMap)
+			tenantMap, endPoints, err := am.processCfgMap(rscCfgMap)
+			// Skip processing further if error encountered while processing configMap
+			if err != nil {
+				return nil, "", err
+			}
 			if tenantMap == nil {
 				continue
 			}
@@ -90,13 +95,17 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 				Validated: true,
 			}
 			rscCfgMap.Data = am.getTenantObjects(tenants)
-			tenantMap, endPoints := am.processCfgMap(rscCfgMap)
+			tenantMap, endPoints, err := am.processCfgMap(rscCfgMap)
+			// Skip processing further if error encountered while processing configMap
+			if err != nil {
+				return nil, "", err
+			}
 			cfgmap.config = tenantMap
 			cfgmap.endPoints = endPoints
 			as3Cfgmaps = append(as3Cfgmaps, cfgmap)
 		}
 	}
-	return as3Cfgmaps, overriderAS3CfgmapData
+	return as3Cfgmaps, overriderAS3CfgmapData, nil
 }
 
 func (am *AS3Manager) isValidConfigmap(cfgmap *AgentCfgMap) (string, bool) {
@@ -127,6 +136,7 @@ func (am *AS3Manager) isValidConfigmap(cfgmap *AgentCfgMap) (string, bool) {
 func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 	map[string]interface{},
 	[]Member,
+	error,
 ) {
 	as3Tmpl := as3Template(rscCfgMap.Data)
 	obj, ok := getAS3ObjectFromTemplate(as3Tmpl)
@@ -134,7 +144,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 		log.Errorf("[AS3][Configmap] Error processing AS3 template")
 		log.Errorf("[AS3]Error in processing the ConfigMap: %v/%v",
 			rscCfgMap.Namespace, rscCfgMap.Name)
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if _, ok := obj[tenantName(DEFAULT_PARTITION)]; ok {
@@ -142,7 +152,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			rscCfgMap.Namespace, rscCfgMap.Name)
 		log.Errorf("[AS3] CIS managed partition <%s> should not be used in ConfigMaps as a Tenant",
 			DEFAULT_PARTITION)
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var tmp interface{}
@@ -150,7 +160,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 	// unmarshall the template of type string to interface
 	err := json.Unmarshal([]byte(as3Tmpl), &tmp)
 	if nil != err {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// convert tmp to map[string]interface{}, This conversion will help in traversing the as3 object
@@ -183,7 +193,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {
 				poolObj := appObj[string(pn)].(map[string]interface{})
-				eps := rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace)
+				eps, err := rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace)
+				// If there is some error while fetching the endpoint from API server then skip processing further
+				if nil != err {
+					return nil, nil, err
+				}
 				// Handle an empty value
 				if len(eps) == 0 {
 					continue
@@ -236,7 +250,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 		}
 		tenantMap[string(tnt)] = tenantObj
 	}
-	return tenantMap, members
+	return tenantMap, members, nil
 }
 
 // Method prepares and returns the label selector in string format

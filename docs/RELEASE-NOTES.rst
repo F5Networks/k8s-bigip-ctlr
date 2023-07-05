@@ -20,8 +20,7 @@ Bug Fixes
 ````````````
 * `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
 * `Issue 2850 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2850>`_: Fix for AS3 config updated every 30 seconds by CIS with default ingress backend
-
-
+* `Issue 2909 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2909>`_: Fix for empty pool members when K8S API server throws any error
 2.13.1
 -------------
 Bug Fixes

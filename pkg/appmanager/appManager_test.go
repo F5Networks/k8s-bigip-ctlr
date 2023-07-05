@@ -1258,7 +1258,7 @@ var _ = Describe("AppManager Tests", func() {
 						Session: "user-enabled",
 					},
 				}
-				mems := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default")
+				mems, _ := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default")
 				Expect(mems).To(Equal(expMembers))
 			})
 
@@ -4120,11 +4120,11 @@ var _ = Describe("AppManager Tests", func() {
 				// no service and different namespace
 				mockMgr.appMgr.poolMemberType = NodePortLocal
 				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
-				podList := mockMgr.appMgr.GetPodsForService("diff-ns", svcName)
+				podList, _ := mockMgr.appMgr.GetPodsForService("diff-ns", svcName)
 				Expect(podList).To(BeNil())
 
 				// no service created, correct namespace
-				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				podList, _ = mockMgr.appMgr.GetPodsForService(namespace, svcName)
 				Expect(podList).To(BeNil())
 
 				//Add service, No nodeportlocal annotation
@@ -4135,21 +4135,21 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				svc1 := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 				appInf.svcInformer.GetStore().Add(svc1)
-				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				podList, _ = mockMgr.appMgr.GetPodsForService(namespace, svcName)
 				Expect(podList).To(BeNil())
 
 				// Add nodeportlocal annotation
 				svc1.Annotations = make(map[string]string)
 				svc1.Annotations[NPLSvcAnnotation] = "true"
 				appInf.svcInformer.GetStore().Update(svc1)
-				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				podList, _ = mockMgr.appMgr.GetPodsForService(namespace, svcName)
 				Expect(podList).To(BeNil())
 
 				// Add Pod selector
 				svc1.Spec.Selector = make(map[string]string)
 				svc1.Spec.Selector["app"] = "app1"
 				appInf.svcInformer.GetStore().Update(svc1)
-				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
+				podList, _ = mockMgr.appMgr.GetPodsForService(namespace, svcName)
 				Expect(podList).To(BeNil())
 			})
 			It("Test getEndpoints", func() {
@@ -4170,7 +4170,7 @@ var _ = Describe("AppManager Tests", func() {
 					mockMgr.appMgr.isNodePort = true
 				}()
 				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
-				members := mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ := mockMgr.appMgr.getEndpoints("test", namespace)
 				Expect(members).To(BeNil())
 
 				// Add service
@@ -4185,16 +4185,16 @@ var _ = Describe("AppManager Tests", func() {
 				svc2.Labels["test"] = "true"
 				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc1, metav1.CreateOptions{})
 				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc2, metav1.CreateOptions{})
-				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
 				Expect(members).To(BeNil())
 
 				// Set isNodePort to false, no endpoints
 				mockMgr.appMgr.isNodePort = false
-				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
 				Expect(members).To(BeNil())
 
 				// Set isNodePort to false, no endpoints
-				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
 				Expect(members).To(BeNil())
 
 				// Add endpoints
@@ -4202,7 +4202,7 @@ var _ = Describe("AppManager Tests", func() {
 				endpts1 := test.NewEndpoints(svcName1, "1", "node0", namespace,
 					readyIps, nil, convertSvcPortsToEndpointPorts(svcPorts))
 				appInf.endptInformer.GetStore().Add(endpts1)
-				members = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
 				Expect(members).NotTo(BeNil())
 				Expect(len(members)).To(Equal(2))
 
@@ -4345,14 +4345,14 @@ var _ = Describe("AppManager Tests", func() {
 				}
 
 				// Nodeport service
-				ret, err1, msg := mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
+				ret, err1, msg, _ := mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
 				Expect(ret).To(BeFalse())
 				Expect(len(err1)).NotTo(Equal(0))
 				Expect(len(msg)).NotTo(Equal(0))
 
 				// ClusterIP service not created
 				svc.Spec.Type = v1.ServiceTypeClusterIP
-				ret, err1, msg = mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
+				ret, err1, msg, _ = mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
 				Expect(ret).To(BeTrue())
 				Expect(len(err1)).To(Equal(0))
 				Expect(len(msg)).To(Equal(0))
@@ -4365,7 +4365,7 @@ var _ = Describe("AppManager Tests", func() {
 				svc.Spec.Selector = make(map[string]string)
 				svc.Spec.Selector["app"] = "app1"
 				appInf.svcInformer.GetStore().Add(svc)
-				ret, err1, msg = mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
+				ret, err1, msg, _ = mockMgr.appMgr.updatePoolMembersForNPL(svc, sKey, rsCfg, 0)
 				Expect(ret).To(BeTrue())
 				Expect(len(err1)).To(Equal(0))
 				Expect(len(msg)).To(Equal(0))

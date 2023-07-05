@@ -35,9 +35,9 @@ func newMockAS3Manager(params *Params) *mockAS3Manager {
 	}
 }
 
-func mockGetEndPoints(string, string) []Member {
+func mockGetEndPoints(string, string) ([]Member, error) {
 	return []Member{{Address: "1.1.1.1", Port: 80, SvcPort: 80},
-		{Address: "2.2.2.2", Port: 80, SvcPort: 80}}
+		{Address: "2.2.2.2", Port: 80, SvcPort: 80}}, nil
 }
 
 func (m *mockAS3Manager) shutdown() error {
@@ -122,7 +122,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				},
 			)
 			as3config := &AS3Config{}
-			as3config.configmaps, _ = mockMgr.prepareResourceAS3ConfigMaps()
+			as3config.configmaps, _, _ = mockMgr.prepareResourceAS3ConfigMaps()
 			result := mockMgr.getUnifiedDeclaration(as3config)
 			Expect(string(result)).To(MatchJSON(unified), "Failed to Create JSON with correct configuration")
 		})
@@ -158,7 +158,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				},
 			)
 			as3config := &AS3Config{}
-			as3config.configmaps, _ = mockMgr.prepareResourceAS3ConfigMaps()
+			as3config.configmaps, _, _ = mockMgr.prepareResourceAS3ConfigMaps()
 
 			routeCfg := readConfigFile(configPath + "as3_route.json")
 			err := json.Unmarshal([]byte(routeCfg), &routeAdc)
@@ -250,7 +250,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				},
 			)
 			as3config := &AS3Config{}
-			_, as3config.overrideConfigmapData = mockMgr.prepareResourceAS3ConfigMaps()
+			_, as3config.overrideConfigmapData, _ = mockMgr.prepareResourceAS3ConfigMaps()
 
 			routeCfg := readConfigFile(configPath + "as3_route.json")
 			err := json.Unmarshal([]byte(routeCfg), &routeAdc)
@@ -425,7 +425,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				AgentCfgmaps: []*AgentCfgMap{},
 			}
 			mockMgr.ReqChan <- MessageRequest{ReqID: 1, MsgType: "test", ResourceRequest: resourceRequest}
-			result, output := mockMgr.postOnEventOrTimeout(timeoutSmall)
+			result, output, _ := mockMgr.postOnEventOrTimeout(timeoutSmall)
 			close(mockMgr.ReqChan)
 			Expect(result).To(BeTrue(), "Posting Failed")
 			Expect(output).To(Equal("statusOK"), "Posting Failed")
@@ -475,7 +475,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				},
 			)
 			mockMgr.as3ActiveConfig.unifiedDeclaration = as3Declaration(readConfigFile(configPath + "as3config_multi_cm_unified.json"))
-			result, output := mockMgr.postAS3Declaration(resourceRequest)
+			result, output, _ := mockMgr.postAS3Declaration(resourceRequest)
 			Expect(result).To(BeTrue(), "Posting Failed")
 			Expect(output).To(Equal(responseStatusOk), "Posting Failed")
 			// Verify that tenant3 is deleted from active configMap

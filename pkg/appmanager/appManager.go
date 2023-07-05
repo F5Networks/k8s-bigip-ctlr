@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"net"
 	"reflect"
 	"sort"
@@ -1617,7 +1618,10 @@ func (appMgr *Manager) syncConfigMaps(
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
 				//TODO: Sorting endpoints members
-				members := appMgr.getEndpoints(selector, sKey.Namespace)
+				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
+				if err != nil {
+					return err
+				}
 				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
 					if len(members) != 0 {
 						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
@@ -1716,15 +1720,22 @@ func (appMgr *Manager) syncConfigMaps(
 					continue
 				}
 				// Check if profile is contained in a Secret
-				secret, err := appMgr.kubeClient.CoreV1().Secrets(cm.ObjectMeta.Namespace).
-					Get(context.TODO(), profile.Name, metav1.GetOptions{})
-				if err != nil {
+				appInf, found := appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
+				if !found {
+					log.Debugf("[CORE] No Informer found while fetching secret with name '%s' in namespace '%s'",
+						profile.Name, sKey.Namespace)
+					return fmt.Errorf("[CORE] No Informer found while fetching secret with name '%s' in namespace '%s'",
+						profile.Name, sKey.Namespace)
+				}
+				obj, found, err := appInf.secretInformer.GetIndexer().GetByKey(
+					fmt.Sprintf("%s/%s", cm.ObjectMeta.Namespace, profile.Name))
+				if err != nil || !found {
 					// No secret, so we assume the profile is a BIG-IP default
 					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s', "+
 						"parsing secretName as path instead.", profile.Name, sKey.Namespace)
 					continue
 				}
-
+				secret := obj.(*v1.Secret)
 				appMgr.rsrcSSLCtxt[profile.Name] = secret
 				err, updated := appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
@@ -1738,9 +1749,12 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		rsName := rsCfg.GetNameRef()
-		ok, found, updated := appMgr.handleConfigForType(
+		ok, found, updated, err := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap,
 			svc, appInf, []string{}, nil)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			stats.vsUpdated += updated
 			continue
@@ -2219,7 +2233,7 @@ func (appMgr *Manager) syncRoutes(
 				rsCfg.SetPolicy(pol)
 			}
 
-			ok, found, updated := appMgr.handleConfigForType(
+			ok, found, updated, _ := appMgr.handleConfigForType(
 				rsCfg, sKey, rsMap, rsName, svcPortMap,
 				svc, appInf, svcNames, nil)
 			if ok {
@@ -2472,7 +2486,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 						correctBackend, reason, msg = true, "", ""
 					}
 				} else if appMgr.poolMemberType == NodePortLocal {
-					correctBackend, reason, msg =
+					correctBackend, reason, msg, _ =
 						appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
 				} else {
 					correctBackend, reason, msg =
@@ -2537,7 +2551,7 @@ func (appMgr *Manager) handleConfigForType(
 	appInf *appInformer,
 	currResourceSvcs []string, // Used for Ingress/Routes
 	obj interface{}, // Used for writing events
-) (bool, int, int) {
+) (bool, int, int, error) {
 	vsFound := 0
 	vsUpdated := 0
 
@@ -2555,7 +2569,7 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 	if !found {
-		return false, vsFound, vsUpdated
+		return false, vsFound, vsUpdated, nil
 	}
 
 	// Make sure pool members from the old config are applied to the new
@@ -2623,7 +2637,7 @@ func (appMgr *Manager) handleConfigForType(
 			msg := "Service " + pool.ServiceName + " has not been found."
 			appMgr.recordV1IngressEvent(obj.(*netv1.Ingress), "ServiceNotFound", msg)
 		}
-		return false, vsFound, vsUpdated
+		return false, vsFound, vsUpdated, nil
 	}
 
 	// Update pool members.
@@ -2648,8 +2662,12 @@ func (appMgr *Manager) handleConfigForType(
 				correctBackend, reason, msg = true, "", ""
 			}
 		} else if appMgr.poolMemberType == NodePortLocal {
-			correctBackend, reason, msg =
+			var err error
+			correctBackend, reason, msg, err =
 				appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
+			if err != nil {
+				return false, 0, 0, err
+			}
 		} else {
 			correctBackend, reason, msg =
 				appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
@@ -2675,10 +2693,10 @@ func (appMgr *Manager) handleConfigForType(
 		if !serviceMatch(currResourceSvcs, sKey) {
 			//pool found but service not matched with current resource backend. So endpoints are not updated for correct pool
 			//So keep the resource as not processed.
-			return false, vsFound, vsUpdated
+			return false, vsFound, vsUpdated, nil
 		}
 	}
-	return true, vsFound, vsUpdated
+	return true, vsFound, vsUpdated, nil
 }
 
 func (appMgr *Manager) syncPoolMembers(rsName NameRef, rsCfg *ResourceConfig) {
@@ -2737,10 +2755,13 @@ func (appMgr *Manager) updatePoolMembersForNPL(
 	svcKey ServiceKey,
 	rsCfg *ResourceConfig,
 	index int,
-) (bool, string, string) {
+) (bool, string, string, error) {
 	//get pods for service
 	if svc.Spec.Type == v1.ServiceTypeClusterIP || svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-		pods := appMgr.GetPodsForService(svcKey.Namespace, svcKey.ServiceName)
+		pods, err := appMgr.GetPodsForService(svcKey.Namespace, svcKey.ServiceName)
+		if err != nil {
+			return false, "", "", err
+		}
 		if pods != nil {
 			for _, portSpec := range svc.Spec.Ports {
 				if portSpec.Port == svcKey.ServicePort {
@@ -2756,11 +2777,11 @@ func (appMgr *Manager) updatePoolMembersForNPL(
 		if rsCfg.Pools[index].Members == nil {
 			log.Debugf("[CORE]Endpoints could not be fetched for service %v with port %v", svcKey.ServiceName, svcKey.ServicePort)
 		}
-		return true, "", ""
+		return true, "", "", nil
 	} else {
 		msg := "[CORE] Requested service backend " + svcKey.ServiceName + " not of ClusterIP or LoadBalancer type supported for NPL"
 		log.Debug(msg)
-		return false, "IncorrectBackendServiceType", msg
+		return false, "IncorrectBackendServiceType", msg, nil
 	}
 }
 
@@ -3245,7 +3266,7 @@ func createLabel(label string) (labels.Selector, error) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
+func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
@@ -3267,7 +3288,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 
 		if err != nil {
 			log.Errorf("[CORE] Error getting service list. %v", err)
-			return nil
+			return nil, err
 		}
 		svcItems = services.Items
 	} else {
@@ -3314,7 +3335,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 				)
 				if err != nil {
 					log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
-					continue
+					return nil, err
 				}
 				if len(endpointsList.Items) == 0 {
 					log.Debugf("[CORE] Endpoints for service %v not found", service.Name)
@@ -3340,7 +3361,10 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 				}
 			}
 		} else if appMgr.poolMemberType == NodePortLocal { // Controller is in NodePortLocal Mode
-			pods := appMgr.GetPodsForService(service.Namespace, service.Name)
+			pods, err := appMgr.GetPodsForService(service.Namespace, service.Name)
+			if err != nil {
+				return nil, err
+			}
 			if pods != nil {
 				for _, portSpec := range service.Spec.Ports {
 					podPort := portSpec.TargetPort
@@ -3369,7 +3393,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 			}*/
 		}
 	}
-	return members
+	return members, nil
 }
 
 func (appMgr *Manager) exposeKubernetesService(
@@ -3468,12 +3492,12 @@ func (appMgr *Manager) GetServicesForPod(pod *v1.Pod) []*v1.Service {
 	return svcList
 }
 
-func (appMgr *Manager) GetPodsForService(namespace, serviceName string) []*v1.Pod {
+func (appMgr *Manager) GetPodsForService(namespace, serviceName string) ([]*v1.Pod, error) {
 	svcKey := namespace + "/" + serviceName
 	crInf, ok := appMgr.getNamespaceInformer(namespace)
 	if !ok && !appMgr.hubMode {
 		log.Errorf("Informer not found for namespace: %v", namespace)
-		return nil
+		return nil, nil
 	}
 	var svc interface{}
 	var err error
@@ -3484,28 +3508,31 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) []*v1.Po
 		svc, found, err = crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 		if !found {
 			log.Errorf("Error: Service %v not found", svcKey)
-			return nil
+			return nil, nil
 		}
 	}
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
-		return nil
+		// Keep processing in case of service not found error
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
 	}
 	annotations := svc.(*v1.Service).Annotations
 	if _, ok := annotations[NPLSvcAnnotation]; !ok {
 		log.Errorf("NPL annotation %v not set on service %v", NPLSvcAnnotation, serviceName)
-		return nil
+		return nil, nil
 	}
 
 	selector := svc.(*v1.Service).Spec.Selector
 	if len(selector) == 0 {
 		log.Errorf("selector not set on service %v", serviceName)
-		return nil
+		return nil, nil
 	}
 	labelSelector, err := metav1.ParseToLabelSelector(labels.Set(selector).AsSelectorPreValidated().String())
 	labelmap, err := metav1.LabelSelectorAsMap(labelSelector)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
 	var podList []*v1.Pod
@@ -3523,9 +3550,9 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) []*v1.Po
 	}
 	if err != nil {
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
-		return nil
+		return nil, err
 	}
-	return podList
+	return podList, nil
 }
 
 // getEndpointsForNPL returns members.

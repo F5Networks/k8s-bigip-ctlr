@@ -848,9 +848,24 @@ func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHe
 func (ctlr *Controller) processGlobalExtendedRouteConfig() {
 	splits := strings.Split(ctlr.routeSpecCMKey, "/")
 	ns, cmName := splits[0], splits[1]
-	cm, err := ctlr.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
-	if err != nil {
+	var cm *v1.ConfigMap
+	var err error
+	var obj interface{}
+	var exist bool
+	nrInf, found := ctlr.getNamespacedNativeInformer(ns)
+	if found {
+		obj, exist, err = nrInf.cmInformer.GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ns, cmName))
+		cm, _ = obj.(*v1.ConfigMap)
+	}
+	if !exist || cm == nil || err != nil {
+		// If informer fails to fetch configmap which may occur if cis just started which means informers may not have
+		// synced properly then try to fetch using kubeClient
+		cm, err = ctlr.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
+	}
+	// Skip processing further if Extended configmap is not found
+	if err != nil || cm == nil {
 		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
+		return
 	}
 	err = ctlr.setNamespaceLabelMode(cm)
 	if err != nil {

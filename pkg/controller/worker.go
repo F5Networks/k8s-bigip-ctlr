@@ -1929,7 +1929,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 				svcKey)
 			return
 		}
-		pods := ctlr.GetPodsForService(namespace, svcName, true)
+		pods := ctlr.GetPodsForService(pool.ServiceNamespace, svcName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
 				// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port

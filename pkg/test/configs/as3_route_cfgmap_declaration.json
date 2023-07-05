@@ -1,6 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.45.0/as3-schema-3.45.0-5.json",
   "class": "AS3",
+  "persist": true,
+  "logLevel": "error",
   "declaration": {
     "class": "ADC",
     "schemaVersion": "3.45.0",

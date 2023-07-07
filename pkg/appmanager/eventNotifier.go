@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -109,19 +108,4 @@ func (nen *NamespaceEventNotifier) RecordEvent(
 	message string,
 ) {
 	nen.recorder.Event(obj, eventType, reason, message)
-}
-
-// This function expects either an Ingress resource or the name of a VS for
-// an Ingress.
-// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
-func (appMgr *Manager) recordIngressEvent(
-	ing *v1beta1.Ingress,
-	reason,
-	message string,
-) {
-	namespace := ing.ObjectMeta.Namespace
-	// Create the event
-	evNotifier := appMgr.eventNotifier.CreateNotifierForNamespace(
-		namespace, appMgr.kubeClient.CoreV1())
-	evNotifier.RecordEvent(ing, v1.EventTypeNormal, reason, message)
 }

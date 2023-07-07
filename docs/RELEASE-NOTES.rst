@@ -9,14 +9,17 @@ Added Functionality
     * Configmap
         * Support AS3 logLevel and persist parameters in configmap
     * Ingress
-        *
+        * Support for default pool using the single-service ingress
     * CRD
         * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/`_
         * `Issue 2785 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2785>`_: Add EDNS support for service typeLB.
         * Support PERSISTENCE capability for service published through EDNS
 Bug Fixes
 ````````````
-    * `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
+* `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
+* `Issue 2850 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2850>`_: Fix for AS3 config updated every 30 seconds by CIS with default ingress backend
+
+
 2.13.1
 -------------
 Bug Fixes

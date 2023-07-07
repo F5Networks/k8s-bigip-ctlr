@@ -47,9 +47,9 @@ var _ = Describe("AS3Manager Tests", func() {
 		mockMgr.ResourceRequest = resourceRequest
 		resourceConfig = &ResourceConfig{
 			MetaData: MetaData{
-				Active:     true,
-				IngName:    "test1",
-				RouteProfs: make(map[RouteKey]string),
+				Active:             true,
+				DefaultIngressName: "test1",
+				RouteProfs:         make(map[RouteKey]string),
 			},
 			Virtual: Virtual{Name: "test-virtual-secure", Policies: []NameRef{}, Profiles: ProfileRefs{{Name: "clientssl", Partition: "Common", Context: "clientside"}, {Name: "serverssl", Partition: "Common", Context: "serverside"}}, PoolName: "test-pool"},
 			Policies: []Policy{{Name: "openshift_secure_routes", Controls: []string{"forwarding"}, Rules: Rules{},
@@ -155,6 +155,7 @@ var _ = Describe("AS3Manager Tests", func() {
 	It("Prepare AS3 Declaration 1 policy", func() {
 		resourceConfig.MetaData.ResourceType = ResourceTypeIngress
 		resourceConfig.Virtual.Policies = []NameRef{{Name: "test-policy", Partition: DEFAULT_PARTITION}}
+		resourceConfig.Virtual.PoolName = ""
 		mockMgr.ResourceRequest.Resources.RsMap[NameRef{Name: "test_virtual_secure", Partition: DEFAULT_PARTITION}] = resourceConfig
 		as3Config.resourceConfig = mockMgr.prepareAS3ResourceConfig()
 		unifiedDecl := mockMgr.getUnifiedDeclaration(as3Config)
@@ -165,6 +166,7 @@ var _ = Describe("AS3Manager Tests", func() {
 	It("Prepare AS3 Declaration 2 policy", func() {
 		resourceConfig.MetaData.ResourceType = ResourceTypeIngress
 		resourceConfig.Virtual.Policies = []NameRef{{Name: "test-policy1", Partition: DEFAULT_PARTITION}, {Name: "test-policy2", Partition: DEFAULT_PARTITION}}
+		resourceConfig.Virtual.PoolName = ""
 		mockMgr.ResourceRequest.Resources.RsMap[NameRef{Name: "test_virtual_secure", Partition: DEFAULT_PARTITION}] = resourceConfig
 		as3Config.resourceConfig = mockMgr.prepareAS3ResourceConfig()
 		unifiedDecl := mockMgr.getUnifiedDeclaration(as3Config)

@@ -31,7 +31,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	routeapi "github.com/openshift/api/route/v1"
-	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -494,116 +493,6 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(len(rs.objDeps)).To(BeZero())
 		})
 
-		It("ingress object dependencies", func() {
-			// Make sure NewObjectDependencies finds all the services in an Ingress.
-			ingressConfig := v1beta1.IngressSpec{
-				Backend: &v1beta1.IngressBackend{
-					ServiceName: "foo",
-					ServicePort: intstr.IntOrString{IntVal: 80},
-				},
-				Rules: []v1beta1.IngressRule{
-					{
-						Host: "host1",
-						IngressRuleValue: v1beta1.IngressRuleValue{
-							HTTP: &v1beta1.HTTPIngressRuleValue{
-								Paths: []v1beta1.HTTPIngressPath{
-									{
-										Path: "/bar",
-										Backend: v1beta1.IngressBackend{
-											ServiceName: "bar",
-											ServicePort: intstr.IntOrString{IntVal: 80},
-										},
-									}, {
-										Path: "/baz",
-										Backend: v1beta1.IngressBackend{
-											ServiceName: "baz",
-											ServicePort: intstr.IntOrString{IntVal: 80},
-										},
-									},
-								},
-							},
-						},
-					}, {
-						Host: "host2",
-						IngressRuleValue: v1beta1.IngressRuleValue{
-							HTTP: &v1beta1.HTTPIngressRuleValue{
-								Paths: []v1beta1.HTTPIngressPath{
-									{
-										Path: "/baz",
-										Backend: v1beta1.IngressBackend{
-											ServiceName: "baz",
-											ServicePort: intstr.IntOrString{IntVal: 80},
-										},
-									}, {
-										Path: "/foobarbaz",
-										Backend: v1beta1.IngressBackend{
-											ServiceName: "foobarbaz",
-											ServicePort: intstr.IntOrString{IntVal: 80},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}
-			// Add a new Ingress
-			annotations := map[string]string{
-				F5VsURLRewriteAnnotation: "foo/baz",
-				F5VsAppRootAnnotation:    "chfo",
-			}
-			ingress := test.NewIngress("ingress", "1", "ns2", ingressConfig, annotations)
-			key, deps := NewObjectDependencies(ingress)
-			Expect(key).To(Equal(ObjectDependency{
-				Kind: "Ingress", Namespace: "ns2", Name: "ingress"}))
-			ingressDeps := []ObjectDependency{
-				{Kind: "Service", Namespace: "ns2", Name: "foo"},
-				{Kind: "Service", Namespace: "ns2", Name: "bar"},
-				{Kind: "Service", Namespace: "ns2", Name: "baz"},
-				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host2/foobarbaz"},
-				{Kind: "App-Root-Annotation", Namespace: "ns2", Name: ","},
-				{Kind: "URL-Rewrite-Annotation", Namespace: "ns2"},
-			}
-			for _, dep := range ingressDeps {
-				_, found := deps[dep]
-				Expect(found).To(BeTrue())
-			}
-
-			ingAlwaysFound := func(key ObjectDependency) bool {
-				return false
-			}
-			ingNeverFound := func(key ObjectDependency) bool {
-				return true
-			}
-
-			// First add
-			Expect(len(rs.objDeps)).To(BeZero())
-			added, removed := rs.UpdateDependencies(
-				key, deps, ingressDeps[0], ingAlwaysFound)
-			Expect(len(added)).To(Equal(len(ingressDeps)))
-			Expect(len(removed)).To(BeZero())
-			Expect(len(rs.objDeps)).To(Equal(1))
-
-			// Change a dependent service
-			ingress.Spec.Rules[1].HTTP.Paths[1].Backend.ServiceName = "boo"
-			key, deps = NewObjectDependencies(ingress)
-			added, removed = rs.UpdateDependencies(
-				key, deps, ingressDeps[0], ingAlwaysFound)
-			Expect(len(added)).To(Equal(1))
-			Expect(len(removed)).To(Equal(1))
-			Expect(len(rs.objDeps)).To(Equal(1))
-
-			// 'remove' Ingress. Should remove entry from rs.objDeps
-			added, removed = rs.UpdateDependencies(
-				key, deps, ingressDeps[0], ingNeverFound)
-			Expect(len(added)).To(BeZero())
-			Expect(len(removed)).To(Equal(6))
-			Expect(len(rs.objDeps)).To(BeZero())
-		})
 		It("Netv1 ingress object dependencies", func() {
 			// Make sure NewObjectDependencies finds all the services in an Ingress.
 			ingressConfig := netv1.IngressSpec{
@@ -799,10 +688,10 @@ var _ = Describe("Resource Config Tests", func() {
 
 			resourceConfig := &ResourceConfig{
 				MetaData: MetaData{
-					Active:       true,
-					ResourceType: "route",
-					IngName:      "test1",
-					RouteProfs:   make(map[RouteKey]string),
+					Active:             true,
+					ResourceType:       "route",
+					DefaultIngressName: "test1",
+					RouteProfs:         make(map[RouteKey]string),
 				},
 				Virtual: Virtual{Name: "test-virtual", Policies: []NameRef{}, Profiles: ProfileRefs{}},
 				Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}, Rules: Rules{rule},

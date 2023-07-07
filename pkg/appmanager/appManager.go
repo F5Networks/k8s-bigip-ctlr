@@ -1775,8 +1775,7 @@ func (appMgr *Manager) syncIngresses(
 	appInf *appInformer,
 	dgMap InternalDataGroupMap,
 ) error {
-	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
-		"namespace", sKey.Namespace)
+	ingByIndex, err := appInf.getOrderedIngress(sKey.Namespace)
 	if nil != err {
 		log.Warningf("[CORE] Unable to list ingresses for namespace '%v': %v",
 			sKey.Namespace, err)
@@ -1785,18 +1784,18 @@ func (appMgr *Manager) syncIngresses(
 	appMgr.TeemData.Lock()
 	appMgr.TeemData.ResourceType.Ingresses[sKey.Namespace] = len(ingByIndex)
 	appMgr.TeemData.Unlock()
-	for _, obj := range ingByIndex {
+	for _, ing := range ingByIndex {
 		// We need to look at all ingresses in the store, parse the data blob,
 		// and process ingresses that has changed.
 		var partition string
 		svcFwdRulesMap := NewServiceFwdRuleMap()
-		ing := obj.(*netv1.Ingress)
 		// TODO: Each ingress resource must be processed for its associated service
 		//  only, existing implementation processes all services available in k8s
 		//  and this approach degrades the performance of processing Ingress resources
 		if ing.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
 		if ok := appMgr.checkV1SingleServivceIngress(ing); !ok {
 			continue
 		}
@@ -1838,7 +1837,7 @@ func (appMgr *Manager) syncIngresses(
 				ing,
 				appMgr.resources,
 				sKey.Namespace,
-				appInf.svcInformer.GetIndexer(),
+				appInf,
 				portStruct,
 				appMgr.defaultIngIP,
 				appMgr.vsSnatPoolName,
@@ -1932,7 +1931,7 @@ func (appMgr *Manager) syncIngresses(
 			}
 			if ok, found, updated := appMgr.handleConfigForTypeIngress(
 				rsCfg, sKey, rsMap, rsName, svcPortMap,
-				svc, appInf, svcs, obj); !ok {
+				svc, appInf, svcs, ing); !ok {
 				stats.vsUpdated += updated
 				continue
 			} else {

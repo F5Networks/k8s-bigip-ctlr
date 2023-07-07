@@ -37,7 +37,6 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	"github.com/xeipuuv/gojsonschema"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -582,70 +581,6 @@ func NewObjectDependencies(
 			}
 			deps[dep]++
 		}
-	// TODO remove the case once v1beta1.Ingress is deprecated in k8s 1.22
-	case *v1beta1.Ingress:
-		ingress := obj.(*v1beta1.Ingress)
-		key.Kind = "Ingress"
-		key.Namespace = ingress.ObjectMeta.Namespace
-		key.Name = ingress.ObjectMeta.Name
-		if nil != ingress.Spec.Backend {
-			dep := ObjectDependency{
-				Kind:      ServiceDep,
-				Namespace: ingress.ObjectMeta.Namespace,
-				Name:      ingress.Spec.Backend.ServiceName,
-			}
-			deps[dep]++
-		}
-		for _, rule := range ingress.Spec.Rules {
-			if nil == rule.IngressRuleValue.HTTP {
-				continue
-			}
-			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				dep := ObjectDependency{
-					Kind:      ServiceDep,
-					Namespace: ingress.ObjectMeta.Namespace,
-					Name:      path.Backend.ServiceName,
-				}
-				deps[dep]++
-				dep = ObjectDependency{
-					Kind:      RuleDep,
-					Namespace: ingress.ObjectMeta.Namespace,
-					Name:      rule.Host + path.Path,
-				}
-				deps[dep]++
-				if urlRewrite, ok := ingress.ObjectMeta.Annotations[F5VsURLRewriteAnnotation]; ok {
-					dep = ObjectDependency{
-						Kind:      URLDep,
-						Namespace: ingress.ObjectMeta.Namespace,
-						Name:      getAnnotationRuleNames(urlRewrite, false, ingress),
-					}
-					deps[dep]++
-				}
-				if appRoot, ok := ingress.ObjectMeta.Annotations[F5VsAppRootAnnotation]; ok {
-					dep = ObjectDependency{
-						Kind:      AppRootDep,
-						Namespace: ingress.ObjectMeta.Namespace,
-						Name:      getAnnotationRuleNames(appRoot, true, ingress),
-					}
-					deps[dep]++
-				}
-			}
-		}
-		if whiteList, ok := ingress.ObjectMeta.Annotations[F5VsWhitelistSourceRangeAnnotation]; ok {
-			dep := ObjectDependency{
-				Kind:      WhitelistDep,
-				Namespace: ingress.ObjectMeta.Namespace,
-				Name:      whiteList,
-			}
-			deps[dep]++
-		} else if whiteList, ok := ingress.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
-			dep := ObjectDependency{
-				Kind:      WhitelistDep,
-				Namespace: ingress.ObjectMeta.Namespace,
-				Name:      whiteList,
-			}
-			deps[dep]++
-		}
 	case *netv1.Ingress:
 		ingress := obj.(*netv1.Ingress)
 		key.Kind = "Ingress"
@@ -715,38 +650,6 @@ func NewObjectDependencies(
 	return key, deps
 }
 
-// TODO remove the case once v1beta1.Ingress is deprecated in k8s 1.22
-func generateMultiServiceAnnotationRuleNames(ing *v1beta1.Ingress, annotationMap map[string]string, prefix string) string {
-	var ruleNames string
-	appRoot := strings.HasPrefix(prefix, "app-root")
-
-	for _, rule := range ing.Spec.Rules {
-		if nil != rule.IngressRuleValue.HTTP {
-			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				var uri string
-				if appRoot {
-					uri = rule.Host
-				} else {
-					uri = rule.Host + path.Path
-				}
-				if targetVal, ok := annotationMap[uri]; ok {
-					var nameEnd string
-					if appRoot {
-						nameEnd = uri + targetVal
-					} else {
-						nameEnd = uri + "-" + targetVal
-					}
-					nameEnd = strings.Replace(nameEnd, "/", "_", -1)
-					ruleNames += prefix + nameEnd + ","
-				}
-			}
-		}
-	}
-	ruleNames = strings.TrimSuffix(ruleNames, ",")
-
-	return ruleNames
-}
-
 func generateMultiServiceAnnotationV1RuleNames(ing *netv1.Ingress, annotationMap map[string]string, prefix string) string {
 	var ruleNames string
 	appRoot := strings.HasPrefix(prefix, "app-root")
@@ -792,25 +695,6 @@ func getAnnotationRuleNames(oldName string, isAppRoot bool, obj interface{}) str
 			ruleNames += "," + appRootForwardRulePrefix + nameEnd
 		} else {
 			ruleNames = urlRewriteRulePrefix + nameEnd
-		}
-	// TODO remove the case once v1beta1.Ingress is deprecated in k8s 1.22
-	case *v1beta1.Ingress:
-		ingress := obj.(*v1beta1.Ingress)
-		if ingress.Spec.Rules != nil {
-			annotationMap := ParseAppRootURLRewriteAnnotations(oldName)
-			if isAppRoot {
-				ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootRedirectRulePrefix)
-				ruleNames += "," + generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootForwardRulePrefix)
-			} else {
-				ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, urlRewriteRulePrefix)
-			}
-		} else {
-			if isAppRoot {
-				annotationMap := ParseAppRootURLRewriteAnnotations(oldName)
-				nameEnd := "single-service" + "-" + annotationMap["single"]
-				ruleNames = appRootRedirectRulePrefix + nameEnd
-				ruleNames += "," + appRootForwardRulePrefix + nameEnd
-			}
 		}
 	case *netv1.Ingress:
 		ingress := obj.(*netv1.Ingress)
@@ -1653,10 +1537,10 @@ func IsAnnotationRule(ruleName string) bool {
 // Returns a copy of the resource config metadata
 func copyRCMetaData(cfg *ResourceConfig) MetaData {
 	metadata := MetaData{
-		Active:       cfg.MetaData.Active,
-		ResourceType: cfg.MetaData.ResourceType,
-		RouteProfs:   make(map[RouteKey]string),
-		IngName:      cfg.MetaData.IngName,
+		Active:             cfg.MetaData.Active,
+		ResourceType:       cfg.MetaData.ResourceType,
+		RouteProfs:         make(map[RouteKey]string),
+		DefaultIngressName: cfg.MetaData.DefaultIngressName,
 	}
 	for k, v := range cfg.MetaData.RouteProfs {
 		metadata.RouteProfs[k] = v

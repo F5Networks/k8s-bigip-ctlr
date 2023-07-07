@@ -26,7 +26,6 @@ import (
 	"io"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -139,26 +138,7 @@ func NewConfigMap(id, rv, namespace string,
 	}
 }
 
-// NewIngress returns a new ingress object
-func NewIngress(id, rv, namespace string,
-	spec v1beta1.IngressSpec,
-	annotations map[string]string) *v1beta1.Ingress {
-	return &v1beta1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Ingress",
-			APIVersion: "extensions/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: rv,
-			Namespace:       namespace,
-			Annotations:     annotations,
-		},
-		Spec: spec,
-	}
-}
-
-// NewIngress returns a new ingress object
+// NewIngressNetV1 returns a new ingress object
 func NewIngressNetV1(id, rv, namespace string,
 	spec netv1.IngressSpec,
 	annotations map[string]string) *netv1.Ingress {

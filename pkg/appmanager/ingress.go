@@ -16,12 +16,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
 	CCCLAgent = "cccl"
 )
+
+type IngressList []*netv1.Ingress
 
 func (appMgr *Manager) checkV1Ingress(
 	ing *netv1.Ingress,
@@ -43,15 +44,33 @@ func (appMgr *Manager) checkV1Ingress(
 	bindAddr := ""
 	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
 		bindAddr = addr
+	} else {
+		bindAddr = appMgr.defaultIngIP
 	}
 	var keyList []*serviceQueueKey
 	// Depending on the Ingress, we may loop twice here, once for http and once for https
 	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
+		var rsType int
+		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
+		// If we have a config for this IP:Port, then it should have only one default ingress
+		// multiple default ingress does not make any sense
+		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
+			if ing.Spec.Rules == nil &&
+				oldCfg.MetaData.DefaultIngressName != "" &&
+				oldCfg.MetaData.DefaultIngressName != ing.ObjectMeta.Name &&
+				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
+				log.Warningf(
+					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
+					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
+				return false, nil
+			}
+		}
+
 		rsCfg, otherIngClass := appMgr.createRSConfigFromV1Ingress(
 			ing,
 			appMgr.resources,
 			namespace,
-			appInf.svcInformer.GetIndexer(),
+			appInf,
 			portStruct,
 			appMgr.defaultIngIP,
 			appMgr.vsSnatPoolName,
@@ -61,8 +80,7 @@ func (appMgr *Manager) checkV1Ingress(
 			log.Debugf("Skip processing ingress %s as cis doesn't manage this ingress class", ing.Name)
 			return false, nil
 		}
-		var rsType int
-		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
+
 		// If rsCfg is nil, delete any resources tied to this Ingress
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service
@@ -112,27 +130,6 @@ func (appMgr *Manager) checkV1Ingress(
 				validateAppRootAnnotations(rsType, appRootMap)
 			}
 		}
-
-		// This ensures that pool-only mode only logs the message below the first
-		// time we see a config.
-		if _, exists := appMgr.resources.GetByName(rsName); !exists && bindAddr == "" {
-			log.Infof("[CORE] No virtual IP was specified for the virtual server %s, creating pool only.",
-				rsName)
-		}
-
-		// If we have a config for this IP:Port, and either that config or the current config
-		// is for a single service ingress, then we don't allow the new Ingress to share the VS
-		// It doesn't make sense for single service Ingresses to share a VS
-		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
-			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
-				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
-				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
-				log.Warningf(
-					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
-					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
-				return false, nil
-			}
-		}
 	}
 	svcs := getIngressV1Backend(ing)
 	for _, svc := range svcs {
@@ -154,6 +151,8 @@ func (appMgr *Manager) checkV1SingleServivceIngress(
 	partition := DEFAULT_PARTITION
 	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
 		bindAddr = addr
+	} else {
+		bindAddr = appMgr.defaultIngIP
 	}
 	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
 		partition = p
@@ -161,12 +160,12 @@ func (appMgr *Manager) checkV1SingleServivceIngress(
 	// Depending on the Ingress, we may loop twice here, once for http and once for https
 	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
 		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
-		// If we have a config for this IP:Port, and either that config or the current config
-		// is for a single service ingress, then we don't allow the new Ingress to share the VS
-		// It doesn't make sense for single service Ingresses to share a VS
+		// If we have a config for this IP:Port, then it should have only one default ingress
+		// multiple default ingress does not make any sense for an ip-port combination
 		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
-			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
-				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
+			if ing.Spec.Rules == nil &&
+				oldCfg.MetaData.DefaultIngressName != "" &&
+				oldCfg.MetaData.DefaultIngressName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
 					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
@@ -555,7 +554,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	ing *netv1.Ingress,
 	resources *Resources,
 	ns string,
-	svcIndexer cache.Indexer,
+	appInf *appInformer,
 	pStruct portStruct,
 	defaultIP,
 	snatPoolName string,
@@ -624,7 +623,6 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	var plcy *Policy
 	var rules *Rules
 	var ssPoolName string
-
 	urlRewriteRefs := make(map[string]string)
 	appRootRefs := make(map[string][]string)
 	if nil != ing.Spec.Rules { //multi-service
@@ -638,7 +636,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 					exists := false
 					for _, pl := range pools {
 						if path.Backend.Service.Port.Name != "" {
-							backendPort, err := GetServicePort(ns, path.Backend.Service.Name, svcIndexer, path.Backend.Service.Port.Name, ResourceTypeIngress)
+							backendPort, err := GetServicePort(ns, path.Backend.Service.Name, appInf.svcInformer.GetIndexer(), path.Backend.Service.Port.Name, ResourceTypeIngress)
 							if err != nil {
 								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 								continue
@@ -659,13 +657,13 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 					if path.Backend.Service.Port.Number != 0 {
 						// If service doesn't exist, don't create a pool for it
 						sKey := ns + "/" + path.Backend.Service.Name
-						_, svcFound, _ := svcIndexer.GetByKey(sKey)
+						_, svcFound, _ := appInf.svcInformer.GetIndexer().GetByKey(sKey)
 						if !svcFound {
 							continue
 						}
 						backendPort = path.Backend.Service.Port.Number
 					} else if path.Backend.Service.Port.Name != "" {
-						backendPort, err = GetServicePort(ns, path.Backend.Service.Name, svcIndexer, path.Backend.Service.Port.Name, ResourceTypeIngress)
+						backendPort, err = GetServicePort(ns, path.Backend.Service.Name, appInf.svcInformer.GetIndexer(), path.Backend.Service.Port.Name, ResourceTypeIngress)
 						if err != nil {
 							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 							continue
@@ -703,7 +701,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 		if ing.Spec.DefaultBackend.Service.Port.Number != 0 {
 			backendPort = ing.Spec.DefaultBackend.Service.Port.Number
 		} else if ing.Spec.DefaultBackend.Service.Port.Name != "" {
-			backendPort, err = GetServicePort(ns, ing.Spec.DefaultBackend.Service.Name, svcIndexer, ing.Spec.DefaultBackend.Service.Port.Name, ResourceTypeIngress)
+			backendPort, err = GetServicePort(ns, ing.Spec.DefaultBackend.Service.Name, appInf.svcInformer.GetIndexer(), ing.Spec.DefaultBackend.Service.Port.Name, ResourceTypeIngress)
 			if err != nil {
 				log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 			}
@@ -720,8 +718,6 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 		}
 		ssPoolName = pool.Name
 		pools = append(pools, pool)
-		cfg.Virtual.PoolName = JoinBigipPath(cfg.Virtual.Partition, ssPoolName)
-
 		// Process app root annotation
 		if len(appRootMap) == 1 {
 			if appRootVal, ok := appRootMap["single"]; ok == true {
@@ -735,7 +731,6 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 			}
 		}
 	}
-	cfg.MetaData.IngName = ing.ObjectMeta.Name
 
 	resources.Lock()
 	defer resources.Unlock()
@@ -763,12 +758,31 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 				cfg.Pools = append(cfg.Pools, newPool)
 			}
 		}
-		if len(cfg.Pools) > 1 && nil != ing.Spec.Rules {
-			cfg.Virtual.PoolName = ""
-		} else if nil == ing.Spec.Rules {
-			// If updating an Ingress from multi-service to single-service, we need to
-			// reset the virtual's default pool
-			cfg.Virtual.PoolName = JoinBigipPath(cfg.Virtual.Partition, ssPoolName)
+
+		if ing.Spec.Rules == nil {
+			if oldCfg.MetaData.DefaultIngressName == "" {
+				// this is the case where multi-service ingress is created first and then single service ingress is created
+				cfg.Virtual.PoolName = JoinBigipPath(cfg.Virtual.Partition, ssPoolName)
+				cfg.MetaData.DefaultIngressName = ing.ObjectMeta.Name
+			}
+		} else {
+			if oldCfg.MetaData.DefaultIngressName != "" {
+				// this is definitely a case where multiservice ingress is there with the default pool
+				// clean up the DefaultIngressName if it's deleted
+				rscKey := fmt.Sprintf("%v/%v", ing.Namespace, cfg.MetaData.DefaultIngressName)
+				_, exist, err := appInf.ingInformer.GetIndexer().GetByKey(rscKey)
+				if err != nil {
+					log.Debugf("Error while fetching Ingress: %v: %v",
+						rscKey, err)
+				}
+				if !exist {
+					cfg.MetaData.DefaultIngressName = ""
+					cfg.Virtual.PoolName = ""
+				} else {
+					// this is the case where single service ingress is created first and then multi-service ingress is created
+					cfg.Virtual.PoolName = oldCfg.Virtual.PoolName
+				}
+			}
 		}
 
 		// If any of the new rules already exist, update them; else add them
@@ -794,6 +808,10 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 			cfg.SetPolicy(*plcy)
 		}
 	} else { // This is a new VS for an Ingress
+		if ing.Spec.Rules == nil {
+			cfg.Virtual.PoolName = JoinBigipPath(cfg.Virtual.Partition, ssPoolName)
+			cfg.MetaData.DefaultIngressName = ing.ObjectMeta.Name
+		}
 		cfg.MetaData.ResourceType = "ingress"
 		cfg.Virtual.Enabled = true
 		SetProfilesForMode("http", &cfg)
@@ -1214,11 +1232,14 @@ func (appMgr *Manager) removeOldVIngressObjects(ing *netv1.Ingress) {
 	bindAddr := ""
 	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
 		bindAddr = addr
+	} else {
+		bindAddr = appMgr.defaultIngIP
 	}
 	partition := DEFAULT_PARTITION
 	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
 		partition = p
 	}
+	appMgr.resources.Lock()
 	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
 		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
 		if nil == ing.Spec.Rules { //single-service
@@ -1241,6 +1262,7 @@ func (appMgr *Manager) removeOldVIngressObjects(ing *netv1.Ingress) {
 			vsCount++
 		}
 	}
+	appMgr.resources.Unlock()
 	if vsCount == 0 {
 		redirectDG := NameRef{Name: HttpsRedirectDgName, Partition: partition}
 		if _, ok := appMgr.intDgMap[redirectDG]; ok {
@@ -1249,4 +1271,28 @@ func (appMgr *Manager) removeOldVIngressObjects(ing *netv1.Ingress) {
 	}
 	appMgr.syncIRules()
 	appMgr.deployResource()
+}
+
+func (slice IngressList) Len() int {
+	return len(slice)
+}
+
+func (slice IngressList) Less(i, j int) bool {
+	return slice[i].CreationTimestamp.Before(&slice[j].CreationTimestamp)
+}
+
+func (slice IngressList) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (appInf *appInformer) getOrderedIngress(namespace string) (IngressList, error) {
+	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
+		"namespace", namespace)
+	var ingresses IngressList
+	for _, obj := range ingByIndex {
+		route := obj.(*netv1.Ingress)
+		ingresses = append(ingresses, route)
+	}
+	sort.Sort(ingresses)
+	return ingresses, err
 }

@@ -60,7 +60,7 @@ type (
 		RouteProfs map[RouteKey]string
 		// Name of the Ingress that created this config
 		// Used to prevent single-service Ingresses from sharing virtuals
-		IngName string
+		DefaultIngressName string
 	}
 
 	// Key used to store annotated profiles for a route

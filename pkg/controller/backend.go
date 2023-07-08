@@ -714,7 +714,7 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 				sharedApp[pool.Name] = gslbPool
 			}
 
-			sharedApp[domainName] = gslbDomain
+			sharedApp[strings.Replace(domainName, "*", "wildcard", -1)] = gslbDomain
 		}
 		adc[pn] = tenantDecl
 	}

@@ -292,3 +292,13 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
     * This setting is exclusive for NextGen route mode and not applicable for CRD resources
     * Policy level ssl profiles will have the highest precedence and will override route level profiles
     * In CRD mode CIS will process ssl profiles from tls profile
+
+### **Upgrading from 2.13.1 to 2.14.0:**
+
+* Wildcard support provided in the EDNS custom resource. 
+* With wildcard domain in EDNS, CIS will try to check for the exact match of wildcard host in VS/TS crds
+
+  | EDNS Domain | VS Domain   | Matched     | 
+  |-------------|-------------|-------------|
+  | *.foo.com   | *.foo.com   | yes         | 
+  | *.foo.com   | abc.foo.com | not matched | 

@@ -681,6 +681,8 @@ spec:
                 loadBalanceMethod:
                   type: string
                   pattern: '^[a-z]+[a-z_-]+[a-z]+$'
+                clientSubnetPreferred:
+                  type: boolean
                 pools:
                   type: array
                   items:

@@ -15,6 +15,7 @@ Added Functionality
         * `Issue 2785 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2785>`_: Add EDNS support for service typeLB.
         * Support PERSISTENCE capability for service published through EDNS
         * Wildcard domain support for EDNS
+        * Support Client Subnet config capability from EDNS in AS3 mode
 Bug Fixes
 ````````````
 * `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode

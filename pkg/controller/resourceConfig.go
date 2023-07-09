@@ -1438,6 +1438,7 @@ func copyGTMConfig(cfg WideIP) (rc WideIP) {
 	rc.PersistCidrIPv4 = cfg.PersistCidrIPv4
 	rc.PersistCidrIPv6 = cfg.PersistCidrIPv6
 	rc.PersistenceEnabled = cfg.PersistenceEnabled
+	rc.ClientSubnetPreferred = cfg.ClientSubnetPreferred
 	rc.RecordType = cfg.RecordType
 	// Pools
 	rc.Pools = make([]GSLBPool, len(cfg.Pools))

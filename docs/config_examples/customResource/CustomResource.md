@@ -288,12 +288,13 @@ Note: **monitors** take priority over **monitor** if both are provided in TS spe
 
 **ExternalDNS Components**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| domainName | String | Required | NA | Domain name of virtual server CRD |
-| dnsRecordType | String | Required | A | DNS record type |
+| PARAMETER | TYPE | REQUIRED | DEFAULT     | DESCRIPTION                           |
+| ------ | ------ |----------|-------------|---------------------------------------|
+| domainName | String | Required | NA          | Domain name of virtual server CRD     |
+| dnsRecordType | String | Required | A           | DNS record type                       |
+| clientSubnetPreferred | boolean | Optional | false       | Client Subnet Preferred flag          |
 | loadBalancerMethod | String | Required | round-robin | Load balancing method for DNS traffic |
-| pools | pool | Optional | NA | GTM Pools |
+| pools | pool | Optional | NA          | GTM Pools                             |
 
 **Pool Components**
 

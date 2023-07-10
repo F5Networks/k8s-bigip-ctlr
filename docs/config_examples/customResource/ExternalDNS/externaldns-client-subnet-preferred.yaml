@@ -1,0 +1,24 @@
+# Note : clientSubnetPreferred config is supported in as3 mode only
+
+apiVersion: cis.f5.com/v1
+kind: ExternalDNS
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-edns-bar
+  namespace: default
+spec:
+  clientSubnetPreferred: true
+  dnsRecordType: A
+  domainName: bar.com
+  loadBalanceMethod: round-robin
+  pools:
+    - dataServerName: /Common/DC-SL
+      dnsRecordType: A
+      loadBalanceMethod: round-robin
+      monitor:
+        interval: 20
+        recv: a
+        send: "GET //bar HTTP/1.1\r\nHost: bar.com\r\n"
+        timeout: 10
+        type: https

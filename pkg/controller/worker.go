@@ -2527,14 +2527,15 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	ctlr.TeemData.Unlock()
 
 	wip := WideIP{
-		DomainName:         edns.Spec.DomainName,
-		RecordType:         edns.Spec.DNSRecordType,
-		LBMethod:           edns.Spec.LoadBalanceMethod,
-		PersistenceEnabled: edns.Spec.PersistenceEnabled,
-		PersistCidrIPv4:    edns.Spec.PersistCidrIPv4,
-		PersistCidrIPv6:    edns.Spec.PersistCidrIPv6,
-		TTLPersistence:     edns.Spec.TTLPersistence,
-		UID:                string(edns.UID),
+		DomainName:            edns.Spec.DomainName,
+		RecordType:            edns.Spec.DNSRecordType,
+		LBMethod:              edns.Spec.LoadBalanceMethod,
+		PersistenceEnabled:    edns.Spec.PersistenceEnabled,
+		PersistCidrIPv4:       edns.Spec.PersistCidrIPv4,
+		PersistCidrIPv6:       edns.Spec.PersistCidrIPv6,
+		TTLPersistence:        edns.Spec.TTLPersistence,
+		ClientSubnetPreferred: edns.Spec.ClientSubnetPreferred,
+		UID:                   string(edns.UID),
 	}
 
 	if edns.Spec.TTLPersistence == 0 {

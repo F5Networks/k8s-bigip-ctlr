@@ -1006,12 +1006,19 @@ func prepareV1IngressSSLContext(appMgr *Manager, ing *netv1.Ingress) {
 			continue
 		}
 		// Check if profile is contained in a Secret
-		secret, err := appMgr.kubeClient.CoreV1().Secrets(ing.ObjectMeta.Namespace).
-			Get(context.TODO(), tls.SecretName, metav1.GetOptions{})
-		if err != nil {
+		appInf, found := appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		if !found {
+			log.Debugf("[CORE] No Informer found while fetching secret with name '%s' in namespace '%s'",
+				tls.SecretName, ing.ObjectMeta.Namespace)
+			continue
+		}
+		obj, found, err := appInf.secretInformer.GetIndexer().GetByKey(
+			fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, tls.SecretName))
+		if err != nil || !found {
 			appMgr.rsrcSSLCtxt[tls.SecretName] = nil
 			continue
 		}
+		secret := obj.(*v1.Secret)
 		appMgr.rsrcSSLCtxt[tls.SecretName] = secret
 	}
 }

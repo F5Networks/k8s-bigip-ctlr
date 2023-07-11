@@ -220,7 +220,7 @@ func updateTenantMap(tempAS3Config AS3Config) AS3Config {
 	return tempAS3Config
 }
 
-func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
+func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string, error) {
 	am.ResourceRequest = rsReq
 
 	// as3Config := am.as3ActiveConfig
@@ -231,14 +231,20 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
 	// Process Route or Ingress
 	as3Config.resourceConfig = am.prepareAS3ResourceConfig()
 
+	var err error
 	// Process all Configmaps (including overrideAS3)
-	as3Config.configmaps, as3Config.overrideConfigmapData = am.prepareResourceAS3ConfigMaps()
-
+	as3Config.configmaps, as3Config.overrideConfigmapData, err = am.prepareResourceAS3ConfigMaps()
+	// Skip posting AS3 declaration if error encountered while processing configMap to avoid possible wrong declaration
+	// getting posted as the pool members may be empty if error is encountered while connecting with api server
+	if err != nil {
+		return false, "", err
+	}
 	if am.FilterTenants {
 		updateTenantMap(*as3Config)
 	}
 
-	return am.postAS3Config(*as3Config)
+	posted, url := am.postAS3Config(*as3Config)
+	return posted, url, nil
 }
 
 func (am *AS3Manager) getADC() map[string]interface{} {
@@ -561,7 +567,11 @@ func (am *AS3Manager) ConfigDeployer() {
 		case msgReq = <-am.ReqChan:
 		case <-time.After(1 * time.Microsecond):
 		}
-		posted, event := am.postAS3Declaration(msgReq.ResourceRequest)
+		posted, event, err := am.postAS3Declaration(msgReq.ResourceRequest)
+		// Skip processing further if error is encountered during preparing and posting of AS3 declaration
+		if err != nil {
+			continue
+		}
 		am.updateNetworkingConfig()
 
 		// To handle general errors
@@ -572,7 +582,11 @@ func (am *AS3Manager) ConfigDeployer() {
 				timeout = postDelayTimeout
 			}
 			log.Debugf("[AS3] Error handling for event %v", event)
-			posted, event = am.postOnEventOrTimeout(timeout)
+			var err error
+			posted, event, err = am.postOnEventOrTimeout(timeout)
+			if err != nil {
+				continue
+			}
 			am.updateNetworkingConfig()
 		}
 		firstPost = false
@@ -598,12 +612,13 @@ func (am *AS3Manager) failureHandler() (bool, string) {
 }
 
 // Helper method used by configDeployer to handle error responses received from BIG-IP
-func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string) {
+func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string, error) {
 	select {
 	case msgReq := <-am.ReqChan:
 		return am.postAS3Declaration(msgReq.ResourceRequest)
 	case <-time.After(timeout):
-		return am.failureHandler()
+		posted, url := am.failureHandler()
+		return posted, url, nil
 	}
 }
 

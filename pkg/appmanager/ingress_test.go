@@ -127,7 +127,8 @@ var _ = Describe("V1 Ingress Tests", func() {
 					"tls.key": []byte("testkey"),
 				},
 			}
-			_, err := mockMgr.appMgr.kubeClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+			//_, err := mockMgr.appMgr.kubeClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+			err := mockMgr.appMgr.appInformers[namespace].secretInformer.GetStore().Add(secret)
 			Expect(err).To(BeNil())
 
 			spec := netv1.IngressSpec{

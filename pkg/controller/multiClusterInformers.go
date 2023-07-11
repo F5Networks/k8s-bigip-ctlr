@@ -123,7 +123,7 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 		),
 	}
 	//enable pod informer for nodeport local mode and openshift mode
-	if ctlr.PoolMemberType == NodePortLocal || ctlr.mode == OpenShiftMode {
+	if ctlr.PoolMemberType == NodePortLocal {
 		comInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -137,7 +137,7 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 		)
 	}
 	// enable endpoint informer in the cluster and nextGen routes mode only
-	if ctlr.PoolMemberType == Cluster && ctlr.mode == OpenShiftMode {
+	if ctlr.PoolMemberType == Cluster {
 		comInf.epsInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,

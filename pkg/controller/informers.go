@@ -847,6 +847,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
 		return
 	}
+	updateEvent := true
 	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
 	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
@@ -870,6 +871,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 			event:     Delete,
 		}
 		ctlr.resourceQueue.Add(key)
+		updateEvent = false
 	}
 
 	log.Debugf("Enqueueing TransportServer: %v", newVS)
@@ -880,7 +882,9 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		rsc:       newObj,
 		event:     Create,
 	}
-
+	if updateEvent {
+		key.event = Update
+	}
 	ctlr.resourceQueue.Add(key)
 }
 

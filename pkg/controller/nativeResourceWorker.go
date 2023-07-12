@@ -354,7 +354,13 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		// on route update we are clearing the resource service
 		// if event comes from route then we will read and populate data, else we will skip processing
 		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-			ctlr.processResourceExternalClusterServices(rsRef, annotation)
+			var clusterSvcs []cisapiv1.MultiClusterServiceReference
+			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+			if err == nil {
+				ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
+			} else {
+				log.Warningf("unable to read service mapping for resource %v", rsRef)
+			}
 		}
 	}
 

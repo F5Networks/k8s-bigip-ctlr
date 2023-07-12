@@ -383,13 +383,12 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		kind:      Route,
 	}
 	//check for external service reference annotation
-	var clusterSvcs []cisapiv1.MultiClusterServiceReference
-
 	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
 		// only process if route key is not present. else skip the processing
 		// on route update we are clearing the resource service
 		// if event comes from route then we will read and populate data, else we will skip processing
 		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+			var clusterSvcs []cisapiv1.MultiClusterServiceReference
 			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 			if err == nil {
 				ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)

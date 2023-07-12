@@ -348,13 +348,13 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		namespace: route.Namespace,
 		kind:      Route,
 	}
+	var clusterSvcs []cisapiv1.MultiClusterServiceReference
 	//check for external service reference annotation
 	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
 		// only process if route key is not present. else skip the processing
 		// on route update we are clearing the resource service
 		// if event comes from route then we will read and populate data, else we will skip processing
 		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-			var clusterSvcs []cisapiv1.MultiClusterServiceReference
 			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 			if err == nil {
 				ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
@@ -364,7 +364,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 	}
 
-	backendSvcs := GetRouteBackends(route)
+	backendSvcs := ctlr.GetRouteBackends(route, clusterSvcs)
 
 	for _, bs := range backendSvcs {
 		pool := Pool{
@@ -375,6 +375,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				"",
 				route.Spec.Host,
 				route.Spec.Path,
+				bs.Cluster,
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
@@ -382,30 +383,34 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
+			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
 		}
-		var multiClusterServices []cisapiv1.MultiClusterServiceReference
-		if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
-			for svc, config := range svcs {
-				multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
-					ClusterName: svc.clusterName,
-					SvcName:     svc.serviceName,
-					Namespace:   svc.namespace,
-					ServicePort: config.svcPort,
-				})
-				// update the clusterSvcMap
-				ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+		if ctlr.haModeType != Ratio {
+			var multiClusterServices []cisapiv1.MultiClusterServiceReference
+			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+				for svc, config := range svcs {
+					multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+						ClusterName: svc.clusterName,
+						SvcName:     svc.serviceName,
+						Namespace:   svc.namespace,
+						ServicePort: config.svcPort,
+					})
+					// update the clusterSvcMap
+					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+				}
+				pool.MultiClusterServices = multiClusterServices
 			}
-			pool.MultiClusterServices = multiClusterServices
+			// update the multicluster resource serviceMap with local cluster services
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+			// update the multicluster resource serviceMap with HA pair cluster services
+			if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" && bs.Cluster == ctlr.multiClusterConfigs.HAPairCusterName {
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
+					ctlr.multiClusterConfigs.HAPairCusterName)
+			}
+		} else {
+			// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster)
 		}
-		// update the multicluster resource serviceMap with local cluster services
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
-
-		// update the multicluster resource serviceMap with HA pair cluster services
-		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
-				ctlr.multiClusterConfigs.HAPairCusterName)
-		}
-
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {
@@ -498,11 +503,12 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		"",
 		route.Spec.Host,
 		route.Spec.Path,
+		"",
 	)
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
 		var rules *Rules
-		if isRouteABDeployment(route) {
+		if isRouteABDeployment(route) || ctlr.haModeType == Ratio {
 			rules = ctlr.prepareABRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
 		} else {
 			rules = ctlr.prepareRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
@@ -677,6 +683,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 }
 
 // UpdatePoolHealthMonitors we need to call this method on update of pod/ pool members update
+// TODO: Remove this method as it's not used anymore
 func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg *ResourceConfig) {
 
 	//Get routes for service
@@ -697,6 +704,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		"",
 		route.Spec.Host,
 		route.Spec.Path,
+		"",
 	)
 	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
 	if svcPods != nil && len(svcPods) > 0 {
@@ -1816,21 +1824,32 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	secondaryClusterName := ""
 	hACluster := true
 	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
-		// Set the active or standby mode for the HA cluster
-		if haClusterConfig.HAMode == (HAMode{}) || haClusterConfig.HAMode.Type == "" {
+		// If HA mode not set use StandBy mode as defualt
+		if ctlr.haModeType == "" {
 			ctlr.haModeType = StandBy
-		} else if haClusterConfig.HAMode.Type == Active || haClusterConfig.HAMode.Type == StandBy {
-			ctlr.haModeType = haClusterConfig.HAMode.Type
-		} else {
-			log.Errorf("Invalid Type of high availability mode specified, supported values (active, standby)")
-			os.Exit(1)
 		}
-
+		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
 		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
+			if ctlr.haModeType == Ratio {
+				if haClusterConfig.PrimaryCluster.Ratio != nil {
+					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = haClusterConfig.PrimaryCluster.Ratio
+				} else {
+					one := 1
+					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
+				}
+			}
 		}
 		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
+			if ctlr.haModeType == Ratio {
+				if haClusterConfig.SecondaryCluster.Ratio != nil {
+					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = haClusterConfig.SecondaryCluster.Ratio
+				} else {
+					one := 1
+					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = &one
+				}
+			}
 		}
 
 		// Set up health probe
@@ -1872,13 +1891,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				}
 
 				// Setup and start informers for secondary cluster in case of active-active mode HA cluster
-				if haClusterConfig.HAMode.Type == Active {
+				if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
 					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
 					if err != nil {
 						return err
 					}
 				}
 				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
+				ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
 			} else {
 				hACluster = false
 			}
@@ -1908,13 +1928,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				}
 
 				// Setup and start informers for primary cluster in case of active-active mode HA cluster
-				if haClusterConfig.HAMode.Type == Active {
+				if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
 					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
 					if err != nil {
 						return err
 					}
 				}
 				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.PrimaryCluster.ClusterName
+				ctlr.multiClusterConfigs.LocalClusterName = secondaryClusterName
 			} else {
 				hACluster = false
 			}
@@ -1941,6 +1962,10 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					continue
 				}
 				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
+				// Delete cluster ratio as well
+				if _, ok := ctlr.clusterRatio[clusterName]; ok {
+					delete(ctlr.clusterRatio, clusterName)
+				}
 			}
 		}
 		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
@@ -1999,6 +2024,15 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		if err != nil {
 			log.Warningf(err.Error())
 			continue
+		}
+		// Set cluster ratio
+		if ctlr.haModeType == Ratio {
+			if mcc.Ratio != nil {
+				ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
+			} else {
+				one := 1
+				ctlr.clusterRatio[mcc.ClusterName] = &one
+			}
 		}
 	}
 	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store

@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -460,66 +459,22 @@ func (ctlr *Controller) processResources() bool {
 		// Update the poolMembers for affected resources
 		ctlr.updatePoolMembersForService(svcKey)
 
-	case Endpoints:
-		ep := rKey.rsc.(*v1.Endpoints)
-		svc := ctlr.getServiceForEndpoints(ep)
-		// No Services are effected with the change in service.
-		if nil == svc {
-			break
-		}
-		svcKey := MultiClusterServiceKey{
-			serviceName: svc.Name,
-			namespace:   svc.Namespace,
-			clusterName: rKey.clusterName,
-		}
-		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
-			log.Debugf("Skipping endpoint '%v/%v' as it's not used by any CIS monitored resource", ep.Namespace, ep.Name)
-			break
-		}
-		_ = ctlr.processService(svc, rKey.clusterName)
-
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
+	case ServiceList:
+		svcList := rKey.rsc.(SvcMap)
+		for svcKey, svc := range svcList {
+			_ = ctlr.processService(svc, svcKey.clusterName)
+			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+				err := ctlr.processLBServices(svc, rscDelete)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isRetryableError = true
+					break
+				}
 			}
+			// Just update the endpoints instead of processing them entirely
+			ctlr.updatePoolMembersForService(svcKey)
 		}
-		// Just update the endpoints instead of processing them entirely
-		ctlr.updatePoolMembersForService(svcKey)
-
-	case Pod:
-		pod := rKey.rsc.(*v1.Pod)
-		_ = ctlr.processPod(pod, rscDelete)
-		svc := ctlr.GetServicesForPod(pod, rKey.clusterName)
-		if nil == svc {
-			break
-		}
-		svcKey := MultiClusterServiceKey{
-			serviceName: svc.Name,
-			namespace:   svc.Namespace,
-			clusterName: rKey.clusterName,
-		}
-		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
-			log.Debugf("Skipping pod '%v/%v' as it's not used by any CIS monitored resource", pod.Namespace, pod.Name)
-			break
-		}
-		_ = ctlr.processService(svc, rKey.clusterName)
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-			break
-		}
-		// Update the poolMembers for affected resources
-		ctlr.updatePoolMembersForService(svcKey)
-
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
@@ -2036,7 +1991,9 @@ func (ctlr *Controller) getEndpointsForNPL(
 ) []PoolMember {
 	var members []PoolMember
 	for _, pod := range pods {
-		anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]
+		ctlr.resources.nplStore.RLock()
+		anns, found := ctlr.resources.nplStore.NPLMap[pod.Namespace+"/"+pod.Name]
+		ctlr.resources.nplStore.RUnlock()
 		if !found {
 			continue
 		}
@@ -3589,27 +3546,6 @@ func (ctlr *Controller) matchSvcSelectorPodLabels(svcSelector, podLabel map[stri
 		}
 	}
 	return true
-}
-
-// processPod populates NPL annotations for a pod in store.
-func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
-	podKey := pod.Namespace + "/" + pod.Name
-	if ispodDeleted {
-		delete(ctlr.resources.nplStore, podKey)
-		return nil
-	}
-	ann := pod.GetAnnotations()
-	var annotations []NPLAnnotation
-	if val, ok := ann[NPLPodAnnotation]; ok {
-		if err := json.Unmarshal([]byte(val), &annotations); err != nil {
-			log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", podKey, err)
-		}
-		ctlr.resources.nplStore[podKey] = annotations
-	} else {
-		log.Debugf("key: %s, NPL annotation not found for Pod", pod.Name)
-		delete(ctlr.resources.nplStore, podKey)
-	}
-	return nil
 }
 
 func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error, bool) {

@@ -91,7 +91,7 @@ type (
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue             workqueue.RateLimitingInterface
+		endpointQueue             EndpointQueue
 		routeClientV1             routeclient.RouteV1Interface
 		comInformers              map[string]*CommonInformer
 		nrInformers               map[string]*NRInformer
@@ -302,13 +302,12 @@ type (
 	// PoolMemberCache key is namespace/service
 	PoolMemberCache map[MultiClusterServiceKey]*poolMembersInfo
 	// Store of CustomProfiles
-	CustomProfileStore struct {
-		sync.Mutex
-		Profs map[SecretKey]CustomProfile
-	}
 
-	// key is namespace/pod. stores list of npl annotation on pod
-	NPLStore map[string]NPLAnnoations
+	NPLStore struct {
+		sync.RWMutex
+		// key is namespace/pod. stores list of npl annotation on pod
+		NPLMap map[string]NPLAnnoations
+	}
 
 	// static route config
 	routeSection struct {
@@ -1209,6 +1208,13 @@ type (
 	MultiClusterConfig struct {
 		ClusterName string `yaml:"clusterName"`
 		Secret      string `yaml:"secret"`
+	}
+
+	SvcMap map[MultiClusterServiceKey]*v1.Service
+
+	EndpointQueue struct {
+		sync.Mutex
+		queue []*rqKey
 	}
 
 	HAClusterConfig struct {

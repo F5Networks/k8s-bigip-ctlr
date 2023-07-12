@@ -1156,7 +1156,7 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string, clusterN
 		event:       event,
 		clusterName: clusterName,
 	}
-	ctlr.resourceQueue.Add(key)
+	ctlr.endpointQueue.Push(key)
 }
 
 func (ctlr *Controller) enqueueSecret(obj interface{}, event string) {
@@ -1267,8 +1267,7 @@ func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 		rsc:         obj,
 		clusterName: clusterName,
 	}
-
-	ctlr.resourceQueue.Add(key)
+	ctlr.endpointQueue.Push(key)
 }
 
 func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
@@ -1301,7 +1300,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 		event:       Delete,
 		clusterName: clusterName,
 	}
-	ctlr.resourceQueue.Add(key)
+	ctlr.endpointQueue.Push(key)
 }
 
 func (nsInfr *NSInformer) start() {

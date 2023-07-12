@@ -63,6 +63,8 @@ const (
 	IPAM = "IPAM"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
+	// ServiceList is a list of k8s native Service Resource.
+	ServiceList = "Services"
 	//Pod  is a k8s native object
 	Pod = "Pod"
 	//Secret  is a k8s native object
@@ -157,6 +159,7 @@ func NewController(params Params) *Controller {
 	ctlr.nrInformers = make(map[string]*NRInformer)
 	ctlr.crInformers = make(map[string]*CRInformer)
 	ctlr.nsInformers = make(map[string]*NSInformer)
+	ctlr.endpointQueue = EndpointQueue{queue: []*rqKey{}}
 	ctlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	switch ctlr.mode {
@@ -246,6 +249,9 @@ func NewController(params Params) *Controller {
 	go ctlr.Start()
 
 	go ctlr.setOtherSDNType()
+
+	// function for handling endpoint updates
+	go ctlr.EndpointHandler()
 
 	return ctlr
 }

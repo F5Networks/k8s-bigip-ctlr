@@ -60,7 +60,7 @@ func (rs *ResourceStore) Init() {
 	rs.gtmConfig = make(GTMConfig)
 	rs.gtmConfigCache = make(GTMConfig)
 	rs.poolMemCache = make(PoolMemberCache)
-	rs.nplStore = make(NPLStore)
+	rs.nplStore = NPLStore{NPLMap: make(map[string]NPLAnnoations)}
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
 	rs.svcResourceCache = make(map[MultiClusterServiceKey]map[string]svcResourceCacheMeta)

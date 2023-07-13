@@ -77,6 +77,7 @@ Upgrade notes
 * Upgrade the CRDs schema using `CRD Update Guide <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/crd_update.md>`_, if you are using custom resources.
 * In AS3 >= v3.44 & CIS >= 2.13.0, CIS sets the first SSL profile (sorted in alphabetical order of their names) as default profile for SNI if multiple client SSL certificates used for a VS as kubernetes secrets. AS3 used to set the default SNI in earlier version.
 
+
 2.12.1
 -------------
 

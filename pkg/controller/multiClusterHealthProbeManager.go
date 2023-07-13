@@ -4,6 +4,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -40,6 +41,10 @@ func (postMgr *PostManager) setPrimaryClusterHealthCheckEndPointType() {
 			postMgr.PrimaryClusterHealthProbeParams.EndPointType = "tcp"
 		} else if strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
 			postMgr.PrimaryClusterHealthProbeParams.EndPointType = "http"
+		} else {
+			log.Debugf("unsupported primary cluster endPoint protocol type configured. EndPoint: %v \n "+
+				"supported protocols:[http, tcp] ", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+			os.Exit(1)
 		}
 	}
 }

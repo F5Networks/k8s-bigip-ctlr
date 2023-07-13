@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -59,6 +60,11 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	// process the extended configmap if present
 	if ctlr.globalExtendedCMKey != "" {
 		ctlr.processGlobalExtendedConfigMap()
+	}
+
+	if ctlr.globalExtendedCMKey == "" && ctlr.cisType != "" {
+		log.Errorf("missing extended configmap deployment parameter: in the multiCluster HA mode")
+		os.Exit(1)
 	}
 
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster

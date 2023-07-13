@@ -17,6 +17,7 @@ Added Functionality
     * Static route support added for ovn-k8s,flannel and antrea CNI.
 Bug Fixes
 ````````````
+* Fix crash when CIS started in CRD and secondary mode and extended configmap is missing
 
 2.12.1
 -------------

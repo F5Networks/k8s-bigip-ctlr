@@ -88,6 +88,7 @@ type (
 		multiClusterResources  *MultiClusterResourceStore
 		cisType                string
 		haModeType             HAModeType
+		clusterRatio           map[string]*int
 		resourceContext
 	}
 	resourceContext struct {
@@ -389,6 +390,7 @@ type (
 		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
 		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
 		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
+		Cluster              string                                  `json:"-"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -650,8 +652,9 @@ type (
 	Services        []*v1.Service
 	NodeList        []v1.Node
 	RouteBackendCxt struct {
-		Weight int
-		Name   string
+		Weight  float64
+		Name    string
+		Cluster string
 	}
 )
 
@@ -1143,6 +1146,8 @@ type (
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
 		MultiClusterConfigs       []MultiClusterConfig `yaml:"multiClusterConfigs"`
 		HAClusterConfig           HAClusterConfig      `yaml:"highAvailabilityClusterConfigs"`
+		HAMode                    HAModeType           `yaml:"mode"`
+		LocalClusterRatio         *int                 `yaml:"localClusterRatio"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1202,17 +1207,18 @@ type HAModeType string
 const (
 	Active  HAModeType = "active"
 	StandBy HAModeType = "standby"
-	//Ratio         HAModeType = "ratio"
+	Ratio   HAModeType = "ratio"
 )
 
 type (
 	MultiClusterConfig struct {
 		ClusterName string `yaml:"clusterName"`
 		Secret      string `yaml:"secret"`
+		Ratio       *int   `yaml:"ratio"`
 	}
 
 	HAClusterConfig struct {
-		HAMode                 HAMode         `yaml:"mode"`
+		//HAMode                 HAMode         `yaml:"mode"`
 		PrimaryClusterEndPoint string         `yaml:"primaryClusterEndPoint"`
 		ProbeInterval          int            `yaml:"probeInterval"`
 		RetryInterval          int            `yaml:"retryInterval"`
@@ -1228,6 +1234,7 @@ type (
 	ClusterDetails struct {
 		ClusterName string `yaml:"clusterName"`
 		Secret      string `yaml:"secret"`
+		Ratio       *int   `yaml:"ratio"`
 	}
 
 	PoolIdentifier struct {

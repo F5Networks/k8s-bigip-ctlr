@@ -1905,9 +1905,15 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	var poolMembers []PoolMember
 	// for local cluster
-	poolMembers = append(poolMembers,
-		ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, "")...)
+	if pool.Cluster == "" {
+		poolMembers = append(poolMembers,
+			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+				pool.NodeMemberLabel, "")...)
+		if len(ctlr.clusterRatio) > 0 {
+			pool.Members = poolMembers
+			return
+		}
+	}
 
 	// for HA cluster pair service
 	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
@@ -1915,6 +1921,13 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairCusterName)...)
 	}
+
+	if len(ctlr.clusterRatio) > 0 {
+		poolMembers = append(poolMembers,
+			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+				pool.NodeMemberLabel, pool.Cluster)...)
+	}
+
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
 		// Update pool members for all the multi cluster services specified in the route annotations
@@ -3124,6 +3137,7 @@ func (ctlr *Controller) processIngressLink(
 				"",
 				"",
 				"",
+				"",
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      svc.ObjectMeta.Name,
@@ -3645,6 +3659,26 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			// Handle configmap deletion
 			es.HAClusterConfig = HAClusterConfig{}
 		}
+		// Read multiCluster mode
+		// Set the active/standby/ratio mode for the HA cluster
+		if es.HAMode != "" {
+			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
+				ctlr.haModeType = es.HAMode
+			} else {
+				log.Errorf("Invalid Type of high availability mode specified, supported values (active, standby, ratio)")
+				os.Exit(1)
+			}
+		}
+		// Update cluster ratio
+		if ctlr.haModeType == Ratio && ctlr.cisType == "" {
+			if es.LocalClusterRatio != nil {
+				ctlr.clusterRatio[""] = es.LocalClusterRatio
+			} else {
+				one := 1
+				ctlr.clusterRatio[""] = &one
+			}
+		}
+
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
 		ctlr.checkSecondaryCISConfig()
 		ctlr.stopDeletedGlobalCMMultiClusterInformers()

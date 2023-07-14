@@ -293,16 +293,19 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 			}
 			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
 		}
-		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
 	}
 
 	return poolName
 }
 
 // format the pool name for an VirtualServer
-func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, path string) string {
+func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, path string, cluster string) string {
 	servicePort := fetchPortString(port)
-	poolName := fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
+	if cluster != "" {
+		cluster = "_" + cluster
+	}
+	poolName := fmt.Sprintf("%s_%s_%s%s", svc, servicePort, namespace, cluster)
 	if len(host) > 0 {
 		poolName = fmt.Sprintf("%s_%s", poolName, host)
 		if len(path) > 0 && path != "/" {
@@ -1899,7 +1902,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		svc.Namespace,
 		svc.Name,
 		svcPort.TargetPort,
-		"", "", "")
+		"", "", "", "")
 	pool := Pool{
 		Name:             poolName,
 		Partition:        rsCfg.Virtual.Partition,
@@ -2228,6 +2231,7 @@ func (ctlr *Controller) handleRouteTLS(
 			"",
 			route.Spec.Host,
 			route.Spec.Path,
+			pl.Cluster,
 		) {
 			poolPathRefs = append(
 				poolPathRefs,
@@ -2239,7 +2243,8 @@ func (ctlr *Controller) handleRouteTLS(
 						pl.ServicePort,
 						"",
 						route.Spec.Host,
-						route.Spec.Path),
+						route.Spec.Path,
+						pl.Cluster),
 					[]string{route.Spec.Host},
 				})
 		}

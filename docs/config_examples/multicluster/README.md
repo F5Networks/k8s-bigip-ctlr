@@ -82,9 +82,8 @@ Deploying CIS HA in Two Modes:
 Below is the sample Multi-Cluster Configs with HA in Extended Global ConfigMap.
 ```
   extendedSpec: |
+    mode: active       ------------------------------------------|---->  HA Mode              |
     highAvailabilityClusterConfigs:   ---------------------------|----------------------------|
-      mode:                                                      |                            |
-        type: active                                             |                            |
       primaryClusterEndPoint: http://10.145.72.114:8001          |                            |
       probeInterval: 30                                          |                            |
       retryInterval: 3                                           |                            |
@@ -113,6 +112,43 @@ Below is the sample Multi-Cluster Configs with HA in Extended Global ConfigMap.
       allowOverride: false           _____________________|
 ```
 
+Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global ConfigMap.
+```
+  extendedSpec: |
+    mode: ratio        ------------------------------------------|----------------------------|
+    localClusterRatio: 4                                         |                            |
+    highAvailabilityClusterConfigs:   ---------------------------|                            |
+      primaryClusterEndPoint: http://10.145.72.114:8001          |                            |
+      probeInterval: 30                                          |                            |
+      retryInterval: 3                                           |                            |
+      primaryCluster:                                            |---> Cluster configs for    |
+        clusterName: cluster1                                    |     High availability      |
+        secret: default/kubeconfig1                              |     clusters               |---> Multi-Cluster configs
+        ratio: 3                                                 |                            |
+      secondaryCluster:                                          |                            |
+        clusterName: cluster2                                    |                            |
+        secret: default/kubeconfig2                              |                            |
+        ratio: 2                                                 |                            |
+    multiClusterConfigs:    -------------------------------------|                            |
+    - clusterName: cluster3                                      |                            |
+      secret: default/kubeconfig3                                |---> Cluster configs for    |
+      ratio: 2                                                   |     all other clusters     |
+    - clusterName: cluster4                                      |     except HA clusters     |
+      secret: default/kubeconfig4                                |                            |
+    - clusterName: cluster5                                      |                            |
+      secret: default/kubeconfig5                                |                            |  
+      ratio: 1                     ------------------------------|----------------------------|
+    extendedRouteSpec:
+    - namespace: foo   -------------------------------------|
+      vserverAddr: 10.8.0.4                                 |
+      vserverName: nextgenroutes                            |----------------> RouteGroup with namespace
+      allowOverride: true                                   |
+      bigIpPartition: MultiTenant                           |
+      policyCR: default/sample-policy  _____________________|
+    - namespace: bar -------------------------------------|
+      vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
+      allowOverride: false           _____________________|
+```
 ## Configuration 
 
 ### CIS Deployment Parameter
@@ -165,27 +201,31 @@ Following is the sample deployment for primary CIS deployment:
 
 **Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in multiClusterConfigs.
 
+#### High Availability Mode (Optional parameter)
+| Parameter              | Type    | Required  | Description                                           | Default | Examples |
+|------------------------|---------|-----------|-------------------------------------------------------|---------|----------|
+| mode                   | Object  | Optional  | Type of high availability mode (active/standby/ratio) | standby | active   |
+
+Specifies whether the HA cluster is configured with active mode, standby mode or ratio mode.
+* If mode Type: active, CIS fetches service from both the HA clusters whenever it's referenced in Route Spec.
+* If mode Type: standby (default), CIS fetches service from only the local cluster whenever it's referenced in a Route Spec.
+* If mode Type: ratio, CIS works in active-active mode and, it splits traffic according to the ratio specified for each cluster.
+
+#### Local cluster ratio (Optional parameter)
+| Parameter              | Type | Required  | Description                                                                                             | Default | Examples |
+|------------------------|------|-----------|---------------------------------------------------------------------------------------------------------|---------|----------|
+| localClusterRatio      | Int  | Optional  | Ratio for the local cluster where CIS is running(specify only when using ratio in a standalone cluster) | 1       | 3        |
+**Note:** It is not needed in case of using ratio in HA environment, as ratio of Primary cluster does the same thing. If specified in this scenario then it will be ignored.
 
 #### highAvailabilityClusterConfigs Parameters
 
 | Parameter              | Type    | Required  | Description                                                             | Default | Examples                  |
 |------------------------|---------|-----------|-------------------------------------------------------------------------|---------|---------------------------|
-| mode                   | Object  | Optional  | Type of high availability mode                                          | -       | -                         |
 | primaryClusterEndPoint | String  | Mandatory | Endpoint to check health of primary cluster                             | -       | http://10.145.72.114:8001 |
 | probeInterval          | Integer | Optional  | Time interval between health check (in seconds)                         | 60      | 30                        |
 | retryInterval          | Integer | Optional  | Time interval between recheck when primary cluster is down (in seconds) | 15      | 3                         |
 | primaryCluster         | Object  | Mandatory | Primary cluster config                                                  | -       | -                         |
 | secondaryCluster       | Object  | Mandatory | Secondary cluster config                                                | -       | -                         |
-
-
-##### mode Parameters
-| Parameter | Type   | Required | Description                                     | Default | Examples |
-|-----------|--------|----------|-------------------------------------------------|---------|----------|
-| type      | String | Optional | Type of high availability mode (active/standby) | standby | active   |
-
-Specifies whether the HA cluster is configured with active mode or standby mode
-* If mode Type: active, CIS fetches service from both the HA clusters whenever it's referenced in Route Spec.
-* If mode Type: standby (default), CIS fetches service from only the local cluster whenever it's referenced in a Route Spec.
 
 
 ##### primaryCluster/secondaryCluster Parameters
@@ -194,10 +234,12 @@ Specifies whether the HA cluster is configured with active mode or standby mode
 |-------------|--------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
+| ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
 
 
 **Note**: In order to run CIS in high availability mode, cis-type parameter (primary/secondary) needs to be set in the CIS deployment arguments.
 * It's recommended to provide both primaryCluster and secondaryCluster configs in the extendedConfigMap.
+* If no traffic has to be forwarded to a specific cluster then set the ratio field to 0.
 
 ##### PrimaryCluster Endpoint
  
@@ -215,10 +257,12 @@ virtual-server.f5.com/multiClusterServices:
          "clusterName": "cluster2", 
          "serviceName": "svc-pytest-foo-1-com",
          "namespace": "foo", 
-         "port": 80 
+         "port": 80,
+         "weight": 30,
      }
 ]'
 ```
+**Note**: _weight_ needs to be specified onlyonly in A/B scenario
 ### Virutal Server Pool with Multi-ClusterServices
 Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the VS Pool as mentioned below:
 ```
@@ -262,7 +306,15 @@ Services running in any other OpenShift/Kubernetes clusters, apart from the HA c
 | serviceName | String     | Mandatory | Name of the service                                     | -       | svc-1    |
 | namespace   | String     | Mandatory | Namespace where the service is created                  | -       | test     |
 | port        | String/Int | Optional  | port of the service  (for named port use string value ) | -       | 80       |
+| weight      | Int        | Optional  | weight to be used for traffic splitting                 | 0       | 20       |
 
+### Cluster wise Ratio for traffic distribution
+CIS supports distribution of traffic across clusters as per the ratio configured for each cluster in the extended ConfigMap.<br>
+It works even along with A/B where different weights are defined for each service. In such a case the ratio of traffic 
+distribution is computed taking into consideration both the service weights and cluster ratio.<br>
+However, the ratio of clusters that don't host any services linked to the concerned route are not taken into consideration 
+while computing the final ratio.<br>
+**Note:** Cluster wise ratio for traffic distribution is supported in HA as well as standalone cluster setup.
 
 ## Known issues
 * Multi-Cluster feature doesn't work with CIS running in cluster mode, as of this time.
@@ -299,3 +351,7 @@ CIS requires read-only permission in Kubeconfig of external clusters to access r
 
 ### Can CIS manage multiple BIG-IPs?
 No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts as a single point of BIG-IP Orchestrator and supports Multi-Cluster.
+
+### Is traffic splitting with cluster ratio supported?
+Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with A/B as well.
+

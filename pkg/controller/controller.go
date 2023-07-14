@@ -148,6 +148,7 @@ func NewController(params Params) *Controller {
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
 		multiClusterResources: newMultiClusterResourceStore(),
 		cisType:               params.CISType,
+		clusterRatio:          make(map[string]*int),
 	}
 
 	log.Debug("Controller Created")

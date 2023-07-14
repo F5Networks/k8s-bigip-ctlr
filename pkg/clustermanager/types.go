@@ -9,6 +9,7 @@ type (
 	MultiClusterConfig struct {
 		ClusterConfigs   map[string]ClusterConfig
 		HAPairCusterName string
+		LocalClusterName string
 	}
 
 	ClusterConfig struct {

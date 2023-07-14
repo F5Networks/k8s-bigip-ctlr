@@ -112,6 +112,7 @@ type MultiClusterServiceReference struct {
 	SvcName     string             `json:"serviceName"`
 	Namespace   string             `json:"namespace"`
 	ServicePort intstr.IntOrString `json:"port"`
+	Weight      *int               `json:"weight,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

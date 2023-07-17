@@ -18,9 +18,9 @@ package controller
 
 import (
 	"fmt"
-
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (ctlr *Controller) checkValidVirtualServer(
@@ -62,6 +62,18 @@ func (ctlr *Controller) checkValidVirtualServer(
 		if ipamLabel == "" && bindAddr == "" {
 			log.Infof("No ipamLabel was specified for the virtual server %s", vsName)
 			return false
+		}
+	}
+	for _, pool := range vsResource.Spec.Pools {
+		if pool.MultiClusterServices == nil {
+			continue
+		}
+		for _, mcs := range pool.MultiClusterServices {
+			if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
+				log.Errorf("invalid extendedServiceReferences for VS %s. Some of the mandatory parameters "+
+					"(clusterName, namespace, serviceName, servicePort) are missing.", vsName)
+				return false
+			}
 		}
 	}
 
@@ -111,7 +123,15 @@ func (ctlr *Controller) checkValidTransportServer(
 		log.Errorf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
 		return false
 	}
-
+	if tsResource.Spec.Pool.MultiClusterServices != nil {
+		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
+			if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
+				log.Errorf("invalid extendedServiceReferences for TS %s. Some of the mandatory parameters "+
+					"(clusterName, namespace, serviceName, servicePort) are missing.", vsName)
+				return false
+			}
+		}
+	}
 	return true
 }
 

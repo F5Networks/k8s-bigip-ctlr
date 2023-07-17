@@ -68,11 +68,12 @@ import (
 )
 
 type globalSection struct {
-	LogLevel       string `json:"log-level,omitempty"`
-	VerifyInterval int    `json:"verify-interval,omitempty"`
-	VXLANPartition string `json:"vxlan-partition,omitempty"`
-	DisableLTM     bool   `json:"disable-ltm,omitempty"`
-	DisableARP     bool   `json:"disable-arp,omitempty"`
+	LogLevel          string `json:"log-level,omitempty"`
+	VerifyInterval    int    `json:"verify-interval,omitempty"`
+	VXLANPartition    string `json:"vxlan-partition,omitempty"`
+	DisableLTM        bool   `json:"disable-ltm,omitempty"`
+	DisableARP        bool   `json:"disable-arp,omitempty"`
+	StaticRoutingMode bool   `json:"static-route-mode,omitempty"`
 }
 
 type bigIPSection struct {
@@ -194,9 +195,10 @@ var (
 	gtmBigIPPassword *string
 	gtmCredsDir      *string
 
-	httpClientMetrics *bool
-	staticRoutingMode *bool
-	orchestrationCNI  *string
+	httpClientMetrics  *bool
+	staticRoutingMode  *bool
+	orchestrationCNI   *string
+	sharedStaticRoutes *bool
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -253,6 +255,7 @@ func _init() {
 		"Optional, flag to disable sending telemetry data to TEEM")
 	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
+	sharedStaticRoutes = globalFlags.Bool("shared-static-routes", false, "Optional, flag to enable configuration of static routes on bigip in common partition")
 	// Custom Resource
 	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
 		"Optional, flag to enbale ipv6 network support.")
@@ -807,18 +810,19 @@ func initController(
 	}
 
 	agentParams := controller.AgentParams{
-		PostParams:        postMgrParams,
-		GTMParams:         GtmParams,
-		Partition:         (*bigIPPartitions)[0],
-		LogLevel:          *logLevel,
-		VerifyInterval:    *verifyInterval,
-		VXLANName:         vxlanName,
-		PythonBaseDir:     *pythonBaseDir,
-		UserAgent:         userAgentInfo,
-		HttpAddress:       *httpAddress,
-		EnableIPV6:        *enableIPV6,
-		CCCLGTMAgent:      *ccclGtmAgent,
-		StaticRoutingMode: *staticRoutingMode,
+		PostParams:         postMgrParams,
+		GTMParams:          GtmParams,
+		Partition:          (*bigIPPartitions)[0],
+		LogLevel:           *logLevel,
+		VerifyInterval:     *verifyInterval,
+		VXLANName:          vxlanName,
+		PythonBaseDir:      *pythonBaseDir,
+		UserAgent:          userAgentInfo,
+		HttpAddress:        *httpAddress,
+		EnableIPV6:         *enableIPV6,
+		CCCLGTMAgent:       *ccclGtmAgent,
+		StaticRoutingMode:  *staticRoutingMode,
+		SharedStaticRoutes: *sharedStaticRoutes,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
@@ -942,6 +946,9 @@ func main() {
 	if *staticRoutingMode == true {
 		//partition provide through args
 		vxlanPartition = (*bigIPPartitions)[0]
+		if *sharedStaticRoutes == true {
+			vxlanPartition = "Common"
+		}
 	}
 	config, err := getKubeConfig()
 	if err != nil {
@@ -1021,11 +1028,12 @@ func main() {
 	}
 
 	gs := globalSection{
-		LogLevel:       *logLevel,
-		VerifyInterval: *verifyInterval,
-		VXLANPartition: vxlanPartition,
-		DisableLTM:     disableLTM,
-		DisableARP:     disableARP,
+		LogLevel:          *logLevel,
+		VerifyInterval:    *verifyInterval,
+		VXLANPartition:    vxlanPartition,
+		DisableLTM:        disableLTM,
+		DisableARP:        disableARP,
+		StaticRoutingMode: *staticRoutingMode,
 	}
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel

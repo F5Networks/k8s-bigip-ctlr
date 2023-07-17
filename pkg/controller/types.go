@@ -685,17 +685,18 @@ type (
 		GTMParams                       GTMParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
-		Partition         string
-		LogLevel          string
-		VerifyInterval    int
-		VXLANName         string
-		PythonBaseDir     string
-		UserAgent         string
-		HttpAddress       string
-		EnableIPV6        bool
-		DisableARP        bool
-		CCCLGTMAgent      bool
-		StaticRoutingMode bool
+		Partition          string
+		LogLevel           string
+		VerifyInterval     int
+		VXLANName          string
+		PythonBaseDir      string
+		UserAgent          string
+		HttpAddress        string
+		EnableIPV6         bool
+		DisableARP         bool
+		CCCLGTMAgent       bool
+		StaticRoutingMode  bool
+		SharedStaticRoutes bool
 	}
 
 	PostManager struct {
@@ -752,12 +753,14 @@ type (
 	}
 
 	globalSection struct {
-		LogLevel       string `json:"log-level,omitempty"`
-		VerifyInterval int    `json:"verify-interval,omitempty"`
-		VXLANPartition string `json:"vxlan-partition,omitempty"`
-		DisableLTM     bool   `json:"disable-ltm,omitempty"`
-		GTM            bool   `json:"gtm,omitempty"`
-		DisableARP     bool   `json:"disable-arp,omitempty"`
+		LogLevel           string `json:"log-level,omitempty"`
+		VerifyInterval     int    `json:"verify-interval,omitempty"`
+		VXLANPartition     string `json:"vxlan-partition,omitempty"`
+		DisableLTM         bool   `json:"disable-ltm,omitempty"`
+		GTM                bool   `json:"gtm,omitempty"`
+		DisableARP         bool   `json:"disable-arp,omitempty"`
+		SharedStaticRoutes bool   `json:"shared-static-routes,omitempty"`
+		StaticRoutingMode  bool   `json:"static-route-mode,omitempty"`
 	}
 
 	bigIPSection struct {

@@ -112,7 +112,7 @@ func (postMgr *PostManager) httpGetReq(request *http.Request) *http.Response {
 
 	if err != nil {
 		if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
-			log.Errorf("REST call error: %v ", err)
+			log.Debugf("REST call error: %v ", err)
 		}
 		return nil
 	}

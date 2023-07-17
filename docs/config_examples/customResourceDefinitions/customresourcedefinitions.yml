@@ -125,7 +125,7 @@ spec:
                         pattern: '^\/([A-z0-9-_+]+\/)*([-A-z0-9_.:]+\/?)*$'
                       service:
                         type: string
-                        pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                        pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                       loadBalancingMethod:
                         type: string
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'
@@ -210,6 +210,7 @@ spec:
                               type: string
                             serviceName:
                               type: string
+                              pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                             namespace:
                               type: string
                             port:
@@ -457,7 +458,7 @@ spec:
                       pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
                     service:
                       type: string
-                      pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                      pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                     servicePort:
                       x-kubernetes-int-or-string: true
                       anyOf:
@@ -525,6 +526,7 @@ spec:
                             type: string
                           serviceName:
                             type: string
+                            pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                           namespace:
                             type: string
                           port:

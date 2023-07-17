@@ -106,14 +106,18 @@ func NewAgent(params AgentParams) *Agent {
 	}
 	if params.StaticRoutingMode == true {
 		vxlanPartition = params.Partition
+		if params.SharedStaticRoutes == true {
+			vxlanPartition = "Common"
+		}
 	}
 	gs := globalSection{
-		LogLevel:       params.LogLevel,
-		VerifyInterval: params.VerifyInterval,
-		VXLANPartition: vxlanPartition,
-		DisableLTM:     true,
-		GTM:            params.CCCLGTMAgent,
-		DisableARP:     params.DisableARP,
+		LogLevel:          params.LogLevel,
+		VerifyInterval:    params.VerifyInterval,
+		VXLANPartition:    vxlanPartition,
+		DisableLTM:        true,
+		GTM:               params.CCCLGTMAgent,
+		DisableARP:        params.DisableARP,
+		StaticRoutingMode: params.StaticRoutingMode,
 	}
 
 	bs := bigIPSection{

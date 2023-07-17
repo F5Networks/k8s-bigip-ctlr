@@ -189,7 +189,6 @@ func (ctlr *Controller) processResources() bool {
 	defer ctlr.resourceQueue.Done(key)
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
-
 	// During Init time, just process all the resources
 	if ctlr.initState && rKey.kind != Namespace {
 		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service || rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {

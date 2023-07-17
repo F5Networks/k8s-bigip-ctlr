@@ -312,7 +312,7 @@ func (ctlr *Controller) framePoolNameForDefaultPool(ns string, pool cisapiv1.Def
 			}
 			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
 		}
-		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
 	}
 	return poolName
 }
@@ -328,7 +328,7 @@ func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host s
 		if (intstr.IntOrString{}) == targetPort {
 			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort)
 		}
-		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, pool.Path)
+		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, pool.Path, "")
 	}
 	return poolName
 }

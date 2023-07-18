@@ -18,6 +18,8 @@ Added Functionality
 Bug Fixes
 ````````````
 * Fix crash when CIS started in CRD and secondary mode and extended configmap is missing
+* Fix CIS fails to read the clustername change under extendedserviceReferences
+* Fix CIS fails to read the new service addition change under extendedserviceReferences
 
 2.12.1
 -------------

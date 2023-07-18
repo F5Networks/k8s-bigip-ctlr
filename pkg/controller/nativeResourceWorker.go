@@ -848,6 +848,7 @@ func (ctlr *Controller) processGlobalExtendedConfigMap() {
 	err, _ = ctlr.processConfigMap(cm, false)
 	if err != nil {
 		log.Errorf("Unable to Process Extended Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
+		os.Exit(1)
 	}
 }
 

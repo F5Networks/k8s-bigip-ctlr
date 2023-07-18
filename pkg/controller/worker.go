@@ -376,11 +376,18 @@ func (ctlr *Controller) processResources() bool {
 				delete(ctlr.resources.processedNativeResources, rscRefKey)
 			}
 		}
+		if rKey.event != Create {
+			// update the poolMem cache, clusterSvcResource & resource-svc maps
+			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
+		}
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isRetryableError = true
+		}
+		if rKey.event != Create {
+			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 	case IngressLink:
 		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {

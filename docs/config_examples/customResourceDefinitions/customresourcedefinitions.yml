@@ -540,6 +540,7 @@ spec:
               required:
                 - virtualServerPort
                 - pool
+                - mode
             status:
               type: object
               properties:

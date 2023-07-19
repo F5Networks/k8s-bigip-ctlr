@@ -389,6 +389,10 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			var multiClusterServices []cisapiv1.MultiClusterServiceReference
 			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 				for svc, config := range svcs {
+					// if service port not specified for the multiCluster service then use the route's servicePort
+					if config.svcPort == (intstr.IntOrString{}) {
+						config.svcPort = servicePort
+					}
 					multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
 						ClusterName: svc.clusterName,
 						SvcName:     svc.serviceName,
@@ -403,7 +407,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			// update the multicluster resource serviceMap with local cluster services
 			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 			// update the multicluster resource serviceMap with HA pair cluster services
-			if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" && bs.Cluster == ctlr.multiClusterConfigs.HAPairCusterName {
+			if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
 					ctlr.multiClusterConfigs.HAPairCusterName)
 			}
@@ -1673,6 +1677,13 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 				if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; !ok {
 					message := fmt.Sprintf("Discarding route %v/%v as credentials for cluster %v does not exist in extended configmap", route.Name, route.Namespace,
 						svc.ClusterName)
+					log.Errorf(message)
+					go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+					return false
+				}
+				if svc.SvcName == "" || svc.ClusterName == "" || svc.Namespace == "" {
+					message := fmt.Sprintf("Discarding route %v/%v as some of the mandatory parameters for the "+
+						"multicluster services in the annotation are missing.", route.Name, route.Namespace)
 					log.Errorf(message)
 					go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 					return false

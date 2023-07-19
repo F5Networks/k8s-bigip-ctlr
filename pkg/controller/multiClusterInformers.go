@@ -288,3 +288,18 @@ func (ctlr *Controller) checkSecondaryCISConfig() {
 		os.Exit(1)
 	}
 }
+
+func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
+	namespace string, clusterName string,
+) (*MultiClusterPoolInformer, bool) {
+	// CIS may be watching all namespaces in case of HA clusters only
+	if clusterName == ctlr.multiClusterConfigs.HAPairCusterName && ctlr.watchingAllNamespaces() {
+		namespace = ""
+	}
+	nsPoolInf, ok := ctlr.multiClusterPoolInformers[clusterName]
+	if !ok {
+		return nil, false
+	}
+	poolInf, found := nsPoolInf[namespace]
+	return poolInf, found
+}

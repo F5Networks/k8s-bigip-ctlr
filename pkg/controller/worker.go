@@ -482,7 +482,7 @@ func (ctlr *Controller) processResources() bool {
 
 	case Endpoints:
 		ep := rKey.rsc.(*v1.Endpoints)
-		svc := ctlr.getServiceForEndpoints(ep)
+		svc := ctlr.getServiceForEndpoints(ep, rKey.clusterName)
 		// No Services are effected with the change in service.
 		if nil == svc {
 			break
@@ -646,15 +646,26 @@ func (ctlr *Controller) processResources() bool {
 }
 
 // getServiceForEndpoints returns the service associated with endpoints.
-func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
-
+func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints, clusterName string) *v1.Service {
+	var svc interface{}
+	var exists bool
+	var err error
 	svcKey := fmt.Sprintf("%s/%s", ep.Namespace, ep.Name)
-	comInf, ok := ctlr.getNamespacedCommonInformer(ep.Namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", ep.Namespace)
-		return nil
+	if clusterName == "" {
+		comInf, ok := ctlr.getNamespacedCommonInformer(ep.Namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
+			return nil
+		}
+		svc, exists, err = comInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	} else {
+		poolInf, ok := ctlr.getNamespaceMultiClusterPoolInformer(ep.Namespace, clusterName)
+		if !ok {
+			log.Errorf("Informer not found for namespace %v and cluster %v", ep.Namespace, clusterName)
+			return nil
+		}
+		svc, exists, err = poolInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	}
-	svc, exists, err := comInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
 		return nil
@@ -663,7 +674,6 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 		log.Infof("Service %v doesn't exist", svcKey)
 		return nil
 	}
-
 	return svc.(*v1.Service)
 }
 

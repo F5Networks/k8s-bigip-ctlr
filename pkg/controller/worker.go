@@ -72,6 +72,12 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		ctlr.firstPollPrimaryClusterHealthStatus()
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
+
+	// process static routes after extended configMap is processed, so as to support external cluster static routes during cis init
+	if ctlr.StaticRoutingMode {
+		clusterNodes := ctlr.getNodesFromAllClusters()
+		ctlr.processStaticRouteUpdate(clusterNodes)
+	}
 	for ctlr.processResources() {
 	}
 }
@@ -3906,10 +3912,38 @@ func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 	//for local cluster
 	nodes = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
 	//fetch nodes from other clusters
-	if ctlr.multiClusterNodeInformers != nil {
+	if ctlr.multiClusterNodeInformers != nil && len(ctlr.multiClusterNodeInformers) > 0 {
 		for _, nodeInf := range ctlr.multiClusterNodeInformers {
 			nodes = append(nodes, nodeInf.nodeInformer.GetIndexer().List()...)
 		}
+	} else {
+		// In init state node informers may not be initaialized yet for external cluster
+		// Use client config to look for nodes
+		nodescluster := ctlr.fetchNodesFromClusters()
+		if len(nodescluster) > 0 {
+			nodes = append(nodes, nodescluster...)
+		}
 	}
 	return nodes
+}
+
+func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
+	//fetch nodes from other clusters
+	var nodescluster []interface{}
+	if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
+		for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
+			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.nodeLabelSelector})
+				if err != nil {
+					log.Debugf("Unable to fetch nodes for cluster %v with err %v", clusterName, err)
+				} else {
+					for _, node := range nodesObj.Items {
+						node := node
+						nodescluster = append(nodescluster, &node)
+					}
+				}
+			}
+		}
+	}
+	return nodescluster
 }

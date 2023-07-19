@@ -36,8 +36,13 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 		return nil
 	}
 	if ctlr.StaticRoutingMode {
-		clusterNodes := ctlr.getNodesFromAllClusters()
-		ctlr.processStaticRouteUpdate(clusterNodes)
+		if !ctlr.initState {
+			// external cluster config is not processed in init stage before local node informer state
+			// handle static routes update after external cluster config is processed
+			// So process nodes on updates after init state
+			clusterNodes := ctlr.getNodesFromAllClusters()
+			ctlr.processStaticRouteUpdate(clusterNodes)
+		}
 	} else if ctlr.vxlanMgr != nil {
 		// Register vxMgr to watch for node updates to process fdb records
 		ctlr.vxlanMgr.ProcessNodeUpdate(nodesList)

@@ -220,7 +220,7 @@ func NewController(params Params) *Controller {
 func (ctlr *Controller) setOtherSDNType() {
 	ctlr.TeemData.Lock()
 	defer ctlr.TeemData.Unlock()
-	if ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel" {
+	if ctlr.OrchestrationCNI == "" && (ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel") {
 		kubePods, err := ctlr.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
 		if nil != err {
 			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)

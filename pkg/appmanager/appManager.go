@@ -3663,7 +3663,7 @@ func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
 func (appMgr *Manager) setOtherSDNType() {
 	appMgr.TeemData.Lock()
 	defer appMgr.TeemData.Unlock()
-	if appMgr.TeemData.SDNType == "other" || appMgr.TeemData.SDNType == "flannel" {
+	if appMgr.orchestrationCNI == "" && (appMgr.TeemData.SDNType == "other" || appMgr.TeemData.SDNType == "flannel") {
 		kubePods, err := appMgr.kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 		if nil != err {
 			log.Errorf("Could not list Kubernetes Pods for CNI Check: %v", err)

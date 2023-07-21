@@ -1347,7 +1347,16 @@ func getSDNType(config *rest.Config) string {
 	if isNodePort {
 		sdnType = "nodeport-mode"
 	} else {
-		if len(*openshiftSDNName) > 0 {
+		if *poolMemberType == "nodeportlocal" {
+			sdnType = "antrea"
+		} else if *orchestrationCNI != "" {
+			switch *orchestrationCNI {
+			case "cilium-k8s":
+				sdnType = "cilium"
+			default:
+				sdnType = *orchestrationCNI
+			}
+		} else if len(*openshiftSDNName) > 0 {
 			rconfigclient, err := configclient.NewForConfig(config)
 			if nil != err {
 				log.Errorf("unable to create route config client: err: %+v\n", err)

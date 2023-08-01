@@ -518,20 +518,16 @@ var _ = Describe("Informers Tests", func() {
 			pod.Labels["app"] = "kube-dns"
 			mockCtlr.enqueuePod(pod, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
-<<<<<<< HEAD
 			// Verify CIS handles DeletedFinalStateUnknown pod object
-			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: pod})
-=======
-			mockCtlr.enqueueDeletedPod(pod, "")
->>>>>>> 9110d075 (Multi cluster informers (#2840))
+			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: pod}, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
 
 			// Verify CIS handles DeletedFinalStateUnknown pod object in case it doesn't have any pod Obj referenced
-			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: nil})
+			mockCtlr.enqueueDeletedPod(cache.DeletedFinalStateUnknown{Key: pod.Namespace + "/" + pod.Name, Obj: nil}, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
 
 			// Verify CIS handles scenarios when unexpected objects are received in pod deletion event
-			mockCtlr.enqueueDeletedPod(nil)
+			mockCtlr.enqueueDeletedPod(nil, "")
 			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Invalid Pod")
 
 		})

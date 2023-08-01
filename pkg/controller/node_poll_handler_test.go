@@ -109,10 +109,10 @@ var _ = Describe("Node Poller Handler", func() {
 				[]v1.NodeAddress{nodeAddr1}, nil),
 		}
 		for _, node := range nodeObjs {
-			mockCtlr.addNode(&node, namespace)
+			mockCtlr.addNode(&node)
 		}
 		mockCtlr.StaticRoutingMode = true
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok := mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -123,7 +123,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Spec.Taints = []v1.Taint{}
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -138,7 +138,7 @@ var _ = Describe("Node Poller Handler", func() {
 			}
 			mockCtlr.updateStatusNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		expectedRouteSection := routeSection{
@@ -156,7 +156,7 @@ var _ = Describe("Node Poller Handler", func() {
 		// OrchestrationCNI = OVN_K8S no OVN annotation on node
 		mockCtlr.OrchestrationCNI = OVN_K8S
 		mockCtlr.UseNodeInternal = true
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -170,7 +170,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"invalid\":\"invalid\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -184,7 +184,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":\"10.244.0.0/28\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -197,7 +197,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"invalid\":\"invalid\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -210,7 +210,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"ipv4\":\"10.244.0.0/28\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -228,7 +228,7 @@ var _ = Describe("Node Poller Handler", func() {
 		// OrchestrationCNI = CILIUM_K8S with no valid cilium-k8s annotation
 		mockCtlr.OrchestrationCNI = CILIUM_K8S
 		mockCtlr.UseNodeInternal = true
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -241,7 +241,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["network.cilium.io/ipv4-pod-cidr"] = "10.244.0.0/28"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -264,7 +264,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["io.cilium.network.ipv4-pod-cidr"] = "10.244.0.0/28"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing()
+		mockCtlr.SetupNodeProcessing("")
 		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
@@ -479,5 +479,4 @@ var _ = Describe("Node Poller Handler", func() {
 	//			"IngressLink should not be added to resource queue for processing")
 	//	})
 	//})
->>>>>>> 9c286bdc (Multi Cluster service support with improved node & service update processing (#2855))
 })

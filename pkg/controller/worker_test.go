@@ -3141,7 +3141,6 @@ extendedRouteSpec:
 						AutoLastHop: "default",
 					},
 				}
-<<<<<<< HEAD
 
 				// InsecureVSPolicy
 				insecureVSPolicy = &cisapiv1.Policy{
@@ -3152,8 +3151,6 @@ extendedRouteSpec:
 					Spec: cisapiv1.PolicySpec{},
 				}
 
-=======
->>>>>>> e8044148 (Code Refactoring for extended configmap support in crd mode (#2946))
 				// ConfigMap
 				cmName := "escm"
 				cmNamespace := "system"

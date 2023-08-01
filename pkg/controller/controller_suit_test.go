@@ -326,7 +326,7 @@ func (m *mockController) updatePod(pod *v1.Pod) {
 	cusInf.podInformer.GetStore().Update(pod)
 
 	if m.resourceQueue != nil {
-		m.enqueuePod(pod)
+		m.enqueuePod(pod, "")
 	}
 }
 
@@ -349,7 +349,7 @@ func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
 }
 
 func (m *mockController) updateConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Update(cm)
 
 	if m.resourceQueue != nil {
@@ -374,18 +374,16 @@ func (m *mockController) addNode(node *v1.Node) {
 }
 
 func (m *mockController) updateNode(node *v1.Node, ns string) {
-	comInf, _ := m.getNamespacedCommonInformer(ns)
-	comInf.nodeInformer.GetStore().Update(node)
+	m.nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
-		m.SetupNodeProcessing()
+		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
-	comInf, _ := m.getNamespacedCommonInformer(ns)
-	comInf.nodeInformer.GetIndexer().Update(node)
+	m.nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
-		m.SetupNodeProcessing()
+		m.SetupNodeProcessing("")
 	}
 }
 

@@ -19,6 +19,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"os"
 	"strings"
 	"time"
@@ -74,6 +76,16 @@ const (
 	Route = "Route"
 
 	NodePort = "nodeport"
+	Cluster  = "cluster"
+
+	SecondaryCIS = "secondary"
+	PrimaryCIS   = "primary"
+	// Namespace is k8s namespace
+	HACIS = "HACIS"
+
+	// Primary cluster health probe
+	DefaultProbeInterval = 60
+	DefaultRetryInterval = 15
 
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
@@ -115,25 +127,29 @@ const (
 func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
-		namespaces:         make(map[string]bool),
-		resources:          NewResourceStore(),
-		Agent:              params.Agent,
-		PoolMemberType:     params.PoolMemberType,
-		UseNodeInternal:    params.UseNodeInternal,
-		Partition:          params.Partition,
-		initState:          true,
-		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
-		shareNodes:         params.ShareNodes,
-		eventNotifier:      apm.NewEventNotifier(nil),
-		defaultRouteDomain: params.DefaultRouteDomain,
-		mode:               params.Mode,
-		namespaceLabel:     params.NamespaceLabel,
-		nodeLabelSelector:  params.NodeLabelSelector,
-		vxlanName:          params.VXLANName,
-		vxlanMode:          params.VXLANMode,
-		ciliumTunnelName:   params.CiliumTunnelName,
-		StaticRoutingMode:  params.StaticRoutingMode,
-		OrchestrationCNI:   params.OrchestrationCNI,
+		namespaces:            make(map[string]bool),
+		resources:             NewResourceStore(),
+		Agent:                 params.Agent,
+		PoolMemberType:        params.PoolMemberType,
+		UseNodeInternal:       params.UseNodeInternal,
+		Partition:             params.Partition,
+		initState:             true,
+		dgPath:                strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
+		shareNodes:            params.ShareNodes,
+		eventNotifier:         apm.NewEventNotifier(nil),
+		defaultRouteDomain:    params.DefaultRouteDomain,
+		mode:                  params.Mode,
+		namespaceLabel:        params.NamespaceLabel,
+		nodeLabelSelector:     params.NodeLabelSelector,
+		vxlanName:             params.VXLANName,
+		vxlanMode:             params.VXLANMode,
+		ciliumTunnelName:      params.CiliumTunnelName,
+		StaticRoutingMode:     params.StaticRoutingMode,
+		OrchestrationCNI:      params.OrchestrationCNI,
+		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
+		multiClusterResources: newMultiClusterResourceStore(),
+		cisType:               params.CISType,
+		clusterRatio:          make(map[string]*int),
 	}
 
 	log.Debug("Controller Created")
@@ -148,7 +164,6 @@ func NewController(params Params) *Controller {
 	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
-		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
 		ctlr.routeLabel = params.RouteLabel
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
@@ -156,6 +171,9 @@ func NewController(params Params) *Controller {
 	default:
 		ctlr.mode = CustomResourceMode
 	}
+
+	// set extended spec configmap for all
+	ctlr.globalExtendedCMKey = params.GlobalExtendedSpecConfigmap
 
 	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
 	if ctlr.PoolMemberType == "nodeport" {
@@ -205,6 +223,28 @@ func NewController(params Params) *Controller {
 		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
 		_ = ctlr.createIPAMResource()
+	}
+
+	// setup vxlan manager
+	if len(params.VXLANName) > 0 && len(params.VXLANMode) > 0 {
+		tunnelName := params.VXLANName
+		cleanPath := strings.TrimLeft(params.VXLANName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos != -1 {
+			tunnelName = cleanPath[slashPos+1:]
+		}
+		vxlanMgr, err := vxlan.NewVxlanMgr(
+			params.VXLANMode,
+			tunnelName,
+			ctlr.ciliumTunnelName,
+			ctlr.UseNodeInternal,
+			ctlr.Agent.ConfigWriter,
+			ctlr.Agent.EventChan,
+		)
+		if nil != err {
+			log.Errorf("error creating vxlan manager: %v", err)
+		}
+		ctlr.vxlanMgr = vxlanMgr
 	}
 
 	go ctlr.responseHandler(ctlr.Agent.respChan)
@@ -366,6 +406,11 @@ func (ctlr *Controller) setupInformers() error {
 			return err
 		}
 	}
+
+	nodeInf := ctlr.getNodeInformer("")
+	ctlr.nodeInformer = &nodeInf
+	ctlr.addNodeEventUpdateHandler(ctlr.nodeInformer)
+
 	return nil
 }
 
@@ -379,6 +424,9 @@ func (ctlr *Controller) Start() {
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.start()
 	}
+
+	// start nodeinformer in all modes
+	ctlr.nodeInformer.start()
 
 	// start comInformers for all modes
 	for _, inf := range ctlr.comInformers {
@@ -399,6 +447,10 @@ func (ctlr *Controller) Start() {
 
 	if ctlr.ipamCli != nil {
 		go ctlr.ipamCli.Start()
+	}
+
+	if ctlr.vxlanMgr != nil {
+		ctlr.vxlanMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
 	}
 
 	stopChan := make(chan struct{})

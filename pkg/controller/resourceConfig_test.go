@@ -21,6 +21,8 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			vs = test.NewVirtualServer(
 				"SampleVS",
@@ -101,7 +103,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool Name", func() {
-			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo")
+			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "", "")
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
@@ -205,6 +207,8 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+			mockCtlr.resources = NewResourceStore()
 			_ = mockCtlr.addNamespacedInformers(namespace, false)
 
 			rsCfg = &ResourceConfig{}
@@ -1472,6 +1476,8 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Verifies SNAT whether is set properly for TransportServer", func() {
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+			mockCtlr.resources = NewResourceStore()
 			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
 			Expect(rsCfg.Virtual.SNAT).To(Equal(DEFAULT_SNAT), "Default SNAT should be set "+

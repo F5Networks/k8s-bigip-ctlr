@@ -168,13 +168,13 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
-		for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
-			if ctlr.PoolMemberType == NodePort {
-				ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
-			} else {
-				ctlr.updatePoolMembersForCluster(rsCfg, namespace)
-			}
-		}
+		//for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
+		//	if ctlr.PoolMemberType == NodePort {
+		//		ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
+		//	} else {
+		//		ctlr.updatePoolMembersForCluster(rsCfg, namespace)
+		//	}
+		//}
 	}
 
 	if !processingError {
@@ -384,7 +384,31 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		allowSourceRange = rsCfg.Virtual.AllowSourceRange
 	}
 
-	backendSvcs := GetRouteBackends(route)
+	rsRef := resourceRef{
+		name:      route.Name,
+		namespace: route.Namespace,
+		kind:      Route,
+	}
+	var clusterSvcs []cisapiv1.MultiClusterServiceReference
+
+	if ctlr.multiClusterMode {
+		//check for external service reference annotation
+		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+			// only process if route key is not present. else skip the processing
+			// on route update we are clearing the resource service
+			// if event comes from route then we will read and populate data, else we will skip processing
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+				err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+				if err == nil {
+					ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
+				} else {
+					log.Warningf("unable to read service mapping for resource %v", rsRef)
+				}
+			}
+		}
+	}
+
+	backendSvcs := ctlr.GetRouteBackends(route, clusterSvcs)
 
 	for _, bs := range backendSvcs {
 		pool := Pool{
@@ -394,6 +418,8 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				servicePort,
 				"",
 				"",
+				"",
+				bs.Cluster,
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
@@ -401,6 +427,49 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
+			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
+		}
+
+		if ctlr.multiClusterMode {
+			if ctlr.haModeType != Ratio {
+				var multiClusterServices []cisapiv1.MultiClusterServiceReference
+				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+					for svc, config := range svcs {
+						// if service port not specified for the multiCluster service then use the route's servicePort
+						if config.svcPort == (intstr.IntOrString{}) {
+							config.svcPort = servicePort
+						}
+						multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+							ClusterName: svc.clusterName,
+							SvcName:     svc.serviceName,
+							Namespace:   svc.namespace,
+							ServicePort: config.svcPort,
+						})
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+					}
+					pool.MultiClusterServices = multiClusterServices
+				}
+				// update the multicluster resource serviceMap with local cluster services
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+				// update the multicluster resource serviceMap with HA pair cluster services
+				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
+						ctlr.multiClusterConfigs.HAPairCusterName)
+				}
+			} else {
+				// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster)
+			}
+		} else {
+			// update the multicluster resource serviceMap with local cluster services
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+		}
+
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
 		}
 
 		// Handle Route health monitors
@@ -486,6 +555,8 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		route.Namespace,
 		route.Spec.To.Name,
 		servicePort,
+		"",
+		"",
 		"",
 		"",
 	)
@@ -685,6 +756,8 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		servicePort,
 		"",
 		"",
+		"",
+		"",
 	)
 	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
 	if svcPods != nil && len(svcPods) > 0 {
@@ -811,42 +884,42 @@ func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Servi
 	return nil
 }
 
-func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool) {
-	namespace := svc.Namespace
-	for _, portStruct := range getBasicVirtualPorts() {
-		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
-		if !ok {
-			continue
-		}
-		extdSpec, partition := ctlr.resources.getExtendedRouteSpec(routeGroup)
-		if extdSpec == nil {
-			continue
-		}
-		rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-		rsCfg := ctlr.getVirtualServer(partition, rsName)
-		if rsCfg == nil {
-			continue
-		}
-		freshRsCfg := &ResourceConfig{}
-		freshRsCfg.copyConfig(rsCfg)
+//func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool) {
+//	namespace := svc.Namespace
+//	for _, portStruct := range getBasicVirtualPorts() {
+//		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
+//		if !ok {
+//			continue
+//		}
+//		extdSpec, partition := ctlr.resources.getExtendedRouteSpec(routeGroup)
+//		if extdSpec == nil {
+//			continue
+//		}
+//		rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
+//		rsCfg := ctlr.getVirtualServer(partition, rsName)
+//		if rsCfg == nil {
+//			continue
+//		}
+//		freshRsCfg := &ResourceConfig{}
+//		freshRsCfg.copyConfig(rsCfg)
+//
+//		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
+//			if ctlr.PoolMemberType == NodePort {
+//				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
+//			} else {
+//				ctlr.updatePoolMembersForCluster(freshRsCfg, ns)
+//			}
+//		}
+//		if updatePoolHealthMon {
+//			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
+//			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
+//		}
+//		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
+//	}
+//}
 
-		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
-			if ctlr.PoolMemberType == NodePort {
-				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
-			} else {
-				ctlr.updatePoolMembersForCluster(freshRsCfg, ns)
-			}
-		}
-		if updatePoolHealthMon {
-			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
-			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
-		}
-		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
-	}
-}
-
-func (ctlr *Controller) processGlobalExtendedRouteConfig() {
-	splits := strings.Split(ctlr.routeSpecCMKey, "/")
+func (ctlr *Controller) processGlobalExtendedConfigMap() {
+	splits := strings.Split(ctlr.globalExtendedCMKey, "/")
 	ns, cmName := splits[0], splits[1]
 	var cm *v1.ConfigMap
 	var err error
@@ -864,17 +937,21 @@ func (ctlr *Controller) processGlobalExtendedRouteConfig() {
 	}
 	// Skip processing further if Extended configmap is not found
 	if err != nil || cm == nil {
-		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
+		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
 		return
 	}
-	err = ctlr.setNamespaceLabelMode(cm)
-	if err != nil {
-		log.Errorf("invalid configuration: %v", ctlr.routeSpecCMKey, err)
-		os.Exit(1)
+
+	if ctlr.mode == OpenShiftMode {
+		err = ctlr.setNamespaceLabelMode(cm)
+		if err != nil {
+			log.Errorf("invalid configuration: %v", ctlr.globalExtendedCMKey, err)
+			os.Exit(1)
+		}
 	}
+
 	err, _ = ctlr.processConfigMap(cm, false)
 	if err != nil {
-		log.Errorf("Unable to Process Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
+		log.Errorf("Unable to Process Extended Route Spec Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
 	}
 }
 
@@ -942,13 +1019,258 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 	return nil
 }
 
+func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete bool, namespace string) (error, bool) {
+	//local configmap processing.
+	ergc := es.ExtendedRouteGroupConfigs[0]
+	if ergc.Namespace != namespace {
+		return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v", ctlr.globalExtendedCMKey), true
+	}
+	routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace]
+	if !ok {
+		return fmt.Errorf("RouteGroup not found"), true
+	}
+	if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
+		if isDelete {
+			if !spec.override {
+				spec.local = nil
+				return nil, true
+			}
+
+			// check for alternative local configmaps (pick latest)
+			// process if one is available
+			localCM := ctlr.getLatestLocalConfigMap(ergc.Namespace)
+			if localCM != nil {
+				err, _ := ctlr.processConfigMap(localCM, false)
+				if err == nil {
+					return nil, true
+				}
+			}
+
+			_ = ctlr.processRoutes(routeGroup, true)
+			spec.local = nil
+			// process routes again, this time routes get processed along with global config
+			err := ctlr.processRoutes(routeGroup, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
+			}
+			return nil, true
+		}
+
+		if !spec.override || spec.global == nil {
+			spec.local = &ergc.ExtendedRouteGroupSpec
+			return nil, true
+		}
+		// creation event
+		if spec.local == nil {
+			if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
+				if ctlr.initState {
+					spec.local = &ergc.ExtendedRouteGroupSpec
+					return nil, true
+				}
+				if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+					// Delete existing virtual that was framed with globla config
+					// later build new virtual with local config
+					_ = ctlr.processRoutes(routeGroup, true)
+				}
+				spec.local = &ergc.ExtendedRouteGroupSpec
+				err := ctlr.processRoutes(routeGroup, false)
+				if err != nil {
+					log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+				}
+			}
+			return nil, true
+		}
+
+		// update event
+		if !reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
+			// if update event, update to VServerName should trigger delete and recreation of object
+			if spec.local.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+				_ = ctlr.processRoutes(routeGroup, true)
+			}
+			spec.local = &ergc.ExtendedRouteGroupSpec
+			err := ctlr.processRoutes(routeGroup, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+			}
+			return nil, true
+		}
+
+	} else {
+		// Need not process routes as there is no confirmation of override yet
+		ctlr.resources.extdSpecMap[ergc.Namespace] = &extendedParsedSpec{
+			override: false,
+			local:    &ergc.ExtendedRouteGroupSpec,
+			global:   nil,
+		}
+		return nil, false
+	}
+	return nil, true
+}
+
+// process the routeConfigFromGlobalConfigMap
+func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool) (error, bool) {
+
+	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
+	// Get the base route config from the Global ConfigMap
+	ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
+	var partition string
+	if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
+		partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
+	} else {
+		partition = ctlr.Partition
+	}
+
+	if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+		newExtdSpecMap[defaultRouteGroupName] = &extendedParsedSpec{
+			override:   false,
+			local:      nil,
+			global:     nil,
+			defaultrg:  &es.BaseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec,
+			namespaces: ctlr.getNamespacesForRouteGroup(defaultRouteGroupName),
+			partition:  partition,
+		}
+	}
+	for rg := range es.ExtendedRouteGroupConfigs {
+		// ergc needs to be created at every iteration, as we are using address inside this container
+
+		// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
+		// using the same container overrides the previous iteration contents, which is not desired
+		ergc := es.ExtendedRouteGroupConfigs[rg]
+		var allowOverride bool
+		var err error
+		if ctlr.namespaceLabelMode || len(ergc.AllowOverride) == 0 {
+			// specifically setting allow override as false in case of namespaceLabel Mode
+			// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
+			allowOverride = false
+		} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
+			return fmt.Errorf("invalid allowOverride value in configmap: %v error: %v", ctlr.globalExtendedCMKey, err), false
+		}
+
+		var routeGroup string
+		if len(ergc.Namespace) > 0 {
+			routeGroup = ergc.Namespace
+		}
+		if len(ergc.NamespaceLabel) > 0 {
+			routeGroup = ergc.NamespaceLabel
+		}
+		var partition string
+		if len(ergc.BigIpPartition) > 0 {
+			partition = ergc.BigIpPartition
+		} else {
+			partition = ctlr.Partition
+		}
+		newExtdSpecMap[routeGroup] = &extendedParsedSpec{
+			override:   allowOverride,
+			local:      nil,
+			global:     &ergc.ExtendedRouteGroupSpec,
+			namespaces: ctlr.getNamespacesForRouteGroup(routeGroup),
+			partition:  partition,
+		}
+		if len(newExtdSpecMap[routeGroup].namespaces) > 0 {
+			ctlr.TeemData.Lock()
+			ctlr.TeemData.ResourceType.RouteGroups[routeGroup] = 1
+			ctlr.TeemData.Unlock()
+		}
+	}
+
+	// Global configmap once gets processed even before processing other native resources
+	if ctlr.initState {
+		ctlr.resources.extdSpecMap = newExtdSpecMap
+		for rg, ergps := range newExtdSpecMap {
+			if !ctlr.namespaceLabelMode && ergps.override {
+				// check for alternative local configmaps (pick latest)
+				// process if one is available
+				localCM := ctlr.getLatestLocalConfigMap(rg)
+				if localCM != nil {
+					err, _ := ctlr.processConfigMap(localCM, false)
+					if err != nil {
+						log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
+					}
+				}
+
+			}
+		}
+		return nil, true
+	}
+	deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
+		ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
+	)
+	for _, routeGroupKey := range deletedSpecs {
+		_ = ctlr.processRoutes(routeGroupKey, true)
+		if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
+			delete(ctlr.resources.extdSpecMap, routeGroupKey)
+			if ctlr.namespaceLabelMode {
+				// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
+				nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
+				if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
+					log.Debugf("Removed namespace label informer: %v", nsLabel)
+					nsInf.stop()
+					delete(ctlr.nsInformers, nsLabel)
+				}
+			}
+		} else {
+			ctlr.resources.extdSpecMap[routeGroupKey].global = nil
+			ctlr.resources.extdSpecMap[routeGroupKey].override = false
+			ctlr.resources.extdSpecMap[routeGroupKey].partition = ""
+			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = []string{}
+
+		}
+
+	}
+
+	for _, routeGroupKey := range modifiedSpecs {
+		_ = ctlr.processRoutes(routeGroupKey, true)
+		// deleting the bigip partition when partition is changes
+		if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
+			if _, ok := ctlr.resources.ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
+				ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1)
+			}
+		}
+		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
+		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
+		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
+		ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+		err := ctlr.processRoutes(routeGroupKey, false)
+		if err != nil {
+			log.Errorf("Failed to process RouteGroup: %v with modified extended spec", routeGroupKey)
+		}
+	}
+
+	for _, routeGroupKey := range updatedSpecs {
+		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
+		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
+		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+		ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
+		err := ctlr.processRoutes(routeGroupKey, false)
+		if err != nil {
+			log.Errorf("Failed to process RouteGroup: %v with updated extended spec", routeGroupKey)
+		}
+	}
+
+	for _, routeGroupKey := range createdSpecs {
+		ctlr.resources.extdSpecMap[routeGroupKey] = &extendedParsedSpec{}
+		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
+		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
+		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+		ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
+		err := ctlr.processRoutes(routeGroupKey, false)
+		if err != nil {
+			log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
+		}
+	}
+	return nil, true
+}
+
 func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error, bool) {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
 		key := cm.Namespace + string('/') + cm.Name
-		if ctlr.routeSpecCMKey == key {
-			log.Debugf("Finished syncing extended Global spec configmap: %v/%v (%v)",
+		if ctlr.globalExtendedCMKey == key {
+			log.Debugf("Finished syncing extended global spec configmap: %v/%v (%v)",
 				cm.Namespace, cm.Name, endTime.Sub(startTime))
 		} else {
 			log.Debugf("Finished syncing extended local spec configmap: %v/%v (%v)",
@@ -965,244 +1287,93 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
 	}
 
-	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
-	if ctlr.isGlobalExtendedRouteSpec(cm) {
+	if ctlr.multiClusterMode {
 
-		// Get the base route config from the Global ConfigMap
-		ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
-		var partition string
-		if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
-			partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
-		} else {
-			partition = ctlr.Partition
-		}
-
-		if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
-			newExtdSpecMap[defaultRouteGroupName] = &extendedParsedSpec{
-				override:   false,
-				local:      nil,
-				global:     nil,
-				defaultrg:  &es.BaseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec,
-				namespaces: ctlr.getNamespacesForRouteGroup(defaultRouteGroupName),
-				partition:  partition,
-			}
-		}
-		for rg := range es.ExtendedRouteGroupConfigs {
-			// ergc needs to be created at every iteration, as we are using address inside this container
-
-			// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
-			// using the same container overrides the previous iteration contents, which is not desired
-			ergc := es.ExtendedRouteGroupConfigs[rg]
-			var allowOverride bool
-
-			if ctlr.namespaceLabelMode || len(ergc.AllowOverride) == 0 {
-				// specifically setting allow override as false in case of namespaceLabel Mode
-				// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
-				allowOverride = false
-			} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
-				return fmt.Errorf("invalid allowOverride value in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
-			}
-
-			var routeGroup string
-			if len(ergc.Namespace) > 0 {
-				routeGroup = ergc.Namespace
-			}
-			if len(ergc.NamespaceLabel) > 0 {
-				routeGroup = ergc.NamespaceLabel
-			}
-			var partition string
-			if len(ergc.BigIpPartition) > 0 {
-				partition = ergc.BigIpPartition
-			} else {
-				partition = ctlr.Partition
-			}
-			newExtdSpecMap[routeGroup] = &extendedParsedSpec{
-				override:   allowOverride,
-				local:      nil,
-				global:     &ergc.ExtendedRouteGroupSpec,
-				namespaces: ctlr.getNamespacesForRouteGroup(routeGroup),
-				partition:  partition,
-			}
-			if len(newExtdSpecMap[routeGroup].namespaces) > 0 {
-				ctlr.TeemData.Lock()
-				ctlr.TeemData.ResourceType.RouteGroups[routeGroup] = 1
-				ctlr.TeemData.Unlock()
-			}
-		}
-
-		// Global configmap once gets processed even before processing other native resources
-		if ctlr.initState {
-			ctlr.resources.extdSpecMap = newExtdSpecMap
-			for rg, ergps := range newExtdSpecMap {
-				if !ctlr.namespaceLabelMode && ergps.override {
-					// check for alternative local configmaps (pick latest)
-					// process if one is available
-					localCM := ctlr.getLatestLocalConfigMap(rg)
-					if localCM != nil {
-						err, _ = ctlr.processConfigMap(localCM, false)
-						if err != nil {
-							log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
-						}
-					}
-
-				}
-			}
-			return nil, true
-		}
-		deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
-			ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
-		)
-		for _, routeGroupKey := range deletedSpecs {
-			_ = ctlr.processRoutes(routeGroupKey, true)
-			if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
-				delete(ctlr.resources.extdSpecMap, routeGroupKey)
-				if ctlr.namespaceLabelMode {
-					// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
-					nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
-					if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
-						log.Debugf("Removed namespace label informer: %v", nsLabel)
-						nsInf.stop()
-						delete(ctlr.nsInformers, nsLabel)
-					}
-				}
-			} else {
-				ctlr.resources.extdSpecMap[routeGroupKey].global = nil
-				ctlr.resources.extdSpecMap[routeGroupKey].override = false
-				ctlr.resources.extdSpecMap[routeGroupKey].partition = ""
-				ctlr.resources.extdSpecMap[routeGroupKey].namespaces = []string{}
-
-			}
-
-		}
-
-		for _, routeGroupKey := range modifiedSpecs {
-			_ = ctlr.processRoutes(routeGroupKey, true)
-			// deleting the bigip partition when partition is changes
-			if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
-				if _, ok := ctlr.resources.ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
-					ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1)
-				}
-			}
-			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
-			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
-			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
-			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
-			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
-			err := ctlr.processRoutes(routeGroupKey, false)
-			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v with modified extended spec", routeGroupKey)
-			}
-		}
-
-		for _, routeGroupKey := range updatedSpecs {
-			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
-			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
-			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
-			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
-			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
-			err := ctlr.processRoutes(routeGroupKey, false)
-			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v with updated extended spec", routeGroupKey)
-			}
-		}
-
-		for _, routeGroupKey := range createdSpecs {
-			ctlr.resources.extdSpecMap[routeGroupKey] = &extendedParsedSpec{}
-			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
-			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
-			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
-			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
-			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
-			err := ctlr.processRoutes(routeGroupKey, false)
-			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
-			}
-		}
-
-	} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
-		//local configmap processing.
-		ergc := es.ExtendedRouteGroupConfigs[0]
-		if ergc.Namespace != cm.Namespace {
-			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true
-		}
-		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace]
-		if !ok {
-			return fmt.Errorf("RouteGroup not found"), true
-		}
-		if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
+		if ctlr.isGlobalExtendedCM(cm) {
+			// Get Multicluster kube-config
 			if isDelete {
-				if !spec.override {
-					spec.local = nil
-					return nil, true
+				// Handle configmap deletion
+				es.HAClusterConfig = HAClusterConfig{}
+			}
+			// Read multiCluster mode
+			// Set the active/standby/ratio mode for the HA cluster
+			if es.HAMode != "" {
+				if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
+					ctlr.haModeType = es.HAMode
+				} else {
+					log.Errorf("Invalid Type of high availability mode specified, supported values (active, standby, ratio)")
+					os.Exit(1)
 				}
-
-				// check for alternative local configmaps (pick latest)
-				// process if one is available
-				localCM := ctlr.getLatestLocalConfigMap(ergc.Namespace)
-				if localCM != nil {
-					err, _ = ctlr.processConfigMap(localCM, false)
-					if err == nil {
-						return nil, true
-					}
+			}
+			// Update cluster ratio
+			if ctlr.haModeType == Ratio && ctlr.cisType == "" {
+				if es.LocalClusterRatio != nil {
+					ctlr.clusterRatio[""] = es.LocalClusterRatio
+				} else {
+					one := 1
+					ctlr.clusterRatio[""] = &one
 				}
-
-				_ = ctlr.processRoutes(routeGroup, true)
-				spec.local = nil
-				// process routes again, this time routes get processed along with global config
-				err := ctlr.processRoutes(routeGroup, false)
-				if err != nil {
-					log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
-				}
-				return nil, true
 			}
 
-			if !spec.override || spec.global == nil {
-				spec.local = &ergc.ExtendedRouteGroupSpec
-				return nil, true
+			err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
+			ctlr.checkSecondaryCISConfig()
+			ctlr.stopDeletedGlobalCMMultiClusterInformers()
+			if err != nil {
+				return err, false
 			}
-			// creation event
-			if spec.local == nil {
-				if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
-					if ctlr.initState {
-						spec.local = &ergc.ExtendedRouteGroupSpec
-						return nil, true
-					}
-					if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
-						// Delete existing virtual that was framed with globla config
-						// later build new virtual with local config
-						_ = ctlr.processRoutes(routeGroup, true)
-					}
-					spec.local = &ergc.ExtendedRouteGroupSpec
-					err := ctlr.processRoutes(routeGroup, false)
-					if err != nil {
-						log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
-					}
-				}
-				return nil, true
-			}
+		}
+	}
 
-			// update event
-			if !reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
-				// if update event, update to VServerName should trigger delete and recreation of object
-				if spec.local.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
-					_ = ctlr.processRoutes(routeGroup, true)
+	// Process the routeSpec defined in extended configMap
+	if ctlr.mode == OpenShiftMode {
+		if ctlr.isGlobalExtendedCM(cm) {
+			return ctlr.processRouteConfigFromGlobalCM(es, isDelete)
+		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
+			return ctlr.processRouteConfigFromLocalCM(es, isDelete, cm.Namespace)
+		}
+	} else {
+		// Re-process all the VS and TS resources
+		for resRef, _ := range ctlr.resources.processedNativeResources {
+			var rs interface{}
+			var exists bool
+			var err error
+			var crInf *CRInformer
+			crInf, _ = ctlr.crInformers[""]
+			switch resRef.kind {
+			case VirtualServer:
+				// Fetch the latest VS
+				if crInf != nil {
+					rs, exists, err = crInf.vsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
+				} else if _, ok := ctlr.crInformers[resRef.namespace]; ok {
+					rs, exists, err = ctlr.crInformers[resRef.namespace].vsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
 				}
-				spec.local = &ergc.ExtendedRouteGroupSpec
-				err := ctlr.processRoutes(routeGroup, false)
-				if err != nil {
-					log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+			case TransportServer:
+				// Fetch the latest TS
+				if crInf != nil {
+					rs, exists, err = crInf.tsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
+				} else if _, ok := ctlr.crInformers[resRef.namespace]; ok {
+					rs, exists, err = ctlr.crInformers[resRef.namespace].tsInformer.GetIndexer().GetByKey(
+						fmt.Sprintf("%s/%s", resRef.namespace, resRef.name))
 				}
-				return nil, true
+			default:
+				// Don't process other resources except VS and TS
+				continue
 			}
-
-		} else {
-			// Need not process routes as there is no confirmation of override yet
-			ctlr.resources.extdSpecMap[ergc.Namespace] = &extendedParsedSpec{
-				override: false,
-				local:    &ergc.ExtendedRouteGroupSpec,
-				global:   nil,
+			// Skip processing if resource could not be fetched
+			if !exists || err != nil {
+				continue
 			}
-			return nil, false
+			key := &rqKey{
+				namespace: resRef.namespace,
+				kind:      resRef.kind,
+				rscName:   resRef.name,
+				rsc:       rs,
+				event:     Update,
+			}
+			ctlr.resourceQueue.Add(key)
 		}
 	}
 	return nil, true
@@ -1243,10 +1414,10 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 	}
 }
 
-func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
+func (ctlr *Controller) isGlobalExtendedCM(cm *v1.ConfigMap) bool {
 	cmKey := cm.Namespace + "/" + cm.Name
 
-	if cmKey == ctlr.routeSpecCMKey {
+	if cmKey == ctlr.globalExtendedCMKey {
 		return true
 	}
 

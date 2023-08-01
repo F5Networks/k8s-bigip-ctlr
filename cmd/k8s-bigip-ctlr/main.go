@@ -68,11 +68,12 @@ import (
 )
 
 type globalSection struct {
-	LogLevel       string `json:"log-level,omitempty"`
-	VerifyInterval int    `json:"verify-interval,omitempty"`
-	VXLANPartition string `json:"vxlan-partition,omitempty"`
-	DisableLTM     bool   `json:"disable-ltm,omitempty"`
-	DisableARP     bool   `json:"disable-arp,omitempty"`
+	LogLevel          string `json:"log-level,omitempty"`
+	VerifyInterval    int    `json:"verify-interval,omitempty"`
+	VXLANPartition    string `json:"vxlan-partition,omitempty"`
+	DisableLTM        bool   `json:"disable-ltm,omitempty"`
+	DisableARP        bool   `json:"disable-arp,omitempty"`
+	StaticRoutingMode bool   `json:"static-route-mode,omitempty"`
 }
 
 type bigIPSection struct {
@@ -107,13 +108,14 @@ var (
 	buildInfo string
 
 	// Flag sets and supported flags
-	flags         *pflag.FlagSet
-	globalFlags   *pflag.FlagSet
-	bigIPFlags    *pflag.FlagSet
-	kubeFlags     *pflag.FlagSet
-	vxlanFlags    *pflag.FlagSet
-	osRouteFlags  *pflag.FlagSet
-	gtmBigIPFlags *pflag.FlagSet
+	flags             *pflag.FlagSet
+	globalFlags       *pflag.FlagSet
+	bigIPFlags        *pflag.FlagSet
+	kubeFlags         *pflag.FlagSet
+	vxlanFlags        *pflag.FlagSet
+	osRouteFlags      *pflag.FlagSet
+	gtmBigIPFlags     *pflag.FlagSet
+	multiClusterFlags *pflag.FlagSet
 
 	// Custom Resource
 	customResourceMode *bool
@@ -186,7 +188,8 @@ var (
 	clientSSL        *string
 	serverSSL        *string
 
-	routeSpecConfigmap *string
+	extendedSpecConfigmap *string
+	routeSpecConfigmap    *string
 
 	gtmBigIPURL      *string
 	gtmBigIPUsername *string
@@ -205,6 +208,7 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	userAgentInfo      string
+	cisType            *string
 )
 
 func _init() {
@@ -215,6 +219,7 @@ func _init() {
 	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.PanicOnError)
 	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.PanicOnError)
 	gtmBigIPFlags = pflag.NewFlagSet("GTM", pflag.PanicOnError)
+	multiClusterFlags = pflag.NewFlagSet("MultiCluster", pflag.PanicOnError)
 
 	// Flag wrapping
 	var err error
@@ -409,9 +414,11 @@ func _init() {
 		"Optional, specify a user-created server ssl profile to be used as"+
 			" default for SNI for Route virtual servers")
 
-	routeSpecConfigmap = osRouteFlags.String("route-spec-configmap", "",
+	routeSpecConfigmap = globalFlags.String("route-spec-configmap", "",
 		"Required, specify a configmap that holds additional spec for routes"+
 			" if controller-mode is 'openshift'")
+	extendedSpecConfigmap = globalFlags.String("extended-spec-configmap", "",
+		"Required, specify a configmap that holds additional spec for controller. It's a required parameter if controller-mode is 'openshift'")
 
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsagesWrapped(width))
@@ -431,12 +438,17 @@ func _init() {
 		fmt.Fprintf(os.Stderr, "  GTM:\n%s\n", gtmBigIPFlags.FlagUsagesWrapped(width))
 	}
 
+	// MultiCluster Flags
+	cisType = multiClusterFlags.String("cis-type", "",
+		"Optional, determines in multi cluster env cis running as primary/secondary")
+
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
 	flags.AddFlagSet(kubeFlags)
 	flags.AddFlagSet(vxlanFlags)
 	flags.AddFlagSet(osRouteFlags)
 	flags.AddFlagSet(gtmBigIPFlags)
+	flags.AddFlagSet(multiClusterFlags)
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
@@ -446,6 +458,7 @@ func _init() {
 		vxlanFlags.Usage()
 		osRouteFlags.Usage()
 		gtmBigIPFlags.Usage()
+		multiClusterFlags.Usage()
 	}
 }
 
@@ -542,6 +555,19 @@ func verifyArgs() error {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
 
+	if len(*extendedSpecConfigmap) > 0 {
+		if len(strings.Split(*extendedSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --extended-spec-configmap" +
+				"Usage: --extended-spec-configmap=<namespace>/<configmap-name>")
+		}
+	}
+	if len(*routeSpecConfigmap) > 0 {
+		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		}
+	}
+
 	if *staticRoutingMode == true {
 		if isNodePort || *poolMemberType == "nodeportlocal" {
 			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
@@ -607,9 +633,9 @@ func verifyArgs() error {
 		string(controller.KubernetesMode):
 		break
 	case string(controller.OpenShiftMode):
-		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
-			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
-				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		if len(*extendedSpecConfigmap) == 0 && len(*routeSpecConfigmap) == 0 {
+			return fmt.Errorf("--route-spec-configmap or --extended-spec-configmap parameter is required in openshift mode\n" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name> or --extended-spec-configmap=<namespace>/<configmap-name>")
 		}
 		if len(*routeLabel) > 0 {
 			*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
@@ -835,36 +861,53 @@ func initController(
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
 	// ARP not required for nodeport mode
-	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" || *poolMemberType == "nodeport" || *poolMemberType == "nodeportlocal" {
+	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" ||
+		*poolMemberType == "nodeport" || *poolMemberType == "nodeportlocal" {
 		agentParams.DisableARP = true
 	}
 
 	agent := controller.NewAgent(agentParams)
 
+	var globalSpecConfigMap *string
+	var multiClusterMode bool
+	if *extendedSpecConfigmap != "" {
+		globalSpecConfigMap = extendedSpecConfigmap
+		multiClusterMode = true
+	} else if controller.ControllerMode(*controllerMode) == controller.OpenShiftMode {
+		globalSpecConfigMap = routeSpecConfigmap
+	} else {
+		globalSpecConfigMap = new(string)
+	}
+
 	ctlr := controller.NewController(
 		controller.Params{
-			Config:             config,
-			Namespaces:         *namespaces,
-			NamespaceLabel:     *namespaceLabel,
-			Partition:          (*bigIPPartitions)[0],
-			Agent:              agent,
-			PoolMemberType:     *poolMemberType,
-			VXLANName:          vxlanName,
-			VXLANMode:          vxlanMode,
-			CiliumTunnelName:   *ciliumTunnelName,
-			UseNodeInternal:    *useNodeInternal,
-			NodePollInterval:   *nodePollInterval,
-			NodeLabelSelector:  *nodeLabelSelector,
-			IPAM:               *ipam,
-			ShareNodes:         *shareNodes,
-			DefaultRouteDomain: *defaultRouteDomain,
-			Mode:               controller.ControllerMode(*controllerMode),
-			RouteSpecConfigmap: *routeSpecConfigmap,
-			RouteLabel:         *routeLabel,
-			StaticRoutingMode:  *staticRoutingMode,
-			OrchestrationCNI:   *orchestrationCNI,
+			Config:                      config,
+			Namespaces:                  *namespaces,
+			NamespaceLabel:              *namespaceLabel,
+			Partition:                   (*bigIPPartitions)[0],
+			Agent:                       agent,
+			PoolMemberType:              *poolMemberType,
+			VXLANName:                   vxlanName,
+			VXLANMode:                   vxlanMode,
+			CiliumTunnelName:            *ciliumTunnelName,
+			UseNodeInternal:             *useNodeInternal,
+			NodePollInterval:            *nodePollInterval,
+			NodeLabelSelector:           *nodeLabelSelector,
+			IPAM:                        *ipam,
+			ShareNodes:                  *shareNodes,
+			DefaultRouteDomain:          *defaultRouteDomain,
+			Mode:                        controller.ControllerMode(*controllerMode),
+			GlobalExtendedSpecConfigmap: *globalSpecConfigMap,
+			RouteSpecConfigmap:          *routeSpecConfigmap,
+			RouteLabel:                  *routeLabel,
+			StaticRoutingMode:           *staticRoutingMode,
+			OrchestrationCNI:            *orchestrationCNI,
+			CISType:                     *cisType,
+			MultiClusterMode:            multiClusterMode,
 		},
 	)
+
+	ctlr.Agent.MultiClusterMode = multiClusterMode
 
 	return ctlr
 }
@@ -1010,11 +1053,12 @@ func main() {
 	}
 
 	gs := globalSection{
-		LogLevel:       *logLevel,
-		VerifyInterval: *verifyInterval,
-		VXLANPartition: vxlanPartition,
-		DisableLTM:     disableLTM,
-		DisableARP:     disableARP,
+		LogLevel:          *logLevel,
+		VerifyInterval:    *verifyInterval,
+		VXLANPartition:    vxlanPartition,
+		DisableLTM:        disableLTM,
+		DisableARP:        disableARP,
+		StaticRoutingMode: *staticRoutingMode,
 	}
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel

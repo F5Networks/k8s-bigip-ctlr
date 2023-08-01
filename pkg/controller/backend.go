@@ -223,10 +223,32 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	}
 }
 
+// removeDeletedTenantsForBigIP will check the tenant exists on bigip or not
+// if tenant exists and rsConfig does not have tenant, update the tenant with empty PartitionConfig
+func (agent *Agent) removeDeletedTenantsForBigIP(rsConfig *ResourceConfigRequest, cisLabel string) {
+	//Fetching the latest BIGIP Configuration and identify if any tenant needs to be deleted
+	as3Config, err := agent.PostManager.GetAS3DeclarationFromBigIP()
+	if err != nil {
+		log.Errorf("[AS3] Could not fetch the latest AS3 declaration from BIG-IP")
+	}
+	for k, v := range as3Config {
+		if decl, ok := v.(map[string]interface{}); ok {
+			if label, found := decl["label"]; found && label == cisLabel && k != agent.Partition+"_gtm" {
+				if _, ok := rsConfig.ltmConfig[k]; !ok {
+					// adding an empty tenant to delete the tenant from BIGIP
+					priority := 1
+					rsConfig.ltmConfig[k] = &PartitionConfig{Priority: &priority}
+				}
+			}
+		}
+	}
+}
+
 // agentWorker blocks on postChan
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
 	for rsConfig := range agent.postChan {
+
 		// For the very first post after starting controller, need not wait to post
 		if !agent.firstPost && agent.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
@@ -253,6 +275,24 @@ func (agent *Agent) agentWorker() {
 		if len(agent.incomingTenantDeclMap) == 0 {
 			agent.declUpdate.Unlock()
 			continue
+		}
+
+		if agent.MultiClusterMode {
+			// if endPoint is not empty means, cis is running in secondary mode
+			// check if the primary cis is up and running
+			if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+				if agent.PrimaryClusterHealthProbeParams.statusRunning {
+					// dont post the declaration
+					agent.declUpdate.Unlock()
+					continue
+				} else {
+					if agent.PrimaryClusterHealthProbeParams.statusChanged {
+						agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+						agent.PrimaryClusterHealthProbeParams.statusChanged = false
+						agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+					}
+				}
+			}
 		}
 
 		var updatedTenants []string
@@ -725,12 +765,26 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
+
+	cisLabel := agent.Partition
+
+	if agent.MultiClusterMode {
+		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
+		// if it's secondary CIS and primary CIS is down and statusChanged is true
+		if agent.firstPost ||
+			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
+				agent.PrimaryClusterHealthProbeParams.statusChanged) {
+			agent.removeDeletedTenantsForBigIP(&config, cisLabel)
+		}
+	}
+
 	for tenant := range agent.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
 			// Remove partition
 			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
 		}
 	}
+
 	for tenantName, partitionConfig := range config.ltmConfig {
 		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
 		partitionConfig.PriorityMutex.RLock()

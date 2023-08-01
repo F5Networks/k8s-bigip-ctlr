@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
@@ -563,9 +564,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.svcInformer != nil {
 		comInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, "") },
 			},
 		)
 	}
@@ -573,9 +574,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.epsInformer != nil {
 		comInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, "") },
 			},
 		)
 	}
@@ -602,19 +603,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.podInformer != nil {
 		comInf.podInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj) },
-			},
-		)
-	}
-
-	if comInf.nodeInformer != nil {
-		comInf.nodeInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing() },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing() },
-				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing() },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, "") },
 			},
 		)
 	}
@@ -625,6 +616,16 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				AddFunc:    func(obj interface{}) { ctlr.enqueueSecret(obj, Create) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueSecret(cur, Update) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
+			},
+		)
+	}
+
+	if comInf.cmInformer != nil {
+		comInf.cmInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj, Create) },
+				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj) },
 			},
 		)
 	}
@@ -837,6 +838,8 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
 		return
 	}
+
+	updateEvent := true
 	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
 	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
@@ -860,6 +863,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 			event:     Delete,
 		}
 		ctlr.resourceQueue.Add(key)
+		updateEvent = false
 	}
 
 	log.Debugf("Enqueueing TransportServer: %v", newVS)
@@ -869,6 +873,9 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		rscName:   newVS.ObjectMeta.Name,
 		rsc:       newObj,
 		event:     Create,
+	}
+	if updateEvent {
+		key.event = Update
 	}
 
 	ctlr.resourceQueue.Add(key)
@@ -1038,7 +1045,7 @@ func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueService(obj interface{}) {
+func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -1052,16 +1059,17 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Create,
+		namespace:   svc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     svc.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Create,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
+func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
 	// Ignore K8S Core Services
@@ -1076,30 +1084,33 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
-		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
+		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
+		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
 		log.Debugf("Enqueueing Old Service: %v", svc)
 		key := &rqKey{
-			namespace: svc.ObjectMeta.Namespace,
-			kind:      Service,
-			rscName:   svc.ObjectMeta.Name,
-			rsc:       obj,
-			event:     Delete,
+			namespace:   svc.ObjectMeta.Namespace,
+			kind:        Service,
+			rscName:     svc.ObjectMeta.Name,
+			rsc:         obj,
+			event:       Delete,
+			clusterName: clusterName,
 		}
 		ctlr.resourceQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing Updated Service: %v", curSvc)
 	key := &rqKey{
-		namespace: curSvc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   curSvc.ObjectMeta.Name,
-		rsc:       cur,
-		event:     Create,
+		namespace:   curSvc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     curSvc.ObjectMeta.Name,
+		rsc:         cur,
+		event:       Create,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedService(obj interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -1112,16 +1123,17 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   svc.ObjectMeta.Namespace,
+		kind:        Service,
+		rscName:     svc.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
+func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string, clusterName string) {
 	eps := obj.(*corev1.Endpoints)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
@@ -1134,11 +1146,12 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	}
 	log.Debugf("Enqueueing Endpoints: %v", eps)
 	key := &rqKey{
-		namespace: eps.ObjectMeta.Namespace,
-		kind:      Endpoints,
-		rscName:   eps.ObjectMeta.Name,
-		rsc:       obj,
-		event:     event,
+		namespace:   eps.ObjectMeta.Namespace,
+		kind:        Endpoints,
+		rscName:     eps.ObjectMeta.Name,
+		rsc:         obj,
+		event:       event,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
@@ -1237,53 +1250,54 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueuePod(obj interface{}) {
+func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v", pod)
+	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	key := &rqKey{
-		namespace: pod.ObjectMeta.Namespace,
-		kind:      Pod,
-		rscName:   pod.ObjectMeta.Name,
-		rsc:       obj,
+		namespace:   pod.ObjectMeta.Namespace,
+		kind:        Pod,
+		rscName:     pod.ObjectMeta.Name,
+		rsc:         obj,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 	var pod *corev1.Pod
 	switch obj.(type) {
 	case *corev1.Pod:
 		pod = obj.(*corev1.Pod)
 	case cache.DeletedFinalStateUnknown:
-		// Sometimes the watch deletion event gets missed leading to unknown final "resting" state of the object,
-		// In such a scenario the object received is of type DeletedFinalStateUnknown and there are chances that
-		// included `Obj` is stale. Handle such scenario gracefully.
 		dFSUObj := obj.(cache.DeletedFinalStateUnknown)
-		pod, _ = dFSUObj.Obj.(*corev1.Pod)
-		if pod == nil {
-			log.Warningf("Unknown object received in pod deletion event: %v", dFSUObj.Key)
+		var ok bool
+		pod, ok = dFSUObj.Obj.(*corev1.Pod)
+		if pod == nil || !ok {
+			log.Warningf("Unknown object received as pod deletion event: %v", dFSUObj.Key)
 			return
 		}
 	default:
-		log.Warningf("Unknown object received in pod deletion event: %v", obj)
+		log.Warningf("Unknown object received as pod deletion event: %v", obj)
 		return
 	}
+
 	//skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v", pod)
+	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	key := &rqKey{
-		namespace: pod.ObjectMeta.Namespace,
-		kind:      Pod,
-		rscName:   pod.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   pod.ObjectMeta.Namespace,
+		kind:        Pod,
+		rscName:     pod.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
@@ -1292,6 +1306,13 @@ func (nsInfr *NSInformer) start() {
 	if nsInfr.nsInformer != nil {
 		log.Infof("Starting Namespace Informer")
 		go nsInfr.nsInformer.Run(nsInfr.stopCh)
+	}
+}
+
+func (nodeInfr *NodeInformer) start() {
+	if nodeInfr.nodeInformer != nil {
+		log.Infof("Starting %v Node Informer", nodeInfr.clusterName)
+		go nodeInfr.nodeInformer.Run(nodeInfr.stopCh)
 	}
 }
 
@@ -1380,4 +1401,53 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+func (ctlr *Controller) getNodeInformer(clusterName string) NodeInformer {
+	resyncPeriod := 0 * time.Second
+	var restClientv1 rest.Interface
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = ctlr.nodeLabelSelector
+	}
+	if clusterName == "" {
+		restClientv1 = ctlr.kubeClient.CoreV1().RESTClient()
+	} else {
+		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+			restClientv1 = config.KubeClient.CoreV1().RESTClient()
+		}
+	}
+	return NodeInformer{stopCh: make(chan struct{}),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"nodes",
+				"",
+				nodeOptions,
+			),
+			&corev1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		clusterName: clusterName,
+	}
+}
+
+func (ctlr *Controller) addNodeEventUpdateHandler(nodeInformer *NodeInformer) {
+	if nodeInformer.nodeInformer != nil {
+		nodeInformer.nodeInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+			},
+		)
+	}
+}
+
+func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
+	log.Infof("Enqueueing on primary cluster down event")
+	key := &rqKey{
+		kind: HACIS,
+	}
+	ctlr.resourceQueue.Add(key)
 }

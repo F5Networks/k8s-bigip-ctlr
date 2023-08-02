@@ -117,6 +117,7 @@ func NewAgent(params AgentParams) *Agent {
 		GTM:               params.CCCLGTMAgent,
 		DisableARP:        params.DisableARP,
 		StaticRoutingMode: params.StaticRoutingMode,
+		CISType:           params.CISType,
 	}
 
 	bs := bigIPSection{

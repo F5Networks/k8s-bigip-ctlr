@@ -687,6 +687,7 @@ type (
 		PostParams                      PostParams
 		GTMParams                       GTMParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		CISType                         string
 		// VxlnParams      VXLANParams
 		Partition          string
 		LogLevel           string
@@ -764,6 +765,7 @@ type (
 		DisableARP         bool   `json:"disable-arp,omitempty"`
 		SharedStaticRoutes bool   `json:"shared-static-routes,omitempty"`
 		StaticRoutingMode  bool   `json:"static-route-mode,omitempty"`
+		CISType            string `json:"cis-type,omitempty"`
 	}
 
 	bigIPSection struct {

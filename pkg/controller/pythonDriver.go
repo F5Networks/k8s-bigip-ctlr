@@ -52,7 +52,10 @@ func initializeDriverConfig(
 	if global.GTM {
 		sections["gtm_bigip"] = gtm
 	}
-
+	if global.CISType == "secondary" {
+		//Initially set the primary cluster status as true before init
+		sections["primary-cluster-status"] = true
+	}
 	for k, v := range sections {
 		doneCh, errCh, err := configWriter.SendSection(k, v)
 		if nil != err {

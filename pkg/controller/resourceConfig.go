@@ -296,7 +296,7 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 			}
 			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
 		}
-		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
 	return poolName
 }
@@ -312,7 +312,7 @@ func (ctlr *Controller) framePoolNameForDefaultPool(ns string, pool cisapiv1.Def
 			}
 			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
 		}
-		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
 	return poolName
 }
@@ -328,13 +328,13 @@ func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host s
 		if (intstr.IntOrString{}) == targetPort {
 			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort)
 		}
-		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, pool.Path, "")
+		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, "")
 	}
 	return poolName
 }
 
 // format the pool name for an VirtualServer
-func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, path string, cluster string) string {
+func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host, cluster string) string {
 	servicePort := fetchPortString(port)
 	if cluster != "" {
 		cluster = "_" + cluster
@@ -342,10 +342,7 @@ func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLa
 	poolName := fmt.Sprintf("%s_%s_%s%s", svc, servicePort, namespace, cluster)
 	if len(host) > 0 {
 		poolName = fmt.Sprintf("%s_%s", poolName, host)
-		if len(path) > 0 && path != "/" {
-			path = strings.TrimPrefix(path, "/")
-			poolName = fmt.Sprintf("%s_%s", poolName, path)
-		}
+
 	}
 	if nodeMemberLabel != "" {
 		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
@@ -531,42 +528,47 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ReselectTries:     pl.ReselectTries,
 				ServiceDownAction: pl.ServiceDownAction,
 			}
-			//check for external service reference
-			if len(pl.MultiClusterServices) > 0 {
-				if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-					// only process if vs key is not present. else skip the processing
-					// on vs update we are clearing the resource service
-					// if event comes from vs then we will read and populate data, else we will skip processing
-					ctlr.processResourceExternalClusterServices(rsRef, pl.MultiClusterServices)
-				} else {
-					// prepare one of extended services key from pool
-					// to check if pool is processed before and svckey exists in rscSvcMap
-					// If not external cluster services for this pool will be added to rscSvcMap
-					externalSvcKey := MultiClusterServiceKey{
-						clusterName: pl.MultiClusterServices[0].ClusterName,
-						serviceName: pl.MultiClusterServices[0].SvcName,
-						namespace:   pl.MultiClusterServices[0].Namespace,
-					}
-					// for multiple pools scenario vs resource reference exists after first pool is processed
-					// we still need to process if svckey doesnt exist in multicluster cluster rsMap
-					if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef][externalSvcKey]; !ok {
+
+			if ctlr.multiClusterMode {
+				//check for external service reference
+				if len(pl.MultiClusterServices) > 0 {
+					if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+						// only process if vs key is not present. else skip the processing
+						// on vs update we are clearing the resource service
+						// if event comes from vs then we will read and populate data, else we will skip processing
 						ctlr.processResourceExternalClusterServices(rsRef, pl.MultiClusterServices)
+					} else {
+						// prepare one of extended services key from pool
+						// to check if pool is processed before and svckey exists in rscSvcMap
+						// If not external cluster services for this pool will be added to rscSvcMap
+						externalSvcKey := MultiClusterServiceKey{
+							clusterName: pl.MultiClusterServices[0].ClusterName,
+							serviceName: pl.MultiClusterServices[0].SvcName,
+							namespace:   pl.MultiClusterServices[0].Namespace,
+						}
+						// for multiple pools scenario vs resource reference exists after first pool is processed
+						// we still need to process if svckey doesnt exist in multicluster cluster rsMap
+						if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef][externalSvcKey]; !ok {
+							ctlr.processResourceExternalClusterServices(rsRef, pl.MultiClusterServices)
+						}
 					}
 				}
-			}
-			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
-				for svc, config := range svcs {
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+					for svc, config := range svcs {
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+					}
 				}
-			}
-			pool.MultiClusterServices = pl.MultiClusterServices
-			// update the multicluster resource serviceMap with local cluster services
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
-			// update the multicluster resource serviceMap with HA pair cluster services
-			if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort,
-					ctlr.multiClusterConfigs.HAPairCusterName)
+				pool.MultiClusterServices = pl.MultiClusterServices
+				// update the multicluster resource serviceMap with local cluster services
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
+				// update the multicluster resource serviceMap with HA pair cluster services
+				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort,
+						ctlr.multiClusterConfigs.HAPairCusterName)
+				}
+			} else {
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
 			}
 			// Update the pool Members
 			ctlr.updatePoolMembersForResources(&pool)
@@ -1921,35 +1923,40 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 	// update the pool identifier for service
 	ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
-	//check for external service reference
-	if len(vs.Spec.Pool.MultiClusterServices) > 0 {
-		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-			// only process if ts key is not present. else skip the processing
-			// on ts update we are clearing the resource service
-			// if event comes from ts then we will read and populate data, else we will skip processing
-			ctlr.processResourceExternalClusterServices(rsRef, vs.Spec.Pool.MultiClusterServices)
+
+	if ctlr.multiClusterMode {
+		//check for external service reference
+		if len(vs.Spec.Pool.MultiClusterServices) > 0 {
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+				// only process if ts key is not present. else skip the processing
+				// on ts update we are clearing the resource service
+				// if event comes from ts then we will read and populate data, else we will skip processing
+				ctlr.processResourceExternalClusterServices(rsRef, vs.Spec.Pool.MultiClusterServices)
+			}
 		}
-	}
-	var multiClusterServices []cisapiv1.MultiClusterServiceReference
-	if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
-		for svc, config := range svcs {
-			multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
-				ClusterName: svc.clusterName,
-				SvcName:     svc.serviceName,
-				Namespace:   svc.namespace,
-				ServicePort: config.svcPort,
-			})
-			// update the clusterSvcMap
-			ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+		var multiClusterServices []cisapiv1.MultiClusterServiceReference
+		if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+			for svc, config := range svcs {
+				multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+					ClusterName: svc.clusterName,
+					SvcName:     svc.serviceName,
+					Namespace:   svc.namespace,
+					ServicePort: config.svcPort,
+				})
+				// update the clusterSvcMap
+				ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+			}
+			pool.MultiClusterServices = multiClusterServices
 		}
-		pool.MultiClusterServices = multiClusterServices
-	}
-	// update the multicluster resource serviceMap with local cluster services
-	ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
-	// update the multicluster resource serviceMap with HA pair cluster services
-	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
-			ctlr.multiClusterConfigs.HAPairCusterName)
+		// update the multicluster resource serviceMap with local cluster services
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
+		// update the multicluster resource serviceMap with HA pair cluster services
+		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
+				ctlr.multiClusterConfigs.HAPairCusterName)
+		}
+	} else {
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 	}
 	// Update the pool Members
 	ctlr.updatePoolMembersForResources(&pool)
@@ -2034,7 +2041,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		svc.Namespace,
 		svc.Name,
 		svcPort.TargetPort,
-		"", "", "", "")
+		"", "", "")
 	pool := Pool{
 		Name:             poolName,
 		Partition:        rsCfg.Virtual.Partition,
@@ -2402,8 +2409,7 @@ func (ctlr *Controller) handleRouteTLS(
 			route.Spec.To.Name,
 			servicePort,
 			"",
-			route.Spec.Host,
-			route.Spec.Path,
+			"",
 			pl.Cluster,
 		) {
 			poolPathRefs = append(
@@ -2415,8 +2421,7 @@ func (ctlr *Controller) handleRouteTLS(
 						route.Spec.To.Name,
 						pl.ServicePort,
 						"",
-						route.Spec.Host,
-						route.Spec.Path,
+						"",
 						pl.Cluster),
 					[]string{route.Spec.Host},
 				})

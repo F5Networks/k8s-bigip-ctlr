@@ -197,7 +197,8 @@ func (ctlr *Controller) processResources() bool {
 	log.Debugf("Processing Key: %v", rKey)
 	// During Init time, just process all the resources
 	if ctlr.initState && rKey.kind != Namespace {
-		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service || rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
+		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service ||
+			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS || rKey.kind == ConfigMap {
 			if rKey.kind == Service {
 				if svc, ok := rKey.rsc.(*v1.Service); ok {
 					if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
@@ -248,7 +249,7 @@ func (ctlr *Controller) processResources() bool {
 			// Delete the route entry from hostPath Map
 			ctlr.deleteHostPathMapEntry(route)
 		}
-		if rKey.event != Create {
+		if rKey.event != Create && ctlr.multiClusterMode {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 		}
@@ -260,7 +261,7 @@ func (ctlr *Controller) processResources() bool {
 				isRetryableError = true
 			}
 		}
-		if rKey.event != Create {
+		if rKey.event != Create && ctlr.multiClusterMode {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 
@@ -294,7 +295,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 
-		if rKey.event != Create {
+		if rKey.event != Create && ctlr.multiClusterMode {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 		}
@@ -305,7 +306,7 @@ func (ctlr *Controller) processResources() bool {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isRetryableError = true
 		}
-		if rKey.event != Create {
+		if rKey.event != Create && ctlr.multiClusterMode {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 	case TLSProfile:
@@ -3253,7 +3254,6 @@ func (ctlr *Controller) processIngressLink(
 				"",
 				"",
 				"",
-				"",
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      svc.ObjectMeta.Name,
@@ -3795,11 +3795,26 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 
-		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
-		ctlr.checkSecondaryCISConfig()
-		ctlr.stopDeletedGlobalCMMultiClusterInformers()
-		if err != nil {
-			return err, false
+		if es.MultiClusterConfigs != nil {
+			ctlr.multiClusterMode = true
+		} else {
+			ctlr.multiClusterMode = false
+		}
+
+		if ctlr.cisType != "" && es.HAClusterConfig != (HAClusterConfig{}) {
+			ctlr.Agent.HAMode = true
+			ctlr.multiClusterMode = true
+		} else {
+			ctlr.Agent.HAMode = false
+		}
+
+		if ctlr.multiClusterMode || ctlr.Agent.HAMode {
+			err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
+			ctlr.checkSecondaryCISConfig()
+			ctlr.stopDeletedGlobalCMMultiClusterInformers()
+			if err != nil {
+				return err, false
+			}
 		}
 	}
 	// Process the routeSpec defined in extended configMap

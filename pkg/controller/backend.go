@@ -281,18 +281,20 @@ func (agent *Agent) agentWorker() {
 			continue
 		}
 
-		// if endPoint is not empty means, cis is running in secondary mode
-		// check if the primary cis is up and running
-		if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
-			if agent.PrimaryClusterHealthProbeParams.statusRunning {
-				// dont post the declaration
-				agent.declUpdate.Unlock()
-				continue
-			} else {
-				if agent.PrimaryClusterHealthProbeParams.statusChanged {
-					agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
-					agent.PrimaryClusterHealthProbeParams.statusChanged = false
-					agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+		if agent.HAMode {
+			// if endPoint is not empty means, cis is running in secondary mode
+			// check if the primary cis is up and running
+			if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+				if agent.PrimaryClusterHealthProbeParams.statusRunning {
+					// dont post the declaration
+					agent.declUpdate.Unlock()
+					continue
+				} else {
+					if agent.PrimaryClusterHealthProbeParams.statusChanged {
+						agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+						agent.PrimaryClusterHealthProbeParams.statusChanged = false
+						agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+					}
 				}
 			}
 		}
@@ -481,13 +483,16 @@ func (agent *Agent) retryWorker() {
 	for range agent.retryChan {
 
 		for len(agent.retryTenantDeclMap) != 0 {
-			// if endPoint is not empty -> cis is running in secondary mode
-			// check if the primary cis is up and running
-			if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
-				if agent.PrimaryClusterHealthProbeParams.statusRunning {
-					agent.retryTenantDeclMap = make(map[string]*tenantParams)
-					// dont post the declaration
-					continue
+
+			if agent.HAMode {
+				// if endPoint is not empty -> cis is running in secondary mode
+				// check if the primary cis is up and running
+				if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+					if agent.PrimaryClusterHealthProbeParams.statusRunning {
+						agent.retryTenantDeclMap = make(map[string]*tenantParams)
+						// dont post the declaration
+						continue
+					}
 				}
 			}
 
@@ -781,13 +786,17 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	cisLabel := agent.Partition
-	// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
-	// if it's secondary CIS and primary CIS is down and statusChanged is true
-	if agent.firstPost ||
-		(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
-			agent.PrimaryClusterHealthProbeParams.statusChanged) {
-		agent.removeDeletedTenantsForBigIP(&config, cisLabel)
+
+	if agent.HAMode {
+		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
+		// if it's secondary CIS and primary CIS is down and statusChanged is true
+		if agent.firstPost ||
+			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
+				agent.PrimaryClusterHealthProbeParams.statusChanged) {
+			agent.removeDeletedTenantsForBigIP(&config, cisLabel)
+		}
 	}
+
 	for tenant := range agent.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
 			// Remove partition

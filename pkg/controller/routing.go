@@ -1174,8 +1174,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 				be.Name,
 				port,
 				"",
-				route.Spec.Host,
-				route.Spec.Path,
+				"",
 				be.Cluster,
 			)
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
@@ -1433,7 +1432,6 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 				port,
 				"",
 				host,
-				path,
 				"",
 			)
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)

@@ -58,6 +58,7 @@ var _ = Describe("Node Poller Handler", func() {
 					},
 				}),
 		}
+
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
@@ -94,6 +95,10 @@ var _ = Describe("Node Poller Handler", func() {
 	})
 
 	It("Nodes Update processing", func() {
+		nodeInf := mockCtlr.getNodeInformer("")
+		mockCtlr.nodeInformer = &nodeInf
+		mockCtlr.addNodeEventUpdateHandler(mockCtlr.nodeInformer)
+		mockCtlr.UseNodeInternal = true
 		namespace := "default"
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces[namespace] = true

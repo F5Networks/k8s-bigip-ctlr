@@ -3782,6 +3782,7 @@ extendedRouteSpec:
 		})
 		It("Virtual Server processing on pod update", func() {
 			mockCtlr.PoolMemberType = NodePortLocal
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			mockCtlr.ipamCli = nil
 			labels := make(map[string]string)
 			labels["app"] = "dev"

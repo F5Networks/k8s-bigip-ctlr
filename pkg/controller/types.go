@@ -93,6 +93,7 @@ type (
 		haModeType             HAModeType
 		clusterRatio           map[string]*int
 		resourceContext
+		multiClusterMode bool
 	}
 	resourceContext struct {
 		resourceQueue             workqueue.RateLimitingInterface
@@ -133,6 +134,7 @@ type (
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
 		CISType                     string
+		MultiClusterMode            bool
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -724,6 +726,7 @@ type (
 		ccclGTMAgent       bool
 		disableARP         bool
 		bigIPAS3Version    float64
+		HAMode             bool
 	}
 
 	AgentParams struct {

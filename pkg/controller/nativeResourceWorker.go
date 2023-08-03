@@ -382,18 +382,22 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		namespace: route.Namespace,
 		kind:      Route,
 	}
+
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
-	//check for external service reference annotation
-	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
-		// only process if route key is not present. else skip the processing
-		// on route update we are clearing the resource service
-		// if event comes from route then we will read and populate data, else we will skip processing
-		if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
-			if err == nil {
-				ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
-			} else {
-				log.Warningf("unable to read service mapping for resource %v", rsRef)
+
+	if ctlr.multiClusterMode {
+		//check for external service reference annotation
+		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+			// only process if route key is not present. else skip the processing
+			// on route update we are clearing the resource service
+			// if event comes from route then we will read and populate data, else we will skip processing
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+				err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+				if err == nil {
+					ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
+				} else {
+					log.Warningf("unable to read service mapping for resource %v", rsRef)
+				}
 			}
 		}
 	}
@@ -407,8 +411,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				bs.Name,
 				servicePort,
 				"",
-				route.Spec.Host,
-				route.Spec.Path,
+				"",
 				bs.Cluster,
 			),
 			Partition:        rsCfg.Virtual.Partition,
@@ -419,35 +422,40 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
 		}
-		if ctlr.haModeType != Ratio {
-			var multiClusterServices []cisapiv1.MultiClusterServiceReference
-			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
-				for svc, config := range svcs {
-					// if service port not specified for the multiCluster service then use the route's servicePort
-					if config.svcPort == (intstr.IntOrString{}) {
-						config.svcPort = servicePort
+
+		if ctlr.multiClusterMode {
+			if ctlr.haModeType != Ratio {
+				var multiClusterServices []cisapiv1.MultiClusterServiceReference
+				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+					for svc, config := range svcs {
+						// if service port not specified for the multiCluster service then use the route's servicePort
+						if config.svcPort == (intstr.IntOrString{}) {
+							config.svcPort = servicePort
+						}
+						multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+							ClusterName: svc.clusterName,
+							SvcName:     svc.serviceName,
+							Namespace:   svc.namespace,
+							ServicePort: config.svcPort,
+						})
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
 					}
-					multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
-						ClusterName: svc.clusterName,
-						SvcName:     svc.serviceName,
-						Namespace:   svc.namespace,
-						ServicePort: config.svcPort,
-					})
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+					pool.MultiClusterServices = multiClusterServices
 				}
-				pool.MultiClusterServices = multiClusterServices
-			}
-			// update the multicluster resource serviceMap with local cluster services
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
-			// update the multicluster resource serviceMap with HA pair cluster services
-			if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
-					ctlr.multiClusterConfigs.HAPairCusterName)
+				// update the multicluster resource serviceMap with local cluster services
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+				// update the multicluster resource serviceMap with HA pair cluster services
+				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
+						ctlr.multiClusterConfigs.HAPairCusterName)
+				}
+			} else {
+				// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster)
 			}
 		} else {
-			// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster)
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 		}
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
@@ -539,8 +547,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		route.Spec.To.Name,
 		servicePort,
 		"",
-		route.Spec.Host,
-		route.Spec.Path,
+		"",
 		"",
 	)
 	// skip the policy creation for passthrough termination
@@ -740,8 +747,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		service.Name,
 		servicePort,
 		"",
-		route.Spec.Host,
-		route.Spec.Path,
+		"",
 		"",
 	)
 	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
@@ -1728,35 +1734,49 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		}
 	}
 	// Validate multiCluster service annotation has valid cluster names
-	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
-		var clusterSvcs []cisapiv1.MultiClusterServiceReference
-		err := json.Unmarshal([]byte(annotation), &clusterSvcs)
-		if err == nil {
-			ctlr.multiClusterResources.Lock()
-			defer ctlr.multiClusterResources.Unlock()
-			for _, svc := range clusterSvcs {
-				if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; !ok {
-					message := fmt.Sprintf("Discarding route %v/%v as credentials for cluster %v does not exist in extended configmap", route.Name, route.Namespace,
-						svc.ClusterName)
-					log.Errorf(message)
-					go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
-					return false
+	if ctlr.multiClusterMode {
+		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+			var clusterSvcs []cisapiv1.MultiClusterServiceReference
+			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+			if err == nil {
+				ctlr.multiClusterResources.Lock()
+				defer ctlr.multiClusterResources.Unlock()
+				for _, svc := range clusterSvcs {
+					if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; !ok {
+						message := fmt.Sprintf("Discarding route %v/%v as credentials for cluster %v does not exist in extended configmap", route.Name, route.Namespace,
+							svc.ClusterName)
+						log.Errorf(message)
+						go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+						return false
+					}
+					if svc.SvcName == "" || svc.ClusterName == "" || svc.Namespace == "" {
+						message := fmt.Sprintf("Discarding route %v/%v as some of the mandatory parameters for the "+
+							"multicluster services in the annotation are missing.", route.Name, route.Namespace)
+						log.Errorf(message)
+						go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+						return false
+					}
 				}
-				if svc.SvcName == "" || svc.ClusterName == "" || svc.Namespace == "" {
-					message := fmt.Sprintf("Discarding route %v/%v as some of the mandatory parameters for the "+
-						"multicluster services in the annotation are missing.", route.Name, route.Namespace)
-					log.Errorf(message)
-					go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
-					return false
-				}
+			} else {
+				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", resource.MultiClusterServicesAnnotation, route.Name, route.Namespace)
+				log.Errorf(message)
+				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+				return false
 			}
-		} else {
-			message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", resource.MultiClusterServicesAnnotation, route.Name, route.Namespace)
+		}
+	} else {
+		// Validate the route service exists or not
+		err, _ := ctlr.getServicePort(route)
+		if err != nil {
+			message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
+				route.Name)
 			log.Errorf(message)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
+				"ServiceNotFound", message, v1.ConditionFalse)
 			return false
 		}
 	}
+
 	return true
 }
 

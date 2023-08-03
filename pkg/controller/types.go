@@ -18,6 +18,8 @@ package controller
 
 import (
 	"container/list"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"sync"
 
@@ -34,8 +36,10 @@ import (
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
@@ -59,10 +63,9 @@ type (
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
 		nodeLabelSelector      string
-		vxlanMode              string
-		vxlanName              string
 		ciliumTunnelName       string
-		initialSvcCount        int
+		vxlanMgr               *vxlan.VxlanMgr
+		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
 		Agent                  *Agent
@@ -84,43 +87,54 @@ type (
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
 		cacheIPAMHostSpecs     CacheIPAM
+		multiClusterConfigs    *clustermanager.MultiClusterConfig
+		multiClusterResources  *MultiClusterResourceStore
+		cisType                string
+		haModeType             HAModeType
+		clusterRatio           map[string]*int
 		resourceContext
+		multiClusterMode bool
 	}
 	resourceContext struct {
-		resourceQueue      workqueue.RateLimitingInterface
-		routeClientV1      routeclient.RouteV1Interface
-		comInformers       map[string]*CommonInformer
-		nrInformers        map[string]*NRInformer
-		crInformers        map[string]*CRInformer
-		nsInformers        map[string]*NSInformer
-		routeSpecCMKey     string
-		routeLabel         string
-		namespaceLabelMode bool
-		processedHostPath  *ProcessedHostPath
+		resourceQueue             workqueue.RateLimitingInterface
+		routeClientV1             routeclient.RouteV1Interface
+		comInformers              map[string]*CommonInformer
+		nrInformers               map[string]*NRInformer
+		crInformers               map[string]*CRInformer
+		nsInformers               map[string]*NSInformer
+		nodeInformer              *NodeInformer
+		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
+		multiClusterNodeInformers map[string]*NodeInformer
+		globalExtendedCMKey       string
+		routeLabel                string
+		namespaceLabelMode        bool
+		processedHostPath         *ProcessedHostPath
 	}
 
 	// Params defines parameters
 	Params struct {
-		Config             *rest.Config
-		Namespaces         []string
-		NamespaceLabel     string
-		Partition          string
-		Agent              *Agent
-		PoolMemberType     string
-		VXLANName          string
-		VXLANMode          string
-		CiliumTunnelName   string
-		UseNodeInternal    bool
-		NodePollInterval   int
-		NodeLabelSelector  string
-		ShareNodes         bool
-		IPAM               bool
-		DefaultRouteDomain int
-		Mode               ControllerMode
-		RouteSpecConfigmap string
-		RouteLabel         string
-		StaticRoutingMode  bool
-		OrchestrationCNI   string
+		Config                      *rest.Config
+		Namespaces                  []string
+		NamespaceLabel              string
+		Partition                   string
+		Agent                       *Agent
+		PoolMemberType              string
+		VXLANName                   string
+		VXLANMode                   string
+		CiliumTunnelName            string
+		UseNodeInternal             bool
+		NodePollInterval            int
+		NodeLabelSelector           string
+		ShareNodes                  bool
+		IPAM                        bool
+		DefaultRouteDomain          int
+		Mode                        ControllerMode
+		GlobalExtendedSpecConfigmap string
+		RouteLabel                  string
+		StaticRoutingMode           bool
+		OrchestrationCNI            string
+		CISType                     string
+		MultiClusterMode            bool
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -142,7 +156,7 @@ type (
 		plcInformer     cache.SharedIndexInformer
 		podInformer     cache.SharedIndexInformer
 		secretsInformer cache.SharedIndexInformer
-		nodeInformer    cache.SharedIndexInformer
+		cmInformer      cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
@@ -150,19 +164,27 @@ type (
 		namespace     string
 		stopCh        chan struct{}
 		routeInformer cache.SharedIndexInformer
-		cmInformer    cache.SharedIndexInformer
+	}
+
+	NodeInformer struct {
+		stopCh       chan struct{}
+		nodeInformer cache.SharedIndexInformer
+		clusterName  string
+		oldNodes     []Node
 	}
 
 	NSInformer struct {
 		stopCh     chan struct{}
+		cluster    string
 		nsInformer cache.SharedIndexInformer
 	}
 	rqKey struct {
-		namespace string
-		kind      string
-		rscName   string
-		rsc       interface{}
-		event     string
+		namespace   string
+		kind        string
+		rscName     string
+		rsc         interface{}
+		event       string
+		clusterName string
 	}
 
 	metaData struct {
@@ -175,13 +197,6 @@ type (
 		Protocol        string
 		httpTraffic     string
 		defaultPoolType string
-	}
-
-	// Virtual Server Key - unique server is Name + Port
-	serviceKey struct {
-		ServiceName string
-		ServicePort int32
-		Namespace   string
 	}
 
 	// Virtual server config
@@ -306,7 +321,7 @@ type (
 	ResourceMap map[string]*ResourceConfig
 
 	// PoolMemberCache key is namespace/service
-	PoolMemberCache map[string]poolMembersInfo
+	PoolMemberCache map[MultiClusterServiceKey]*poolMembersInfo
 	// Store of CustomProfiles
 	CustomProfileStore struct {
 		sync.Mutex
@@ -388,19 +403,21 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name              string             `json:"name"`
-		Partition         string             `json:"-"`
-		ServiceName       string             `json:"-"`
-		ServiceNamespace  string             `json:"-"`
-		ServicePort       intstr.IntOrString `json:"-"`
-		Balance           string             `json:"loadBalancingMethod,omitempty"`
-		Members           []PoolMember       `json:"members"`
-		NodeMemberLabel   string             `json:"-"`
-		MonitorNames      []MonitorName      `json:"monitors,omitempty"`
-		ReselectTries     int32              `json:"reselectTries,omitempty"`
-		ServiceDownAction string             `json:"serviceDownAction,omitempty"`
-		Weight            int32              `json:"weight,omitempty"`
-		AlternateBackends []AlternateBackend `json:"alternateBackends"`
+		Name                 string                                  `json:"name"`
+		Partition            string                                  `json:"-"`
+		ServiceName          string                                  `json:"-"`
+		ServiceNamespace     string                                  `json:"-"`
+		ServicePort          intstr.IntOrString                      `json:"-"`
+		Balance              string                                  `json:"loadBalancingMethod,omitempty"`
+		Members              []PoolMember                            `json:"members"`
+		NodeMemberLabel      string                                  `json:"-"`
+		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
+		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
+		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
+		Weight               int32                                   `json:"weight,omitempty"`
+		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
+		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
+		Cluster              string                                  `json:"-"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -452,10 +469,12 @@ type (
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
-		svcResourceCache          map[string]map[string]svcResourceCacheMeta
+		svcResourceCache          map[MultiClusterServiceKey]map[string]svcResourceCacheMeta
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
+		// stores valid multiClusterConfigs from extendendCM
+		multiClusterConfigs map[string]MultiClusterConfig
 	}
 
 	svcResourceCacheMeta struct {
@@ -668,8 +687,13 @@ type (
 )
 
 type (
-	Services      []*v1.Service
-	NodeList      []v1.Node
+	Services        []*v1.Service
+	NodeList        []v1.Node
+	RouteBackendCxt struct {
+		Weight  float64
+		Name    string
+		Cluster string
+	}
 	SvcBackendCxt struct {
 		Weight       int
 		Name         string
@@ -702,30 +726,44 @@ type (
 		ccclGTMAgent       bool
 		disableARP         bool
 		bigIPAS3Version    float64
+		HAMode             bool
 	}
 
 	AgentParams struct {
-		PostParams PostParams
-		GTMParams  GTMParams
+		PostParams                      PostParams
+		GTMParams                       GTMParams
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
-		Partition         string
-		LogLevel          string
-		VerifyInterval    int
-		VXLANName         string
-		PythonBaseDir     string
-		UserAgent         string
-		HttpAddress       string
-		EnableIPV6        bool
-		DisableARP        bool
-		CCCLGTMAgent      bool
-		StaticRoutingMode bool
+		Partition          string
+		LogLevel           string
+		VerifyInterval     int
+		VXLANName          string
+		PythonBaseDir      string
+		UserAgent          string
+		HttpAddress        string
+		EnableIPV6         bool
+		DisableARP         bool
+		CCCLGTMAgent       bool
+		StaticRoutingMode  bool
+		SharedStaticRoutes bool
 	}
 
 	PostManager struct {
 		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams
-		firstPost bool
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		firstPost                       bool
+	}
+
+	PrimaryClusterHealthProbeParams struct {
+		paramLock     *sync.RWMutex
+		EndPoint      string
+		EndPointType  string
+		statusRunning bool
+		statusChanged bool
+		probeInterval int
+		retryInterval int
 	}
 
 	PostParams struct {
@@ -764,12 +802,14 @@ type (
 	}
 
 	globalSection struct {
-		LogLevel       string `json:"log-level,omitempty"`
-		VerifyInterval int    `json:"verify-interval,omitempty"`
-		VXLANPartition string `json:"vxlan-partition,omitempty"`
-		DisableLTM     bool   `json:"disable-ltm,omitempty"`
-		GTM            bool   `json:"gtm,omitempty"`
-		DisableARP     bool   `json:"disable-arp,omitempty"`
+		LogLevel           string `json:"log-level,omitempty"`
+		VerifyInterval     int    `json:"verify-interval,omitempty"`
+		VXLANPartition     string `json:"vxlan-partition,omitempty"`
+		DisableLTM         bool   `json:"disable-ltm,omitempty"`
+		GTM                bool   `json:"gtm,omitempty"`
+		DisableARP         bool   `json:"disable-arp,omitempty"`
+		SharedStaticRoutes bool   `json:"shared-static-routes,omitempty"`
+		StaticRoutingMode  bool   `json:"static-route-mode,omitempty"`
 	}
 
 	bigIPSection struct {
@@ -1174,6 +1214,10 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
+		MultiClusterConfigs       []MultiClusterConfig `yaml:"multiClusterConfigs"`
+		HAClusterConfig           HAClusterConfig      `yaml:"highAvailabilityClusterConfigs"`
+		HAMode                    HAModeType           `yaml:"mode"`
+		LocalClusterRatio         *int                 `yaml:"localClusterRatio"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1227,4 +1271,71 @@ type TLSVersion string
 
 const (
 	TLSVerion1_3 TLSVersion = "1.3"
+)
+
+type HAModeType string
+
+const (
+	Active  HAModeType = "active"
+	StandBy HAModeType = "standby"
+	Ratio   HAModeType = "ratio"
+)
+
+type (
+	MultiClusterConfig struct {
+		ClusterName string `yaml:"clusterName"`
+		Secret      string `yaml:"secret"`
+		Ratio       *int   `yaml:"ratio"`
+	}
+
+	HAClusterConfig struct {
+		//HAMode                 HAMode         `yaml:"mode"`
+		PrimaryClusterEndPoint string         `yaml:"primaryClusterEndPoint"`
+		ProbeInterval          int            `yaml:"probeInterval"`
+		RetryInterval          int            `yaml:"retryInterval"`
+		PrimaryCluster         ClusterDetails `yaml:"primaryCluster"`
+		SecondaryCluster       ClusterDetails `yaml:"secondaryCluster"`
+	}
+
+	HAMode struct {
+		// type can be active, standby, ratio
+		Type HAModeType `yaml:"type"`
+	}
+
+	ClusterDetails struct {
+		ClusterName string `yaml:"clusterName"`
+		Secret      string `yaml:"secret"`
+		Ratio       *int   `yaml:"ratio"`
+	}
+
+	PoolIdentifier struct {
+		poolName  string
+		partition string
+		rsName    string
+		path      string
+		rsKey     resourceRef
+	}
+
+	MultiClusterResourceStore struct {
+		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
+		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
+		sync.Mutex
+	}
+	MultiClusterServiceKey struct {
+		serviceName string
+		clusterName string
+		namespace   string
+	}
+	MultiClusterServiceConfig struct {
+		svcPort intstr.IntOrString
+	}
+
+	MultiClusterPoolInformer struct {
+		namespace   string
+		clusterName string
+		stopCh      chan struct{}
+		svcInformer cache.SharedIndexInformer
+		epsInformer cache.SharedIndexInformer
+		podInformer cache.SharedIndexInformer
+	}
 )

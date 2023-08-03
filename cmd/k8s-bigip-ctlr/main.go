@@ -68,11 +68,12 @@ import (
 )
 
 type globalSection struct {
-	LogLevel       string `json:"log-level,omitempty"`
-	VerifyInterval int    `json:"verify-interval,omitempty"`
-	VXLANPartition string `json:"vxlan-partition,omitempty"`
-	DisableLTM     bool   `json:"disable-ltm,omitempty"`
-	DisableARP     bool   `json:"disable-arp,omitempty"`
+	LogLevel          string `json:"log-level,omitempty"`
+	VerifyInterval    int    `json:"verify-interval,omitempty"`
+	VXLANPartition    string `json:"vxlan-partition,omitempty"`
+	DisableLTM        bool   `json:"disable-ltm,omitempty"`
+	DisableARP        bool   `json:"disable-arp,omitempty"`
+	StaticRoutingMode bool   `json:"static-route-mode,omitempty"`
 }
 
 type bigIPSection struct {
@@ -107,13 +108,14 @@ var (
 	buildInfo string
 
 	// Flag sets and supported flags
-	flags         *pflag.FlagSet
-	globalFlags   *pflag.FlagSet
-	bigIPFlags    *pflag.FlagSet
-	kubeFlags     *pflag.FlagSet
-	vxlanFlags    *pflag.FlagSet
-	osRouteFlags  *pflag.FlagSet
-	gtmBigIPFlags *pflag.FlagSet
+	flags             *pflag.FlagSet
+	globalFlags       *pflag.FlagSet
+	bigIPFlags        *pflag.FlagSet
+	kubeFlags         *pflag.FlagSet
+	vxlanFlags        *pflag.FlagSet
+	osRouteFlags      *pflag.FlagSet
+	gtmBigIPFlags     *pflag.FlagSet
+	multiClusterFlags *pflag.FlagSet
 
 	// Custom Resource
 	customResourceMode *bool
@@ -186,16 +188,18 @@ var (
 	clientSSL        *string
 	serverSSL        *string
 
-	routeSpecConfigmap *string
+	extendedSpecConfigmap *string
+	routeSpecConfigmap    *string
 
 	gtmBigIPURL      *string
 	gtmBigIPUsername *string
 	gtmBigIPPassword *string
 	gtmCredsDir      *string
 
-	httpClientMetrics *bool
-	staticRoutingMode *bool
-	orchestrationCNI  *string
+	httpClientMetrics  *bool
+	staticRoutingMode  *bool
+	orchestrationCNI   *string
+	sharedStaticRoutes *bool
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -205,6 +209,7 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	userAgentInfo      string
+	cisType            *string
 )
 
 func _init() {
@@ -215,6 +220,7 @@ func _init() {
 	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.PanicOnError)
 	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.PanicOnError)
 	gtmBigIPFlags = pflag.NewFlagSet("GTM", pflag.PanicOnError)
+	multiClusterFlags = pflag.NewFlagSet("MultiCluster", pflag.PanicOnError)
 
 	// Flag wrapping
 	var err error
@@ -250,6 +256,7 @@ func _init() {
 		"Optional, flag to disable sending telemetry data to TEEM")
 	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
+	sharedStaticRoutes = globalFlags.Bool("shared-static-routes", false, "Optional, flag to enable configuration of static routes on bigip in common partition")
 	// Custom Resource
 	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
 		"Optional, flag to enbale ipv6 network support.")
@@ -259,6 +266,11 @@ func _init() {
 		"Optional, to put the controller to process desired resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
 		"Optional, CIS uses this value as default Route Domain in BIG-IP ")
+	routeSpecConfigmap = globalFlags.String("route-spec-configmap", "",
+		"Required, specify a configmap that holds additional spec for routes"+
+			" if controller-mode is 'openshift'")
+	extendedSpecConfigmap = globalFlags.String("extended-spec-configmap", "",
+		"Required, specify a configmap that holds additional spec for controller. It's a required parameter if controller-mode is 'openshift'")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -408,11 +420,6 @@ func _init() {
 	serverSSL = osRouteFlags.String("default-server-ssl", "",
 		"Optional, specify a user-created server ssl profile to be used as"+
 			" default for SNI for Route virtual servers")
-
-	routeSpecConfigmap = osRouteFlags.String("route-spec-configmap", "",
-		"Required, specify a configmap that holds additional spec for routes"+
-			" if controller-mode is 'openshift'")
-
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsagesWrapped(width))
 	}
@@ -431,12 +438,17 @@ func _init() {
 		fmt.Fprintf(os.Stderr, "  GTM:\n%s\n", gtmBigIPFlags.FlagUsagesWrapped(width))
 	}
 
+	// MultiCluster Flags
+	cisType = multiClusterFlags.String("cis-type", "",
+		"Optional, determines in multi cluster env cis running as primary/secondary")
+
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
 	flags.AddFlagSet(kubeFlags)
 	flags.AddFlagSet(vxlanFlags)
 	flags.AddFlagSet(osRouteFlags)
 	flags.AddFlagSet(gtmBigIPFlags)
+	flags.AddFlagSet(multiClusterFlags)
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
@@ -446,6 +458,7 @@ func _init() {
 		vxlanFlags.Usage()
 		osRouteFlags.Usage()
 		gtmBigIPFlags.Usage()
+		multiClusterFlags.Usage()
 	}
 }
 
@@ -541,7 +554,18 @@ func verifyArgs() error {
 	} else {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
-
+	if len(*extendedSpecConfigmap) > 0 {
+		if len(strings.Split(*extendedSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --extended-spec-configmap" +
+				"Usage: --extended-spec-configmap=<namespace>/<configmap-name>")
+		}
+	}
+	if len(*routeSpecConfigmap) > 0 {
+		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		}
+	}
 	if *staticRoutingMode == true {
 		if isNodePort || *poolMemberType == "nodeportlocal" {
 			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
@@ -600,16 +624,15 @@ func verifyArgs() error {
 				"Usage: --override-as3-declaration=<namespace>/<configmap-name>")
 		}
 	}
-
 	switch *controllerMode {
 	case "",
 		string(controller.CustomResourceMode),
 		string(controller.KubernetesMode):
 		break
 	case string(controller.OpenShiftMode):
-		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
-			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
-				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		if len(*extendedSpecConfigmap) == 0 && len(*routeSpecConfigmap) == 0 {
+			return fmt.Errorf("--route-spec-configmap or --extended-spec-configmap parameter is required in openshift mode\n" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name> or --extended-spec-configmap=<namespace>/<configmap-name>")
 		}
 		if len(*routeLabel) > 0 {
 			*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
@@ -819,18 +842,19 @@ func initController(
 	}
 
 	agentParams := controller.AgentParams{
-		PostParams:        postMgrParams,
-		GTMParams:         GtmParams,
-		Partition:         (*bigIPPartitions)[0],
-		LogLevel:          *logLevel,
-		VerifyInterval:    *verifyInterval,
-		VXLANName:         vxlanName,
-		PythonBaseDir:     *pythonBaseDir,
-		UserAgent:         userAgentInfo,
-		HttpAddress:       *httpAddress,
-		EnableIPV6:        *enableIPV6,
-		CCCLGTMAgent:      *ccclGtmAgent,
-		StaticRoutingMode: *staticRoutingMode,
+		PostParams:         postMgrParams,
+		GTMParams:          GtmParams,
+		Partition:          (*bigIPPartitions)[0],
+		LogLevel:           *logLevel,
+		VerifyInterval:     *verifyInterval,
+		VXLANName:          vxlanName,
+		PythonBaseDir:      *pythonBaseDir,
+		UserAgent:          userAgentInfo,
+		HttpAddress:        *httpAddress,
+		EnableIPV6:         *enableIPV6,
+		CCCLGTMAgent:       *ccclGtmAgent,
+		StaticRoutingMode:  *staticRoutingMode,
+		SharedStaticRoutes: *sharedStaticRoutes,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
@@ -841,28 +865,36 @@ func initController(
 
 	agent := controller.NewAgent(agentParams)
 
+	var globalSpecConfigMap *string
+	if *extendedSpecConfigmap != "" {
+		globalSpecConfigMap = extendedSpecConfigmap
+	} else {
+		globalSpecConfigMap = routeSpecConfigmap
+	}
+
 	ctlr := controller.NewController(
 		controller.Params{
-			Config:             config,
-			Namespaces:         *namespaces,
-			NamespaceLabel:     *namespaceLabel,
-			Partition:          (*bigIPPartitions)[0],
-			Agent:              agent,
-			PoolMemberType:     *poolMemberType,
-			VXLANName:          vxlanName,
-			VXLANMode:          vxlanMode,
-			CiliumTunnelName:   *ciliumTunnelName,
-			UseNodeInternal:    *useNodeInternal,
-			NodePollInterval:   *nodePollInterval,
-			NodeLabelSelector:  *nodeLabelSelector,
-			IPAM:               *ipam,
-			ShareNodes:         *shareNodes,
-			DefaultRouteDomain: *defaultRouteDomain,
-			Mode:               controller.ControllerMode(*controllerMode),
-			RouteSpecConfigmap: *routeSpecConfigmap,
-			RouteLabel:         *routeLabel,
-			StaticRoutingMode:  *staticRoutingMode,
-			OrchestrationCNI:   *orchestrationCNI,
+			Config:                      config,
+			Namespaces:                  *namespaces,
+			NamespaceLabel:              *namespaceLabel,
+			Partition:                   (*bigIPPartitions)[0],
+			Agent:                       agent,
+			PoolMemberType:              *poolMemberType,
+			VXLANName:                   vxlanName,
+			VXLANMode:                   vxlanMode,
+			CiliumTunnelName:            *ciliumTunnelName,
+			UseNodeInternal:             *useNodeInternal,
+			NodePollInterval:            *nodePollInterval,
+			NodeLabelSelector:           *nodeLabelSelector,
+			IPAM:                        *ipam,
+			ShareNodes:                  *shareNodes,
+			DefaultRouteDomain:          *defaultRouteDomain,
+			Mode:                        controller.ControllerMode(*controllerMode),
+			GlobalExtendedSpecConfigmap: *globalSpecConfigMap,
+			RouteLabel:                  *routeLabel,
+			StaticRoutingMode:           *staticRoutingMode,
+			OrchestrationCNI:            *orchestrationCNI,
+			CISType:                     *cisType,
 		},
 	)
 
@@ -931,6 +963,9 @@ func main() {
 	if *staticRoutingMode == true {
 		//partition provide through args
 		vxlanPartition = (*bigIPPartitions)[0]
+		if *sharedStaticRoutes == true {
+			vxlanPartition = "Common"
+		}
 	}
 	config, err := getKubeConfig()
 	if err != nil {
@@ -1010,11 +1045,12 @@ func main() {
 	}
 
 	gs := globalSection{
-		LogLevel:       *logLevel,
-		VerifyInterval: *verifyInterval,
-		VXLANPartition: vxlanPartition,
-		DisableLTM:     disableLTM,
-		DisableARP:     disableARP,
+		LogLevel:          *logLevel,
+		VerifyInterval:    *verifyInterval,
+		VXLANPartition:    vxlanPartition,
+		DisableLTM:        disableLTM,
+		DisableARP:        disableARP,
+		StaticRoutingMode: *staticRoutingMode,
 	}
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel

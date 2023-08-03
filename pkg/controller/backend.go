@@ -60,7 +60,7 @@ var DEFAULT_GTM_PARTITION string
 func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
 	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
-	postMgr := NewPostManager(params.PostParams)
+	postMgr := NewPostManager(params)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
@@ -106,14 +106,18 @@ func NewAgent(params AgentParams) *Agent {
 	}
 	if params.StaticRoutingMode == true {
 		vxlanPartition = params.Partition
+		if params.SharedStaticRoutes == true {
+			vxlanPartition = "Common"
+		}
 	}
 	gs := globalSection{
-		LogLevel:       params.LogLevel,
-		VerifyInterval: params.VerifyInterval,
-		VXLANPartition: vxlanPartition,
-		DisableLTM:     true,
-		GTM:            params.CCCLGTMAgent,
-		DisableARP:     params.DisableARP,
+		LogLevel:          params.LogLevel,
+		VerifyInterval:    params.VerifyInterval,
+		VXLANPartition:    vxlanPartition,
+		DisableLTM:        true,
+		GTM:               params.CCCLGTMAgent,
+		DisableARP:        params.DisableARP,
+		StaticRoutingMode: params.StaticRoutingMode,
 	}
 
 	bs := bigIPSection{
@@ -215,11 +219,33 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	// Case1: Put latest config into the channel
 	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
 	// Either Case1 or Case2 executes, which ensures the above
+
 	select {
 	case agent.postChan <- rsConfig:
 	case <-agent.postChan:
 		agent.postChan <- rsConfig
 
+	}
+}
+
+// removeDeletedTenantsForBigIP will check the tenant exists on bigip or not
+// if tenant exists and rsConfig does not have tenant, update the tenant with empty PartitionConfig
+func (agent *Agent) removeDeletedTenantsForBigIP(rsConfig *ResourceConfigRequest, cisLabel string) {
+	//Fetching the latest BIGIP Configuration and identify if any tenant needs to be deleted
+	as3Config, err := agent.PostManager.GetAS3DeclarationFromBigIP()
+	if err != nil {
+		log.Errorf("[AS3] Could not fetch the latest AS3 declaration from BIG-IP")
+	}
+	for k, v := range as3Config {
+		if decl, ok := v.(map[string]interface{}); ok {
+			if label, found := decl["label"]; found && label == cisLabel && k != agent.Partition+"_gtm" {
+				if _, ok := rsConfig.ltmConfig[k]; !ok {
+					// adding an empty tenant to delete the tenant from BIGIP
+					priority := 1
+					rsConfig.ltmConfig[k] = &PartitionConfig{Priority: &priority}
+				}
+			}
+		}
 	}
 }
 
@@ -253,6 +279,24 @@ func (agent *Agent) agentWorker() {
 		if len(agent.incomingTenantDeclMap) == 0 {
 			agent.declUpdate.Unlock()
 			continue
+		}
+
+		if agent.HAMode {
+			// if endPoint is not empty means, cis is running in secondary mode
+			// check if the primary cis is up and running
+			if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+				if agent.PrimaryClusterHealthProbeParams.statusRunning {
+					// dont post the declaration
+					agent.declUpdate.Unlock()
+					continue
+				} else {
+					if agent.PrimaryClusterHealthProbeParams.statusChanged {
+						agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+						agent.PrimaryClusterHealthProbeParams.statusChanged = false
+						agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+					}
+				}
+			}
 		}
 
 		var updatedTenants []string
@@ -440,6 +484,18 @@ func (agent *Agent) retryWorker() {
 
 		for len(agent.retryTenantDeclMap) != 0 {
 
+			if agent.HAMode {
+				// if endPoint is not empty -> cis is running in secondary mode
+				// check if the primary cis is up and running
+				if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
+					if agent.PrimaryClusterHealthProbeParams.statusRunning {
+						agent.retryTenantDeclMap = make(map[string]*tenantParams)
+						// dont post the declaration
+						continue
+					}
+				}
+			}
+
 			agent.declUpdate.Lock()
 
 			// If we had a delay in acquiring lock, re-check if we have any tenants to be retried
@@ -571,15 +627,18 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
 	agent.tenantPriorityMap = make(map[string]int)
 	for tenant, cfg := range agent.createAS3LTMAndGTMConfigADC(config) {
-		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
+		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) ||
+			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && agent.PrimaryClusterHealthProbeParams.statusChanged) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
 			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
 			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
 			// delete entry from retryTenantDeclMap if any
 			delete(agent.retryTenantDeclMap, tenant)
-
-			log.Debugf("[AS3] No change in %v tenant configuration", tenant)
+			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
+			if agent.PrimaryClusterHealthProbeParams.EndPoint == "" || !agent.PrimaryClusterHealthProbeParams.statusRunning {
+				log.Debugf("[AS3] No change in %v tenant configuration", tenant)
+			}
 		}
 	}
 
@@ -634,10 +693,11 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 		sharedApp := as3Application{}
 		sharedApp["class"] = "Application"
 		sharedApp["template"] = "shared"
-
+		cisLabel := agent.Partition
 		tenantDecl := as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 		adc[DEFAULT_GTM_PARTITION] = tenantDecl
 
@@ -725,10 +785,22 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
+	cisLabel := agent.Partition
+
+	if agent.HAMode {
+		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
+		// if it's secondary CIS and primary CIS is down and statusChanged is true
+		if agent.firstPost ||
+			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
+				agent.PrimaryClusterHealthProbeParams.statusChanged) {
+			agent.removeDeletedTenantsForBigIP(&config, cisLabel)
+		}
+	}
+
 	for tenant := range agent.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
 			// Remove partition
-			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
+			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant, cisLabel)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
@@ -740,7 +812,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		partitionConfig.PriorityMutex.RUnlock()
 		if len(partitionConfig.ResourceMap) == 0 {
 			// Remove partition
-			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName)
+			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName, cisLabel)
 			continue
 		}
 		// Create Shared as3Application object
@@ -766,13 +838,14 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 			"class":              "Tenant",
 			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 		adc[tenantName] = tenantDecl
 	}
 	return adc
 }
 
-func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
+func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string) as3Tenant {
 	if defaultPartition == tenant {
 		// Flush Partition contents
 		sharedApp := as3Application{}
@@ -781,6 +854,7 @@ func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
 		return as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 	}
 	return as3Tenant{
@@ -902,7 +976,13 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		pool.Class = "Pool"
 		pool.ReselectTries = v.ReselectTries
 		pool.ServiceDownAction = v.ServiceDownAction
+		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
+			// Skip duplicate pool members
+			if _, ok := poolMemberSet[val]; ok {
+				continue
+			}
+			poolMemberSet[val] = struct{}{}
 			var member as3PoolMember
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port

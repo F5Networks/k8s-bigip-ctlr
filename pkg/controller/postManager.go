@@ -37,10 +37,11 @@ const (
 	timeoutLarge  = 180 * time.Second
 )
 
-func NewPostManager(params PostParams) *PostManager {
+func NewPostManager(params AgentParams) *PostManager {
 	pm := &PostManager{
-		PostParams: params,
-		firstPost:  true,
+		PostParams:                      params.PostParams,
+		firstPost:                       true,
+		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
 	}
 	pm.setupBIGIPRESTClient()
 
@@ -364,6 +365,35 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+}
+
+func (postMgr *PostManager) GetAS3DeclarationFromBigIP() (map[string]interface{}, error) {
+	url := postMgr.getAS3APIURL([]string{})
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
+		return nil, err
+	}
+
+	log.Debugf("[AS3] posting GET BIGIP AS3 declaration request on %v", url)
+	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+
+	httpResp, responseMap := postMgr.httpReq(req)
+	if httpResp == nil || responseMap == nil {
+		return nil, fmt.Errorf("Internal Error")
+	}
+
+	switch httpResp.StatusCode {
+	case http.StatusOK:
+		return responseMap, err
+	case http.StatusNotFound:
+		responseMap["code"] = int(responseMap["code"].(float64))
+		if responseMap["code"] == http.StatusNotFound {
+			return nil, fmt.Errorf("AS3 RPM is not installed on BIGIP,"+
+				" Error response from BIGIP with status code %v", httpResp.StatusCode)
+		}
+	}
+	return nil, fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
 }
 
 func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {

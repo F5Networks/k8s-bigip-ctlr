@@ -4,18 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	routeapi "github.com/openshift/api/route/v1"
 
@@ -149,6 +148,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
 			}
 
+			ctlr.updateSvcDepResources(rsName, rsCfg)
+
 			ctlr.resources.processedNativeResources[resourceRef{
 				kind:      Route,
 				namespace: rt.Namespace,
@@ -168,13 +169,6 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
-		for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
-			if ctlr.PoolMemberType == NodePort {
-				ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
-			} else {
-				ctlr.updatePoolMembersForCluster(rsCfg, namespace)
-			}
-		}
 	}
 
 	if !processingError {
@@ -383,8 +377,32 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	} else {
 		allowSourceRange = rsCfg.Virtual.AllowSourceRange
 	}
+	rsRef := resourceRef{
+		name:      route.Name,
+		namespace: route.Namespace,
+		kind:      Route,
+	}
 
-	backendSvcs := GetRouteBackends(route)
+	var clusterSvcs []cisapiv1.MultiClusterServiceReference
+
+	if ctlr.multiClusterMode {
+		//check for external service reference annotation
+		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+			// only process if route key is not present. else skip the processing
+			// on route update we are clearing the resource service
+			// if event comes from route then we will read and populate data, else we will skip processing
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+				err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+				if err == nil {
+					ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
+				} else {
+					log.Warningf("unable to read service mapping for resource %v", rsRef)
+				}
+			}
+		}
+	}
+
+	backendSvcs := ctlr.GetRouteBackends(route, clusterSvcs)
 
 	for _, bs := range backendSvcs {
 		pool := Pool{
@@ -394,6 +412,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				servicePort,
 				"",
 				"",
+				bs.Cluster,
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
@@ -401,6 +420,47 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
+			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
+		}
+
+		if ctlr.multiClusterMode {
+			if ctlr.haModeType != Ratio {
+				var multiClusterServices []cisapiv1.MultiClusterServiceReference
+				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+					for svc, config := range svcs {
+						// if service port not specified for the multiCluster service then use the route's servicePort
+						if config.svcPort == (intstr.IntOrString{}) {
+							config.svcPort = servicePort
+						}
+						multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+							ClusterName: svc.clusterName,
+							SvcName:     svc.serviceName,
+							Namespace:   svc.namespace,
+							ServicePort: config.svcPort,
+						})
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+					}
+					pool.MultiClusterServices = multiClusterServices
+				}
+				// update the multicluster resource serviceMap with local cluster services
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+				// update the multicluster resource serviceMap with HA pair cluster services
+				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
+						ctlr.multiClusterConfigs.HAPairCusterName)
+				}
+			} else {
+				// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster)
+			}
+		} else {
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+		}
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
 		}
 
 		// Handle Route health monitors
@@ -488,11 +548,12 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		servicePort,
 		"",
 		"",
+		"",
 	)
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
 		var rules *Rules
-		if isRouteABDeployment(route) {
+		if isRouteABDeployment(route) || ctlr.haModeType == Ratio {
 			rules = ctlr.prepareABRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
 		} else {
 			rules = ctlr.prepareRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
@@ -666,6 +727,8 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	return &rls
 }
 
+// UpdatePoolHealthMonitors we need to call this method on update of pod/ pool members update
+// TODO: Remove this method as it's not used anymore
 func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg *ResourceConfig) {
 
 	//Get routes for service
@@ -683,6 +746,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		service.Namespace,
 		service.Name,
 		servicePort,
+		"",
 		"",
 		"",
 	)
@@ -811,50 +875,16 @@ func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Servi
 	return nil
 }
 
-func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool) {
-	namespace := svc.Namespace
-	for _, portStruct := range getBasicVirtualPorts() {
-		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
-		if !ok {
-			continue
-		}
-		extdSpec, partition := ctlr.resources.getExtendedRouteSpec(routeGroup)
-		if extdSpec == nil {
-			continue
-		}
-		rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-		rsCfg := ctlr.getVirtualServer(partition, rsName)
-		if rsCfg == nil {
-			continue
-		}
-		freshRsCfg := &ResourceConfig{}
-		freshRsCfg.copyConfig(rsCfg)
-
-		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
-			if ctlr.PoolMemberType == NodePort {
-				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
-			} else {
-				ctlr.updatePoolMembersForCluster(freshRsCfg, ns)
-			}
-		}
-		if updatePoolHealthMon {
-			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
-			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
-		}
-		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
-	}
-}
-
-func (ctlr *Controller) processGlobalExtendedRouteConfig() {
-	splits := strings.Split(ctlr.routeSpecCMKey, "/")
+func (ctlr *Controller) processGlobalExtendedConfigMap() {
+	splits := strings.Split(ctlr.globalExtendedCMKey, "/")
 	ns, cmName := splits[0], splits[1]
 	var cm *v1.ConfigMap
 	var err error
 	var obj interface{}
 	var exist bool
-	nrInf, found := ctlr.getNamespacedNativeInformer(ns)
+	cnInf, found := ctlr.getNamespacedCommonInformer(ns)
 	if found {
-		obj, exist, err = nrInf.cmInformer.GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ns, cmName))
+		obj, exist, err = cnInf.cmInformer.GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ns, cmName))
 		cm, _ = obj.(*v1.ConfigMap)
 	}
 	if !exist || cm == nil || err != nil {
@@ -864,17 +894,21 @@ func (ctlr *Controller) processGlobalExtendedRouteConfig() {
 	}
 	// Skip processing further if Extended configmap is not found
 	if err != nil || cm == nil {
-		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
+		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
 		return
+
 	}
-	err = ctlr.setNamespaceLabelMode(cm)
-	if err != nil {
-		log.Errorf("invalid configuration: %v", ctlr.routeSpecCMKey, err)
-		os.Exit(1)
+	if ctlr.mode == OpenShiftMode {
+		err = ctlr.setNamespaceLabelMode(cm)
+		if err != nil {
+			log.Errorf("invalid configuration: %v", ctlr.globalExtendedCMKey, err)
+			os.Exit(1)
+		}
 	}
 	err, _ = ctlr.processConfigMap(cm, false)
 	if err != nil {
-		log.Errorf("Unable to Process Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
+		log.Errorf("Unable to Process Extended Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
+		os.Exit(1)
 	}
 }
 
@@ -942,249 +976,214 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 	return nil
 }
 
-func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error, bool) {
-	startTime := time.Now()
-	defer func() {
-		endTime := time.Now()
-		key := cm.Namespace + string('/') + cm.Name
-		if ctlr.routeSpecCMKey == key {
-			log.Debugf("Finished syncing extended Global spec configmap: %v/%v (%v)",
-				cm.Namespace, cm.Name, endTime.Sub(startTime))
-		} else {
-			log.Debugf("Finished syncing extended local spec configmap: %v/%v (%v)",
-				cm.Namespace, cm.Name, endTime.Sub(startTime))
-		}
-
-	}()
-
-	ersData := cm.Data
-	es := extendedSpec{}
-	//log.Debugf("GCM: %v", cm.Data)
-	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
-	if err != nil {
-		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
-	}
+// process the routeConfigFromGlobalConfigMap
+func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool) (error, bool) {
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
-	if ctlr.isGlobalExtendedRouteSpec(cm) {
+	// Get the base route config from the Global ConfigMap
+	ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
+	var partition string
+	if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
+		partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
+	} else {
+		partition = ctlr.Partition
+	}
 
-		// Get the base route config from the Global ConfigMap
-		ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
+	if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+		newExtdSpecMap[defaultRouteGroupName] = &extendedParsedSpec{
+			override:   false,
+			local:      nil,
+			global:     nil,
+			defaultrg:  &es.BaseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec,
+			namespaces: ctlr.getNamespacesForRouteGroup(defaultRouteGroupName),
+			partition:  partition,
+		}
+	}
+	for rg := range es.ExtendedRouteGroupConfigs {
+		// ergc needs to be created at every iteration, as we are using address inside this container
+
+		// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
+		// using the same container overrides the previous iteration contents, which is not desired
+		ergc := es.ExtendedRouteGroupConfigs[rg]
+		var allowOverride bool
+		var err error
+		if ctlr.namespaceLabelMode || len(ergc.AllowOverride) == 0 {
+			// specifically setting allow override as false in case of namespaceLabel Mode
+			// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
+			allowOverride = false
+		} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
+			return fmt.Errorf("invalid allowOverride value in configmap: %v error: %v", ctlr.globalExtendedCMKey, err), false
+		}
+
+		var routeGroup string
+		if len(ergc.Namespace) > 0 {
+			routeGroup = ergc.Namespace
+		}
+		if len(ergc.NamespaceLabel) > 0 {
+			routeGroup = ergc.NamespaceLabel
+		}
 		var partition string
-		if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
-			partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
+		if len(ergc.BigIpPartition) > 0 {
+			partition = ergc.BigIpPartition
 		} else {
 			partition = ctlr.Partition
 		}
-
-		if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
-			newExtdSpecMap[defaultRouteGroupName] = &extendedParsedSpec{
-				override:   false,
-				local:      nil,
-				global:     nil,
-				defaultrg:  &es.BaseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec,
-				namespaces: ctlr.getNamespacesForRouteGroup(defaultRouteGroupName),
-				partition:  partition,
-			}
+		newExtdSpecMap[routeGroup] = &extendedParsedSpec{
+			override:   allowOverride,
+			local:      nil,
+			global:     &ergc.ExtendedRouteGroupSpec,
+			namespaces: ctlr.getNamespacesForRouteGroup(routeGroup),
+			partition:  partition,
 		}
-		for rg := range es.ExtendedRouteGroupConfigs {
-			// ergc needs to be created at every iteration, as we are using address inside this container
-
-			// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
-			// using the same container overrides the previous iteration contents, which is not desired
-			ergc := es.ExtendedRouteGroupConfigs[rg]
-			var allowOverride bool
-
-			if ctlr.namespaceLabelMode || len(ergc.AllowOverride) == 0 {
-				// specifically setting allow override as false in case of namespaceLabel Mode
-				// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
-				allowOverride = false
-			} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
-				return fmt.Errorf("invalid allowOverride value in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
-			}
-
-			var routeGroup string
-			if len(ergc.Namespace) > 0 {
-				routeGroup = ergc.Namespace
-			}
-			if len(ergc.NamespaceLabel) > 0 {
-				routeGroup = ergc.NamespaceLabel
-			}
-			var partition string
-			if len(ergc.BigIpPartition) > 0 {
-				partition = ergc.BigIpPartition
-			} else {
-				partition = ctlr.Partition
-			}
-			newExtdSpecMap[routeGroup] = &extendedParsedSpec{
-				override:   allowOverride,
-				local:      nil,
-				global:     &ergc.ExtendedRouteGroupSpec,
-				namespaces: ctlr.getNamespacesForRouteGroup(routeGroup),
-				partition:  partition,
-			}
-			if len(newExtdSpecMap[routeGroup].namespaces) > 0 {
-				ctlr.TeemData.Lock()
-				ctlr.TeemData.ResourceType.RouteGroups[routeGroup] = 1
-				ctlr.TeemData.Unlock()
-			}
+		if len(newExtdSpecMap[routeGroup].namespaces) > 0 {
+			ctlr.TeemData.Lock()
+			ctlr.TeemData.ResourceType.RouteGroups[routeGroup] = 1
+			ctlr.TeemData.Unlock()
 		}
+	}
 
-		// Global configmap once gets processed even before processing other native resources
-		if ctlr.initState {
-			ctlr.resources.extdSpecMap = newExtdSpecMap
-			for rg, ergps := range newExtdSpecMap {
-				if !ctlr.namespaceLabelMode && ergps.override {
-					// check for alternative local configmaps (pick latest)
-					// process if one is available
-					localCM := ctlr.getLatestLocalConfigMap(rg)
-					if localCM != nil {
-						err, _ = ctlr.processConfigMap(localCM, false)
-						if err != nil {
-							log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
-						}
+	// Global configmap once gets processed even before processing other native resources
+	if ctlr.initState {
+		ctlr.resources.extdSpecMap = newExtdSpecMap
+		for rg, ergps := range newExtdSpecMap {
+			if !ctlr.namespaceLabelMode && ergps.override {
+				// check for alternative local configmaps (pick latest)
+				// process if one is available
+				localCM := ctlr.getLatestLocalConfigMap(rg)
+				if localCM != nil {
+					err, _ := ctlr.processConfigMap(localCM, false)
+					if err != nil {
+						log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
 					}
-
 				}
+
+			}
+		}
+		return nil, true
+	}
+	deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
+		ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
+	)
+	for _, routeGroupKey := range deletedSpecs {
+		_ = ctlr.processRoutes(routeGroupKey, true)
+		if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
+			delete(ctlr.resources.extdSpecMap, routeGroupKey)
+			if ctlr.namespaceLabelMode {
+				// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
+				nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
+				if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
+					log.Debugf("Removed namespace label informer: %v", nsLabel)
+					nsInf.stop()
+					delete(ctlr.nsInformers, nsLabel)
+				}
+			}
+		} else {
+			ctlr.resources.extdSpecMap[routeGroupKey].global = nil
+			ctlr.resources.extdSpecMap[routeGroupKey].override = false
+			ctlr.resources.extdSpecMap[routeGroupKey].partition = ""
+			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = []string{}
+
+		}
+
+	}
+
+	for _, routeGroupKey := range modifiedSpecs {
+		_ = ctlr.processRoutes(routeGroupKey, true)
+		// deleting the bigip partition when partition is changes
+		if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
+			if _, ok := ctlr.resources.ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
+				ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1)
+			}
+		}
+		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
+		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
+		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
+		ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+		err := ctlr.processRoutes(routeGroupKey, false)
+		if err != nil {
+			log.Errorf("Failed to process RouteGroup: %v with modified extended spec", routeGroupKey)
+		}
+	}
+
+	for _, routeGroupKey := range updatedSpecs {
+		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
+		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
+		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+		ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
+		err := ctlr.processRoutes(routeGroupKey, false)
+		if err != nil {
+			log.Errorf("Failed to process RouteGroup: %v with updated extended spec", routeGroupKey)
+		}
+	}
+
+	for _, routeGroupKey := range createdSpecs {
+		ctlr.resources.extdSpecMap[routeGroupKey] = &extendedParsedSpec{}
+		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
+		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
+		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
+		ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
+		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
+		err := ctlr.processRoutes(routeGroupKey, false)
+		if err != nil {
+			log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
+		}
+	}
+	return nil, true
+}
+
+func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete bool, namespace string) (error, bool) {
+	//local configmap processing.
+	ergc := es.ExtendedRouteGroupConfigs[0]
+	if ergc.Namespace != namespace {
+		return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v", ctlr.globalExtendedCMKey), true
+	}
+	routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace]
+	if !ok {
+		return fmt.Errorf("RouteGroup not found"), true
+	}
+	if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
+		if isDelete {
+			if !spec.override {
+				spec.local = nil
+				return nil, true
+			}
+
+			// check for alternative local configmaps (pick latest)
+			// process if one is available
+			localCM := ctlr.getLatestLocalConfigMap(ergc.Namespace)
+			if localCM != nil {
+				err, _ := ctlr.processConfigMap(localCM, false)
+				if err == nil {
+					return nil, true
+				}
+			}
+
+			_ = ctlr.processRoutes(routeGroup, true)
+			spec.local = nil
+			// process routes again, this time routes get processed along with global config
+			err := ctlr.processRoutes(routeGroup, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
 			}
 			return nil, true
 		}
-		deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
-			ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
-		)
-		for _, routeGroupKey := range deletedSpecs {
-			_ = ctlr.processRoutes(routeGroupKey, true)
-			if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
-				delete(ctlr.resources.extdSpecMap, routeGroupKey)
-				if ctlr.namespaceLabelMode {
-					// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
-					nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
-					if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
-						log.Debugf("Removed namespace label informer: %v", nsLabel)
-						nsInf.stop()
-						delete(ctlr.nsInformers, nsLabel)
-					}
-				}
-			} else {
-				ctlr.resources.extdSpecMap[routeGroupKey].global = nil
-				ctlr.resources.extdSpecMap[routeGroupKey].override = false
-				ctlr.resources.extdSpecMap[routeGroupKey].partition = ""
-				ctlr.resources.extdSpecMap[routeGroupKey].namespaces = []string{}
 
-			}
-
+		if !spec.override || spec.global == nil {
+			spec.local = &ergc.ExtendedRouteGroupSpec
+			return nil, true
 		}
-
-		for _, routeGroupKey := range modifiedSpecs {
-			_ = ctlr.processRoutes(routeGroupKey, true)
-			// deleting the bigip partition when partition is changes
-			if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
-				if _, ok := ctlr.resources.ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
-					ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1)
-				}
-			}
-			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
-			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
-			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
-			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
-			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
-			err := ctlr.processRoutes(routeGroupKey, false)
-			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v with modified extended spec", routeGroupKey)
-			}
-		}
-
-		for _, routeGroupKey := range updatedSpecs {
-			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
-			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
-			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
-			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
-			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
-			err := ctlr.processRoutes(routeGroupKey, false)
-			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v with updated extended spec", routeGroupKey)
-			}
-		}
-
-		for _, routeGroupKey := range createdSpecs {
-			ctlr.resources.extdSpecMap[routeGroupKey] = &extendedParsedSpec{}
-			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
-			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
-			ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
-			ctlr.resources.extdSpecMap[routeGroupKey].namespaces = newExtdSpecMap[routeGroupKey].namespaces
-			ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
-			err := ctlr.processRoutes(routeGroupKey, false)
-			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
-			}
-		}
-
-	} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
-		//local configmap processing.
-		ergc := es.ExtendedRouteGroupConfigs[0]
-		if ergc.Namespace != cm.Namespace {
-			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true
-		}
-		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace]
-		if !ok {
-			return fmt.Errorf("RouteGroup not found"), true
-		}
-		if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
-			if isDelete {
-				if !spec.override {
-					spec.local = nil
+		// creation event
+		if spec.local == nil {
+			if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
+				if ctlr.initState {
+					spec.local = &ergc.ExtendedRouteGroupSpec
 					return nil, true
 				}
-
-				// check for alternative local configmaps (pick latest)
-				// process if one is available
-				localCM := ctlr.getLatestLocalConfigMap(ergc.Namespace)
-				if localCM != nil {
-					err, _ = ctlr.processConfigMap(localCM, false)
-					if err == nil {
-						return nil, true
-					}
-				}
-
-				_ = ctlr.processRoutes(routeGroup, true)
-				spec.local = nil
-				// process routes again, this time routes get processed along with global config
-				err := ctlr.processRoutes(routeGroup, false)
-				if err != nil {
-					log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
-				}
-				return nil, true
-			}
-
-			if !spec.override || spec.global == nil {
-				spec.local = &ergc.ExtendedRouteGroupSpec
-				return nil, true
-			}
-			// creation event
-			if spec.local == nil {
-				if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
-					if ctlr.initState {
-						spec.local = &ergc.ExtendedRouteGroupSpec
-						return nil, true
-					}
-					if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
-						// Delete existing virtual that was framed with globla config
-						// later build new virtual with local config
-						_ = ctlr.processRoutes(routeGroup, true)
-					}
-					spec.local = &ergc.ExtendedRouteGroupSpec
-					err := ctlr.processRoutes(routeGroup, false)
-					if err != nil {
-						log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
-					}
-				}
-				return nil, true
-			}
-
-			// update event
-			if !reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
-				// if update event, update to VServerName should trigger delete and recreation of object
-				if spec.local.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+				if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+					// Delete existing virtual that was framed with globla config
+					// later build new virtual with local config
 					_ = ctlr.processRoutes(routeGroup, true)
 				}
 				spec.local = &ergc.ExtendedRouteGroupSpec
@@ -1192,18 +1191,32 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				if err != nil {
 					log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
 				}
-				return nil, true
 			}
-
-		} else {
-			// Need not process routes as there is no confirmation of override yet
-			ctlr.resources.extdSpecMap[ergc.Namespace] = &extendedParsedSpec{
-				override: false,
-				local:    &ergc.ExtendedRouteGroupSpec,
-				global:   nil,
-			}
-			return nil, false
+			return nil, true
 		}
+
+		// update event
+		if !reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
+			// if update event, update to VServerName should trigger delete and recreation of object
+			if spec.local.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+				_ = ctlr.processRoutes(routeGroup, true)
+			}
+			spec.local = &ergc.ExtendedRouteGroupSpec
+			err := ctlr.processRoutes(routeGroup, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+			}
+			return nil, true
+		}
+
+	} else {
+		// Need not process routes as there is no confirmation of override yet
+		ctlr.resources.extdSpecMap[ergc.Namespace] = &extendedParsedSpec{
+			override: false,
+			local:    &ergc.ExtendedRouteGroupSpec,
+			global:   nil,
+		}
+		return nil, false
 	}
 	return nil, true
 }
@@ -1243,10 +1256,10 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 	}
 }
 
-func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
+func (ctlr *Controller) isGlobalExtendedCM(cm *v1.ConfigMap) bool {
 	cmKey := cm.Namespace + "/" + cm.Name
 
-	if cmKey == ctlr.routeSpecCMKey {
+	if cmKey == ctlr.globalExtendedCMKey {
 		return true
 	}
 
@@ -1254,7 +1267,7 @@ func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
 }
 
 func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
-	inf, ok := ctlr.getNamespacedNativeInformer(ns)
+	inf, ok := ctlr.getNamespacedCommonInformer(ns)
 
 	if !ok {
 		return nil
@@ -1720,17 +1733,50 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			return false
 		}
 	}
-
-	// Validate the route service exists or not
-	err, _ := ctlr.getServicePort(route)
-	if err != nil {
-		message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
-			route.Name)
-		log.Errorf(message)
-		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
-			"ServiceNotFound", message, v1.ConditionFalse)
-		return false
+	// Validate multiCluster service annotation has valid cluster names
+	if ctlr.multiClusterMode {
+		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+			var clusterSvcs []cisapiv1.MultiClusterServiceReference
+			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+			if err == nil {
+				ctlr.multiClusterResources.Lock()
+				defer ctlr.multiClusterResources.Unlock()
+				for _, svc := range clusterSvcs {
+					if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; !ok {
+						message := fmt.Sprintf("Discarding route %v/%v as credentials for cluster %v does not exist in extended configmap", route.Name, route.Namespace,
+							svc.ClusterName)
+						log.Errorf(message)
+						go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+						return false
+					}
+					if svc.SvcName == "" || svc.ClusterName == "" || svc.Namespace == "" {
+						message := fmt.Sprintf("Discarding route %v/%v as some of the mandatory parameters for the "+
+							"multicluster services in the annotation are missing.", route.Name, route.Namespace)
+						log.Errorf(message)
+						go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+						return false
+					}
+				}
+			} else {
+				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", resource.MultiClusterServicesAnnotation, route.Name, route.Namespace)
+				log.Errorf(message)
+				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+				return false
+			}
+		}
+	} else {
+		// Validate the route service exists or not
+		err, _ := ctlr.getServicePort(route)
+		if err != nil {
+			message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
+				route.Name)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
+				"ServiceNotFound", message, v1.ConditionFalse)
+			return false
+		}
 	}
+
 	return true
 }
 
@@ -1847,4 +1893,376 @@ func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
 		}
 	}
 	return ""
+}
+
+// fetch cluster name for given secret if it holds kubeconfig of the cluster.
+func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfig {
+	for _, mcc := range ctlr.resources.multiClusterConfigs {
+		// Skip empty/nil configs processing
+		if mcc == (MultiClusterConfig{}) {
+			continue
+		}
+		// Check if the secret holds the kubeconfig for a cluster by checking if it's referred in the multicluster config
+		// if so then return the cluster name associated with the secret
+		if mcc.Secret == (secret.Namespace + "/" + secret.Name) {
+			return mcc
+		}
+	}
+	return MultiClusterConfig{}
+}
+
+// readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
+func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
+	primaryClusterName := ""
+	secondaryClusterName := ""
+	hACluster := true
+	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
+		// If HA mode not set use StandBy mode as defualt
+		if ctlr.haModeType == "" {
+			ctlr.haModeType = StandBy
+		}
+		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
+		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
+			if ctlr.haModeType == Ratio {
+				if haClusterConfig.PrimaryCluster.Ratio != nil {
+					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = haClusterConfig.PrimaryCluster.Ratio
+				} else {
+					one := 1
+					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
+				}
+			}
+		}
+		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
+			if ctlr.haModeType == Ratio {
+				if haClusterConfig.SecondaryCluster.Ratio != nil {
+					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = haClusterConfig.SecondaryCluster.Ratio
+				} else {
+					one := 1
+					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = &one
+				}
+			}
+		}
+
+		// Set up health probe
+		if ctlr.cisType == SecondaryCIS {
+			if haClusterConfig.PrimaryClusterEndPoint == "" {
+				// cis in secondary mode, primary cluster health check endpoint is required
+				// if endpoint is missing exit
+				log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
+				os.Exit(1)
+			} else {
+				// process only the updated healthProbe config params
+				ctlr.updateHealthProbeConfig(haClusterConfig)
+			}
+		}
+
+		// Set up the informers for the HA clusters
+		if ctlr.cisType == PrimaryCIS {
+			if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+				// Both cluster name and secret are mandatory
+				if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
+					log.Errorf("Secondary clusterName or secret not provided in haClusterConfig: %v",
+						haClusterConfig.SecondaryCluster)
+					os.Exit(1)
+				}
+				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
+					haClusterConfig.SecondaryCluster.ClusterName)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+				err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+					MultiClusterConfig{
+						ClusterName: haClusterConfig.SecondaryCluster.ClusterName,
+						Secret:      haClusterConfig.SecondaryCluster.Secret},
+					false)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+
+				// Setup and start informers for secondary cluster in case of active-active mode HA cluster
+				if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
+					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
+					if err != nil {
+						return err
+					}
+				}
+				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
+				ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
+			} else {
+				hACluster = false
+			}
+		}
+		if ctlr.cisType == SecondaryCIS {
+			if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+				// Both cluster name and secret are mandatory
+				if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
+					log.Errorf("Primary clusterName or secret not provided in haClusterConfig: %v",
+						haClusterConfig.PrimaryCluster)
+					os.Exit(1)
+				}
+				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
+					haClusterConfig.PrimaryCluster.ClusterName)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+				err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+					MultiClusterConfig{
+						ClusterName: haClusterConfig.PrimaryCluster.ClusterName,
+						Secret:      haClusterConfig.PrimaryCluster.Secret},
+					false)
+				if err != nil {
+					log.Errorf(err.Error())
+					os.Exit(1)
+				}
+
+				// Setup and start informers for primary cluster in case of active-active mode HA cluster
+				if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
+					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
+					if err != nil {
+						return err
+					}
+				}
+				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.PrimaryCluster.ClusterName
+				ctlr.multiClusterConfigs.LocalClusterName = secondaryClusterName
+			} else {
+				hACluster = false
+			}
+		}
+	} else {
+		hACluster = false
+	}
+
+	if ctlr.cisType != "" && !hACluster {
+		log.Errorf("Either High availability cluster config not provided or --cis-type is provided in Standalone Mode")
+		os.Exit(1)
+	}
+
+	// Check if multiClusterConfigs are specified for external clusters
+	// If multiClusterConfigs is not specified, then clean up any old external cluster related config in case user had
+	// specified multiClusterConfig earlier and now removed those configs
+	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
+		log.Infof("No multi cluster config provided.")
+		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
+		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
+			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
+				// Avoid deleting HA cluster related configs
+				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+					continue
+				}
+				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
+				// Delete cluster ratio as well
+				if _, ok := ctlr.clusterRatio[clusterName]; ok {
+					delete(ctlr.clusterRatio, clusterName)
+				}
+			}
+		}
+		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
+			for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+				// Avoid deleting HA cluster related configs
+				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+					continue
+				}
+				delete(ctlr.resources.multiClusterConfigs, clusterName)
+			}
+		}
+		return nil
+	}
+
+	currentClusterSecretKeys := make(map[string]struct{})
+	for _, mcc := range multiClusterConfigs {
+
+		// Store the cluster keys which will be used to detect deletion of a cluster later
+		currentClusterSecretKeys[mcc.ClusterName] = struct{}{}
+
+		// Both cluster name and secret are mandatory
+		if mcc.ClusterName == "" || mcc.Secret == "" {
+			log.Warningf("clusterName or secret not provided in multiClusterConfig")
+			continue
+		}
+
+		// Check and discard multiCluster config if an HA cluster is used as external cluster
+		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName {
+			log.Warningf("Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in multiClusterConfigs.", mcc.ClusterName)
+			continue
+		}
+
+		// Fetch the secret containing kubeconfig creds
+		kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(mcc.Secret, mcc.ClusterName)
+
+		if err != nil {
+			log.Warning(err.Error())
+			continue
+		}
+
+		// Update the new valid cluster config to the multiClusterConfigs cache if not already present
+		if _, ok := ctlr.resources.multiClusterConfigs[mcc.ClusterName]; !ok {
+			ctlr.resources.multiClusterConfigs[mcc.ClusterName] = mcc
+		}
+
+		// If cluster config has been processed already and kubeclient has been created then skip it
+		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName]; ok {
+			// Skip processing the cluster config as it's already processed
+			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
+			// combination of cluster name and secret name
+			continue
+		}
+
+		// Update the clusterKubeConfig
+		err = ctlr.updateClusterConfigStore(kubeConfigSecret, mcc, false)
+		if err != nil {
+			log.Warningf(err.Error())
+			continue
+		}
+		// Set cluster ratio
+		if ctlr.haModeType == Ratio {
+			if mcc.Ratio != nil {
+				ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
+			} else {
+				one := 1
+				ctlr.clusterRatio[mcc.ClusterName] = &one
+			}
+		}
+	}
+	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store
+	for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+		if _, ok := currentClusterSecretKeys[clusterName]; !ok {
+			// Ensure HA cluster config is not deleted
+			if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+				continue
+			}
+			// Delete config from the cached valid mutiClusterConfig data
+			delete(ctlr.resources.multiClusterConfigs, clusterName)
+			// Delegate the deletion of cluster from the clusterConfig store to updateClusterConfigStore so that any
+			// additional operations (if any) can be performed
+			_ = ctlr.updateClusterConfigStore(nil, MultiClusterConfig{ClusterName: clusterName}, true)
+		}
+	}
+	return nil
+}
+
+// updateClusterConfigStore updates the clusterKubeConfigs store with the latest config and updated kubeclient for the cluster
+func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc MultiClusterConfig, deleted bool) error {
+	if !deleted && (kubeConfigSecret == nil || mcc == (MultiClusterConfig{})) {
+		return fmt.Errorf("no secret or MulticlusterConfig specified")
+	}
+	// if secret associated with a cluster kubeconfig is deleted then remove it from clusterKubeConfig store
+	if deleted {
+		// Delete kubeclients from multicluster config store
+		delete(ctlr.multiClusterConfigs.ClusterConfigs, mcc.ClusterName)
+		return nil
+	}
+	// Extract the kubeconfig from the secret
+	kubeConfig, ok := kubeConfigSecret.Data["kubeconfig"]
+	if !ok {
+		return fmt.Errorf("no kubeconfig data found in the secret: %s for the cluster: %s", mcc.Secret,
+			mcc.ClusterName)
+	}
+	// Create kube client using the provided kubeconfig for the respective cluster
+	kubeClient, err := clustermanager.CreateKubeClientFromKubeConfig(&kubeConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubeClient from kube-config fetched from secret %s for the "+
+			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
+	}
+	// Update the clusterKubeConfig store
+	ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName] = clustermanager.ClusterConfig{
+		KubeClient: kubeClient,
+	}
+	return nil
+}
+
+// updateMultiClusterResourceServiceMap updates the multiCluster rscSvcMap and clusterSvcMap
+func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConfig, rsRef resourceRef, serviceName, path string,
+	pool Pool, servicePort intstr.IntOrString, clusterName string) {
+	if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+		ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	}
+	svcKey := MultiClusterServiceKey{
+		clusterName: clusterName,
+		serviceName: serviceName,
+		namespace:   pool.ServiceNamespace,
+	}
+	ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
+	// update the clusterSvcMap
+	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, path)
+}
+
+// fetchKubeConfigSecret fetches the kubeConfig secret associated with a cluster
+func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string) (*v1.Secret, error) {
+
+	// Check if secret is in the desired format of <namespace>/<secret name>
+	splits := strings.Split(secret, "/")
+	if len(splits) != 2 {
+		return nil, fmt.Errorf("secret: %s should be in the format namespace/secret-name", secret)
+	}
+	secretNamespace := splits[0]
+	secretName := splits[1]
+
+	comInf, ok := ctlr.getNamespacedCommonInformer(secretNamespace)
+	if !ok {
+		log.Warningf("informer not found for namespace: %v", secretNamespace)
+	}
+	var obj interface{}
+	var exist bool
+	var err error
+	var kubeConfigSecret *v1.Secret
+	if comInf != nil && comInf.secretsInformer != nil {
+		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secretName)
+		if err != nil {
+			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+				secretName, clusterName, err)
+		}
+	}
+	if !exist {
+		log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", secretName, clusterName)
+		// During start up the informers may not be updated so, try to fetch secret using kubeClient
+		kubeConfigSecret, err = ctlr.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
+			metav1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+				secretName, clusterName, err)
+		}
+	}
+	// Fetch the kubeconfig data from the secret
+	if kubeConfigSecret == nil {
+		kubeConfigSecret = obj.(*v1.Secret)
+	}
+	return kubeConfigSecret, nil
+}
+
+// updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
+func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig) {
+	// Initialize PrimaryClusterHealthProbeParams if it's the first time
+	if ctlr.Agent.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
+		ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
+			paramLock: &sync.RWMutex{},
+		}
+	}
+	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	defer ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+	// Check if primary cluster health probe endpoint has been updated and set the endpoint type
+	if ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint != haClusterConfig.PrimaryClusterEndPoint {
+		ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint = haClusterConfig.PrimaryClusterEndPoint
+		ctlr.Agent.setPrimaryClusterHealthCheckEndPointType()
+	}
+	// Check if probe interval has been updated
+	if haClusterConfig.ProbeInterval == 0 {
+		if ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval != DefaultProbeInterval {
+			ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval = DefaultProbeInterval
+		}
+	} else if ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval != haClusterConfig.ProbeInterval {
+		ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval = haClusterConfig.ProbeInterval
+	}
+	// Check if retry interval has been updated
+	if haClusterConfig.RetryInterval == 0 {
+		if ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval != DefaultRetryInterval {
+			ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval = DefaultRetryInterval
+		}
+	} else if ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval != haClusterConfig.RetryInterval {
+		ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval = haClusterConfig.RetryInterval
+	}
 }

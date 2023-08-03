@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
 
@@ -21,6 +22,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			vs = test.NewVirtualServer(
 				"SampleVS",
@@ -101,7 +103,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool Name", func() {
-			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo")
+			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
@@ -199,12 +201,15 @@ var _ = Describe("Resource Config Tests", func() {
 		//partition := "test"
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			_ = mockCtlr.addNamespacedInformers(namespace, false)
 
 			rsCfg = &ResourceConfig{}
@@ -888,6 +893,8 @@ var _ = Describe("Resource Config Tests", func() {
 		var mockCtlr *mockController
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
@@ -1048,6 +1055,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
 				"1.2",
@@ -1413,7 +1421,10 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(

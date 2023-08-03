@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
@@ -23,7 +24,10 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
+		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -35,6 +39,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
 		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -76,7 +81,7 @@ var _ = Describe("Routes", func() {
 
 		It("Base Route", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
-			mockCtlr.resources = NewResourceStore()
+
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
@@ -91,7 +96,7 @@ var _ = Describe("Routes", func() {
 		})
 		It("Passthrough Route", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
-			mockCtlr.resources = NewResourceStore()
+
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
@@ -200,8 +205,8 @@ var _ = Describe("Routes", func() {
 			var data map[string]string
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -287,7 +292,6 @@ var _ = Describe("Routes", func() {
 			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
-			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
 			Expect(mockCtlr.checkValidRoute(route1, rgPlcSSLProfiles{})).To(BeFalse())
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
 			Expect(mockCtlr.checkValidRoute(route2, rgPlcSSLProfiles{})).To(BeFalse())
@@ -302,17 +306,12 @@ var _ = Describe("Routes", func() {
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
-			route3 = mockCtlr.fetchRoute(rskey3)
 			Expect(route1.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route2.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route1.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route2.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route1.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ExtendedValidationFailed"), "Incorrect route admit reason")
 			Expect(route2.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("HostAlreadyClaimed"), "incorrect the route admit reason")
-			// checkValidRoute should fail with ServiceNotFound error
-			Expect(route3.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
-			Expect(route3.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
-			Expect(route3.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ServiceNotFound"), "Incorrect route admit reason")
 			// Check valid route with app root annotation
 			annotations[resource.F5VsAppRootAnnotation] = ""
 			spec6 := routeapi.RouteSpec{
@@ -399,8 +398,8 @@ var _ = Describe("Routes", func() {
 			var data map[string]string
 			cmName := "escm"
 			cmNamespace := "kube-system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+
 			data = make(map[string]string)
 			mockCtlr.Partition = "default"
 			cm = test.NewConfigMap(
@@ -790,7 +789,7 @@ extendedRouteSpec:
 
 		It("Check Route A/B Deploy", func() {
 			routeGroup := "default"
-			mockCtlr.resources = NewResourceStore()
+
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: true,
 				global: &ExtendedRouteGroupSpec{
@@ -1076,6 +1075,7 @@ extendedRouteSpec:
 					},
 				},
 			}
+			mockCtlr.resources.poolMemCache = make(PoolMemberCache)
 			namespace := "default"
 			data := make(map[string][]byte)
 			data["tls.key"] = []byte{}
@@ -1272,7 +1272,7 @@ extendedRouteSpec:
 
 		It("Verify Routes with WAF", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
-			mockCtlr.resources = NewResourceStore()
+
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
@@ -1362,8 +1362,8 @@ extendedRouteSpec:
 		BeforeEach(func() {
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -1569,14 +1569,14 @@ extendedRouteSpec:
       vserverName: latestserver
 `
 
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
+			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, true)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -1714,7 +1714,7 @@ extendedRouteSpec:
 			Expect(ok).To(BeTrue())
 
 			routeGroup := "default"
-			mockCtlr.resources = NewResourceStore()
+
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: false,
 				global: &ExtendedRouteGroupSpec{
@@ -1777,6 +1777,8 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
@@ -1808,8 +1810,15 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 		BeforeEach(func() {
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+			mockCtlr.Agent = &Agent{
+				PostManager: &PostManager{
+					PostParams: PostParams{
+						BIGIPURL: "10.10.10.1",
+					},
+				},
+			}
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -1857,6 +1866,8 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 	})
 	Describe("Extended Spec ConfigMap", func() {
@@ -1865,8 +1876,8 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 		BeforeEach(func() {
 			cmName := "escm"
 			cmNamespace := "system"
-			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
-			mockCtlr.resources = NewResourceStore()
+			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,

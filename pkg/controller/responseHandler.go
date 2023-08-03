@@ -123,7 +123,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								svcNamespace = virtual.Namespace
 							}
 							svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
-							if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+							if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 								ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
 							}
 						}

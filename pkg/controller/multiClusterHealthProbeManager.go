@@ -148,6 +148,21 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 			} else {
 				ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = true
 			}
+			//update cccl global section with primary cluster running status
+			doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("primary-cluster-status", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
+
+			if nil != err {
+				log.Warningf("Failed to write primary cluster status section: %v", err)
+			} else {
+				select {
+				case <-doneCh:
+					log.Debugf("Wrote primary cluster status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
+				case e := <-errCh:
+					log.Warningf("Failed to write primary cluster status config section: %v", e)
+				case <-time.After(time.Second):
+					log.Warningf("Did not receive write response in 1s")
+				}
+			}
 		} else {
 			ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = false
 		}

@@ -746,6 +746,7 @@ type (
 		CCCLGTMAgent       bool
 		StaticRoutingMode  bool
 		SharedStaticRoutes bool
+		CISType            string
 	}
 
 	PostManager struct {
@@ -810,6 +811,7 @@ type (
 		DisableARP         bool   `json:"disable-arp,omitempty"`
 		SharedStaticRoutes bool   `json:"shared-static-routes,omitempty"`
 		StaticRoutingMode  bool   `json:"static-route-mode,omitempty"`
+		CISType            string `json:"cis-type,omitempty"`
 	}
 
 	bigIPSection struct {

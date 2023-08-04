@@ -855,6 +855,7 @@ func initController(
 		CCCLGTMAgent:       *ccclGtmAgent,
 		StaticRoutingMode:  *staticRoutingMode,
 		SharedStaticRoutes: *sharedStaticRoutes,
+		CISType:            *cisType,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection

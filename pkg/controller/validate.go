@@ -69,10 +69,12 @@ func (ctlr *Controller) checkValidVirtualServer(
 			continue
 		}
 		for _, mcs := range pool.MultiClusterServices {
-			if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
-				log.Errorf("invalid extendedServiceReferences for VS %s. Some of the mandatory parameters "+
-					"(clusterName, namespace, serviceName, servicePort) are missing.", vsName)
-				return false
+			if !ctlr.checkValidExtendedService(mcs) {
+				// In case of invalid extendedServiceReference, just log the error and proceed
+				log.Errorf("invalid extendedServiceReference: %v for VS: %s. Some of the mandatory "+
+					"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
+					"config for the cluster in which it's running is not provided in extended configmap.", mcs, vsName)
+				continue
 			}
 		}
 	}
@@ -125,10 +127,12 @@ func (ctlr *Controller) checkValidTransportServer(
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
-			if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
-				log.Errorf("invalid extendedServiceReferences for TS %s. Some of the mandatory parameters "+
-					"(clusterName, namespace, serviceName, servicePort) are missing.", vsName)
-				return false
+			if !ctlr.checkValidExtendedService(mcs) {
+				// In case of invalid extendedServiceReference, just log the error and proceed
+				log.Errorf("invalid extendedServiceReference: %v for TS: %s. Some of the mandatory "+
+					"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
+					"config for the cluster in which it's running is not provided in extended configmap.", mcs, vsName)
+				continue
 			}
 		}
 	}
@@ -166,6 +170,25 @@ func (ctlr *Controller) checkValidIngressLink(
 		ipamLabel := il.Spec.IPAMLabel
 		if ipamLabel == "" && bindAddr == "" {
 			log.Infof("No ipamLabel was specified for the il server %s", ilName)
+			return false
+		}
+	}
+	return true
+}
+
+// checkValidExtendedService checks if extended service is valid or not
+func (ctlr *Controller) checkValidExtendedService(mcs cisapiv1.MultiClusterServiceReference) bool {
+	// Check if cis running in multiCluster mode
+	if !ctlr.multiClusterMode {
+		return false
+	}
+	// Check if all required parameters are specified
+	if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
+		return false
+	}
+	if mcs.ClusterName != "" {
+		// Check if cluster config is provided for the cluster where the service is running
+		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[mcs.ClusterName]; !ok {
 			return false
 		}
 	}

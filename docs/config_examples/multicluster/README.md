@@ -300,13 +300,13 @@ Services running in any other OpenShift/Kubernetes clusters, apart from the HA c
 ```
 #### Route Annotation / VS or TS MultiClusterServices Parameters
 
-| Parameter   | Type       | Required                               | Description                                             | Default | Examples |
-|-------------|------------|----------------------------------------|---------------------------------------------------------|---------|----------|
-| clusterName | String     | Mandatory                              | Name of the cluster                                     | -       | cluster1 |
-| serviceName | String     | Mandatory                              | Name of the service                                     | -       | svc-1    |
-| namespace   | String     | Mandatory                              | Namespace where the service is created                  | -       | test     |
-| port        | String/Int | Optional(In Route) Mandatory(In VS/TS) | port of the service  (for named port use string value ) | -       | 80       |
-| weight      | Int        | Optional                               | weight to be used for traffic splitting                 | 0       | 20       |
+| Parameter   | Type       | Required   | Description                                             | Default | Examples |
+|-------------|------------|------------|---------------------------------------------------------|---------|----------|
+| clusterName | String     | Mandatory  | Name of the cluster                                     | -       | cluster1 |
+| serviceName | String     | Mandatory  | Name of the service                                     | -       | svc-1    |
+| namespace   | String     | Mandatory  | Namespace where the service is created                  | -       | test     |
+| port        | String/Int | Mandatory  | port of the service  (for named port use string value ) | -       | 80       |
+| weight      | Int        | Optional   | weight to be used for traffic splitting                 | 0       | 20       |
 
 ### Cluster wise Ratio for traffic distribution
 CIS supports distribution of traffic across clusters as per the ratio configured for each cluster in the extended ConfigMap.<br>

@@ -1286,8 +1286,16 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	totalClusterRatio := float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
 	// totalSvcWeights stores the sum total of all the weights of services associated with this route
 	totalSvcWeights := float64(*(route.Spec.To.Weight)) * float64(factor)
+	// count of valid external multiCluster services
+	validExtSvcCount := 0
 	// Process multiCluster services
 	for i, svc := range clusterSvcs {
+		// Skip the service if it's not valid
+		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
+		// cluster credentials must be specified in the extended configmap
+		if !ctlr.checkValidExtendedService(svc) {
+			continue
+		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
 			if r, ok := ctlr.clusterRatio[svc.ClusterName]; ok {
 				clusterSvcMap[svc.ClusterName] = struct{}{}
@@ -1306,8 +1314,9 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 			clusterSvcs[i].Weight = &defaultWeight
 		}
 		totalSvcWeights += float64(*clusterSvcs[i].Weight)
+		validExtSvcCount++
 	}
-	numOfBackends := 1*factor + len(clusterSvcs)
+	numOfBackends := factor + validExtSvcCount
 	if route.Spec.AlternateBackends != nil {
 		numOfBackends += len(route.Spec.AlternateBackends) * factor
 		for _, svc := range route.Spec.AlternateBackends {
@@ -1362,6 +1371,10 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	}
 	// External services
 	for _, svc := range clusterSvcs {
+		// Skip invalid extended service
+		if !ctlr.checkValidExtendedService(svc) {
+			continue
+		}
 		beIdx = beIdx + 1
 		rbcs[beIdx].Name = svc.SvcName
 		if r, ok := ctlr.clusterRatio[svc.ClusterName]; ok {

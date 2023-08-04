@@ -1741,19 +1741,12 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				ctlr.multiClusterResources.Lock()
 				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
-					if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; !ok {
-						message := fmt.Sprintf("Discarding route %v/%v as credentials for cluster %v does not exist in extended configmap", route.Name, route.Namespace,
-							svc.ClusterName)
-						log.Errorf(message)
-						go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
-						return false
-					}
-					if svc.SvcName == "" || svc.ClusterName == "" || svc.Namespace == "" {
-						message := fmt.Sprintf("Discarding route %v/%v as some of the mandatory parameters for the "+
-							"multicluster services in the annotation are missing.", route.Name, route.Namespace)
-						log.Errorf(message)
-						go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
-						return false
+					if !ctlr.checkValidExtendedService(svc) {
+						// In case of invalid extendedServiceReference, just log the error and proceed
+						log.Errorf("invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
+							"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
+							"config for the cluster in which it's running is not provided in extended configmap.", svc, route.Name)
+						continue
 					}
 				}
 			} else {

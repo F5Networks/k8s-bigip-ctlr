@@ -2016,6 +2016,10 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
+		// Skip invalid extended service
+		if !ctlr.checkValidExtendedService(mcs) {
+			continue
+		}
 		// Update pool members for all the multi cluster services specified in the route annotations
 		// Ensure cluster services of the HA pair cluster (if specified as multi cluster service in route annotations)
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been

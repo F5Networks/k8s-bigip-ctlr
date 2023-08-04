@@ -17,6 +17,10 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 	defer ctlr.multiClusterResources.Unlock()
 
 	for _, svc := range clusterSvcs {
+		if !ctlr.checkValidExtendedService(svc) {
+			// Skip processing invalid extended service
+			continue
+		}
 		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; ok {
 			svcKey := MultiClusterServiceKey{
 				serviceName: svc.SvcName,

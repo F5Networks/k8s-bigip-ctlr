@@ -892,11 +892,10 @@ func (ctlr *Controller) processGlobalExtendedConfigMap() {
 		// synced properly then try to fetch using kubeClient
 		cm, err = ctlr.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
 	}
-	// Skip processing further if Extended configmap is not found
+	// Exit gracefully if Extended configmap is not found
 	if err != nil || cm == nil {
 		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
-		return
-
+		os.Exit(1)
 	}
 	if ctlr.mode == OpenShiftMode {
 		err = ctlr.setNamespaceLabelMode(cm)
@@ -1915,7 +1914,6 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
 	primaryClusterName := ""
 	secondaryClusterName := ""
-	hACluster := true
 	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
 		// If HA mode not set use StandBy mode as defualt
 		if ctlr.haModeType == "" {
@@ -1959,87 +1957,72 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 
 		// Set up the informers for the HA clusters
-		if ctlr.cisType == PrimaryCIS {
-			if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
-				// Both cluster name and secret are mandatory
-				if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
-					log.Errorf("Secondary clusterName or secret not provided in haClusterConfig: %v",
-						haClusterConfig.SecondaryCluster)
-					os.Exit(1)
-				}
-				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
-					haClusterConfig.SecondaryCluster.ClusterName)
-				if err != nil {
-					log.Errorf(err.Error())
-					os.Exit(1)
-				}
-				err = ctlr.updateClusterConfigStore(kubeConfigSecret,
-					MultiClusterConfig{
-						ClusterName: haClusterConfig.SecondaryCluster.ClusterName,
-						Secret:      haClusterConfig.SecondaryCluster.Secret},
-					false)
-				if err != nil {
-					log.Errorf(err.Error())
-					os.Exit(1)
-				}
-
-				// Setup and start informers for secondary cluster in case of active-active mode HA cluster
-				if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
-					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
-					if err != nil {
-						return err
-					}
-				}
-				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
-				ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
-			} else {
-				hACluster = false
+		if ctlr.cisType == PrimaryCIS && haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+			// Both cluster name and secret are mandatory
+			if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
+				log.Errorf("Secondary clusterName or secret not provided in haClusterConfig: %v",
+					haClusterConfig.SecondaryCluster)
+				os.Exit(1)
 			}
-		}
-		if ctlr.cisType == SecondaryCIS {
-			if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
-				// Both cluster name and secret are mandatory
-				if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
-					log.Errorf("Primary clusterName or secret not provided in haClusterConfig: %v",
-						haClusterConfig.PrimaryCluster)
-					os.Exit(1)
-				}
-				kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
-					haClusterConfig.PrimaryCluster.ClusterName)
-				if err != nil {
-					log.Errorf(err.Error())
-					os.Exit(1)
-				}
-				err = ctlr.updateClusterConfigStore(kubeConfigSecret,
-					MultiClusterConfig{
-						ClusterName: haClusterConfig.PrimaryCluster.ClusterName,
-						Secret:      haClusterConfig.PrimaryCluster.Secret},
-					false)
-				if err != nil {
-					log.Errorf(err.Error())
-					os.Exit(1)
-				}
-
-				// Setup and start informers for primary cluster in case of active-active mode HA cluster
-				if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
-					err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
-					if err != nil {
-						return err
-					}
-				}
-				ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.PrimaryCluster.ClusterName
-				ctlr.multiClusterConfigs.LocalClusterName = secondaryClusterName
-			} else {
-				hACluster = false
+			kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
+				haClusterConfig.SecondaryCluster.ClusterName)
+			if err != nil {
+				log.Errorf(err.Error())
+				os.Exit(1)
 			}
-		}
-	} else {
-		hACluster = false
-	}
+			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+				MultiClusterConfig{
+					ClusterName: haClusterConfig.SecondaryCluster.ClusterName,
+					Secret:      haClusterConfig.SecondaryCluster.Secret},
+				false)
+			if err != nil {
+				log.Errorf(err.Error())
+				os.Exit(1)
+			}
 
-	if ctlr.cisType != "" && !hACluster {
-		log.Errorf("Either High availability cluster config not provided or --cis-type is provided in Standalone Mode")
-		os.Exit(1)
+			// Setup and start informers for secondary cluster in case of active-active mode HA cluster
+			if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
+				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
+				if err != nil {
+					return err
+				}
+			}
+			ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
+			ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
+		}
+		if ctlr.cisType == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+			// Both cluster name and secret are mandatory
+			if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
+				log.Errorf("Primary clusterName or secret not provided in haClusterConfig: %v",
+					haClusterConfig.PrimaryCluster)
+				os.Exit(1)
+			}
+			kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
+				haClusterConfig.PrimaryCluster.ClusterName)
+			if err != nil {
+				log.Errorf(err.Error())
+				os.Exit(1)
+			}
+			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+				MultiClusterConfig{
+					ClusterName: haClusterConfig.PrimaryCluster.ClusterName,
+					Secret:      haClusterConfig.PrimaryCluster.Secret},
+				false)
+			if err != nil {
+				log.Errorf(err.Error())
+				os.Exit(1)
+			}
+
+			// Setup and start informers for primary cluster in case of active-active mode HA cluster
+			if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
+				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
+				if err != nil {
+					return err
+				}
+			}
+			ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.PrimaryCluster.ClusterName
+			ctlr.multiClusterConfigs.LocalClusterName = secondaryClusterName
+		}
 	}
 
 	// Check if multiClusterConfigs are specified for external clusters

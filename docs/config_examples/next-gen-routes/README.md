@@ -135,7 +135,9 @@ Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k
 * If any specific tenant requires modify access for routeconfig of their namespace, the admin can grant access by setting **allowOverride** to true in the extendedRouteSpec of the namespace.
 * Base route configuration can be defined in Global ConfigMap. This cannot be overridden from local ConfigMap. This is an alternative to CIS deployment arguments.</br>
 
-_**NOTE:** Global ConfigMap should be created in a namespace which CIS is monitoring._
+_**NOTE:**_
+* _Global ConfigMap should be created in a namespace which CIS is monitoring._
+* _It must be created before running CIS for NextGenRoutes._
 
 ### Local ConfigMap
 

@@ -198,7 +198,7 @@ func (ctlr *Controller) processResources() bool {
 	// During Init time, just process all the resources
 	if ctlr.initState && rKey.kind != Namespace {
 		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service ||
-			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS || rKey.kind == ConfigMap {
+			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
 			if rKey.kind == Service {
 				if svc, ok := rKey.rsc.(*v1.Service); ok {
 					if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
@@ -3779,6 +3779,15 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if isDelete {
 			// Handle configmap deletion
 			es.HAClusterConfig = HAClusterConfig{}
+		}
+		// Check if HA configurations are specified properly
+		if ctlr.cisType != "" {
+			if es.HAClusterConfig == (HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (ClusterDetails{}) ||
+				es.HAClusterConfig.SecondaryCluster == (ClusterDetails{}) {
+				log.Errorf("Either CIS High availability cluster config not provided or --cis-type is provided in " +
+					"standalone CIS mode")
+				os.Exit(1)
+			}
 		}
 		// Read multiCluster mode
 		// Set the active/standby/ratio mode for the HA cluster

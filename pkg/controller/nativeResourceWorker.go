@@ -1908,7 +1908,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	primaryClusterName := ""
 	secondaryClusterName := ""
 	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
-		// If HA mode not set use StandBy mode as defualt
+		// If HA mode not set use active-standby mode as defualt
 		if ctlr.haModeType == "" {
 			ctlr.haModeType = StandBy
 		}

@@ -1,4 +1,4 @@
-# OpenShift Multi-Cluster Preview
+# OpenShift/Kubernetes Multi-Cluster Preview
 
 This page documents a new feature in CIS for Multi-Cluster. This is a preview release which supports limited features and is not recommended to use in production environments. To provide feedback on Container Ingress Services or this documentation, please file a [GitHub Issue](https://github.com/F5Networks/k8s-bigip-ctlr/issues)
 
@@ -21,7 +21,7 @@ This page documents a new feature in CIS for Multi-Cluster. This is a preview re
 
 ## Overview
 
-Multi-Cluster Support in CIS allows users to expose multiple apps spread across OpenShift clusters using a single BIG-IP Virtual Server. An app can be deployed different OpenShift clusters exposing them using a route resource. Using a Multi-Cluster implementation the CIS can be deployed in a HA topology, or Standalone CIS, to expose the apps spread across OpenShift clusters.
+Multi-Cluster Support in CIS allows users to expose multiple apps spread across OpenShift/Kubernetes clusters using a single BIG-IP Virtual Server. An app can be deployed different OpenShift clusters exposing them using a route resource. Using a Multi-Cluster implementation the CIS can be deployed in a HA topology, or Standalone CIS, to expose the apps spread across OpenShift clusters.
 
 
 **Note**: 
@@ -29,7 +29,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 * Currently, only nodePort is supported.
 
 ## Prerequisites
-* Cluster node, where CIS is deployed, should be able to reach the API server of all OpenShift clusters. 
+* Cluster node, where CIS is deployed, should be able to reach the API server of all OpenShift/Kubernetes clusters.
 * extendedConfigMap needs to be created to run CIS in Multi-Cluster mode.
 * kube-config files for each cluster should be available for CIS to access resources such as Pods/Services/Endpoints/Nodes.
 
@@ -66,7 +66,7 @@ Below is the sample Multi-Cluster Config in an Extended Global ConfigMap.
 ### High Availability CIS
 
 #### Prerequisites
-  * A pair of High Availability OpenShift clusters should be available, which have the same applications running in both clusters.
+  * A pair of High Availability OpenShift/Kubernetes clusters should be available, which have the same applications running in both clusters.
   * HealthCheck endpoint should be available to check the health of the primary cluster. Currently, TCP/HTTP Health endpoints are supported.
 
 
@@ -74,17 +74,43 @@ In HA deployment of CIS, CIS needs to be deployed in both the primary and second
 CIS will look for the same service name in both primary and secondary clusters to expose the application via routes. Additionally, a Multi-Cluster annotation is created in the route definition exposing the applications in the other clusters.
 
 Deploying CIS HA in Two Modes:
-  * active mode - In this mode, CIS will add the pool members from both primary and secondary OpenShift cluster.
-  * standby mode - In this mode, CIS will add the pool members only from the active OpenShift cluster.
+ * active-active and active-standby mode are used in case of CIS running in High Availability mode.
+ * Based on the provided value the CIS running on Primary cluster decides whether to monitor the workloads running on Secondary Cluster or not.
+ * In case of active-active mode CIS running on Primary cluster updates the pool members for Virtual Servers from both the clusters those are part of HA Cluster(Primary and Secondary Clusters) as well as pool members from all other remotely monitored clusters.
+ * Whereas in case of active-standby mode CIS running on Primary cluster updates the pool members for Virtual Servers only from Primary Cluster and from all the other remotely monitored clusters except Secondary cluster.
+ * However, in case the Primary cluster is down and CIS on the Secondary cluster has taken control then pool member from the Secondary Cluster as well as all other remotely monitored clusters are populated for the Virtual Servers irrespective of the value of HA mode.
+
+**Note:**
+ * Additionally, there is another supported mode called "ratio", in which pool members from all the Kubernetes/Openshift clusters are update for the Virtual Server, however the traffic distribution is done based on the ratio values defined for each cluster.
+ * Ratio doesn't require CIS to be running in HA environment. It is supported in both CIS HA and non-HA environment.
+
+Below is a tabular representation of the scenarios mentioned above:
+
+###### When Primary Cluster is healthy and CIS is running on it
+
+| HA Mode values | Primary Cluster Pool Members | Secondary Cluster Pool Members | Other remotely monitored clusters Pool Members | Traffic distribution based on ratio |
+|----------------|------------------------------|--------------------------------|------------------------------------------------|-------------------------------------|
+| active-active  | Yes                          | Yes                            | Yes                                            | No                                  |
+| active-standby | Yes                          | No                             | Yes                                            | No                                  |
+| ratio          | Yes                          | Yes                            | Yes                                            | Yes                                 |
+
+
+###### When Primary Cluster is down, which means CIS in Secondary cluster has the control
+
+| HA Mode values | Primary Cluster Pool Members | Secondary Cluster Pool Members | Other remotely monitored clusters Pool Members | Traffic distribution based on ratio |
+|----------------|------------------------------|--------------------------------|------------------------------------------------|-------------------------------------|
+| active-active  | No                           | Yes                            | Yes                                            | No                                  |
+| active-standby | No                           | Yes                            | Yes                                            | No                                  |
+| ratio          | Yes                          | Yes                            | Yes                                            | Yes                                 |
 
 ![architecture](images/haMultiCluster.png)
 
 Below is the sample Multi-Cluster Configs with HA in Extended Global ConfigMap.
 ```
   extendedSpec: |
-    mode: active       ------------------------------------------|---->  HA Mode              |
-    highAvailabilityClusterConfigs:   ---------------------------|----------------------------|
-      primaryClusterEndPoint: http://10.145.72.114:8001          |                            |
+    mode: active-active       -----------------------------------|---->  HA Mode              |
+    highAvailabilityCIS:   --------------------------------------|----------------------------|
+      primaryEndPoint: http://10.145.72.114:8001                 |                            |
       probeInterval: 30                                          |                            |
       retryInterval: 3                                           |                            |
       primaryCluster:                                            |---> Cluster configs for    |
@@ -117,8 +143,8 @@ Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global C
   extendedSpec: |
     mode: ratio        ------------------------------------------|----------------------------|
     localClusterRatio: 4                                         |                            |
-    highAvailabilityClusterConfigs:   ---------------------------|                            |
-      primaryClusterEndPoint: http://10.145.72.114:8001          |                            |
+    highAvailabilityCIS:   --------------------------------------|                            |
+      primaryEndPoint: http://10.145.72.114:8001                 |                            |
       probeInterval: 30                                          |                            |
       retryInterval: 3                                           |                            |
       primaryCluster:                                            |---> Cluster configs for    |
@@ -202,22 +228,22 @@ Following is the sample deployment for primary CIS deployment:
 **Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in multiClusterConfigs.
 
 #### High Availability Mode (Optional parameter)
-| Parameter              | Type    | Required  | Description                                           | Default | Examples |
-|------------------------|---------|-----------|-------------------------------------------------------|---------|----------|
-| mode                   | Object  | Optional  | Type of high availability mode (active/standby/ratio) | standby | active   |
+| Parameter              | Type    | Required  | Description                                                         | Default        | Examples       |
+|------------------------|---------|-----------|---------------------------------------------------------------------|----------------|----------------|
+| mode                   | Object  | Optional  | Type of high availability mode (active-active/active-standby/ratio) | active-standby | active-active  |
 
-Specifies whether the HA cluster is configured with active mode, standby mode or ratio mode.
-* If mode Type: active, CIS fetches service from both the HA clusters whenever it's referenced in Route Spec.
-* If mode Type: standby (default), CIS fetches service from only the local cluster whenever it's referenced in a Route Spec.
+Specifies whether the CIS HA cluster is configured with active-active mode, active-standby mode or ratio mode.
+* If mode Type: active-active, CIS fetches service from both the HA clusters whenever it's referenced in Route Spec.
+* If mode Type: active-standby (default), CIS fetches service from only the local cluster whenever it's referenced in a Route Spec.
 * If mode Type: ratio, CIS works in active-active mode and, it splits traffic according to the ratio specified for each cluster.
 
 #### Local cluster ratio (Optional parameter)
-| Parameter              | Type | Required  | Description                                                                                             | Default | Examples |
-|------------------------|------|-----------|---------------------------------------------------------------------------------------------------------|---------|----------|
-| localClusterRatio      | Int  | Optional  | Ratio for the local cluster where CIS is running(specify only when using ratio in a standalone cluster) | 1       | 3        |
-**Note:** It is not needed in case of using ratio in HA environment, as ratio of Primary cluster does the same thing. If specified in this scenario then it will be ignored.
+| Parameter              | Type | Required  | Description                                                                                               | Default | Examples |
+|------------------------|------|-----------|-----------------------------------------------------------------------------------------------------------|---------|----------|
+| localClusterRatio      | Int  | Optional  | Ratio for the local cluster where CIS is running(specify only when using ratio in CIS non-HA environment) | 1       | 3        |
+**Note:** It is not needed in case of using ratio in CIS HA environment, as ratio of Primary cluster does the same thing. If specified in this scenario then it will be ignored.
 
-#### highAvailabilityClusterConfigs Parameters
+#### highAvailabilityCIS Parameters
 
 | Parameter              | Type    | Required  | Description                                                             | Default | Examples                  |
 |------------------------|---------|-----------|-------------------------------------------------------------------------|---------|---------------------------|
@@ -241,11 +267,11 @@ Specifies whether the HA cluster is configured with active mode, standby mode or
 * It's recommended to provide both primaryCluster and secondaryCluster configs in the extendedConfigMap.
 * If no traffic has to be forwarded to a specific cluster then set the ratio field to 0.
 
-##### PrimaryCluster Endpoint
+##### CIS Primary Cluster Endpoint
  
-Health probe parameters are provided in highAvailabilityClusterConfigs in extended configmap, helping to ensure high availability of CIS. CIS running in secondary cluster continuously monitors the health of the primary cluster. If it's down, then the secondary CIS takes the responsibility of posting declarations to BIG-IP.
+Health probe parameters are provided in highAvailabilityCIS in extended configmap, helping to ensure high availability of CIS. CIS running in secondary cluster continuously monitors the health of the primary cluster. If it's down, then the secondary CIS takes the responsibility of posting declarations to BIG-IP.
 
-**Note**: primaryClusterEndPoint is a mandatory parameter if CIS is intended to run in Multi-Cluster HA mode. If this is not specified the secondary CIS will not run.
+**Note**: primaryEndPoint is a mandatory parameter if CIS is intended to run in Multi-Cluster HA mode. If this is not specified the secondary CIS will not run.
 
 
 ### Route Annotation for Multi-ClusterServices
@@ -312,9 +338,9 @@ Services running in any other OpenShift/Kubernetes clusters, apart from the HA c
 CIS supports distribution of traffic across clusters as per the ratio configured for each cluster in the extended ConfigMap.<br>
 It works even along with A/B where different weights are defined for each service. In such a case the ratio of traffic 
 distribution is computed taking into consideration both the service weights and cluster ratio.<br>
-However, the ratio of clusters that don't host any services linked to the concerned route are not taken into consideration 
+However, the ratio of the clusters those haven't hosted any services linked to the concerned route are not taken into consideration 
 while computing the final ratio.<br>
-**Note:** Cluster wise ratio for traffic distribution is supported in HA as well as standalone cluster setup.
+**Note:** Cluster wise ratio for traffic distribution is supported in HA as well as non-HA CIS environment.
 
 ## Known issues
 * Multi-Cluster feature doesn't work with CIS running in cluster mode, as of this time.

@@ -1217,7 +1217,7 @@ type (
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
 		MultiClusterConfigs       []MultiClusterConfig `yaml:"multiClusterConfigs"`
-		HAClusterConfig           HAClusterConfig      `yaml:"highAvailabilityClusterConfigs"`
+		HAClusterConfig           HAClusterConfig      `yaml:"highAvailabilityCIS"`
 		HAMode                    HAModeType           `yaml:"mode"`
 		LocalClusterRatio         *int                 `yaml:"localClusterRatio"`
 	}
@@ -1278,8 +1278,8 @@ const (
 type HAModeType string
 
 const (
-	Active  HAModeType = "active"
-	StandBy HAModeType = "standby"
+	Active  HAModeType = "active-active"
+	StandBy HAModeType = "active-standby"
 	Ratio   HAModeType = "ratio"
 )
 
@@ -1292,7 +1292,7 @@ type (
 
 	HAClusterConfig struct {
 		//HAMode                 HAMode         `yaml:"mode"`
-		PrimaryClusterEndPoint string         `yaml:"primaryClusterEndPoint"`
+		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`
 		ProbeInterval          int            `yaml:"probeInterval"`
 		RetryInterval          int            `yaml:"retryInterval"`
 		PrimaryCluster         ClusterDetails `yaml:"primaryCluster"`
@@ -1300,7 +1300,7 @@ type (
 	}
 
 	HAMode struct {
-		// type can be active, standby, ratio
+		// type can be active-active, active-standby, ratio
 		Type HAModeType `yaml:"type"`
 	}
 

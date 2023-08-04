@@ -3214,6 +3214,11 @@ func (ctlr *Controller) processIngressLink(
 		if targetPort == 0 {
 			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
 		}
+	} else if ctlr.PoolMemberType == NodePortLocal {
+		targetPort = ctlr.getNodeportForNPL(nginxMonitorPort, svc.Name, svc.Namespace)
+		if targetPort == 0 {
+			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
+		}
 	}
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
@@ -4047,4 +4052,23 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 		}
 	}
 	return nodescluster
+}
+
+func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace string) int32 {
+	var nodePort int32
+	pods := ctlr.GetPodsForService(namespace, svcName, true)
+	if pods != nil {
+		for _, pod := range pods {
+			anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]
+			if !found {
+				continue
+			}
+			for _, annotation := range anns {
+				if annotation.PodPort == port {
+					return annotation.NodePort
+				}
+			}
+		}
+	}
+	return nodePort
 }

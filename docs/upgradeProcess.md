@@ -272,11 +272,33 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 * Deprecated CommonName support for host certificate verification in secrets, use subject alternative name(SAN) in certificates instead.
 
 ### **Upgrading from 2.12.0 to 2.12.1:**
-* CIS is supporting new partition for GTM in as3 mode for CRDs. In CCCL mode there are no partition changes for GTM, common partition remains same
-   * In as3 mode, CIS will clear existing GTM objects in default partition and recreates them in new GTM partition 
+* CIS is supporting new partition for GTM in AS3 mode for CRDs. In CCCL mode there are no partition changes for GTM, common partition remains same
+   * In AS3 mode, CIS will clear existing GTM objects in default partition and recreates them in new GTM partition 
    * Format of the new GTM partition name - {defaultpartition_gtm}
    * With EDNS and VS/TS/IngressLink resource partition change, sometimes CIS might come across 422 error 
      * The root cause can be VS list is not refreshed in the GSLB server.
+   *  **_Migration Steps for "Transitioning from CCCL GTM Agent to AS3 GTM Agent"_**
+
+
+           Step #1: 
+             Prior to transitioning to the AS3 GTM Agent, it is essential to manually remove the GTM objects managed by CIS in the 'Common' Partition. 
+             This is particularly important in AS3 GTM Mode, where these same GTM Pool members will be used in a distinct BIGIP partition i.e.  {defaultpartition_gtm} or 'CIS_Managed_Partition_gtm' 
+             Failing to do so may result in the following error:
+               2023/04/04 10:20:07 [DEBUG] [AS3] posting request to https://10.x.x.x/mgmt/shared/appsvcs/declare/test,test_gtm
+               2023/04/04 10:20:36 [ERROR] [AS3] Error response from BIG-IP: code: 422 --- tenant:test_gtm --- message: declaration failed
+
+             To remove GTM objects in the 'Common' Partition, execute the following commands, ensuring you only remove GTM objects associated with the 'Common' Partition:
+               root@(localhost)(cfg-sync Standalone)(Active)(/Common)(tmos)# delete gtm wideip a all
+               root@(localhost)(cfg-sync Standalone)(Active)(/Common)(tmos)# delete gtm pool a all
+               Note: Additionally, delete any CIS configured monitors from the 'Common' Partition.
+
+           Step #2:
+             Once the GTM objects managed by earlier CIS have been successfully removed, initiate CIS in AS3 GTM Mode using the deployment parameter '--cccl-gtm-agent=false':
+             This process ensures a smooth transition to the AS3 GTM Agent.
+             Below is the successful CIS logs for reference.
+               2023/04/04 10:30:49 [DEBUG] [AS3] posting request to https://10.x.x.x/mgmt/shared/appsvcs/declare/test,test_gtm
+               2023/04/04 10:31:19 [DEBUG] [AS3] Response from BIG-IP: code: 200 --- tenant:test --- message: success
+               2023/04/04 10:31:19 [DEBUG] [AS3] Response from BIG-IP: code: 200 --- tenant:test_gtm --- message: success
 
 ### **Upgrading from 2.12.1 to 2.13.0:**
 

@@ -510,9 +510,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 			framedPools[poolName] = struct{}{}
 			targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
-			if (intstr.IntOrString{}) == targetPort {
-				targetPort = pl.ServicePort
-			}
 			svcNamespace := vs.Namespace
 			if SvcBackend.SvcNamespace != "" {
 				svcNamespace = SvcBackend.SvcNamespace
@@ -1896,9 +1893,6 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		svcNamespace = vs.Spec.Pool.ServiceNamespace
 	}
 	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
-	if (intstr.IntOrString{}) == targetPort {
-		targetPort = vs.Spec.Pool.ServicePort
-	}
 
 	pool := Pool{
 		Name:              poolName,

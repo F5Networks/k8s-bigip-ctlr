@@ -1927,12 +1927,57 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 					freshRsCfg.copyConfig(rsCfg)
 					for index, pool := range freshRsCfg.Pools {
 						if pool.Name == poolId.poolName && pool.Partition == poolId.partition {
-							if pool.ServicePort.IntVal == 0 && poolId.rsKey.kind == Route {
-								// this case happens when a route does not contain a target port and service is created after route creation
-								if routeGroup, found := ctlr.resources.invertedNamespaceLabelMap[poolId.rsKey.namespace]; found {
-									// update the poolMem cache, clusterSvcResource & resource-svc maps
-									ctlr.deleteResourceExternalClusterSvcRouteReference(poolId.rsKey)
-									ctlr.processRoutes(routeGroup, false)
+							if pool.ServicePort.IntVal == 0 {
+								switch poolId.rsKey.kind {
+								case Route:
+									// this case happens when a route does not contain a target port and service is created after route creation
+									if routeGroup, found := ctlr.resources.invertedNamespaceLabelMap[poolId.rsKey.namespace]; found {
+										// update the poolMem cache, clusterSvcResource & resource-svc maps
+										ctlr.deleteResourceExternalClusterSvcRouteReference(poolId.rsKey)
+										ctlr.processRoutes(routeGroup, false)
+										return
+									}
+								case VirtualServer:
+									var item interface{}
+									if svcKey.clusterName == "" {
+										inf, _ := ctlr.getNamespacedCommonInformer(svcKey.namespace)
+										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+									} else {
+										inf, _ := ctlr.getNamespaceMultiClusterPoolInformer(svcKey.namespace, svcKey.clusterName)
+										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+									}
+									if item == nil {
+										// This case won't arise
+										continue
+									}
+									virtuals := ctlr.getVirtualServersForService(item.(*v1.Service))
+									// If nil No Virtuals are effected with the change in service.
+									if nil != virtuals {
+										for _, virtual := range virtuals {
+											_ = ctlr.processVirtualServers(virtual, false)
+										}
+									}
+									return
+								case TransportServer:
+									var item interface{}
+									if svcKey.clusterName == "" {
+										inf, _ := ctlr.getNamespacedCommonInformer(svcKey.namespace)
+										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+									} else {
+										inf, _ := ctlr.getNamespaceMultiClusterPoolInformer(svcKey.namespace, svcKey.clusterName)
+										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+									}
+									if item == nil {
+										// This case won't arise
+										continue
+									}
+									virtuals := ctlr.getTransportServersForService(item.(*v1.Service))
+									// If nil No Virtuals are effected with the change in service.
+									if nil != virtuals {
+										for _, virtual := range virtuals {
+											_ = ctlr.processTransportServers(virtual, false)
+										}
+									}
 									return
 								}
 							}

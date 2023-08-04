@@ -7,10 +7,9 @@ metadata:
   namespace: kube-system
 data:
   extendedSpec: |
-    highAvailabilityClusterConfigs:
-      mode:
-        type: active
-      primaryClusterEndPoint: http://10.145.72.114:8001
+    mode: active-active
+    highAvailabilityCIS:
+      primaryEndPoint: http://10.145.72.114:8001
       probeInterval: 30
       retryInterval: 3
       primaryCluster:

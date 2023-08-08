@@ -466,17 +466,6 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
-		epsInformer: cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"endpoints",
-				namespace,
-				everything,
-			),
-			&corev1.Endpoints{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
 		secretsInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -489,6 +478,23 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
+	// Skipping endpoint informer creation for namespace in non cluster mode when extended cm is not provided
+	if ctlr.mode != Cluster && ctlr.cisType != "" {
+		log.Debugf("Skipping endpoint informer creation for namespace %v in %v mode", namespace, ctlr.mode)
+	} else {
+		comInf.epsInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"endpoints",
+				namespace,
+				everything,
+			),
+			&corev1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
+
 	comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
 		ctlr.kubeCRClient,
 		namespace,

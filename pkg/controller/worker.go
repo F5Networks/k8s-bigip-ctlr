@@ -62,13 +62,8 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		ctlr.processGlobalExtendedConfigMap()
 	}
 
-	if ctlr.globalExtendedCMKey == "" && ctlr.cisType != "" {
-		log.Errorf("missing extended configmap deployment parameter: in the multiCluster HA mode")
-		os.Exit(1)
-	}
-
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster
-	if ctlr.cisType == SecondaryCIS {
+	if ctlr.multiClusterMode == SecondaryCIS {
 		ctlr.firstPollPrimaryClusterHealthStatus()
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
@@ -249,7 +244,7 @@ func (ctlr *Controller) processResources() bool {
 			// Delete the route entry from hostPath Map
 			ctlr.deleteHostPathMapEntry(route)
 		}
-		if rKey.event != Create && ctlr.multiClusterMode {
+		if rKey.event != Create && ctlr.multiClusterMode != "" {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 		}
@@ -261,7 +256,7 @@ func (ctlr *Controller) processResources() bool {
 				isRetryableError = true
 			}
 		}
-		if rKey.event != Create && ctlr.multiClusterMode {
+		if rKey.event != Create && ctlr.multiClusterMode != "" {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 
@@ -295,7 +290,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 
-		if rKey.event != Create && ctlr.multiClusterMode {
+		if rKey.event != Create && ctlr.multiClusterMode != "" {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 		}
@@ -306,7 +301,7 @@ func (ctlr *Controller) processResources() bool {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isRetryableError = true
 		}
-		if rKey.event != Create && ctlr.multiClusterMode {
+		if rKey.event != Create && ctlr.multiClusterMode != "" {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 	case TLSProfile:
@@ -636,7 +631,7 @@ func (ctlr *Controller) processResources() bool {
 	}
 
 	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
-		(ctlr.cisType == SecondaryCIS && rKey.kind == HACIS) {
+		(ctlr.multiClusterMode == SecondaryCIS && rKey.kind == HACIS) {
 		config := ResourceConfigRequest{
 			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
@@ -2066,7 +2061,7 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 	case NodePort:
 		// In non multi-cluster mode return empty poolMembers so the nodes can be removed from bigip, when app is scaled down to zero
 		// In multi-cluster mode and next gen routes as the endpoint informers are not started, we won't be updating the nodes when app is scaled down to zero.
-		if (!ok || len(poolMemInfo.memberMap) == 0) && ctlr.cisType == "" {
+		if (!ok || len(poolMemInfo.memberMap) == 0) && ctlr.multiClusterMode == "" {
 			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
 			return poolMembers
 		}
@@ -2098,7 +2093,7 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 	case NodePortLocal:
 		// In non multi-cluster mode return empty poolMembers so the nodes can be removed from bigip, when app is scaled down to zero
 		// In multi-cluster mode and next gen routes as the endpoint informers are not started, we won't be updating the nodes when app is scaled down to zero.
-		if (!ok || len(poolMemInfo.memberMap) == 0) && ctlr.cisType == "" {
+		if (!ok || len(poolMemInfo.memberMap) == 0) && ctlr.multiClusterMode == "" {
 			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
 			return poolMembers
 		}
@@ -3797,11 +3792,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			es.HAClusterConfig = HAClusterConfig{}
 		}
 		// Check if HA configurations are specified properly
-		if ctlr.cisType != "" {
+		if ctlr.multiClusterMode != StandAloneCIS {
 			if es.HAClusterConfig == (HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (ClusterDetails{}) ||
 				es.HAClusterConfig.SecondaryCluster == (ClusterDetails{}) {
-				log.Errorf("Either CIS High availability cluster config not provided or --cis-type is provided in " +
-					"standalone CIS mode")
+				log.Errorf("CIS High availability cluster config not provided properly.")
 				os.Exit(1)
 			}
 		}
@@ -3817,7 +3811,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 		// Update cluster ratio
-		if ctlr.haModeType == Ratio && ctlr.cisType == "" {
+		if ctlr.haModeType == Ratio && ctlr.multiClusterMode != StandAloneCIS {
 			if es.LocalClusterRatio != nil {
 				ctlr.clusterRatio[""] = es.LocalClusterRatio
 			} else {
@@ -3825,21 +3819,8 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				ctlr.clusterRatio[""] = &one
 			}
 		}
-
-		if es.MultiClusterConfigs != nil {
-			ctlr.multiClusterMode = true
-		} else {
-			ctlr.multiClusterMode = false
-		}
-
-		if ctlr.cisType != "" && es.HAClusterConfig != (HAClusterConfig{}) {
-			ctlr.Agent.HAMode = true
-			ctlr.multiClusterMode = true
-		} else {
-			ctlr.Agent.HAMode = false
-		}
-
-		if ctlr.multiClusterMode || ctlr.Agent.HAMode {
+		// Read multi-cluster config from extended CM
+		if ctlr.multiClusterMode != "" {
 			err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
 			ctlr.checkSecondaryCISConfig()
 			ctlr.stopDeletedGlobalCMMultiClusterInformers()

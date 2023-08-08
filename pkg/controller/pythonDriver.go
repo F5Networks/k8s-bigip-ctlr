@@ -52,7 +52,7 @@ func initializeDriverConfig(
 	if global.GTM {
 		sections["gtm_bigip"] = gtm
 	}
-	if global.CISType == "secondary" {
+	if global.MultiClusterMode == SecondaryCIS {
 		//Initially set the primary cluster status as true before init
 		sections["primary-cluster-status"] = true
 	}

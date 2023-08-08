@@ -283,7 +283,7 @@ func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string) error
 // if CIS is running in secondary then endPoint is mandatory
 // if endPoint is configured then CIS will exit
 func (ctlr *Controller) checkSecondaryCISConfig() {
-	if ctlr.cisType == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
+	if ctlr.multiClusterMode == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
 		log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
 		os.Exit(1)
 	}

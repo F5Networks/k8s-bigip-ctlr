@@ -79,8 +79,9 @@ const (
 	NodePort = "nodeport"
 	Cluster  = "cluster"
 
-	SecondaryCIS = "secondary"
-	PrimaryCIS   = "primary"
+	StandAloneCIS = "standalone"
+	SecondaryCIS  = "secondary"
+	PrimaryCIS    = "primary"
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 
@@ -147,7 +148,7 @@ func NewController(params Params) *Controller {
 		OrchestrationCNI:      params.OrchestrationCNI,
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
 		multiClusterResources: newMultiClusterResourceStore(),
-		cisType:               params.CISType,
+		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 	}
 

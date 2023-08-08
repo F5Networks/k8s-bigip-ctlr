@@ -385,7 +385,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
 
-	if ctlr.multiClusterMode {
+	if ctlr.multiClusterMode != "" {
 		//check for external service reference annotation
 		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
 			// only process if route key is not present. else skip the processing
@@ -423,7 +423,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
 		}
 
-		if ctlr.multiClusterMode {
+		if ctlr.multiClusterMode != "" {
 			if ctlr.haModeType != Ratio {
 				var multiClusterServices []cisapiv1.MultiClusterServiceReference
 				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
@@ -1733,7 +1733,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		}
 	}
 	// Validate multiCluster service annotation has valid cluster names
-	if ctlr.multiClusterMode {
+	if ctlr.multiClusterMode != "" {
 		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
 			var clusterSvcs []cisapiv1.MultiClusterServiceReference
 			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
@@ -1907,7 +1907,7 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
 	primaryClusterName := ""
 	secondaryClusterName := ""
-	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
+	if ctlr.multiClusterMode != StandAloneCIS && haClusterConfig != (HAClusterConfig{}) {
 		// If HA mode not set use active-standby mode as defualt
 		if ctlr.haModeType == "" {
 			ctlr.haModeType = StandBy
@@ -1937,7 +1937,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 
 		// Set up health probe
-		if ctlr.cisType == SecondaryCIS {
+		if ctlr.multiClusterMode == SecondaryCIS {
 			if haClusterConfig.PrimaryClusterEndPoint == "" {
 				// cis in secondary mode, primary cluster health check endpoint is required
 				// if endpoint is missing exit
@@ -1950,7 +1950,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 
 		// Set up the informers for the HA clusters
-		if ctlr.cisType == PrimaryCIS && haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+		if ctlr.multiClusterMode == PrimaryCIS && haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
 				log.Errorf("Secondary clusterName or secret not provided in haClusterConfig: %v",
@@ -1983,7 +1983,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
 			ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
 		}
-		if ctlr.cisType == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+		if ctlr.multiClusterMode == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
 				log.Errorf("Primary clusterName or secret not provided in haClusterConfig: %v",

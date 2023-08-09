@@ -193,6 +193,11 @@ func (ctlr *Controller) processResources() bool {
 	var isRetryableError bool
 
 	defer ctlr.resourceQueue.Done(key)
+	// If CIS resources like CRDS, routes or servicetype LB are not present
+	// on startup, check initalresourcecount and update initState
+	if ctlr.initialResourceCount <= 0 {
+		ctlr.initState = false
+	}
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 	// During Init time, just process all the resources

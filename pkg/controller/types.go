@@ -89,11 +89,10 @@ type (
 		cacheIPAMHostSpecs     CacheIPAM
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		multiClusterResources  *MultiClusterResourceStore
-		cisType                string
+		multiClusterMode       string
 		haModeType             HAModeType
 		clusterRatio           map[string]*int
 		resourceContext
-		multiClusterMode bool
 	}
 	resourceContext struct {
 		resourceQueue             workqueue.RateLimitingInterface
@@ -133,8 +132,7 @@ type (
 		RouteLabel                  string
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
-		CISType                     string
-		MultiClusterMode            bool
+		MultiClusterMode            string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -746,7 +744,7 @@ type (
 		CCCLGTMAgent       bool
 		StaticRoutingMode  bool
 		SharedStaticRoutes bool
-		CISType            string
+		MultiClusterMode   string
 	}
 
 	PostManager struct {
@@ -811,7 +809,7 @@ type (
 		DisableARP         bool   `json:"disable-arp,omitempty"`
 		SharedStaticRoutes bool   `json:"shared-static-routes,omitempty"`
 		StaticRoutingMode  bool   `json:"static-route-mode,omitempty"`
-		CISType            string `json:"cis-type,omitempty"`
+		MultiClusterMode   string `json:"multi-cluster-mode,omitempty"`
 	}
 
 	bigIPSection struct {

@@ -179,7 +179,7 @@ func (ctlr *Controller) checkValidIngressLink(
 // checkValidExtendedService checks if extended service is valid or not
 func (ctlr *Controller) checkValidExtendedService(mcs cisapiv1.MultiClusterServiceReference) bool {
 	// Check if cis running in multiCluster mode
-	if !ctlr.multiClusterMode {
+	if ctlr.multiClusterMode == "" {
 		return false
 	}
 	// Check if all required parameters are specified

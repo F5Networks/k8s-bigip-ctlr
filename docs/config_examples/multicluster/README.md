@@ -179,12 +179,14 @@ Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global C
 
 ### CIS Deployment Parameter
 
-If you are using the High Availability setup with Multi-Cluster, specify the ```--cis-type``` parameter to define the primary and secondary cluster:
+If you are using multi-cluster mode, ```--multi-cluster-mode``` parameter is a required parameter.
 
 
-| Parameter | Type   | Required | Description                                                                                  | Allowed Values       |
-|-----------|--------|----------|----------------------------------------------------------------------------------------------|----------------------|
-| cis-type  | String | Optional | Specify whether CIS is run as primary or secondary in the case of a high availability setup. | primary or secondary |
+| Parameter          | Type   | Required | Description                                                                                                    | Allowed Values                     |
+|--------------------|--------|----------|----------------------------------------------------------------------------------------------------------------|------------------------------------|
+| multi-cluster-mode | String | Required | Specify whether CIS is running standalone or as primary/secondary in the case of a high availability topology. | standalone or primary or secondary |
+
+**Note**: Here **standalone** refers to standalone topology of CIS deployment, See [Standalone CIS](#standalone-cis).
 
 Following is the sample deployment for primary CIS deployment:
 
@@ -204,17 +206,19 @@ Following is the sample deployment for primary CIS deployment:
         - DEBUG
         - --insecure
         - --controller-mode=openshift
-        - --route-spec-configmap=kube-system/global-spec-config
+        - --extended-spec-configmap=kube-system/global-spec-config
         - --route-label=systest
         - --pool-member-type
         - cluster
-        - --cis-type=primary
+        - --multi-cluster-mode=primary
         command:
         - /app/bin/k8s-bigip-ctlr
         image: <image-name>
 ```
 
-**Note:** Update the ```cis-type``` to *secondary* for a secondary CIS deployment.
+**Note:** 
+1. Update the ```multi-cluster-mode``` to *secondary* for secondary CIS deployment in high availablility topology, See [High Availability CIS](#high-availability-cis). 
+2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
 
 ### extended ConfigMap Parameters
 
@@ -263,7 +267,7 @@ Specifies whether the CIS HA cluster is configured with active-active mode, acti
 | ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
 
 
-**Note**: In order to run CIS in high availability mode, cis-type parameter (primary/secondary) needs to be set in the CIS deployment arguments.
+**Note**: In order to run CIS in high availability mode, multi-cluster-mode parameter (primary/secondary) needs to be set in the CIS deployment arguments.
 * It's recommended to provide both primaryCluster and secondaryCluster configs in the extendedConfigMap.
 * If no traffic has to be forwarded to a specific cluster then set the ratio field to 0.
 
@@ -347,6 +351,9 @@ while computing the final ratio.<br>
 
 ## FAQ
 
+### Is --multi-cluster-mode is a required parameter for Multi-Cluster support?
+Yes. Multi-Cluster support only works if --multi-cluster-mode is defined in CIS deployment.
+
 ### Is extended configMap mandatory for Multi-Cluster support?
 Yes. Multi-Cluster support only works with extended configmap.
 
@@ -364,7 +371,7 @@ Currently only NodePort mode is supported.
 CIS supports Hybrid Cloud, any public Cloud providers such as; AWS, Azure, GCP, On-Prem, VmWare, Tanzu etc. which is in same network/datacenter and can communicate with each other. 
 
 ### How does CIS start as a secondary Cluster?
-CIS recognizes as Secondary when it starts with a deployment parameter i.e. --cis-type=secondary
+CIS recognizes as Secondary when it starts with a deployment parameter i.e. --multi-cluster-mode=secondary
 
 ### How does Secondary CIS learn about the Primary Cluster endpoint state in HA mode?
 Both of the CIS will communicate with both K8s API servers and prepares the AS3 declaration, but the secondary CIS only sends the declaration when the Primary cluster's health probe fails. As soon as primary cluster comes up, secondary CIS stops sending the declaration.

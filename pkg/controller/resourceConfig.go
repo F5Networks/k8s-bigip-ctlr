@@ -526,7 +526,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServiceDownAction: pl.ServiceDownAction,
 			}
 
-			if ctlr.multiClusterMode {
+			if ctlr.multiClusterMode != "" {
 				//check for external service reference
 				if len(pl.MultiClusterServices) > 0 {
 					if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
@@ -1918,7 +1918,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	// update the pool identifier for service
 	ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
 
-	if ctlr.multiClusterMode {
+	if ctlr.multiClusterMode != "" {
 		//check for external service reference
 		if len(vs.Spec.Pool.MultiClusterServices) > 0 {
 			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {

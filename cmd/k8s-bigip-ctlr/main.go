@@ -209,7 +209,7 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	userAgentInfo      string
-	cisType            *string
+	multiClusterMode   *string
 )
 
 func _init() {
@@ -439,8 +439,8 @@ func _init() {
 	}
 
 	// MultiCluster Flags
-	cisType = multiClusterFlags.String("cis-type", "",
-		"Optional, determines in multi cluster env cis running as primary/secondary")
+	multiClusterMode = multiClusterFlags.String("multi-cluster-mode", "",
+		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
 
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
@@ -566,6 +566,15 @@ func verifyArgs() error {
 				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
 		}
 	}
+
+	if *multiClusterMode != "standalone" && *multiClusterMode != "primary" && *multiClusterMode != "secondary" && *multiClusterMode != "" {
+		return fmt.Errorf("'%v' is not a valid multi cluster mode, allowed values are: standalone/primary/secondary", *multiClusterMode)
+	}
+
+	if (len(*routeSpecConfigmap) == 0 && len(*extendedSpecConfigmap) == 0) && *multiClusterMode != "" {
+		return fmt.Errorf("missing --extended-spec-configmap parameter in the multiCluster mode. It's a required parameter in multiCluster mode")
+	}
+
 	if *staticRoutingMode == true {
 		if isNodePort || *poolMemberType == "nodeportlocal" {
 			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
@@ -855,7 +864,7 @@ func initController(
 		CCCLGTMAgent:       *ccclGtmAgent,
 		StaticRoutingMode:  *staticRoutingMode,
 		SharedStaticRoutes: *sharedStaticRoutes,
-		CISType:            *cisType,
+		MultiClusterMode:   *multiClusterMode,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection
@@ -895,7 +904,7 @@ func initController(
 			RouteLabel:                  *routeLabel,
 			StaticRoutingMode:           *staticRoutingMode,
 			OrchestrationCNI:            *orchestrationCNI,
-			CISType:                     *cisType,
+			MultiClusterMode:            *multiClusterMode,
 		},
 	)
 
@@ -932,7 +941,10 @@ func main() {
 	}
 
 	log.Infof("[INIT] Starting: Container Ingress Services - Version: %s, BuildInfo: %s", version, buildInfo)
-
+	// add the warning if both extended-config-map & route-config-map are present
+	if len(*routeSpecConfigmap) > 0 && len(*extendedSpecConfigmap) > 0 {
+		log.Warningf("extended-spec-configmap and route-spec-configmap both are present. extended-spec-configmap will be given priority over route-spec-configmap")
+	}
 	resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
 	dgPath = resource.DEFAULT_PARTITION
 	if strings.ToLower(*agent) == "as3" {

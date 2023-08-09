@@ -44,7 +44,7 @@ In a Standalone deployment of CIS, CIS is only deployed in one cluster, then cre
 Below is the sample Multi-Cluster Config in an Extended Global ConfigMap.
 ```
   extendedSpec: |
-    multiClusterConfigs:    -------------------------------------|----------------------------|                            |
+    externalClustersConfig:    -------------------------------------|----------------------------|                            |
     - clusterName: cluster3                                      |                            |
       secret: default/kubeconfig3                                |---> Cluster configs for    |
     - clusterName: cluster4                                      |     all other clusters     |
@@ -119,7 +119,7 @@ Below is the sample Multi-Cluster Configs with HA in Extended Global ConfigMap.
       secondaryCluster:                                          |                            |
         clusterName: cluster2                                    |                            |
         secret: default/kubeconfig2                              |                            |
-    multiClusterConfigs:    -------------------------------------|                            |
+    externalClustersConfig:    -------------------------------------|                            |
     - clusterName: cluster3                                      |                            |
       secret: default/kubeconfig3                                |---> Cluster configs for    |
     - clusterName: cluster4                                      |     all other clusters     |
@@ -155,7 +155,7 @@ Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global C
         clusterName: cluster2                                    |                            |
         secret: default/kubeconfig2                              |                            |
         ratio: 2                                                 |                            |
-    multiClusterConfigs:    -------------------------------------|                            |
+    externalClustersConfig:    -------------------------------------|                            |
     - clusterName: cluster3                                      |                            |
       secret: default/kubeconfig3                                |---> Cluster configs for    |
       ratio: 2                                                   |     all other clusters     |
@@ -218,14 +218,14 @@ Following is the sample deployment for primary CIS deployment:
 
 ### extended ConfigMap Parameters
 
-#### multiClusterConfigs Parameters
+#### externalClustersConfig Parameters
 
 | Parameter   | Type   | Required  | Description                                                               | Default | Examples                |
 |-------------|--------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 
-**Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in multiClusterConfigs.
+**Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in externalClustersConfig.
 
 #### High Availability Mode (Optional parameter)
 | Parameter              | Type    | Required  | Description                                                         | Default        | Examples       |

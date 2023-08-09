@@ -7,9 +7,9 @@ import (
 type (
 	// MultiClusterConfig defines a structure for holding cluster configuration
 	MultiClusterConfig struct {
-		ClusterConfigs   map[string]ClusterConfig
-		HAPairCusterName string
-		LocalClusterName string
+		ClusterConfigs    map[string]ClusterConfig
+		HAPairClusterName string
+		LocalClusterName  string
 	}
 
 	ClusterConfig struct {

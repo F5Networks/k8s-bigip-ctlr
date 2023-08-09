@@ -473,8 +473,8 @@ type (
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
-		// stores valid multiClusterConfigs from extendendCM
-		multiClusterConfigs map[string]MultiClusterConfig
+		// stores valid externalClustersConfig from extendendCM
+		externalClustersConfig map[string]ExternalClusterConfig
 	}
 
 	svcResourceCacheMeta struct {
@@ -1216,10 +1216,10 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		MultiClusterConfigs       []MultiClusterConfig `yaml:"multiClusterConfigs"`
-		HAClusterConfig           HAClusterConfig      `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType           `yaml:"mode"`
-		LocalClusterRatio         *int                 `yaml:"localClusterRatio"`
+		ExternalClustersConfig    []ExternalClusterConfig `yaml:"externalClustersConfig"`
+		HAClusterConfig           HAClusterConfig         `yaml:"highAvailabilityCIS"`
+		HAMode                    HAModeType              `yaml:"mode"`
+		LocalClusterRatio         *int                    `yaml:"localClusterRatio"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1284,7 +1284,7 @@ const (
 )
 
 type (
-	MultiClusterConfig struct {
+	ExternalClusterConfig struct {
 		ClusterName string `yaml:"clusterName"`
 		Secret      string `yaml:"secret"`
 		Ratio       *int   `yaml:"ratio"`

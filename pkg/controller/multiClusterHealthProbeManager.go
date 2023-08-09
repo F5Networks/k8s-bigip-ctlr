@@ -19,7 +19,7 @@ func (postMgr *PostManager) checkPrimaryClusterHealthStatus() bool {
 		case "tcp":
 			status = postMgr.getPrimaryClusterHealthStatusFromTCPEndPoint()
 		case "", "default":
-			log.Debugf("unsupported primary cluster health probe endPoint  : %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+			log.Debugf("unsupported primaryEndPoint specified under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 			return false
 		}
 
@@ -42,7 +42,7 @@ func (postMgr *PostManager) setPrimaryClusterHealthCheckEndPointType() {
 		} else if strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
 			postMgr.PrimaryClusterHealthProbeParams.EndPointType = "http"
 		} else {
-			log.Debugf("unsupported primary cluster endPoint protocol type configured. EndPoint: %v \n "+
+			log.Debugf("unsupported primaryEndPoint protocol type configured under highAvailabilityCIS section. EndPoint: %v \n "+
 				"supported protocols:[http, tcp] ", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 			os.Exit(1)
 		}
@@ -56,7 +56,7 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 		return false
 	}
 	if !strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
-		log.Debugf("Error: invalid health probe http endpoint: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+		log.Debugf("Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
 
@@ -71,7 +71,7 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 		postMgr.httpClient.Timeout = timeOut
 	}()
 	if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
-		log.Debugf("posting GET Check Primary Cluster Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+		log.Debugf("posting GET Check primaryEndPoint Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 	}
 	postMgr.httpClient.Timeout = 10 * time.Second
 
@@ -83,7 +83,7 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 	case http.StatusOK:
 		return true
 	case http.StatusNotFound, http.StatusInternalServerError:
-		log.Debugf("error fetching primary cluster health status. endPoint:%v, statusCode: %v, error:%v",
+		log.Debugf("error fetching primaryEndPoint health status. endPoint:%v, statusCode: %v, error:%v",
 			postMgr.PrimaryClusterHealthProbeParams.EndPoint, httpResp.StatusCode, httpResp.Request.Response)
 	}
 	return false
@@ -95,13 +95,13 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromTCPEndPoint() bool 
 		return false
 	}
 	if !strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
-		log.Debugf("invalid health probe tcp endpoint: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+		log.Debugf("invalid primaryEndPoint health probe tcp endpoint: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
 
 	_, err := net.Dial("tcp", strings.TrimLeft(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://"))
 	if err != nil {
-		log.Debugf("error connecting to primary cluster tcp health probe endPoint: %v, error: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint, err)
+		log.Debugf("error connecting to primaryEndPoint tcp health probe: %v, error: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint, err)
 		return false
 	}
 	return true
@@ -152,13 +152,13 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 			doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("primary-cluster-status", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
 
 			if nil != err {
-				log.Warningf("Failed to write primary cluster status section: %v", err)
+				log.Warningf("Failed to write primary-cluster-status section: %v", err)
 			} else {
 				select {
 				case <-doneCh:
-					log.Debugf("Wrote primary cluster status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
+					log.Debugf("Wrote primary-cluster-status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
 				case e := <-errCh:
-					log.Warningf("Failed to write primary cluster status config section: %v", e)
+					log.Warningf("Failed to write primary-cluster-status config section: %v", e)
 				case <-time.After(time.Second):
 					log.Warningf("Did not receive write response in 1s")
 				}

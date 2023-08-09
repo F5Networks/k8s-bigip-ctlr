@@ -331,7 +331,7 @@ func (ctlr *Controller) processResources() bool {
 		secret := rKey.rsc.(*v1.Secret)
 		mcc := ctlr.getClusterForSecret(secret)
 		// TODO: Process all the resources again that refer to any resource running in the affected cluster?
-		if mcc != (MultiClusterConfig{}) {
+		if mcc != (ExternalClusterConfig{}) {
 			err := ctlr.updateClusterConfigStore(secret, mcc, rscDelete)
 			if err != nil {
 				log.Warningf(err.Error())
@@ -2047,10 +2047,10 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 
 	// for HA cluster pair service
-	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairCusterName)...)
+				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName)...)
 	}
 
 	if len(ctlr.clusterRatio) > 0 {
@@ -2069,7 +2069,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		// Ensure cluster services of the HA pair cluster (if specified as multi cluster service in route annotations)
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
 		// already populated while updating the HA cluster pair service pool members above
-		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairCusterName != mcs.ClusterName {
+		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
 			poolMembers = append(poolMembers,
 				ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
 					pool.NodeMemberLabel, mcs.ClusterName)...)
@@ -3882,7 +3882,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 
-		if es.MultiClusterConfigs != nil {
+		if es.ExternalClustersConfig != nil {
 			ctlr.multiClusterMode = true
 		} else {
 			ctlr.multiClusterMode = false
@@ -3896,7 +3896,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		}
 
 		if ctlr.multiClusterMode || ctlr.Agent.HAMode {
-			err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.MultiClusterConfigs)
+			err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
 			ctlr.checkSecondaryCISConfig()
 			ctlr.stopDeletedGlobalCMMultiClusterInformers()
 			if err != nil {

@@ -7,6 +7,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
@@ -21,7 +22,6 @@ import (
 	"reflect"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -446,9 +446,9 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				// update the multicluster resource serviceMap with local cluster services
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 				// update the multicluster resource serviceMap with HA pair cluster services
-				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
-						ctlr.multiClusterConfigs.HAPairCusterName)
+						ctlr.multiClusterConfigs.HAPairClusterName)
 				}
 			} else {
 				// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
@@ -1888,10 +1888,10 @@ func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
 }
 
 // fetch cluster name for given secret if it holds kubeconfig of the cluster.
-func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfig {
-	for _, mcc := range ctlr.resources.multiClusterConfigs {
+func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) ExternalClusterConfig {
+	for _, mcc := range ctlr.resources.externalClustersConfig {
 		// Skip empty/nil configs processing
-		if mcc == (MultiClusterConfig{}) {
+		if mcc == (ExternalClusterConfig{}) {
 			continue
 		}
 		// Check if the secret holds the kubeconfig for a cluster by checking if it's referred in the multicluster config
@@ -1900,11 +1900,11 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) MultiClusterConfi
 			return mcc
 		}
 	}
-	return MultiClusterConfig{}
+	return ExternalClusterConfig{}
 }
 
 // readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
-func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, multiClusterConfigs []MultiClusterConfig) error {
+func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, externalClusterConfigs []ExternalClusterConfig) error {
 	primaryClusterName := ""
 	secondaryClusterName := ""
 	if ctlr.cisType != "" && haClusterConfig != (HAClusterConfig{}) {
@@ -1941,7 +1941,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			if haClusterConfig.PrimaryClusterEndPoint == "" {
 				// cis in secondary mode, primary cluster health check endpoint is required
 				// if endpoint is missing exit
-				log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
+				log.Debugf("error: cis running in secondary mode and missing primaryEndPoint parameter")
 				os.Exit(1)
 			} else {
 				// process only the updated healthProbe config params
@@ -1953,7 +1953,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		if ctlr.cisType == PrimaryCIS && haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
-				log.Errorf("Secondary clusterName or secret not provided in haClusterConfig: %v",
+				log.Errorf("Secondary clusterName or secret not provided in highAvailabilityCIS section: %v",
 					haClusterConfig.SecondaryCluster)
 				os.Exit(1)
 			}
@@ -1964,7 +1964,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
-				MultiClusterConfig{
+				ExternalClusterConfig{
 					ClusterName: haClusterConfig.SecondaryCluster.ClusterName,
 					Secret:      haClusterConfig.SecondaryCluster.Secret},
 				false)
@@ -1980,13 +1980,13 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					return err
 				}
 			}
-			ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.SecondaryCluster.ClusterName
+			ctlr.multiClusterConfigs.HAPairClusterName = haClusterConfig.SecondaryCluster.ClusterName
 			ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
 		}
 		if ctlr.cisType == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
-				log.Errorf("Primary clusterName or secret not provided in haClusterConfig: %v",
+				log.Errorf("Primary clusterName or secret not provided in highAvailabilityCIS section: %v",
 					haClusterConfig.PrimaryCluster)
 				os.Exit(1)
 			}
@@ -1997,7 +1997,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
-				MultiClusterConfig{
+				ExternalClusterConfig{
 					ClusterName: haClusterConfig.PrimaryCluster.ClusterName,
 					Secret:      haClusterConfig.PrimaryCluster.Secret},
 				false)
@@ -2013,16 +2013,16 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					return err
 				}
 			}
-			ctlr.multiClusterConfigs.HAPairCusterName = haClusterConfig.PrimaryCluster.ClusterName
+			ctlr.multiClusterConfigs.HAPairClusterName = haClusterConfig.PrimaryCluster.ClusterName
 			ctlr.multiClusterConfigs.LocalClusterName = secondaryClusterName
 		}
 	}
 
-	// Check if multiClusterConfigs are specified for external clusters
-	// If multiClusterConfigs is not specified, then clean up any old external cluster related config in case user had
-	// specified multiClusterConfig earlier and now removed those configs
-	if multiClusterConfigs == nil || len(multiClusterConfigs) == 0 {
-		log.Infof("No multi cluster config provided.")
+	// Check if externalClustersConfig are specified for external clusters
+	// If externalClustersConfig is not specified, then clean up any old external cluster related config in case user had
+	// specified externalClusterConfigs earlier and now removed those configs
+	if externalClusterConfigs == nil || len(externalClusterConfigs) == 0 {
+		log.Infof("There is no externalClustersConfig section or there are no clusters defined in it.")
 		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
 		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
@@ -2037,33 +2037,33 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				}
 			}
 		}
-		if ctlr.resources.multiClusterConfigs != nil && len(ctlr.resources.multiClusterConfigs) > 0 {
-			for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+		if ctlr.resources.externalClustersConfig != nil && len(ctlr.resources.externalClustersConfig) > 0 {
+			for clusterName, _ := range ctlr.resources.externalClustersConfig {
 				// Avoid deleting HA cluster related configs
 				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
 					continue
 				}
-				delete(ctlr.resources.multiClusterConfigs, clusterName)
+				delete(ctlr.resources.externalClustersConfig, clusterName)
 			}
 		}
 		return nil
 	}
 
 	currentClusterSecretKeys := make(map[string]struct{})
-	for _, mcc := range multiClusterConfigs {
+	for _, mcc := range externalClusterConfigs {
 
 		// Store the cluster keys which will be used to detect deletion of a cluster later
 		currentClusterSecretKeys[mcc.ClusterName] = struct{}{}
 
 		// Both cluster name and secret are mandatory
 		if mcc.ClusterName == "" || mcc.Secret == "" {
-			log.Warningf("clusterName or secret not provided in multiClusterConfig")
+			log.Warningf("clusterName or secret not provided in externalClustersConfig section")
 			continue
 		}
 
 		// Check and discard multiCluster config if an HA cluster is used as external cluster
 		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName {
-			log.Warningf("Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in multiClusterConfigs.", mcc.ClusterName)
+			log.Warningf("Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in externalClustersConfig section.", mcc.ClusterName)
 			continue
 		}
 
@@ -2075,9 +2075,9 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			continue
 		}
 
-		// Update the new valid cluster config to the multiClusterConfigs cache if not already present
-		if _, ok := ctlr.resources.multiClusterConfigs[mcc.ClusterName]; !ok {
-			ctlr.resources.multiClusterConfigs[mcc.ClusterName] = mcc
+		// Update the new valid cluster config to the externalClustersConfig cache if not already present
+		if _, ok := ctlr.resources.externalClustersConfig[mcc.ClusterName]; !ok {
+			ctlr.resources.externalClustersConfig[mcc.ClusterName] = mcc
 		}
 
 		// If cluster config has been processed already and kubeclient has been created then skip it
@@ -2104,27 +2104,27 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 		}
 	}
-	// Check if a cluster config has been removed then remove the data associated with it from the multiClusterConfigs store
-	for clusterName, _ := range ctlr.resources.multiClusterConfigs {
+	// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
+	for clusterName, _ := range ctlr.resources.externalClustersConfig {
 		if _, ok := currentClusterSecretKeys[clusterName]; !ok {
 			// Ensure HA cluster config is not deleted
 			if clusterName == primaryClusterName || clusterName == secondaryClusterName {
 				continue
 			}
 			// Delete config from the cached valid mutiClusterConfig data
-			delete(ctlr.resources.multiClusterConfigs, clusterName)
+			delete(ctlr.resources.externalClustersConfig, clusterName)
 			// Delegate the deletion of cluster from the clusterConfig store to updateClusterConfigStore so that any
 			// additional operations (if any) can be performed
-			_ = ctlr.updateClusterConfigStore(nil, MultiClusterConfig{ClusterName: clusterName}, true)
+			_ = ctlr.updateClusterConfigStore(nil, ExternalClusterConfig{ClusterName: clusterName}, true)
 		}
 	}
 	return nil
 }
 
 // updateClusterConfigStore updates the clusterKubeConfigs store with the latest config and updated kubeclient for the cluster
-func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc MultiClusterConfig, deleted bool) error {
-	if !deleted && (kubeConfigSecret == nil || mcc == (MultiClusterConfig{})) {
-		return fmt.Errorf("no secret or MulticlusterConfig specified")
+func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc ExternalClusterConfig, deleted bool) error {
+	if !deleted && (kubeConfigSecret == nil || mcc == (ExternalClusterConfig{})) {
+		return fmt.Errorf("no secret or externalClustersConfig specified")
 	}
 	// if secret associated with a cluster kubeconfig is deleted then remove it from clusterKubeConfig store
 	if deleted {

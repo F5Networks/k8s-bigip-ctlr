@@ -1267,7 +1267,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// If this is an HA setup, consider services linked to the route from both the clusters which are part of this
 	// HA setup
 	factor := 1 // factor is used to ensure the secondary cluster services associated with the Route are also considered
-	if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 		factor = 2
 	}
 	// Default service weight is 100 as per openshift route documentation
@@ -1332,12 +1332,12 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
 			(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
 		// Route backend service in HA partner cluster
-		if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 			beIdx++
 			rbcs[beIdx].Name = route.Spec.To.Name
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairCusterName]) / totalClusterRatio)
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairCusterName
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
 		}
 	} else {
 		// Older versions of openshift do not have a weight field
@@ -1345,11 +1345,11 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		// local cluster
 		rbcs[beIdx].Weight = 0.0
 		// HA partner cluster
-		if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 			beIdx++
 			rbcs[beIdx].Name = route.Spec.To.Name
 			rbcs[beIdx].Weight = 0.0
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairCusterName
+			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
 		}
 	}
 	// Process Alternate backends
@@ -1360,12 +1360,12 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 			rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
 				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
 			// HA partner cluster
-			if ctlr.multiClusterConfigs.HAPairCusterName != "" {
+			if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairCusterName]) / totalClusterRatio)
-				rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairCusterName
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+				rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
 			}
 		}
 	}

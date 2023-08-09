@@ -18,7 +18,7 @@ data:
       secondaryCluster:
         clusterName: cluster2
         secret: default/kubeconfig2
-    multiClusterConfigs:
+    externalClustersConfig:
     - clusterName: cluster3
       secret: default/kubeconfig3
     - clusterName: cluster4

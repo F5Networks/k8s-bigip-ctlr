@@ -67,7 +67,7 @@ func (rs *ResourceStore) Init() {
 	rs.svcResourceCache = make(map[MultiClusterServiceKey]map[string]svcResourceCacheMeta)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
-	rs.multiClusterConfigs = make(map[string]MultiClusterConfig)
+	rs.externalClustersConfig = make(map[string]ExternalClusterConfig)
 }
 
 const (
@@ -560,9 +560,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				// update the multicluster resource serviceMap with local cluster services
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
 				// update the multicluster resource serviceMap with HA pair cluster services
-				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort,
-						ctlr.multiClusterConfigs.HAPairCusterName)
+						ctlr.multiClusterConfigs.HAPairClusterName)
 				}
 			} else {
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
@@ -1945,9 +1945,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		// update the multicluster resource serviceMap with local cluster services
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 		// update the multicluster resource serviceMap with HA pair cluster services
-		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairCusterName != "" {
+		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
-				ctlr.multiClusterConfigs.HAPairCusterName)
+				ctlr.multiClusterConfigs.HAPairClusterName)
 		}
 	} else {
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")

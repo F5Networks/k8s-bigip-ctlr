@@ -2104,9 +2104,25 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	return poolMembers
 }
 
-func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
+func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString) []PoolMember {
 	var poolMembers []PoolMember
 	poolMemInfo, ok := ctlr.resources.poolMemCache[mSvcKey]
+	if !ok || len(poolMemInfo.memberMap) == 0 {
+		log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
+		return poolMembers
+	}
+	for ref, mems := range poolMemInfo.memberMap {
+		if ref.name != servicePort.StrVal && ref.port != servicePort.IntVal {
+			continue
+		}
+		poolMembers = append(poolMembers, mems...)
+	}
+	return poolMembers
+}
+
+func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
+	var poolMembers []PoolMember
+	poolMemInfo, _ := ctlr.resources.poolMemCache[mSvcKey]
 	switch ctlr.PoolMemberType {
 	case NodePort:
 		if !(poolMemInfo.svcType == v1.ServiceTypeNodePort ||
@@ -2114,6 +2130,14 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 			log.Errorf("Requested service backend %s not of NodePort or LoadBalancer type",
 				mSvcKey)
 			return poolMembers
+		}
+		// In non multi-cluster mode return empty poolMembers so the nodes can be removed from bigip, when app is scaled down to zero
+		// In multi-cluster mode and next gen routes as the endpoint informers are not started, we won't be updating the nodes when app is scaled down to zero.
+		if ctlr.cisType == "" {
+			epPoolMembers := ctlr.getPoolMembersForEndpoints(mSvcKey, servicePort)
+			if len(epPoolMembers) == 0 {
+				return epPoolMembers
+			}
 		}
 		for _, svcPort := range poolMemInfo.portSpec {
 			// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
@@ -2124,21 +2148,20 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 			}
 		}
 	case Cluster:
-		if !ok || len(poolMemInfo.memberMap) == 0 {
-			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
-			return poolMembers
-		}
-		for ref, mems := range poolMemInfo.memberMap {
-			if ref.name != servicePort.StrVal && ref.port != servicePort.IntVal {
-				continue
-			}
-			poolMembers = append(poolMembers, mems...)
-		}
+		return ctlr.getPoolMembersForEndpoints(mSvcKey, servicePort)
 	case NodePortLocal:
 		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
 			log.Debugf("Requested service backend %s is of type NodePort is not valid for nodeportlocal mode.",
 				mSvcKey)
 			return poolMembers
+		}
+		// In non multi-cluster mode return empty poolMembers so the nodes can be removed from bigip, when app is scaled down to zero
+		// In multi-cluster mode and next gen routes as the endpoint informers are not started, we won't be updating the nodes when app is scaled down to zero.
+		if ctlr.cisType == "" {
+			epPoolMembers := ctlr.getPoolMembersForEndpoints(mSvcKey, servicePort)
+			if len(epPoolMembers) == 0 {
+				return epPoolMembers
+			}
 		}
 		pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, true)
 		if pods != nil {
@@ -2663,50 +2686,42 @@ func (ctlr *Controller) processService(
 	pmi.portSpec = svc.Spec.Ports
 	pmi.svcType = svc.Spec.Type
 	nodes := ctlr.getNodesFromCache(svcKey.clusterName)
-	switch ctlr.PoolMemberType {
-	case NodePort, NodePortLocal:
-		for _, port := range pmi.portSpec {
-			var members []PoolMember
-			portKey := portRef{name: port.Name, port: port.TargetPort.IntVal}
-			// currently we are adding the empty pool member as nodes will be updated at the time of Pool processing
-			// nodes are updated based on the node selector label which is available in the Pool Resource
-			pmi.memberMap[portKey] = members
+	var eps *v1.Endpoints
+	if clusterName == "" {
+		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return fmt.Errorf("unable to process Service: %v", svcKey)
 		}
-	case Cluster:
-		var eps *v1.Endpoints
-		if clusterName == "" {
-			comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
-			if !ok {
-				log.Errorf("Informer not found for namespace: %v", namespace)
-				return fmt.Errorf("unable to process Service: %v", svcKey)
-			}
-			epInf := comInf.epsInformer
-			item, found, _ := epInf.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
+		if comInf.epsInformer != nil {
+			item, found, _ := comInf.epsInformer.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
 			if !found {
 				return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
 			}
 			eps, _ = item.(*v1.Endpoints)
-		} else {
-			if _, ok := ctlr.multiClusterPoolInformers[svcKey.clusterName]; ok {
-				var poolInf *MultiClusterPoolInformer
-				var found bool
-				if poolInf, found = ctlr.multiClusterPoolInformers[clusterName][""]; !found {
-					poolInf, found = ctlr.multiClusterPoolInformers[clusterName][svcKey.namespace]
-				}
-				if !found {
-					return fmt.Errorf("Informer not found for namespace: %v in cluster: %s", svcKey.namespace, clusterName)
-				}
+		}
+	} else {
+		if _, ok := ctlr.multiClusterPoolInformers[svcKey.clusterName]; ok {
+			var poolInf *MultiClusterPoolInformer
+			var found bool
+			if poolInf, found = ctlr.multiClusterPoolInformers[clusterName][""]; !found {
+				poolInf, found = ctlr.multiClusterPoolInformers[clusterName][svcKey.namespace]
+			}
+			if !found {
+				return fmt.Errorf("Informer not found for namespace: %v in cluster: %s", svcKey.namespace, clusterName)
+			}
 
-				mEpInf := poolInf.epsInformer
-				mItem, mFound, _ := mEpInf.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
+			if poolInf.epsInformer != nil {
+				mItem, mFound, _ := poolInf.epsInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
 				if !mFound {
 					return fmt.Errorf("Endpoints for service '#{svcKey}' not found!")
 				}
 				eps, _ = mItem.(*v1.Endpoints)
-
 			}
 		}
+	}
 
+	if eps != nil {
 		if len(eps.Subsets) == 0 {
 			for _, port := range pmi.portSpec {
 				portKey := portRef{name: port.Name, port: port.TargetPort.IntVal}
@@ -2731,6 +2746,14 @@ func (ctlr *Controller) processService(
 				portKey := portRef{name: p.Name, port: p.Port}
 				pmi.memberMap[portKey] = members
 			}
+		}
+	} else {
+		for _, port := range pmi.portSpec {
+			portKey := portRef{name: port.Name, port: port.TargetPort.IntVal}
+			// currently we are adding the empty pool member as nodes will be updated at the time of Pool processing
+			// nodes are updated based on the node selector label which is available in the Pool Resource
+			var members []PoolMember
+			pmi.memberMap[portKey] = members
 		}
 	}
 	ctlr.resources.poolMemCache[svcKey] = pmi

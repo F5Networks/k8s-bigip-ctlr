@@ -284,7 +284,7 @@ func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string) error
 // if endPoint is configured then CIS will exit
 func (ctlr *Controller) checkSecondaryCISConfig() {
 	if ctlr.cisType == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
-		log.Debugf("error: cis running in secondary mode and missing primary cluster health check endPoint. ")
+		log.Debugf("error: cis running in secondary mode and missing primaryEndPoint under highAvailabilityCIS section. ")
 		os.Exit(1)
 	}
 }
@@ -293,7 +293,7 @@ func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
 ) (*MultiClusterPoolInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters only
-	if clusterName == ctlr.multiClusterConfigs.HAPairCusterName && ctlr.watchingAllNamespaces() {
+	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
 	nsPoolInf, ok := ctlr.multiClusterPoolInformers[clusterName]

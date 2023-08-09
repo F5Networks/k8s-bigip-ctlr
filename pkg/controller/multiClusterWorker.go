@@ -9,7 +9,7 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 
 	// if no external cluster is configured skip processing
 	if len(ctlr.multiClusterConfigs.ClusterConfigs) == 0 {
-		log.Debugf("no external cluster configuration found.")
+		log.Debugf("There is no externalClustersConfig section or there are no clusters defined in it.")
 		return
 	}
 

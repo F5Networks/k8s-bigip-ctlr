@@ -2832,6 +2832,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			DataServer:    pl.DataServerName,
 			Ratio:         pl.Ratio,
 		}
+		if pl.LBModeFallback != "" {
+			pool.LBModeFallBack = pl.LBModeFallback
+		} else {
+			pool.LBModeFallBack = "return-to-dns"
+		}
 
 		if pl.DNSRecordType == "" {
 			pool.RecordType = "A"

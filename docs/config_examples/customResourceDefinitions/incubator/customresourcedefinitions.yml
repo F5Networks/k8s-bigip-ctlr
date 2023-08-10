@@ -712,6 +712,9 @@ spec:
                       loadBalanceMethod:
                         type: string
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'
+                      lbModeFallback:
+                        type: string
+                        pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                       order:
                         type: integer
                       ratio:

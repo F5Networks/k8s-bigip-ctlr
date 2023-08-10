@@ -17,8 +17,8 @@ Added Functionality
         * Wildcard domain support for EDNS
         * Support Client Subnet config capability from EDNS in AS3 mode
         * Support NodePortLocal mode with all CRD resources
-    * New log level **AS3DEBUG** to log the AS3 request & response.
-
+        * New log level **AS3DEBUG** to log the AS3 request & response.
+        * `Issue 3004 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3004>`_:Support for fallbackLbmode with EDNS CRD
 Bug Fixes
 ````````````
 * `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode

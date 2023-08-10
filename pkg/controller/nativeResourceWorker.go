@@ -1044,8 +1044,8 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 	// Global configmap once gets processed even before processing other native resources
 	if ctlr.initState {
 		ctlr.resources.extdSpecMap = newExtdSpecMap
-		for rg, ergps := range newExtdSpecMap {
-			if !ctlr.namespaceLabelMode && ergps.override {
+		for rg, _ := range newExtdSpecMap {
+			if !ctlr.namespaceLabelMode {
 				// check for alternative local configmaps (pick latest)
 				// process if one is available
 				localCM := ctlr.getLatestLocalConfigMap(rg)

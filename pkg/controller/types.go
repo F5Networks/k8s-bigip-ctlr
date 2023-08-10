@@ -366,14 +366,15 @@ type (
 	}
 
 	GSLBPool struct {
-		Name          string    `json:"name"`
-		RecordType    string    `json:"recordType"`
-		LBMethod      string    `json:"LoadBalancingMode"`
-		PriorityOrder int       `json:"order"`
-		Ratio         int       `json:"ratio"`
-		Members       []string  `json:"members"`
-		Monitors      []Monitor `json:"monitors,omitempty"`
-		DataServer    string
+		Name           string    `json:"name"`
+		RecordType     string    `json:"recordType"`
+		LBMethod       string    `json:"LoadBalancingMode"`
+		LBModeFallBack string    `json:"fallbackMode"`
+		PriorityOrder  int       `json:"order"`
+		Ratio          int       `json:"ratio"`
+		Members        []string  `json:"members"`
+		Monitors       []Monitor `json:"monitors,omitempty"`
+		DataServer     string
 	}
 
 	ResourceConfigRequest struct {
@@ -1119,11 +1120,12 @@ type (
 
 	// as3GSLBPool maps to GSLB_Pool in AS3 Resources
 	as3GSLBPool struct {
-		Class      string               `json:"class"`
-		RecordType string               `json:"resourceRecordType"`
-		LBMode     string               `json:"lbModeAlternate"`
-		Members    []as3GSLBPoolMemberA `json:"members"`
-		Monitors   []as3ResourcePointer `json:"monitors"`
+		Class          string               `json:"class"`
+		RecordType     string               `json:"resourceRecordType"`
+		LBMode         string               `json:"lbModeAlternate"`
+		LBModeFallback string               `json:"lbModeFallback"`
+		Members        []as3GSLBPoolMemberA `json:"members"`
+		Monitors       []as3ResourcePointer `json:"monitors"`
 	}
 
 	// as3GSLBPoolMemberA maps to GSLB_Pool_Member_A in AS3 Resources

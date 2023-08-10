@@ -298,16 +298,17 @@ Note: **monitors** take priority over **monitor** if both are provided in TS spe
 
 **Pool Components**
 
-| PARAMETER          | TYPE    | REQUIRED | DEFAULT | DESCRIPTION |
-|--------------------|---------| ------ | ------ | ------ |
-| name               | String  | Required | NA | Name of the GSLB pool |
-| dnsRecordType      | String  | Optional | NA | DNS record type |
-| order              | Integer | Optional | NA | Priority order of wideIP pool members (effective when used with Global Availability load balancing method) |
-| loadBalancerMethod | String  | Optional | round-robin | Load balancing method for DNS traffic |
-| dataServerName     | String  | Required | NA | Name of the GSLB server on BIG-IP (i.e. /Common/SiteName) |
-| monitor            | Monitor | Optional | NA | Monitor for GSLB Pool |
-| monitors           | Monitor | Optional | NA | Specifies multiple monitors for GSLB Pool |
-| ratio              | Integer     | Optional | 1  | Ratio weight assigned to GSLB pool        |
+| PARAMETER         | TYPE    | REQUIRED | DEFAULT       | DESCRIPTION                                                                                                |
+|-------------------|---------|----------|---------------|------------------------------------------------------------------------------------------------------------|
+| name              | String  | Required | NA            | Name of the GSLB pool                                                                                      |
+| dnsRecordType     | String  | Optional | NA            | DNS record type                                                                                            |
+| order             | Integer | Optional | NA            | Priority order of wideIP pool members (effective when used with Global Availability load balancing method) |
+| loadBalanceMethod | String  | Optional | round-robin   | Load balancing method for DNS traffic                                                                      |
+| lbModeFallback    | String  | Optional | return-to-dns | Load balancing mode that the system uses if preferred and alternate loadbalancing modes are unsuccessful   |
+| dataServerName    | String  | Required | NA            | Name of the GSLB server on BIG-IP (i.e. /Common/SiteName)                                                  |
+| monitor           | Monitor | Optional | NA            | Monitor for GSLB Pool                                                                                      |
+| monitors          | Monitor | Optional | NA            | Specifies multiple monitors for GSLB Pool                                                                  |
+| ratio             | Integer | Optional | 1             | Ratio weight assigned to GSLB pool                                                                         |
 
 
 

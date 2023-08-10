@@ -739,11 +739,12 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 			}
 			for _, pool := range wideIP.Pools {
 				gslbPool := as3GSLBPool{
-					Class:      "GSLB_Pool",
-					RecordType: pool.RecordType,
-					LBMode:     pool.LBMethod,
-					Members:    make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
-					Monitors:   make([]as3ResourcePointer, 0, len(pool.Monitors)),
+					Class:          "GSLB_Pool",
+					RecordType:     pool.RecordType,
+					LBMode:         pool.LBMethod,
+					LBModeFallback: pool.LBModeFallBack,
+					Members:        make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
+					Monitors:       make([]as3ResourcePointer, 0, len(pool.Monitors)),
 				}
 
 				for _, mem := range pool.Members {

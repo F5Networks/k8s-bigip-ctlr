@@ -67,6 +67,8 @@ func NewLogLevel(s string) *LogLevel {
 	switch s {
 	case "":
 		return nil
+	case "as3debug":
+		r = LL_DEBUG
 	case "debug":
 		r = LL_DEBUG
 	case "info":

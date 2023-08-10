@@ -773,7 +773,8 @@ type (
 		SSLInsecure   bool
 		AS3PostDelay  int
 		// Log the AS3 response body in Controller logs
-		LogResponse       bool
+		LogAS3Response    bool
+		LogAS3Request     bool
 		HTTPClientMetrics bool
 	}
 

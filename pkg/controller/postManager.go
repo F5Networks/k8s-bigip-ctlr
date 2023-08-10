@@ -108,6 +108,10 @@ func (postMgr *PostManager) publishConfig(cfg agentConfig) {
 }
 
 func (postMgr *PostManager) postConfig(cfg *agentConfig) {
+	// log as3 request if it's set
+	if postMgr.LogAS3Request {
+		postMgr.logAS3Request(cfg.data)
+	}
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
@@ -168,7 +172,7 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3] Response body unmarshal failed: %v\n", err)
-		if postMgr.LogResponse {
+		if postMgr.LogAS3Response {
 			log.Errorf("[AS3] Raw response from Big-IP: %v", string(body))
 		}
 		return nil, nil
@@ -274,15 +278,15 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	} else {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", http.StatusNotFound)
 	}
-	if postMgr.LogResponse {
-		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
 	}
 	postMgr.updateTenantResponse(http.StatusNotFound, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *agentConfig) {
-	if postMgr.LogResponse {
-		log.Errorf("[AS3] Raw response from Big-IP: %v %v", responseMap, cfg.data)
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
 	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
@@ -413,7 +417,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("Response body unmarshal failed: %v\n", err)
-		if postMgr.LogResponse {
+		if postMgr.LogAS3Response {
 			log.Errorf("Raw response from Big-IP: %v", string(body))
 		}
 		return nil, nil
@@ -429,4 +433,66 @@ func (postMgr *PostManager) getAS3VersionURL() string {
 func (postMgr *PostManager) getBigipRegKeyURL() string {
 	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"
 	return apiURL
+}
+
+func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
+	// removing the certificates/privateKey from response log
+	if declaration, ok := (responseMap["declaration"]).([]interface{}); ok {
+		for _, value := range declaration {
+			if tenantMap, ok := value.(map[string]interface{}); ok {
+				for _, value2 := range tenantMap {
+					if appMap, ok := value2.(map[string]interface{}); ok {
+						for _, obj := range appMap {
+							if crt, ok := obj.(map[string]interface{}); ok {
+								if crt["class"] == "Certificate" {
+									crt["certificate"] = ""
+									crt["privateKey"] = ""
+									crt["chainCA"] = ""
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		decl, err := json.Marshal(declaration)
+		if err != nil {
+			log.Errorf("[AS3] error while reading declaration from AS3 response: %v\n", err)
+			return
+		}
+		responseMap["declaration"] = as3Declaration(decl)
+	}
+	log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+}
+
+func (postMgr *PostManager) logAS3Request(cfg string) {
+	var as3Config map[string]interface{}
+	err := json.Unmarshal([]byte(cfg), &as3Config)
+	if err != nil {
+		log.Errorf("Request body unmarshal failed: %v\n", err)
+	}
+	adc := as3Config["declaration"].(map[string]interface{})
+	for _, value := range adc {
+		if tenantMap, ok := value.(map[string]interface{}); ok {
+			for _, value2 := range tenantMap {
+				if appMap, ok := value2.(map[string]interface{}); ok {
+					for _, obj := range appMap {
+						if crt, ok := obj.(map[string]interface{}); ok {
+							if crt["class"] == "Certificate" {
+								crt["certificate"] = ""
+								crt["privateKey"] = ""
+								crt["chainCA"] = ""
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	decl, err := json.Marshal(as3Config)
+	if err != nil {
+		log.Errorf("[AS3] Unified declaration error: %v\n", err)
+		return
+	}
+	log.Debugf("[AS3] Unified declaration: %v\n", as3Declaration(decl))
 }

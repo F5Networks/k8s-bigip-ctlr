@@ -172,6 +172,7 @@ var (
 	agent                  *string
 	ccclGtmAgent           *bool
 	logAS3Response         *bool
+	logAS3Request          *bool
 	shareNodes             *bool
 	overriderAS3CfgmapName *string
 	filterTenants          *bool
@@ -232,6 +233,10 @@ func _init() {
 			width = 0
 		}
 	}
+
+	// set log-as3-request
+	as3RequestFalse := false
+	logAS3Request = &as3RequestFalse
 
 	// Global flags
 	pythonBaseDir = globalFlags.String("python-basedir", "",
@@ -473,10 +478,14 @@ func initLogger(logLevel, logFile string) error {
 		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, logger)
 
 	if ll := log.NewLogLevel(logLevel); nil != ll {
+		if logLevel == "AS3DEBUG" {
+			*logAS3Request = true
+			*logAS3Response = true
+		}
 		log.SetLogLevel(*ll)
 	} else {
 		return fmt.Errorf("Unknown log level requested: %s\n"+
-			"    Valid log levels are: DEBUG, INFO, WARNING, ERROR, CRITICAL", logLevel)
+			"    Valid log levels are: AS3DEBUG, DEBUG, INFO, WARNING, ERROR, CRITICAL", logLevel)
 	}
 	return nil
 }
@@ -840,7 +849,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       true,
 		AS3PostDelay:      *as3PostDelay,
-		LogResponse:       *logAS3Response,
+		LogAS3Response:    *logAS3Response,
+		LogAS3Request:     *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -1252,7 +1262,8 @@ func getAS3Params() *as3.Params {
 		SSLInsecure:               *sslInsecure,
 		IPAM:                      *ipam,
 		AS3PostDelay:              *as3PostDelay,
-		LogResponse:               *logAS3Response,
+		LogAS3Response:            *logAS3Response,
+		LogAS3Request:             *logAS3Request,
 		ShareNodes:                *shareNodes,
 		RspChan:                   agRspChan,
 		UserAgent:                 userAgentInfo,

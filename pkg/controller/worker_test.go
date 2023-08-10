@@ -1551,7 +1551,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
 			mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			mockPM.LogResponse = true
+			mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
@@ -2903,7 +2903,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
 			mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			mockPM.LogResponse = true
+			mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"

@@ -146,7 +146,8 @@ type Params struct {
 	ConfigWriter        writer.Writer
 	EventChan           chan interface{}
 	// Log the AS3 response body in Controller logs
-	LogResponse               bool
+	LogAS3Response            bool
+	LogAS3Request             bool
 	ShareNodes                bool
 	RspChan                   chan interface{}
 	UserAgent                 string
@@ -196,7 +197,8 @@ func NewAS3Manager(params *Params) *AS3Manager {
 			TrustedCerts:      params.TrustedCerts,
 			SSLInsecure:       params.SSLInsecure,
 			AS3PostDelay:      params.AS3PostDelay,
-			LogResponse:       params.LogResponse,
+			LogAS3Response:    params.LogAS3Response,
+			LogAS3Request:     params.LogAS3Request,
 			HTTPClientMetrics: params.HTTPClientMetrics,
 		}),
 	}

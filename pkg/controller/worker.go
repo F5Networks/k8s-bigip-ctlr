@@ -643,7 +643,19 @@ func (ctlr *Controller) processResources() bool {
 			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
 		}
-		go ctlr.TeemData.PostTeemsData()
+
+		if ctlr.multiClusterMode != "" {
+			// only standalone CIS & Primary CIS should post the teems data
+			if ctlr.multiClusterMode != SecondaryCIS {
+				// using node informers to count the clusters as it will be available in all CNIs
+				// adding 1 for the current cluster
+				ctlr.TeemData.ClusterCount = len(ctlr.multiClusterNodeInformers) + 1
+				go ctlr.TeemData.PostTeemsData()
+			}
+		} else {
+			// In non multi-cluster mode, we should post the teems data
+			go ctlr.TeemData.PostTeemsData()
+		}
 		config.reqId = ctlr.enqueueReq(config)
 		ctlr.Agent.PostConfig(config)
 		ctlr.initState = false

@@ -39,6 +39,7 @@ type TeemsData struct {
 	ResourceType    ResourceTypes
 	AccessEnabled   bool // Will be set to false if network rules don't permit
 	RegistrationKey string
+	ClusterCount    int
 }
 
 const (
@@ -92,6 +93,7 @@ func (td *TeemsData) PostTeemsData() bool {
 		"mode":                     td.PoolMemberType,
 		"sdnType":                  td.SDNType,
 		"registrationKey":          td.RegistrationKey,
+		"clusterCount":             td.ClusterCount,
 		"ingressCount":             td.ResourceType.Ingresses[TOTAL],
 		"routesCount":              td.ResourceType.Routes[TOTAL],
 		"configmapsCount":          td.ResourceType.Configmaps[TOTAL],

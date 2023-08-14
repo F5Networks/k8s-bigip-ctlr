@@ -120,7 +120,7 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 |------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
 | service          | String  | Required | NA      | service name for alternate backend                                                            |
 | serviceNamespace | String  | Optional | NA      | namespace of the backend service if its present in namespace different than virtual server CR |
-| weight           | Integer | Required | NA      | weight allocated for the alternate backend service                                            |
+| weight           | Integer | Optional | 100     | weight allocated for the alternate backend service                                            |
 
 **Service_Address Components**
 

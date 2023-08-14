@@ -95,7 +95,7 @@ type Pool struct {
 	ReselectTries        int32                          `json:"reselectTries,omitempty"`
 	ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
-	Weight               int32                          `json:"weight,omitempty"`
+	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends"`
 	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
 }
@@ -104,7 +104,7 @@ type Pool struct {
 type AlternateBackend struct {
 	Service          string `json:"service"`
 	ServiceNamespace string `json:"serviceNamespace,omitempty"`
-	Weight           int32  `json:"weight,omitempty"`
+	Weight           *int32 `json:"weight,omitempty"`
 }
 
 type MultiClusterServiceReference struct {

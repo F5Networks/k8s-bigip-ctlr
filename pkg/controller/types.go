@@ -694,9 +694,10 @@ type (
 		Cluster string
 	}
 	SvcBackendCxt struct {
-		Weight       int
+		Weight       float64
 		Name         string
 		SvcNamespace string `json:"svcNamespace,omitempty"`
+		Cluster      string
 	}
 )
 

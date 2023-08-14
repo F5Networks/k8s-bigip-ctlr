@@ -272,7 +272,8 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
 			rsCfg.IntDgMap = make(InternalDataGroupMap)
 			rsCfg.IRulesMap = make(IRulesMap)
-
+			weight1 := int32(70)
+			weight2 := int32(30)
 			vs := test.NewVirtualServer(
 				"SampleVS",
 				namespace,
@@ -289,12 +290,12 @@ var _ = Describe("Resource Config Tests", func() {
 								Interval: 15,
 								Timeout:  10,
 							},
-							Weight: 70,
+							Weight: &weight1,
 							AlternateBackends: []cisapiv1.AlternateBackend{
 								{
 									Service:          "svc1-b",
 									ServiceNamespace: "test2",
-									Weight:           30,
+									Weight:           &weight2,
 								},
 							},
 						},
@@ -1331,6 +1332,8 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Handle TLS for AB Virtual Server", func() {
+			weight1 := int32(70)
+			weight2 := int32(30)
 			vs1 := test.NewVirtualServer(
 				"SampleVS",
 				namespace,
@@ -1348,12 +1351,12 @@ var _ = Describe("Resource Config Tests", func() {
 								Interval: 15,
 								Timeout:  10,
 							},
-							Weight: 70,
+							Weight: &weight1,
 							AlternateBackends: []cisapiv1.AlternateBackend{
 								{
 									Service:          "svc1-b",
 									ServiceNamespace: "test2",
-									Weight:           30,
+									Weight:           &weight2,
 								},
 							},
 						},
@@ -1400,8 +1403,9 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.IntDgMap[nameRef]["default"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
 
 			// Weight = 0
-			vs1.Spec.Pools[0].Weight = 0
-			vs1.Spec.Pools[0].AlternateBackends[0].Weight = 0
+			zeroWeight := int32(0)
+			vs1.Spec.Pools[0].Weight = &zeroWeight
+			vs1.Spec.Pools[0].AlternateBackends[0].Weight = &zeroWeight
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 			nameRef = NameRef{

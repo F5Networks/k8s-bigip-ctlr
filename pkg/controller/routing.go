@@ -1202,6 +1202,10 @@ func isVsPathBasedABDeployment(pool *cisapiv1.Pool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
 
+func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode HAModeType) bool {
+	return mode == Ratio && (route.Spec.Path != "" && route.Spec.Path != "/")
+}
+
 // GetRouteBackends returns the services associated with a route (names + weight)
 func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []cisapiv1.MultiClusterServiceReference) []RouteBackendCxt {
 	var rbcs []RouteBackendCxt

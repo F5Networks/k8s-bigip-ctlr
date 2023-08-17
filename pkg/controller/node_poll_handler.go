@@ -103,6 +103,10 @@ func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 		for svcKey, _ := range svcKeys {
 			ctlr.updatePoolMembersForService(svcKey)
 		}
+		key := &rqKey{
+			kind: NodeUpdate,
+		}
+		ctlr.resourceQueue.Add(key)
 	}
 }
 

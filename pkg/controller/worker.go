@@ -1373,18 +1373,29 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		}
 
 		if currentVS.Spec.HostGroup == "" {
-			// in the absence of HostGroup, skip the virtuals with other host name
+			// in the absence of HostGroup, skip the virtuals with other host name if tls terminations are also same
 			if vrt.Spec.Host != currentVS.Spec.Host {
-				continue
+				if vrt.Spec.TLSProfileName != "" && currentVS.Spec.TLSProfileName != "" {
+					vrtTLS := ctlr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
+					currentVSTLS := ctlr.getTLSProfileForVirtualServer(currentVS, currentVS.Namespace)
+					// Skip VS if terminations are different
+					if (vrtTLS == nil || currentVSTLS == nil) || vrtTLS.Spec.TLS.Termination == currentVSTLS.Spec.TLS.Termination {
+						continue
+					}
+					// In case the terminations are different then consider the VS in the this group
+				} else {
+					// Skip VS if hosts don't match and any one of VS is unsecured VS
+					continue
+				}
 			}
 
 			// Same host with different VirtualServerAddress is invalid
 			if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
-				if vrt.Spec.Host != "" {
+				if vrt.Spec.Host != "" && vrt.Spec.Host == currentVS.Spec.Host {
 					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
 					return nil
 				}
-				// In case of empty host name, skip the virtual with other VirtualServerAddress
+				// In case of empty host name or host names not matching, skip the virtual with other VirtualServerAddress
 				continue
 			}
 			//with additonalVirtualServerAddresses, skip the virtuals if ip list doesn't match

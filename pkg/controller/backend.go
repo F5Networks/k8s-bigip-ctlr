@@ -726,16 +726,18 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 		for domainName, wideIP := range gtmPartitionConfig.WideIPs {
 
 			gslbDomain := as3GLSBDomain{
-				Class:                 "GSLB_Domain",
-				DomainName:            wideIP.DomainName,
-				RecordType:            wideIP.RecordType,
-				LBMode:                wideIP.LBMethod,
-				PersistenceEnabled:    wideIP.PersistenceEnabled,
-				PersistCidrIPv4:       wideIP.PersistCidrIPv4,
-				PersistCidrIPv6:       wideIP.PersistCidrIPv6,
-				TTLPersistence:        wideIP.TTLPersistence,
-				ClientSubnetPreferred: wideIP.ClientSubnetPreferred,
-				Pools:                 make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
+				Class:              "GSLB_Domain",
+				DomainName:         wideIP.DomainName,
+				RecordType:         wideIP.RecordType,
+				LBMode:             wideIP.LBMethod,
+				PersistenceEnabled: wideIP.PersistenceEnabled,
+				PersistCidrIPv4:    wideIP.PersistCidrIPv4,
+				PersistCidrIPv6:    wideIP.PersistCidrIPv6,
+				TTLPersistence:     wideIP.TTLPersistence,
+				Pools:              make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
+			}
+			if wideIP.ClientSubnetPreferred != nil {
+				gslbDomain.ClientSubnetPreferred = wideIP.ClientSubnetPreferred
 			}
 			for _, pool := range wideIP.Pools {
 				gslbPool := as3GSLBPool{

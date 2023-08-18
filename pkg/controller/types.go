@@ -354,7 +354,7 @@ type (
 
 	WideIP struct {
 		DomainName            string     `json:"name"`
-		ClientSubnetPreferred bool       `json:"clientSubnetPreferred"`
+		ClientSubnetPreferred *bool      `json:"clientSubnetPreferred,omitempty"`
 		RecordType            string     `json:"recordType"`
 		LBMethod              string     `json:"LoadBalancingMode"`
 		PersistenceEnabled    bool       `json:"persistenceEnabled"`
@@ -1109,7 +1109,7 @@ type (
 		PersistCidrIPv4       uint8               `json:"persistCidrIpv4"`
 		PersistCidrIPv6       uint8               `json:"persistCidrIpv6"`
 		TTLPersistence        uint32              `json:"ttlPersistence"`
-		ClientSubnetPreferred bool                `json:"clientSubnetPreferred"`
+		ClientSubnetPreferred *bool               `json:"clientSubnetPreferred,omitempty"`
 		Pools                 []as3GSLBDomainPool `json:"pools"`
 	}
 

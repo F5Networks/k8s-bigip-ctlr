@@ -285,7 +285,7 @@ type ExternalDNSSpec struct {
 	PersistCidrIPv4       uint8     `json:"persistCidrIpv4"`
 	PersistCidrIPv6       uint8     `json:"persistCidrIpv6"`
 	TTLPersistence        uint32    `json:"ttlPersistence"`
-	ClientSubnetPreferred bool      `json:"clientSubnetPreferred"`
+	ClientSubnetPreferred *bool     `json:"clientSubnetPreferred,omitempty"`
 	Pools                 []DNSPool `json:"pools"`
 }
 

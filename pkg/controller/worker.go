@@ -3895,6 +3895,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if es.HAMode != "" {
 			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
 				ctlr.haModeType = es.HAMode
+				ctlr.Agent.HAMode = true
 			} else {
 				log.Errorf("Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio)")

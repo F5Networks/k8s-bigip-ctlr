@@ -509,11 +509,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				continue
 			}
 			framedPools[poolName] = struct{}{}
-			targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
 			svcNamespace := vs.Namespace
 			if SvcBackend.SvcNamespace != "" {
 				svcNamespace = SvcBackend.SvcNamespace
 			}
+			targetPort := ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
 			pool := Pool{
 				Name:              poolName,
 				Partition:         rsCfg.Virtual.Partition,
@@ -769,13 +769,13 @@ func (ctlr *Controller) handleDefaultPool(
 			rsCfg.MetaData.defaultPoolType = BIGIP
 		} else if vs.Spec.DefaultPool.Reference == ServiceRef {
 			rsCfg.Virtual.PoolName = ctlr.framePoolNameForDefaultPool(vs.Namespace, vs.Spec.DefaultPool, vs.Spec.Host)
-			targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.DefaultPool.Service, vs.Spec.DefaultPool.ServicePort)
-			if (intstr.IntOrString{}) == targetPort {
-				targetPort = vs.Spec.DefaultPool.ServicePort
-			}
 			svcNamespace := vs.Namespace
 			if vs.Spec.DefaultPool.ServiceNamespace != "" {
 				svcNamespace = vs.Spec.DefaultPool.ServiceNamespace
+			}
+			targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.DefaultPool.Service, vs.Spec.DefaultPool.ServicePort)
+			if (intstr.IntOrString{}) == targetPort {
+				targetPort = vs.Spec.DefaultPool.ServicePort
 			}
 			pool := Pool{
 				Name:              rsCfg.Virtual.PoolName,

@@ -619,7 +619,9 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 	case HACIS:
-		log.Debugf("posting data on primary cluster down event")
+		log.Debugf("posting declaration on primary cluster down event")
+	case NodeUpdate:
+		log.Debugf("posting declaration on node update")
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}

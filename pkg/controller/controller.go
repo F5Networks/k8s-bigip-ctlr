@@ -75,6 +75,8 @@ const (
 	ConfigMap = "ConfigMap"
 	// Route is OpenShift Route
 	Route = "Route"
+	// Node update
+	NodeUpdate = "Node"
 
 	NodePort = "nodeport"
 	Cluster  = "cluster"

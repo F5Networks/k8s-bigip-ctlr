@@ -2085,6 +2085,15 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			// Skip processing the cluster config as it's already processed
 			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
 			// combination of cluster name and secret name
+			// Before continuing set cluster ratio to ensure any update in ratio of an external cluster isn't missed
+			if ctlr.haModeType == Ratio {
+				if mcc.Ratio != nil {
+					ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
+				} else {
+					one := 1
+					ctlr.clusterRatio[mcc.ClusterName] = &one
+				}
+			}
 			continue
 		}
 
@@ -2187,7 +2196,7 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	var err error
 	var kubeConfigSecret *v1.Secret
 	if comInf != nil && comInf.secretsInformer != nil {
-		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secretName)
+		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secret)
 		if err != nil {
 			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
 				secretName, clusterName, err)

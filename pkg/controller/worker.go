@@ -3879,7 +3879,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	if err != nil {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
 	}
-	if ctlr.isGlobalExtendedCM(cm) {
+	if ctlr.isGlobalExtendedCM(cm) && ctlr.multiClusterMode != "" {
 		// Get Multicluster kube-config
 		if isDelete {
 			// Handle configmap deletion
@@ -3914,15 +3914,23 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				ctlr.clusterRatio[""] = &one
 			}
 		}
-
 		// Read multi-cluster config from extended CM
-		if ctlr.multiClusterMode != "" {
-			err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
-			ctlr.checkSecondaryCISConfig()
-			ctlr.stopDeletedGlobalCMMultiClusterInformers()
-			if err != nil {
-				return err, false
+		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
+		// Log cluster ratios used only if log level is DEBUG
+		if log.GetLogLevel() == log.LL_DEBUG && len(ctlr.clusterRatio) > 0 {
+			values := ""
+			for cluster, ratio := range ctlr.clusterRatio {
+				if cluster == "" {
+					cluster = "local cluster"
+				}
+				values += fmt.Sprintf(", %s:%d", cluster, *ratio)
 			}
+			log.Debugf("Cluster ratios%s", values)
+		}
+		ctlr.checkSecondaryCISConfig()
+		ctlr.stopDeletedGlobalCMMultiClusterInformers()
+		if err != nil {
+			return err, false
 		}
 	}
 	// Process the routeSpec defined in extended configMap

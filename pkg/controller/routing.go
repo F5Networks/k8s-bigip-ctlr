@@ -86,7 +86,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		}
 		poolBackends := ctlr.GetPoolBackends(&pl)
 		skipPool := false
-		if pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0 {
+		if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.haModeType == Ratio {
 			skipPool = true
 		}
 		for _, backend := range poolBackends {
@@ -1202,6 +1202,10 @@ func isVsPathBasedABDeployment(pool *cisapiv1.Pool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
 
+func isVsPathBasedRatioDeployment(pool *cisapiv1.Pool, mode HAModeType) bool {
+	return mode == Ratio && (pool.Path != "" && pool.Path != "/")
+}
+
 func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode HAModeType) bool {
 	return mode == Ratio && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
@@ -1292,6 +1296,10 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	totalSvcWeights := float64(*(route.Spec.To.Weight)) * float64(factor)
 	// count of valid external multiCluster services
 	validExtSvcCount := 0
+	// Include HA partner cluster ratio in the totalClusterRatio calculation
+	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+	}
 	// Process multiCluster services
 	for i, svc := range clusterSvcs {
 		// Skip the service if it's not valid
@@ -1404,11 +1412,19 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	host string,
 	termination string,
 ) {
-	if !isVSABDeployment(pool) {
+	if !isVSABDeployment(pool) && ctlr.haModeType != Ratio {
+		/*
+				 AB		RATIO      Skip Updating DG
+			=========================================
+				True  	True    =       False
+				True  	False   =       False
+				False 	True    =       False
+				False  	False   =       True
+		*/
 		return
 	}
 
-	weightTotal := 0
+	weightTotal := 0.0
 	backends := ctlr.GetPoolBackends(pool)
 	for _, svc := range backends {
 		weightTotal = weightTotal + svc.Weight
@@ -1436,20 +1452,20 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 		// it's ratio percentage.  The order does not matter in regards to which
 		// service is listed first, but the list must be in ascending order.
 		var entries []string
-		runningWeightTotal := 0
+		runningWeightTotal := 0.0
 		for _, be := range backends {
 			if be.Weight == 0 {
 				continue
 			}
 			runningWeightTotal = runningWeightTotal + be.Weight
-			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+			weightedSliceThreshold := runningWeightTotal / weightTotal
 			poolName := formatPoolName(
 				namespace,
 				be.Name,
 				port,
 				"",
 				host,
-				"",
+				be.Cluster,
 			)
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)

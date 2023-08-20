@@ -3906,7 +3906,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 		// Update cluster ratio
-		if ctlr.haModeType == Ratio && ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" {
+		if ctlr.haModeType == Ratio && ctlr.multiClusterMode == StandAloneCIS {
 			if es.LocalClusterRatio != nil {
 				ctlr.clusterRatio[""] = es.LocalClusterRatio
 			} else {

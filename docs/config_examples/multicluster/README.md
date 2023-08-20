@@ -388,3 +388,5 @@ No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts
 ### Is traffic splitting with cluster ratio supported?
 Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with A/B as well.
 
+### Is A/B supported in multiCluster mode?
+Yes. CIS supports A/B with multiCluster, but for this the mode has to be set as ratio in the extended configmap.

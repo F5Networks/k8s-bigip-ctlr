@@ -888,6 +888,7 @@ func (ctlr *Controller) processGlobalExtendedConfigMap() {
 		cm, _ = obj.(*v1.ConfigMap)
 	}
 	if !exist || cm == nil || err != nil {
+		log.Warningf("Ensure Global Extended Configmap is created in CIS monitored namespace")
 		// If informer fails to fetch configmap which may occur if cis just started which means informers may not have
 		// synced properly then try to fetch using kubeClient
 		cm, err = ctlr.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
@@ -976,9 +977,10 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 }
 
 // process the routeConfigFromGlobalConfigMap
-func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool) (error, bool) {
+func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool, clusterRatioUpdate bool) (error, bool) {
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
+	routeGroupsToBeProcessed := make(map[string]struct{})
 	// Get the base route config from the Global ConfigMap
 	ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
 	var partition string
@@ -1064,6 +1066,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
 	)
 	for _, routeGroupKey := range deletedSpecs {
+		routeGroupsToBeProcessed[routeGroupKey] = struct{}{}
 		_ = ctlr.processRoutes(routeGroupKey, true)
 		if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
 			delete(ctlr.resources.extdSpecMap, routeGroupKey)
@@ -1087,6 +1090,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 	}
 
 	for _, routeGroupKey := range modifiedSpecs {
+		routeGroupsToBeProcessed[routeGroupKey] = struct{}{}
 		_ = ctlr.processRoutes(routeGroupKey, true)
 		// deleting the bigip partition when partition is changes
 		if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
@@ -1106,6 +1110,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 	}
 
 	for _, routeGroupKey := range updatedSpecs {
+		routeGroupsToBeProcessed[routeGroupKey] = struct{}{}
 		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
 		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
 		ctlr.resources.extdSpecMap[routeGroupKey].partition = newExtdSpecMap[routeGroupKey].partition
@@ -1118,6 +1123,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 	}
 
 	for _, routeGroupKey := range createdSpecs {
+		routeGroupsToBeProcessed[routeGroupKey] = struct{}{}
 		ctlr.resources.extdSpecMap[routeGroupKey] = &extendedParsedSpec{}
 		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
 		ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global
@@ -1127,6 +1133,20 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		err := ctlr.processRoutes(routeGroupKey, false)
 		if err != nil {
 			log.Errorf("%v Failed to process RouteGroup: %v on addition of extended spec", ctlr.getMultiClusterLog(), routeGroupKey)
+		}
+	}
+	// Reprocess all route groups except the ones which are already reprocessed
+	if clusterRatioUpdate && !isDelete {
+		log.Debugf("[MultiCluster] Re-processing all route groups as cluster ratio is updated")
+		for routeGroupKey, _ := range ctlr.resources.extdSpecMap {
+			if _, ok := routeGroupsToBeProcessed[routeGroupKey]; ok {
+				continue
+			}
+			err := ctlr.processRoutes(routeGroupKey, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
+			}
+
 		}
 	}
 	return nil, true

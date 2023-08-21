@@ -19,7 +19,7 @@ func (postMgr *PostManager) checkPrimaryClusterHealthStatus() bool {
 		case "tcp":
 			status = postMgr.getPrimaryClusterHealthStatusFromTCPEndPoint()
 		case "", "default":
-			log.Debugf("unsupported primaryEndPoint specified under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+			log.Debugf("[MultiCluster] unsupported primaryEndPoint specified under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 			return false
 		}
 
@@ -42,7 +42,7 @@ func (postMgr *PostManager) setPrimaryClusterHealthCheckEndPointType() {
 		} else if strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
 			postMgr.PrimaryClusterHealthProbeParams.EndPointType = "http"
 		} else {
-			log.Debugf("unsupported primaryEndPoint protocol type configured under highAvailabilityCIS section. EndPoint: %v \n "+
+			log.Debugf("[MultiCluster] unsupported primaryEndPoint protocol type configured under highAvailabilityCIS section. EndPoint: %v \n "+
 				"supported protocols:[http, tcp] ", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 			os.Exit(1)
 		}
@@ -56,13 +56,13 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 		return false
 	}
 	if !strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
-		log.Debugf("Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+		log.Debugf("[MultiCluster] Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
 
 	req, err := http.NewRequest("GET", postMgr.PrimaryClusterHealthProbeParams.EndPoint, nil)
 	if err != nil {
-		log.Errorf("Creating new HTTP request error: %v ", err)
+		log.Errorf("[MultiCluster] Creating new HTTP request error: %v ", err)
 		return false
 	}
 
@@ -71,7 +71,7 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 		postMgr.httpClient.Timeout = timeOut
 	}()
 	if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
-		log.Debugf("posting GET Check primaryEndPoint Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+		log.Debugf("[MultiCluster] posting GET Check primaryEndPoint Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 	}
 	postMgr.httpClient.Timeout = 10 * time.Second
 
@@ -83,7 +83,7 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 	case http.StatusOK:
 		return true
 	case http.StatusNotFound, http.StatusInternalServerError:
-		log.Debugf("error fetching primaryEndPoint health status. endPoint:%v, statusCode: %v, error:%v",
+		log.Debugf("[MultiCluster] error fetching primaryEndPoint health status. endPoint:%v, statusCode: %v, error:%v",
 			postMgr.PrimaryClusterHealthProbeParams.EndPoint, httpResp.StatusCode, httpResp.Request.Response)
 	}
 	return false
@@ -95,13 +95,13 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromTCPEndPoint() bool 
 		return false
 	}
 	if !strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
-		log.Debugf("invalid primaryEndPoint health probe tcp endpoint: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+		log.Debugf("[MultiCluster] invalid primaryEndPoint health probe tcp endpoint: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
 
 	_, err := net.Dial("tcp", strings.TrimLeft(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://"))
 	if err != nil {
-		log.Debugf("error connecting to primaryEndPoint tcp health probe: %v, error: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint, err)
+		log.Debugf("[MultiCluster] error connecting to primaryEndPoint tcp health probe: %v, error: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint, err)
 		return false
 	}
 	return true
@@ -112,7 +112,7 @@ func (postMgr *PostManager) httpGetReq(request *http.Request) *http.Response {
 
 	if err != nil {
 		if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
-			log.Debugf("REST call error: %v ", err)
+			log.Debugf("[MultiCluster] REST call error: %v ", err)
 		}
 		return nil
 	}
@@ -152,15 +152,15 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 			doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("primary-cluster-status", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
 
 			if nil != err {
-				log.Warningf("Failed to write primary-cluster-status section: %v", err)
+				log.Warningf("[MultiCluster] Failed to write primary-cluster-status section: %v", err)
 			} else {
 				select {
 				case <-doneCh:
-					log.Debugf("Wrote primary-cluster-status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
+					log.Debugf("[MultiCluster] Wrote primary-cluster-status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
 				case e := <-errCh:
-					log.Warningf("Failed to write primary-cluster-status config section: %v", e)
+					log.Warningf("[MultiCluster] Failed to write primary-cluster-status config section: %v", e)
 				case <-time.After(time.Second):
-					log.Warningf("Did not receive write response in 1s")
+					log.Warningf("[MultiCluster] Did not receive write response in 1s")
 				}
 			}
 		} else {

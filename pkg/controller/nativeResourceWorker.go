@@ -396,7 +396,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				if err == nil {
 					ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
 				} else {
-					log.Warningf("unable to read service mapping for resource %v", rsRef)
+					log.Warningf("[Multicluster] unable to read service mapping for resource %v", rsRef)
 				}
 			}
 		}
@@ -848,7 +848,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Service) *routeapi.Route {
 	natvInf, ok := ctlr.getNamespacedNativeInformer(service.Namespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", service.Namespace)
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), service.Namespace)
 		return nil
 	}
 	routes, _ := natvInf.routeInformer.GetIndexer().ByIndex("namespace", service.Namespace)
@@ -894,19 +894,19 @@ func (ctlr *Controller) processGlobalExtendedConfigMap() {
 	}
 	// Exit gracefully if Extended configmap is not found
 	if err != nil || cm == nil {
-		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
+		log.Errorf("%v Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.globalExtendedCMKey, err)
 		os.Exit(1)
 	}
 	if ctlr.mode == OpenShiftMode {
 		err = ctlr.setNamespaceLabelMode(cm)
 		if err != nil {
-			log.Errorf("invalid configuration: %v", ctlr.globalExtendedCMKey, err)
+			log.Errorf("%v invalid configuration: %v", ctlr.getMultiClusterLog(), ctlr.globalExtendedCMKey, err)
 			os.Exit(1)
 		}
 	}
 	err, _ = ctlr.processConfigMap(cm, false)
 	if err != nil {
-		log.Errorf("Unable to Process Extended Config Map: %v, %v", ctlr.globalExtendedCMKey, err)
+		log.Errorf("%v Unable to Process Extended Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.globalExtendedCMKey, err)
 		os.Exit(1)
 	}
 }
@@ -917,7 +917,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 	//log.Debugf("GCM: %v", cm.Data)
 	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
 	if err != nil {
-		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err)
+		return fmt.Errorf("%v invalid extended route spec in configmap: %v/%v error: %v", ctlr.getMultiClusterLog(), cm.Namespace, cm.Name, err)
 	}
 	namespace, namespaceLabel := false, false
 	//Either defaultRouteGroup or ExtendedRouteGroupConfigs are allowed
@@ -958,7 +958,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 			if _, ok := ctlr.nsInformers[nsLabel]; !ok {
 				err := ctlr.createNamespaceLabeledInformer(nsLabel)
 				if err != nil {
-					log.Errorf("%v", err)
+					log.Errorf("%v %v", ctlr.getMultiClusterLog(), err)
 					for _, nsInf := range ctlr.nsInformers {
 						for _, v := range nsInf.nsInformer.GetIndexer().List() {
 							ns := v.(*v1.Namespace)
@@ -966,7 +966,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 						}
 					}
 				} else {
-					log.Debugf("Added namespace label informer: %v", nsLabel)
+					log.Debugf("%v Added namespace label informer: %v", ctlr.getMultiClusterLog(), nsLabel)
 					ctlr.nsInformers[nsLabel].start()
 				}
 			}
@@ -1052,7 +1052,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 				if localCM != nil {
 					err, _ := ctlr.processConfigMap(localCM, false)
 					if err != nil {
-						log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
+						log.Errorf("%v Could not process local configmap for routeGroup : %v error: %v", ctlr.getMultiClusterLog(), rg, err)
 					}
 				}
 
@@ -1071,7 +1071,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 				// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
 				nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
 				if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
-					log.Debugf("Removed namespace label informer: %v", nsLabel)
+					log.Debugf("%v Removed namespace label informer: %v", ctlr.getMultiClusterLog(), nsLabel)
 					nsInf.stop()
 					delete(ctlr.nsInformers, nsLabel)
 				}
@@ -1126,7 +1126,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		ctlr.resources.extdSpecMap[routeGroupKey].defaultrg = newExtdSpecMap[routeGroupKey].defaultrg
 		err := ctlr.processRoutes(routeGroupKey, false)
 		if err != nil {
-			log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", routeGroupKey)
+			log.Errorf("%v Failed to process RouteGroup: %v on addition of extended spec", ctlr.getMultiClusterLog(), routeGroupKey)
 		}
 	}
 	return nil, true
@@ -1164,7 +1164,7 @@ func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete 
 			// process routes again, this time routes get processed along with global config
 			err := ctlr.processRoutes(routeGroup, false)
 			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
+				log.Errorf("%v Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ctlr.getMultiClusterLog(), ergc.Namespace)
 			}
 			return nil, true
 		}
@@ -1188,7 +1188,7 @@ func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete 
 				spec.local = &ergc.ExtendedRouteGroupSpec
 				err := ctlr.processRoutes(routeGroup, false)
 				if err != nil {
-					log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+					log.Errorf("%v Failed to process RouteGroup: %v on addition of extended spec", ctlr.getMultiClusterLog(), ergc.Namespace)
 				}
 			}
 			return nil, true
@@ -1203,7 +1203,7 @@ func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete 
 			spec.local = &ergc.ExtendedRouteGroupSpec
 			err := ctlr.processRoutes(routeGroup, false)
 			if err != nil {
-				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+				log.Errorf("%v Failed to process RouteGroup: %v on addition of extended spec", ctlr.getMultiClusterLog(), ergc.Namespace)
 			}
 			return nil, true
 		}
@@ -1362,7 +1362,12 @@ func getOperationalExtendedConfigMapSpecs(
 	}
 	return
 }
-
+func (ctlr *Controller) getMultiClusterLog() string {
+	if ctlr.multiClusterMode != "" {
+		return "[MultiCluster]"
+	}
+	return ""
+}
 func (ctlr *Controller) getOrderedRoutes(namespace string) []*routeapi.Route {
 	var resources []interface{}
 	var err error
@@ -1370,7 +1375,7 @@ func (ctlr *Controller) getOrderedRoutes(namespace string) []*routeapi.Route {
 
 	nrInf, ok := ctlr.getNamespacedNativeInformer(namespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), namespace)
 		return nil
 	}
 
@@ -1380,8 +1385,8 @@ func (ctlr *Controller) getOrderedRoutes(namespace string) []*routeapi.Route {
 		// Get list of Routes and process them.
 		resources, err = nrInf.routeInformer.GetIndexer().ByIndex("namespace", namespace)
 		if err != nil {
-			log.Errorf("Unable to get list of Routes for namespace '%v': %v",
-				namespace, err)
+			log.Errorf("%v Unable to get list of Routes for namespace '%v': %v",
+				ctlr.getMultiClusterLog(), namespace, err)
 			return nil
 		}
 	}
@@ -1743,7 +1748,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				for _, svc := range clusterSvcs {
 					if !ctlr.checkValidExtendedService(svc) {
 						// In case of invalid extendedServiceReference, just log the error and proceed
-						log.Errorf("invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
+						log.Errorf("[Multicluster] invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
 							"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
 							"config for the cluster in which it's running is not provided in extended configmap.", svc, route.Name)
 						continue
@@ -1824,7 +1829,7 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 			nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, namespaceGroup)
 			nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
 			if err != nil {
-				log.Errorf("Unable to Fetch Namespaces: %v", err)
+				log.Errorf("%v Unable to Fetch Namespaces: %v", ctlr.getMultiClusterLog(), err)
 				return nil
 			}
 			for _, ns := range nss.Items {
@@ -1941,7 +1946,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			if haClusterConfig.PrimaryClusterEndPoint == "" {
 				// cis in secondary mode, primary cluster health check endpoint is required
 				// if endpoint is missing exit
-				log.Debugf("error: cis running in secondary mode and missing primaryEndPoint parameter")
+				log.Debugf("[Multicluster] error: cis running in secondary mode and missing primaryEndPoint parameter")
 				os.Exit(1)
 			} else {
 				// process only the updated healthProbe config params
@@ -1953,14 +1958,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		if ctlr.multiClusterMode == PrimaryCIS && haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
-				log.Errorf("Secondary clusterName or secret not provided in highAvailabilityCIS section: %v",
+				log.Errorf("[Multicluster] Secondary clusterName or secret not provided in highAvailabilityCIS section: %v",
 					haClusterConfig.SecondaryCluster)
 				os.Exit(1)
 			}
 			kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.SecondaryCluster.Secret,
 				haClusterConfig.SecondaryCluster.ClusterName)
 			if err != nil {
-				log.Errorf(err.Error())
+				log.Errorf("[Multicluster]  %v", err.Error())
 				os.Exit(1)
 			}
 			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
@@ -1969,7 +1974,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					Secret:      haClusterConfig.SecondaryCluster.Secret},
 				false)
 			if err != nil {
-				log.Errorf(err.Error())
+				log.Errorf("[Multicluster]  %v", err.Error())
 				os.Exit(1)
 			}
 
@@ -1986,14 +1991,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		if ctlr.multiClusterMode == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
-				log.Errorf("Primary clusterName or secret not provided in highAvailabilityCIS section: %v",
+				log.Errorf("[Multicluster] Primary clusterName or secret not provided in highAvailabilityCIS section: %v",
 					haClusterConfig.PrimaryCluster)
 				os.Exit(1)
 			}
 			kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(haClusterConfig.PrimaryCluster.Secret,
 				haClusterConfig.PrimaryCluster.ClusterName)
 			if err != nil {
-				log.Errorf(err.Error())
+				log.Errorf("[Multicluster]  %v", err.Error())
 				os.Exit(1)
 			}
 			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
@@ -2002,7 +2007,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					Secret:      haClusterConfig.PrimaryCluster.Secret},
 				false)
 			if err != nil {
-				log.Errorf(err.Error())
+				log.Errorf("[Multicluster]  %v", err.Error())
 				os.Exit(1)
 			}
 
@@ -2022,7 +2027,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	// If externalClustersConfig is not specified, then clean up any old external cluster related config in case user had
 	// specified externalClusterConfigs earlier and now removed those configs
 	if externalClusterConfigs == nil || len(externalClusterConfigs) == 0 {
-		log.Infof("There is no externalClustersConfig section or there are no clusters defined in it.")
+		log.Infof("[Multicluster] There is no externalClustersConfig section or there are no clusters defined in it.")
 		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
 		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
@@ -2057,13 +2062,13 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 
 		// Both cluster name and secret are mandatory
 		if mcc.ClusterName == "" || mcc.Secret == "" {
-			log.Warningf("clusterName or secret not provided in externalClustersConfig section")
+			log.Warningf("[Multicluster] clusterName or secret not provided in externalClustersConfig section")
 			continue
 		}
 
 		// Check and discard multiCluster config if an HA cluster is used as external cluster
 		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName {
-			log.Warningf("Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in externalClustersConfig section.", mcc.ClusterName)
+			log.Warningf("[Multicluster] Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in externalClustersConfig section.", mcc.ClusterName)
 			continue
 		}
 
@@ -2071,7 +2076,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(mcc.Secret, mcc.ClusterName)
 
 		if err != nil {
-			log.Warning(err.Error())
+			log.Warningf("[Multicluster]  %v", err.Error())
 			continue
 		}
 
@@ -2100,7 +2105,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		// Update the clusterKubeConfig
 		err = ctlr.updateClusterConfigStore(kubeConfigSecret, mcc, false)
 		if err != nil {
-			log.Warningf(err.Error())
+			log.Warningf("[Multicluster] %v", err.Error())
 			continue
 		}
 		// Set cluster ratio
@@ -2133,7 +2138,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 // updateClusterConfigStore updates the clusterKubeConfigs store with the latest config and updated kubeclient for the cluster
 func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc ExternalClusterConfig, deleted bool) error {
 	if !deleted && (kubeConfigSecret == nil || mcc == (ExternalClusterConfig{})) {
-		return fmt.Errorf("no secret or externalClustersConfig specified")
+		return fmt.Errorf("[Multicluster] no secret or externalClustersConfig specified")
 	}
 	// if secret associated with a cluster kubeconfig is deleted then remove it from clusterKubeConfig store
 	if deleted {
@@ -2150,7 +2155,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	// Create kube client using the provided kubeconfig for the respective cluster
 	kubeClient, err := clustermanager.CreateKubeClientFromKubeConfig(&kubeConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create kubeClient from kube-config fetched from secret %s for the "+
+		return fmt.Errorf("[Multicluster] failed to create kubeClient from kube-config fetched from secret %s for the "+
 			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
 	}
 	// Update the clusterKubeConfig store
@@ -2182,14 +2187,14 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	// Check if secret is in the desired format of <namespace>/<secret name>
 	splits := strings.Split(secret, "/")
 	if len(splits) != 2 {
-		return nil, fmt.Errorf("secret: %s should be in the format namespace/secret-name", secret)
+		return nil, fmt.Errorf("[Multicluster] secret: %s should be in the format namespace/secret-name %v", secret, getClusterLog(clusterName))
 	}
 	secretNamespace := splits[0]
 	secretName := splits[1]
 
 	comInf, ok := ctlr.getNamespacedCommonInformer(secretNamespace)
 	if !ok {
-		log.Warningf("informer not found for namespace: %v", secretNamespace)
+		log.Warningf("[Multicluster] informer not found for namespace: %v %v", secretNamespace, getClusterLog(clusterName))
 	}
 	var obj interface{}
 	var exist bool
@@ -2198,17 +2203,17 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	if comInf != nil && comInf.secretsInformer != nil {
 		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secret)
 		if err != nil {
-			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+			log.Warningf("[Multicluster] error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
 				secretName, clusterName, err)
 		}
 	}
 	if !exist {
-		log.Debugf("Fetching secret:%s for cluster:%s using kubeclient", secretName, clusterName)
+		log.Debugf("[Multicluster] Fetching secret:%s for cluster:%s using kubeclient", secretName, clusterName)
 		// During start up the informers may not be updated so, try to fetch secret using kubeClient
 		kubeConfigSecret, err = ctlr.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
 			metav1.GetOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
+			return nil, fmt.Errorf("[Multicluster] error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
 				secretName, clusterName, err)
 		}
 	}

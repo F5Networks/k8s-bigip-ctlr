@@ -54,7 +54,7 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	newNodes, err := ctlr.getNodes(obj)
 	if nil != err {
-		log.Warningf("Unable to get list of nodes, err=%+v", err)
+		log.Warningf("%v Unable to get list of nodes, err=%+v %v", ctlr.getMultiClusterLog(), err, getClusterLog(clusterName))
 		return
 	}
 	// process the node and update the all pool members for the cluster
@@ -62,7 +62,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 		if clusterName == "" {
 			// Compare last set of nodes with new one
 			if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
-				log.Debugf("Processing Node Updates for current cluster")
+				log.Debugf("Processing Node Updates for current cluster %v", getClusterLog(clusterName))
 				// Update node cache
 				ctlr.oldNodes = newNodes
 				if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
@@ -73,7 +73,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 				// Compare last set of nodes with new one
 				if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
-					log.Debugf("Processing Node Updates for %v", clusterName)
+					log.Debugf("[Multicluster] Processing Node Updates for cluster: %v", clusterName)
 					// Update node cache
 					nodeInf.oldNodes = newNodes
 					if ctlr.multiClusterResources.clusterSvcMap != nil {
@@ -86,7 +86,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 		}
 	} else {
 		// Initialize controller nodes on our first pass through
-		log.Debugf("Initialising controller monitored kubernetes nodes.")
+		log.Debugf("%v Initialising controller monitored kubernetes nodes %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
 		if clusterName == "" {
 			ctlr.oldNodes = newNodes
 		} else {
@@ -182,7 +182,7 @@ func (ctlr *Controller) getNodesWithLabel(
 	allNodes := ctlr.getNodesFromCache(clusterName)
 	label := strings.Split(nodeMemberLabel, "=")
 	if len(label) != 2 {
-		log.Warningf("Invalid NodeMemberLabel: %v", nodeMemberLabel)
+		log.Warningf("Invalid NodeMemberLabel: %v %v", nodeMemberLabel, getClusterLog(clusterName))
 		return nil
 	}
 	labelKey := label[0]

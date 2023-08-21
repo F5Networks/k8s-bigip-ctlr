@@ -9,7 +9,7 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 
 	// if no external cluster is configured skip processing
 	if len(ctlr.multiClusterConfigs.ClusterConfigs) == 0 {
-		log.Debugf("There is no externalClustersConfig section or there are no clusters defined in it.")
+		log.Debugf("[MultiCluster] There is no externalClustersConfig section or there are no clusters defined in it.")
 		return
 	}
 
@@ -52,7 +52,7 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 				ctlr.setupAndStartMultiClusterInformers(svcKey)
 			}
 		} else {
-			log.Warningf("invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
+			log.Warningf("[MultiCluster] invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
 		}
 	}
 
@@ -87,7 +87,7 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 						if len(poolIdsMap) == 0 {
 							delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey], port)
 							//delete the poolMem Cache as well
-							log.Debugf("Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
+							log.Debugf("[MultiCluster] Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
 							delete(ctlr.resources.poolMemCache, mSvcKey)
 						} else {
 							ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][port] = poolIdsMap

@@ -480,7 +480,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	}
 	// Skipping endpoint informer creation for namespace in non cluster mode when extended cm is not provided
 	if ctlr.PoolMemberType != Cluster && ctlr.multiClusterMode != "" {
-		log.Debugf("Skipping endpoint informer creation for namespace %v in %v mode", namespace, ctlr.mode)
+		log.Debugf("[Multicluster] Skipping endpoint informer creation for namespace %v in %v mode", namespace, ctlr.mode)
 	} else {
 		comInf.epsInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -1069,8 +1069,7 @@ func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 			return
 		}
 	}
-
-	log.Debugf("Enqueueing Service: %v", svc)
+	log.Debugf("Enqueueing Service: %v %v", svc, getClusterLog(clusterName))
 	key := &rqKey{
 		namespace:   svc.ObjectMeta.Namespace,
 		kind:        Service,
@@ -1082,6 +1081,13 @@ func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 	ctlr.resourceQueue.Add(key)
 }
 
+func getClusterLog(clusterName string) string {
+	clusterNameLog := ""
+	if clusterName != "" {
+		clusterNameLog = "from cluster: " + clusterName
+	}
+	return clusterNameLog
+}
 func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
@@ -1099,7 +1105,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
 		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
-		log.Debugf("Enqueueing Old Service: %v", svc)
+		log.Debugf("Enqueueing Old Service: %v %v", svc, getClusterLog(clusterName))
 		key := &rqKey{
 			namespace:   svc.ObjectMeta.Namespace,
 			kind:        Service,
@@ -1111,7 +1117,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		ctlr.resourceQueue.Add(key)
 	}
 
-	log.Debugf("Enqueueing Updated Service: %v", curSvc)
+	log.Debugf("Enqueueing Updated Service: %v %v", curSvc, getClusterLog(clusterName))
 	key := &rqKey{
 		namespace:   curSvc.ObjectMeta.Namespace,
 		kind:        Service,
@@ -1134,7 +1140,7 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}, clusterName strin
 			return
 		}
 	}
-	log.Debugf("Enqueueing Service: %v", svc)
+	log.Debugf("Enqueueing Service: %v %v", svc, getClusterLog(clusterName))
 	key := &rqKey{
 		namespace:   svc.ObjectMeta.Namespace,
 		kind:        Service,
@@ -1157,7 +1163,7 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string, clusterN
 			return
 		}
 	}
-	log.Debugf("Enqueueing Endpoints: %v", eps)
+	log.Debugf("Enqueueing Endpoints: %v %v", eps, getClusterLog(clusterName))
 	key := &rqKey{
 		namespace:   eps.ObjectMeta.Namespace,
 		kind:        Endpoints,
@@ -1269,7 +1275,7 @@ func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	log.Debugf("Enqueueing pod: %v/%v %v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, getClusterLog(clusterName))
 	key := &rqKey{
 		namespace:   pod.ObjectMeta.Namespace,
 		kind:        Pod,
@@ -1291,11 +1297,11 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 		var ok bool
 		pod, ok = dFSUObj.Obj.(*corev1.Pod)
 		if pod == nil || !ok {
-			log.Warningf("Unknown object received as pod deletion event: %v", dFSUObj.Key)
+			log.Warningf("Unknown object received as pod deletion event: %v %v", dFSUObj.Key, getClusterLog(clusterName))
 			return
 		}
 	default:
-		log.Warningf("Unknown object received as pod deletion event: %v", obj)
+		log.Warningf("Unknown object received as pod deletion event: %v %v", obj, getClusterLog(clusterName))
 		return
 	}
 
@@ -1303,7 +1309,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
-	log.Debugf("Enqueueing pod: %v/%v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	log.Debugf("Enqueueing pod: %v/%v %v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, getClusterLog(clusterName))
 	key := &rqKey{
 		namespace:   pod.ObjectMeta.Namespace,
 		kind:        Pod,
@@ -1421,7 +1427,7 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 }
 
 func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
-	log.Infof("Enqueueing on primary cluster down event")
+	log.Infof("[MultiCluster] Enqueueing on primary cluster down event")
 	key := &rqKey{
 		kind: HACIS,
 	}

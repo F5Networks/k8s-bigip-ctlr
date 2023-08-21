@@ -1316,8 +1316,8 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 				// Service is from unknown cluster. This case should not arise, but if it does then consider weight to
 				// be 0 as most probably the cluster config may not have been provided in the extended configmap, in
 				// such a case no traffic should be distributed to this cluster
-				log.Warningf("weight for service %s of cluster %s could not be processed for route %s. Provide the "+
-					"cluster config in extendedConfigMap", svc.SvcName, svc.ClusterName, route.Name)
+				log.Warningf("%v weight for service %s of cluster %s could not be processed for route %s. Provide the "+
+					"cluster config in extendedConfigMap", ctlr.getMultiClusterLog(), svc.SvcName, svc.ClusterName, route.Name)
 				zero := 0
 				clusterSvcs[i].Weight = &zero
 			}

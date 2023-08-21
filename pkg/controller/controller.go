@@ -337,11 +337,11 @@ func (ctlr *Controller) createIPAMResource() error {
 
 	ipamCR, err := ctlr.ipamCli.Create(f5ipam)
 	if err == nil {
-		log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
+		log.Debugf("[IPAM] Created IPAM Custom Resource: \n%v\n", ipamCR)
 		return nil
 	}
 
-	log.Debugf("[ipam] error while creating IPAM custom resource. %v", err.Error())
+	log.Debugf("[IPAM] error while creating IPAM custom resource %v", err.Error())
 	return err
 }
 

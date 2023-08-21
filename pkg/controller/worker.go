@@ -682,17 +682,17 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints, clusterName str
 	} else {
 		poolInf, ok := ctlr.getNamespaceMultiClusterPoolInformer(ep.Namespace, clusterName)
 		if !ok {
-			log.Errorf("Informer not found for namespace %v and cluster %v", ep.Namespace, clusterName)
+			log.Errorf("[MultiCluster] Informer not found for namespace %v and cluster %v", ep.Namespace, clusterName)
 			return nil
 		}
 		svc, exists, err = poolInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	}
 	if err != nil {
-		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
+		log.Infof("%v Error fetching service %v from the store: %v", ctlr.getMultiClusterLog(), svcKey, err)
 		return nil
 	}
 	if !exists {
-		log.Infof("Service %v doesn't exist", svcKey)
+		log.Infof("%v Service %v doesn't exist", ctlr.getMultiClusterLog(), svcKey)
 		return nil
 	}
 	return svc.(*v1.Service)
@@ -1643,12 +1643,12 @@ func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error)
 func (ctlr *Controller) getIPAMCR() *ficV1.IPAM {
 	cr := strings.Split(ctlr.ipamCR, "/")
 	if len(cr) != 2 {
-		log.Errorf("[ipam] error while retrieving IPAM namespace and name.")
+		log.Errorf("[IPAM] error while retrieving IPAM namespace and name.")
 		return nil
 	}
 	ipamCR, err := ctlr.ipamCli.Get(cr[0], cr[1])
 	if err != nil {
-		log.Errorf("[ipam] error while retrieving IPAM custom resource.")
+		log.Errorf("[IPAM] error while retrieving IPAM custom resource.")
 		return nil
 	}
 	return ipamCR
@@ -1812,11 +1812,11 @@ func (ctlr *Controller) requestIP(ipamLabel string, host string, key string) (st
 
 	_, err := ctlr.ipamCli.Update(ipamCR)
 	if err != nil {
-		log.Errorf("[ipam] Error updating IPAM CR : %v", err)
+		log.Errorf("[IPAM] Error updating IPAM CR : %v", err)
 		return "", NotRequested
 	}
 
-	log.Debugf("[ipam] Updated IPAM CR.")
+	log.Debugf("[IPAM] Updated IPAM CR.")
 	return "", Requested
 
 }
@@ -1878,10 +1878,10 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 		if index != -1 {
 			_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, key, index)
 			if err != nil {
-				log.Errorf("[ipam] ipam hostspec update error: %v", err)
+				log.Errorf("[IPAM] ipam hostspec update error: %v", err)
 				return ""
 			}
-			log.Debug("[ipam] Updated IPAM CR hostspec while releasing IP.")
+			log.Debug("[IPAM] Updated IPAM CR hostspec while releasing IP.")
 		}
 	} else if key != "" {
 		//Find index for deleted key
@@ -1901,10 +1901,10 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 		if index != -1 {
 			_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, key, index)
 			if err != nil {
-				log.Errorf("[ipam] ipam hostspec update error: %v", err)
+				log.Errorf("[IPAM] ipam hostspec update error: %v", err)
 				return ""
 			}
-			log.Debug("[ipam] Updated IPAM CR hostspec while releasing IP.")
+			log.Debug("[IPAM] Updated IPAM CR hostspec while releasing IP.")
 		}
 
 	} else {
@@ -2043,7 +2043,7 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 					mSvcInf := poolInf.svcInformer
 					mItem, mFound, _ := mSvcInf.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
 					if !mFound {
-						return fmt.Errorf("Service '%v' not found!", svcKey), svc
+						return fmt.Errorf("[MultiCluster] Service '%v' not found! %v", svcKey, getClusterLog(svcKey.clusterName)), svc
 					}
 					svc, _ = mItem.(*v1.Service)
 				}
@@ -2112,14 +2112,14 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		clusterName: clusterName,
 	}
 	if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
-		log.Debugf("Adding service '%v' in CIS cache", svcKey)
+		log.Debugf("Adding service '%v' in CIS cache %v", svcKey, getClusterLog(clusterName))
 		ctlr.resources.poolMemCache[svcKey] = &poolMembersInfo{
 			memberMap: make(map[portRef][]PoolMember),
 		}
 	}
 	err, svc := ctlr.fetchService(svcKey)
 	if err != nil {
-		log.Errorf("%v", err)
+		log.Errorf("%v %v", err, getClusterLog(clusterName))
 	}
 	var poolMembers []PoolMember
 	if svc != nil {
@@ -2348,16 +2348,16 @@ func (ctlr *Controller) processTransportServers(
 
 			switch status {
 			case NotEnabled:
-				log.Debug("IPAM Custom Resource Not Available")
+				log.Debug("[IPAM] IPAM Custom Resource Not Available")
 				return nil
 			case InvalidInput:
-				log.Debugf("IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
+				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
 					virtual.Spec.IPAMLabel, virtual.Namespace, virtual.Name)
 				return nil
 			case NotRequested:
-				return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
 			case Requested:
-				log.Debugf("IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
+				log.Debugf("[IPAM] IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
 		}
@@ -2592,7 +2592,7 @@ func (ctlr *Controller) processLBServices(
 		return nil
 	}
 	if ctlr.ipamCli == nil {
-		log.Warningf("IPAM is not enabled, Unable to process Services of Type LoadBalancer")
+		log.Warningf("[IPAM] IPAM is not enabled, Unable to process Services of Type LoadBalancer")
 		return nil
 	}
 
@@ -2606,15 +2606,15 @@ func (ctlr *Controller) processLBServices(
 
 		switch status {
 		case NotEnabled:
-			log.Debug("IPAM Custom Resource Not Available")
+			log.Debug("[IPAM] IPAM Custom Resource Not Available")
 			return nil
 		case InvalidInput:
-			log.Debugf("IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
+			log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
 			return nil
 		case NotRequested:
-			return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+			return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
 		case Requested:
-			log.Debugf("IP address requested for service: %s/%s", svc.Namespace, svc.Name)
+			log.Debugf("[IPAM] IP address requested for service: %s/%s", svc.Namespace, svc.Name)
 			return nil
 		}
 	}
@@ -2715,13 +2715,13 @@ func (ctlr *Controller) processService(
 	if clusterName == "" {
 		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 		if !ok {
-			log.Errorf("Informer not found for namespace: %v", namespace)
-			return fmt.Errorf("unable to process Service: %v", svcKey)
+			log.Errorf("Informer not found for namespace: %v %v", namespace, getClusterLog(clusterName))
+			return fmt.Errorf("unable to process Service: %v %v", svcKey, getClusterLog(clusterName))
 		}
 		if comInf.epsInformer != nil {
 			item, found, _ := comInf.epsInformer.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
 			if !found {
-				return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
+				return fmt.Errorf("Endpoints for service '%v' not found! %v", svcKey, getClusterLog(clusterName))
 			}
 			eps, _ = item.(*v1.Endpoints)
 		}
@@ -2733,13 +2733,13 @@ func (ctlr *Controller) processService(
 				poolInf, found = ctlr.multiClusterPoolInformers[clusterName][svcKey.namespace]
 			}
 			if !found {
-				return fmt.Errorf("Informer not found for namespace: %v in cluster: %s", svcKey.namespace, clusterName)
+				return fmt.Errorf("[MultiCluster] Informer not found for namespace: %v in cluster: %s", svcKey.namespace, clusterName)
 			}
 
 			if poolInf.epsInformer != nil {
 				mItem, mFound, _ := poolInf.epsInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
 				if !mFound {
-					return fmt.Errorf("Endpoints for service '#{svcKey}' not found!")
+					return fmt.Errorf("[MultiCluster] Endpoints for service '#{svcKey}' not found! %v", getClusterLog(clusterName))
 				}
 				eps, _ = mItem.(*v1.Endpoints)
 			}
@@ -3104,7 +3104,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 					ctlr.TeemData.Unlock()
 					err := ctlr.processVirtualServers(vs, false)
 					if err != nil {
-						log.Errorf("Unable to process IPAM entry: %v", pKey)
+						log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 					}
 					break
 				}
@@ -3120,7 +3120,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 					ctlr.TeemData.Unlock()
 					err := ctlr.processTransportServers(ts, false)
 					if err != nil {
-						log.Errorf("Unable to process IPAM entry: %v", pKey)
+						log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 					}
 					break
 				}
@@ -3136,7 +3136,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 					ctlr.TeemData.Unlock()
 					err := ctlr.processVirtualServers(vs, false)
 					if err != nil {
-						log.Errorf("Unable to process IPAM entry: %v", pKey)
+						log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 					}
 					break
 				}
@@ -3144,7 +3144,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 		case "ts":
 			item, exists, err := crInf.tsInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", pKey)
+				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 				continue
 			}
 			ctlr.TeemData.Lock()
@@ -3153,23 +3153,23 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			ts := item.(*cisapiv1.TransportServer)
 			err = ctlr.processTransportServers(ts, false)
 			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", pKey)
+				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 			}
 		case "il":
 			item, exists, err := crInf.ilInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", pKey)
+				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 				continue
 			}
 			il := item.(*cisapiv1.IngressLink)
 			err = ctlr.processIngressLink(il, false)
 			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", pKey)
+				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 			}
 		case "svc":
 			item, exists, err := comInf.svcInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", pKey)
+				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 				continue
 			}
 			ctlr.TeemData.Lock()
@@ -3178,10 +3178,10 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			svc := item.(*v1.Service)
 			err = ctlr.processLBServices(svc, false)
 			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", pKey)
+				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 			}
 		default:
-			log.Errorf("Found Invalid Key: %v while Processing IPAM", pKey)
+			log.Errorf("[IPAM] Found Invalid Key: %v while Processing IPAM", pKey)
 		}
 	}
 
@@ -3236,21 +3236,21 @@ func (ctlr *Controller) processIngressLink(
 
 			switch status {
 			case NotEnabled:
-				log.Debug("IPAM Custom Resource Not Available")
+				log.Debug("[IPAM] IPAM Custom Resource Not Available")
 				return nil
 			case InvalidInput:
-				log.Debugf("IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
+				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
 					ingLink.Spec.IPAMLabel, ingLink.Namespace, ingLink.Name)
 				return nil
 			case NotRequested:
-				return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
 			case Requested:
-				log.Debugf("IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
+				log.Debugf("[IPAM] IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
 				return nil
 			}
-			log.Debugf("[ipam] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
+			log.Debugf("[IPAM] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
 			if ip == "" {
-				log.Debugf("[ipam] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
+				log.Debugf("[IPAM] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
 				return nil
 			}
 			ctlr.updateIngressLinkStatus(ingLink, ip)
@@ -3589,7 +3589,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 			// Multi-service causes the controller to try to update the status multiple times
 			// at once. Ignore this error.
 			if strings.Contains(updateErr.Error(), "object has been modified") {
-				log.Debugf("Error while updating service: %v. %v", svcName, updateErr.Error())
+				log.Debugf("Error while updating service: %v %v", svcName, updateErr.Error())
 				return
 			}
 			warning := fmt.Sprintf(
@@ -3614,7 +3614,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 //		// Multi-service causes the controller to try to update the status multiple times
 //		// at once. Ignore this error.
 //		if strings.Contains(updateErr.Error(), "object has been modified") {
-//			log.Debugf("Error while updating service: %v/%v. %v", svc.Namespace, svc.Name, updateErr.Error())
+//			log.Debugf("Error while updating service: %v/%v %v", svc.Namespace, svc.Name, updateErr.Error())
 //			return
 //		}
 //		warning := fmt.Sprintf(
@@ -3787,7 +3787,7 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 	if clusterName == "" {
 		comInf, ok := ctlr.getNamespacedCommonInformer(pod.Namespace)
 		if !ok {
-			log.Errorf("Informer not found for namespace: %v", pod.Namespace)
+			log.Errorf("Informer not found for namespace: %v ", pod.Namespace)
 			return nil
 		}
 		services, err = comInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
@@ -3801,16 +3801,16 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 			poolInf, found = ctlr.multiClusterPoolInformers[clusterName][pod.Namespace]
 		}
 		if !found {
-			log.Errorf("Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
+			log.Errorf("[MultiCluster] Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
 			return nil
 		}
 		services, err = poolInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
 		if err != nil {
-			log.Debugf("Unable to find services for namespace %v in cluster %s with error: %v", pod.Namespace,
+			log.Debugf("[MultiCluster] Unable to find services for namespace %v in cluster %s with error: %v", pod.Namespace,
 				clusterName, err)
 		}
 	} else {
-		log.Errorf("Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
+		log.Errorf("[MultiCluster] Informer not found for namespace: %v, cluster: %s", pod.Namespace, clusterName)
 		return nil
 	}
 	for _, obj := range services {
@@ -3889,7 +3889,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" {
 			if es.HAClusterConfig == (HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (ClusterDetails{}) ||
 				es.HAClusterConfig.SecondaryCluster == (ClusterDetails{}) {
-				log.Errorf("CIS High availability cluster config not provided properly.")
+				log.Errorf("[MultiCluster] CIS High availability cluster config not provided properly.")
 				os.Exit(1)
 			}
 		}
@@ -3900,7 +3900,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				ctlr.haModeType = es.HAMode
 				ctlr.Agent.HAMode = true
 			} else {
-				log.Errorf("Invalid Type of high availability mode specified, supported values (active-active, " +
+				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio)")
 				os.Exit(1)
 			}
@@ -4152,7 +4152,7 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
 				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.nodeLabelSelector})
 				if err != nil {
-					log.Debugf("Unable to fetch nodes for cluster %v with err %v", clusterName, err)
+					log.Debugf("[MultiCluster] Unable to fetch nodes for cluster %v with err %v", clusterName, err)
 				} else {
 					for _, node := range nodesObj.Items {
 						node := node

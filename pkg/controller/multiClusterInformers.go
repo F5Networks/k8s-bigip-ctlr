@@ -63,7 +63,7 @@ func (ctlr *Controller) getMultiClusterNamespacedPoolInformer(
 	}
 
 	if ctlr.multiClusterPoolInformers == nil {
-		log.Debugf("informer not found for cluster %v", clusterName)
+		log.Debugf("[MultiCluster] informer not found for cluster %v", clusterName)
 		return nil, false
 	}
 
@@ -101,7 +101,7 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 	clusterName string,
 	restClientv1 rest.Interface,
 ) *MultiClusterPoolInformer {
-	log.Debugf("Creating multi cluster pool Informers for Namespace: %v", namespace)
+	log.Debugf("[MultiCluster] Creating multi cluster pool Informers for Namespace: %v %v", namespace, getClusterLog(clusterName))
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
@@ -226,7 +226,7 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[svcKey.clusterName]; ok {
 		restClient := config.KubeClient.CoreV1().RESTClient()
 		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, true); err != nil {
-			log.Errorf("unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
+			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
 			return err
 		}
 		err := ctlr.setupMultiClusterNodeInformers(svcKey.clusterName)
@@ -234,7 +234,7 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 			return err
 		}
 	} else {
-		return fmt.Errorf("cluster config not found for cluster: %v", svcKey.clusterName)
+		return fmt.Errorf("[MultiCluster] cluster config not found for cluster: %v", svcKey.clusterName)
 	}
 	return nil
 }
@@ -245,7 +245,7 @@ func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) erro
 	// Setup informers with namespaces which are watched by CIS
 	for n := range ctlr.namespaces {
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {
-			log.Errorf("unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
+			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
 			return err
 		}
 	}
@@ -284,7 +284,7 @@ func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string) error
 // if endPoint is configured then CIS will exit
 func (ctlr *Controller) checkSecondaryCISConfig() {
 	if ctlr.multiClusterMode == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint == "" {
-		log.Debugf("error: cis running in secondary mode and missing primaryEndPoint under highAvailabilityCIS section. ")
+		log.Debugf("[MultiCluster] error: cis running in secondary mode and missing primaryEndPoint under highAvailabilityCIS section. ")
 		os.Exit(1)
 	}
 }

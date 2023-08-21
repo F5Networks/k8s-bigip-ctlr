@@ -33,7 +33,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", vsNamespace)
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -71,7 +71,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		for _, mcs := range pool.MultiClusterServices {
 			if !ctlr.checkValidExtendedService(mcs) {
 				// In case of invalid extendedServiceReference, just log the error and proceed
-				log.Errorf("invalid extendedServiceReference: %v for VS: %s. Some of the mandatory "+
+				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s. Some of the mandatory "+
 					"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
 					"config for the cluster in which it's running is not provided in extended configmap.", mcs, vsName)
 				continue
@@ -92,7 +92,7 @@ func (ctlr *Controller) checkValidTransportServer(
 
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", vsNamespace)
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -129,7 +129,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
 			if !ctlr.checkValidExtendedService(mcs) {
 				// In case of invalid extendedServiceReference, just log the error and proceed
-				log.Errorf("invalid extendedServiceReference: %v for TS: %s. Some of the mandatory "+
+				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s. Some of the mandatory "+
 					"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
 					"config for the cluster in which it's running is not provided in extended configmap.", mcs, vsName)
 				continue
@@ -149,7 +149,7 @@ func (ctlr *Controller) checkValidIngressLink(
 
 	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", ilNamespace)
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.

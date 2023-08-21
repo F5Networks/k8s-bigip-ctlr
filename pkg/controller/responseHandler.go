@@ -211,7 +211,7 @@ func (ctlr *Controller) removeUnusedIPAMEntries(kind string) {
 					(hostSpec.IPAMLabel == removeIPAMentry.IPAMLabel && hostSpec.Key == removeIPAMentry.Key && hostSpec.Host == removeIPAMentry.Host) {
 					_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, removeIPAMentry.Key, index)
 					if err != nil {
-						log.Errorf("[ipam] ipam hostspec update error: %v", err)
+						log.Errorf("[IPAM] ipam hostspec update error: %v", err)
 					}
 					break
 				}

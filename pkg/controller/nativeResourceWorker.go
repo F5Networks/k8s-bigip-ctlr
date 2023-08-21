@@ -2187,7 +2187,7 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	var err error
 	var kubeConfigSecret *v1.Secret
 	if comInf != nil && comInf.secretsInformer != nil {
-		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secretName)
+		obj, exist, err = comInf.secretsInformer.GetIndexer().GetByKey(secret)
 		if err != nil {
 			log.Warningf("error occurred while fetching Secret: %s for the cluster: %s, Error: %s",
 				secretName, clusterName, err)

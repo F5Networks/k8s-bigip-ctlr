@@ -32,14 +32,17 @@ import (
 func (poolInfr *MultiClusterPoolInformer) start() {
 	var cacheSyncs []cache.InformerSynced
 	if poolInfr.svcInformer != nil {
+		log.Infof("[MultiCluster] Starting Service Informer for Cluster:%v", poolInfr.clusterName)
 		go poolInfr.svcInformer.Run(poolInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, poolInfr.svcInformer.HasSynced)
 	}
 	if poolInfr.epsInformer != nil {
+		log.Infof("[MultiCluster] Starting Endpoint Informer for Cluster:%v", poolInfr.clusterName)
 		go poolInfr.epsInformer.Run(poolInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, poolInfr.epsInformer.HasSynced)
 	}
 	if poolInfr.podInformer != nil {
+		log.Infof("[MultiCluster] Starting Pod Informer for Cluster:%v", poolInfr.clusterName)
 		go poolInfr.podInformer.Run(poolInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, poolInfr.podInformer.HasSynced)
 	}

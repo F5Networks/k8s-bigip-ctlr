@@ -2618,6 +2618,13 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 		}
 	}
 	sbcs = make([]SvcBackendCxt, numOfBackends)
+	// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0
+	if totalSvcWeights == 0 {
+		totalSvcWeights = 1
+	}
+	if totalClusterRatio == 0 {
+		totalClusterRatio = 1
+	}
 	// Process VS spec primary service
 	beIdx := 0
 	// Route backend service in local cluster

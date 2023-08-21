@@ -1336,6 +1336,13 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		}
 	}
 	rbcs = make([]RouteBackendCxt, numOfBackends)
+	// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0
+	if totalSvcWeights == 0 {
+		totalSvcWeights = 1
+	}
+	if totalClusterRatio == 0 {
+		totalClusterRatio = 1
+	}
 	// Process route spec primary service
 	beIdx := 0
 	rbcs[beIdx].Name = route.Spec.To.Name

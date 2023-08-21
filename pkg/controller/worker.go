@@ -3921,6 +3921,17 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if err != nil {
 			return err, false
 		}
+		// Log cluster ratios used
+		if len(ctlr.clusterRatio) > 0 {
+			ratioKeyValues := ""
+			for cluster, ratio := range ctlr.clusterRatio {
+				if cluster == "" {
+					cluster = "local cluster"
+				}
+				ratioKeyValues += fmt.Sprintf(" %s:%d", cluster, *ratio)
+			}
+			log.Debugf("Cluster ratios:%s", ratioKeyValues)
+		}
 	}
 	// Process the routeSpec defined in extended configMap
 	if ctlr.mode == OpenShiftMode {

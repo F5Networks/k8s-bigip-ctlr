@@ -410,6 +410,11 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.enqueuePolicy(plc, Create)
 			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
+		It("Primary Cluster Down Event", func() {
+			mockCtlr.enqueuePrimaryClusterProbeEvent()
+			key, _ := mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Primary cluster event key not enqueued")
+		})
 
 		It("Service", func() {
 			// setting teem data

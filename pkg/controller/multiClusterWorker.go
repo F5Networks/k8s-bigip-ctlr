@@ -58,16 +58,16 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 
 }
 
-func (ctlr *Controller) deleteResourceExternalClusterSvcReference(mSvcKey MultiClusterServiceKey) {
-
-	if mSvcKey.clusterName != "" && ctlr.multiClusterResources == nil {
-		return
-	}
-	ctlr.multiClusterResources.Lock()
-	defer ctlr.multiClusterResources.Unlock()
-	// for service referring to resource, remove the resource from clusterSvcMap
-	delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
-}
+//func (ctlr *Controller) deleteResourceExternalClusterSvcReference(mSvcKey MultiClusterServiceKey) {
+//
+//	if mSvcKey.clusterName != "" && ctlr.multiClusterResources == nil {
+//		return
+//	}
+//	ctlr.multiClusterResources.Lock()
+//	defer ctlr.multiClusterResources.Unlock()
+//	// for service referring to resource, remove the resource from clusterSvcMap
+//	delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
+//}
 
 func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey resourceRef) {
 	ctlr.multiClusterResources.Lock()

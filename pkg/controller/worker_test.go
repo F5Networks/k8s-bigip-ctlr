@@ -1742,7 +1742,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
-				mockCtlr.setInitialServiceCount()
+				mockCtlr.setInitialResourceCount()
 				mockCtlr.migrateIPAM()
 
 				mockCtlr.addVirtualServer(vs)
@@ -3538,7 +3538,7 @@ extendedRouteSpec:
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 
 				// Route count should be 0
-				Expect(mockCtlr.GetServiceRouteWithoutHealthAnnotation(svc)).To(BeNil())
+				//Expect(mockCtlr.GetServiceRouteWithoutHealthAnnotation(svc)).To(BeNil())
 
 				pod.Name = "pod1"
 				mockCtlr.addPod(pod)

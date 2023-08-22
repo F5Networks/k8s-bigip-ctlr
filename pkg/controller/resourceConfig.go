@@ -64,7 +64,6 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
-	rs.svcResourceCache = make(map[MultiClusterServiceKey]map[string]svcResourceCacheMeta)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 	rs.externalClustersConfig = make(map[string]ExternalClusterConfig)
@@ -384,49 +383,6 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 	}
 	policyName := fmt.Sprintf("%s_%s_%s", name, host, "policy")
 	return AS3NameFormatter(policyName)
-}
-
-func (ctlr *Controller) getSvcDepResources(svcDepRscKey MultiClusterServiceKey) map[string]svcResourceCacheMeta {
-	return ctlr.resources.svcResourceCache[svcDepRscKey]
-}
-
-func (ctlr *Controller) updateSvcDepResources(rsName string, rsCfg *ResourceConfig) {
-	for _, pool := range rsCfg.Pools {
-		svcDepRscKey := MultiClusterServiceKey{
-			serviceName: pool.ServiceName,
-			clusterName: "",
-			namespace:   pool.ServiceNamespace,
-		}
-
-		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
-			if _, found := resources[rsName]; !found {
-				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
-			}
-		} else {
-			ctlr.resources.svcResourceCache[svcDepRscKey] = make(map[string]svcResourceCacheMeta)
-			ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
-		}
-	}
-}
-
-func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfig) {
-
-	if rsCfg == nil {
-		return
-	}
-
-	for _, pool := range rsCfg.Pools {
-		svcDepRscKey := MultiClusterServiceKey{
-			serviceName: pool.ServiceName,
-			clusterName: "",
-			namespace:   pool.ServiceNamespace,
-		}
-		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
-			if _, found := resources[rsName]; found {
-				delete(ctlr.resources.svcResourceCache[svcDepRscKey], rsName)
-			}
-		}
-	}
 }
 
 // fetch target port from service

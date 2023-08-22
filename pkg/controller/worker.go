@@ -1190,7 +1190,6 @@ func (ctlr *Controller) processVirtualServers(
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
@@ -1277,8 +1276,6 @@ func (ctlr *Controller) processVirtualServers(
 				log.Debugf("Updated Virtual %s with TLSProfile %s",
 					vrt.ObjectMeta.Name, vrt.Spec.TLSProfileName)
 			}
-
-			ctlr.updateSvcDepResources(rsName, rsCfg)
 
 			ctlr.resources.processedNativeResources[resourceRef{
 				kind:      VirtualServer,
@@ -2389,7 +2386,6 @@ func (ctlr *Controller) processTransportServers(
 			hostnames = rsMap[rsName].MetaData.hosts
 		}
 
-		ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 		ctlr.deleteVirtualServer(partition, rsName)
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
@@ -2434,8 +2430,6 @@ func (ctlr *Controller) processTransportServers(
 		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
 		return nil
 	}
-
-	ctlr.updateSvcDepResources(rsName, rsCfg)
 
 	// Add TS resource key to processedNativeResources to mark it as processed
 	ctlr.resources.processedNativeResources[resourceRef{
@@ -2637,7 +2631,6 @@ func (ctlr *Controller) processLBServices(
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
@@ -2682,8 +2675,6 @@ func (ctlr *Controller) processLBServices(
 		}
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
-
-		ctlr.updateSvcDepResources(rsName, rsCfg)
 
 		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
@@ -3291,7 +3282,6 @@ func (ctlr *Controller) processIngressLink(
 					hostnames = rsCfg.MetaData.hosts
 				}
 			}
-			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
@@ -3390,9 +3380,6 @@ func (ctlr *Controller) processIngressLink(
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
-
-		ctlr.updateSvcDepResources(rsName, rsCfg)
-
 	}
 
 	return nil

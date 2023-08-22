@@ -383,7 +383,7 @@ func (ctlr *Controller) processResources() bool {
 				delete(ctlr.resources.processedNativeResources, rscRefKey)
 			}
 		}
-		if rKey.event != Create {
+		if rKey.event != Create && ctlr.multiClusterMode != "" {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 		}
@@ -393,7 +393,7 @@ func (ctlr *Controller) processResources() bool {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isRetryableError = true
 		}
-		if rKey.event != Create {
+		if rKey.event != Create && ctlr.multiClusterMode != "" {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 	case IngressLink:

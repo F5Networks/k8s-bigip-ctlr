@@ -135,41 +135,46 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 		if ctlr.initState {
 			continue
 		}
-		// only process when the cis is initialized
-		status := ctlr.Agent.checkPrimaryClusterHealthStatus()
-		// if status is changed i.e from up -> down / down -> up
-		ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
-		if ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning != status {
-			ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = true
-			// if primary cis id down then post the config
-			if !status {
-				ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = false
-				ctlr.enqueuePrimaryClusterProbeEvent()
-			} else {
-				ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = true
-			}
-			//update cccl global section with primary cluster running status
-			doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("primary-cluster-status", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
-
-			if nil != err {
-				log.Warningf("[MultiCluster] Failed to write primary-cluster-status section: %v", err)
-			} else {
-				select {
-				case <-doneCh:
-					log.Debugf("[MultiCluster] Wrote primary-cluster-status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
-				case e := <-errCh:
-					log.Warningf("[MultiCluster] Failed to write primary-cluster-status config section: %v", e)
-				case <-time.After(time.Second):
-					log.Warningf("[MultiCluster] Did not receive write response in 1s")
-				}
-			}
-		} else {
-			ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = false
-		}
-		ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
-		// wait for configured probeInterval
-		time.Sleep(time.Duration(ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
+		ctlr.getPrimaryClusterHealthStatus()
 	}
+}
+
+func (ctlr *Controller) getPrimaryClusterHealthStatus() {
+
+	// only process when the cis is initialized
+	status := ctlr.Agent.checkPrimaryClusterHealthStatus()
+	// if status is changed i.e from up -> down / down -> up
+	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	if ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning != status {
+		ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = true
+		// if primary cis id down then post the config
+		if !status {
+			ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = false
+			ctlr.enqueuePrimaryClusterProbeEvent()
+		} else {
+			ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = true
+		}
+		//update cccl global section with primary cluster running status
+		doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("primary-cluster-status", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
+
+		if nil != err {
+			log.Warningf("[MultiCluster] Failed to write primary-cluster-status section: %v", err)
+		} else {
+			select {
+			case <-doneCh:
+				log.Debugf("[MultiCluster] Wrote primary-cluster-status as %v", ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning)
+			case e := <-errCh:
+				log.Warningf("[MultiCluster] Failed to write primary-cluster-status config section: %v", e)
+			case <-time.After(time.Second):
+				log.Warningf("[MultiCluster] Did not receive write response in 1s")
+			}
+		}
+	} else {
+		ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = false
+	}
+	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+	// wait for configured probeInterval
+	time.Sleep(time.Duration(ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
 }
 
 func (ctlr *Controller) firstPollPrimaryClusterHealthStatus() {

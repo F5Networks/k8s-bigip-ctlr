@@ -148,8 +148,6 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
 			}
 
-			ctlr.updateSvcDepResources(rsName, rsCfg)
-
 			ctlr.resources.processedNativeResources[resourceRef{
 				kind:      Route,
 				namespace: rt.Namespace,

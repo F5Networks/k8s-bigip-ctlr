@@ -468,16 +468,11 @@ type (
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
-		svcResourceCache          map[MultiClusterServiceKey]map[string]svcResourceCacheMeta
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
 		// stores valid externalClustersConfig from extendendCM
 		externalClustersConfig map[string]ExternalClusterConfig
-	}
-
-	svcResourceCacheMeta struct {
-		partition string
 	}
 
 	// key is group identifier

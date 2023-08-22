@@ -3879,6 +3879,9 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	if err != nil {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
 	}
+	// clusterRatioUpdated and oldClusterRatio are used for tracking cluster ratio updates
+	clusterRatioUpdated := false
+	oldClusterRatio := make(map[string]int)
 	if ctlr.isGlobalExtendedCM(cm) && ctlr.multiClusterMode != "" {
 		// Get Multicluster kube-config
 		if isDelete {
@@ -3914,6 +3917,12 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				ctlr.clusterRatio[""] = &one
 			}
 		}
+		// Store old cluster ratio before processing multiClusterConfig
+		if len(ctlr.clusterRatio) > 0 {
+			for cluster, ratio := range ctlr.clusterRatio {
+				oldClusterRatio[cluster] = *ratio
+			}
+		}
 		// Read multi-cluster config from extended CM
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
 		ctlr.checkSecondaryCISConfig()
@@ -3925,18 +3934,26 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if len(ctlr.clusterRatio) > 0 {
 			ratioKeyValues := ""
 			for cluster, ratio := range ctlr.clusterRatio {
+				// Check if cluster ratio is updated
+				if oldRatio, ok := oldClusterRatio[cluster]; ok {
+					if oldRatio != *ctlr.clusterRatio[cluster] {
+						clusterRatioUpdated = true
+					}
+				} else {
+					clusterRatioUpdated = true
+				}
 				if cluster == "" {
 					cluster = "local cluster"
 				}
 				ratioKeyValues += fmt.Sprintf(" %s:%d", cluster, *ratio)
 			}
-			log.Debugf("Cluster ratios:%s", ratioKeyValues)
+			log.Debugf("[MultiCluster] Cluster ratios:%s", ratioKeyValues)
 		}
 	}
 	// Process the routeSpec defined in extended configMap
 	if ctlr.mode == OpenShiftMode {
 		if ctlr.isGlobalExtendedCM(cm) {
-			return ctlr.processRouteConfigFromGlobalCM(es, isDelete)
+			return ctlr.processRouteConfigFromGlobalCM(es, isDelete, clusterRatioUpdated)
 		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
 			return ctlr.processRouteConfigFromLocalCM(es, isDelete, cm.Namespace)
 		}

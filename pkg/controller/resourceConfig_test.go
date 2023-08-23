@@ -124,7 +124,6 @@ var _ = Describe("Resource Config Tests", func() {
 	Describe("Handle iRules and DataGroups", func() {
 		var rsCfg *ResourceConfig
 		partition := "test"
-
 		BeforeEach(func() {
 			rsCfg = &ResourceConfig{}
 			rsCfg.MetaData.ResourceType = VirtualServer
@@ -406,7 +405,12 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			mockCtlr.handleDefaultPool(rsCfg, vs)
+			rsRef := resourceRef{
+				name:      "test-vs",
+				namespace: "default",
+				kind:      VirtualServer,
+			}
+			mockCtlr.handleDefaultPool(rsCfg, vs, rsRef)
 			Expect(rsCfg.Virtual.PoolName).To(Equal("svc1_80_default_test_com"), "Failed to process default pool for VirtualServer")
 			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to process default pool for VirtualServer")
 			Expect(len(rsCfg.Monitors)).To(Equal(2), "Failed to process default pool for VirtualServer")
@@ -430,7 +434,12 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			mockCtlr.handleDefaultPool(rsCfg, vs)
+			rsRef := resourceRef{
+				name:      "test-vs",
+				namespace: "default",
+				kind:      VirtualServer,
+			}
+			mockCtlr.handleDefaultPool(rsCfg, vs, rsRef)
 			Expect(rsCfg.Virtual.PoolName).To(Equal("/Common/default_pool_svc1"), "Failed to process default pool for VirtualServer")
 			Expect(len(rsCfg.Pools)).To(Equal(0), "Failed to process default pool for VirtualServer")
 			Expect(len(rsCfg.Monitors)).To(Equal(0), "Failed to process default pool for VirtualServer")
@@ -454,7 +463,12 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			mockCtlr.handleDefaultPool(rsCfg, vs)
+			rsRef := resourceRef{
+				name:      "test-vs",
+				namespace: "default",
+				kind:      VirtualServer,
+			}
+			mockCtlr.handleDefaultPool(rsCfg, vs, rsRef)
 			Expect(rsCfg.Virtual.PoolName).To(Equal("/Common/default_pool_svc1"), "Failed to process default pool for VirtualServer")
 			Expect(len(rsCfg.Pools)).To(Equal(0), "Failed to process default pool for VirtualServer")
 			Expect(len(rsCfg.Monitors)).To(Equal(0), "Failed to process default pool for VirtualServer")

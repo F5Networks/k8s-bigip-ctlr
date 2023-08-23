@@ -557,7 +557,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 
 	// handle the default pool for virtual
-	ctlr.handleDefaultPool(rsCfg, vs)
+	ctlr.handleDefaultPool(rsCfg, vs, rsRef)
 
 	// set the SNAT policy to auto if it's not defined by end user
 	if vs.Spec.SNAT == "" {
@@ -720,6 +720,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 func (ctlr *Controller) handleDefaultPool(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
+	rsRef resourceRef,
 ) {
 	// if it's an insecure virtual server and vs traffic is redirect or none, we should not add the default pool
 	if rsCfg.MetaData.Protocol == HTTP && len(vs.Spec.TLSProfileName) > 0 && (vs.Spec.HTTPTraffic == TLSRedirectInsecure || vs.Spec.HTTPTraffic == TLSNoInsecure) {
@@ -780,6 +781,9 @@ func (ctlr *Controller) handleDefaultPool(
 					}
 				}
 			}
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.DefaultPool.Service, "", pool, vs.Spec.DefaultPool.ServicePort, "")
+			// Update the pool Members
+			ctlr.updatePoolMembersForResources(&pool)
 			rsCfg.Pools = append(rsCfg.Pools, pool)
 		}
 	}

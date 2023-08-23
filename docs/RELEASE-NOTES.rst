@@ -1,29 +1,51 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-Next Release
+
+2.14.0
 -------------
 
 Added Functionality
 ```````````````````
 **What's new:**
+    * Multi Cluster support
+        * Support for custom resources on openshift & kubernetes. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/multicluster>`_ for more details.
+        * Support for routes on openshift. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/multicluster>`_ for more details.
     * Configmap
-        * Support AS3 logLevel and persist parameters in configmap
+        * Support for AS3 logLevel parameter in configmap
+        * Support for AS3 persist parameter in configmap
     * Ingress
         * Support for default pool using the single-service ingress
     * CRD
-        * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/`_
-        * `Issue 2785 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2785>`_: Add EDNS support for service typeLB.
-        * Support PERSISTENCE capability for service published through EDNS
-        * Wildcard domain support for EDNS
-        * Support Client Subnet config capability from EDNS in AS3 mode(>= AS3 v3.45)
-        * Support NodePortLocal mode with all CRD resources
-        * New log level **AS3DEBUG** to log the AS3 request & response.
-        * `Issue 3004 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3004>`_:Support for fallbackLbmode with EDNS CRD
+        * NodePortLocal mode support added with all custom resources
+        * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/>`_
+        * Support for service typeLB in EDNS CR, See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/serviceTypeLB/service-type-lb-with-hostname.yaml>`_
+        * Support for **persistence** capability for service published through EDNS.  See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns.yaml>`_
+        * Support for wildcard domain in EDNS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns-wildcard-domain.yaml>`_
+        * Support for preferred client subnet in EDNS CR using AS3. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns-client-subnet-preferred.yaml>`_
+        * Support for fallbackLbmode with EDNS CR See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/external-dns-with-lbModeFallback>`_
+        * Support for wildcard domain name with passthrough termination
+    * Helm Chart Enhancements
+        * Support for latest CRD schema
+    * New log level **AS3DEBUG** to log the AS3 request & response for AS3 mode
+    * CIS is now compatible with BIG-IP 17.x
+
 Bug Fixes
 ````````````
-* `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
+* CIS properly handles virtual server CRs with same IP address but different hostnames and traffic termination settings.
+* `Issue 2785 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2785>`_: Support for wildcard domains in EDNS CR
+* `Issue 2813 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2813>`_: Add EDNS support for service typeLB.
 * `Issue 2850 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2850>`_: Fix for AS3 config updated every 30 seconds by CIS with default ingress backend
 * `Issue 2909 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2909>`_: Fix for empty pool members when K8S API server throws any error
+* `Issue 2941 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2941>`_: Fix for services with same name in different namespaces in NodePortLocal mode
+* `Issue 2978 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2978>`_: Nodes in 'NotReady' state are not removed from their pool(s) when using ServiceType LoadBalancer
+* `Issue 3004 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3004>`_: ExternalDNS Global Availability Mode not working
+
+Known Issues
+`````````````
+*  [Multi-Cluster] Pool members are not getting populated for extended service in ratio mode
+*  [Multi-Cluster] CIS doesn't update pool members if service doesn't exist in primary cluster but exists in secondary cluster for Route.
+*  [Multi-Cluster] CIS on start up in multiCluster mode, if any external cluster kube-api server is down/not reachable, CIS does not process any valid clusters config also.
+*  [Multi-Cluster] CIS fails to post declaration intermittently with VS when using health monitors in ratio mode.
 
 
 2.13.1

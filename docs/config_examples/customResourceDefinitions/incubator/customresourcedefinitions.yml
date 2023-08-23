@@ -129,7 +129,7 @@ spec:
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     service:
                       type: string
-                      pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                      pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                     servicePort:
                       x-kubernetes-int-or-string: true
                       anyOf:
@@ -192,7 +192,7 @@ spec:
                         pattern: '^\/([A-z0-9-_+]+\/)*([-A-z0-9_.:]+\/?)*$'
                       service:
                         type: string
-                        pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                        pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                       weight:
                         type: integer
                         minimum: 0
@@ -204,7 +204,7 @@ spec:
                           properties:
                             service:
                               type: string
-                              pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                              pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                             serviceNamespace:
                               type: string
                               pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
@@ -550,7 +550,7 @@ spec:
                       pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
                     service:
                       type: string
-                      pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
+                      pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
                     servicePort:
                       x-kubernetes-int-or-string: true
                       anyOf:
@@ -617,12 +617,30 @@ spec:
                       maximum: 65535
                     serviceDownAction:
                       type: string
+                    extendedServiceReferences:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          clusterName:
+                            type: string
+                          serviceName:
+                            type: string
+                            pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                          namespace:
+                            type: string
+                          port:
+                            x-kubernetes-int-or-string: true
+                            anyOf:
+                              - type: integer
+                              - type: string
                   required:
                       - service
                       - servicePort
               required:
                 - virtualServerPort
                 - pool
+                - mode
             status:
               type: object
               properties:

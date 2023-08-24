@@ -94,6 +94,8 @@ If it's specified in both the places then allow source range in policy CR has mo
 ### Support for Health Monitors from pod liveness probe
 CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations. 
 
+This behaviour can be changed by setting autoMonitor in baseRouteSpec of the extended configmap.
+
 ## Migration Guide
 Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md)
 
@@ -151,10 +153,21 @@ _**NOTE:**_
 
 Base route configuration can be defined in Global ConfigMap. This cannot be overridden from local ConfigMap. This is an alternative to CIS deployment arguments.
 
-| Parameter   | Required | Description                                                                                                               | Default | ConfigMap |
-|-------------|----------|---------------------------------------------------------------------------------------------------------------------------|---------| --------- |
-| tlsCipher   | Optional | Block to define TLS cipher parameters                                                                                     | N/A     | Global ConfigMap |
-| defaultTLS | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one. | /Common/f5-default     | Global ConfigMap |
+| Parameter   | Required | Description                                                                                                                     | Default            | ConfigMap |
+|-------------|----------|---------------------------------------------------------------------------------------------------------------------------------|--------------------| --------- |
+| tlsCipher   | Optional | Block to define TLS cipher parameters                                                                                           | N/A                | Global ConfigMap |
+| defaultTLS | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one.      | /Common/f5-default | Global ConfigMap |
+| autoMonitor   | Optional | Options for automatic health monitor in case no custom health monitor annotation is used (none/liveness-probe/service-endpoint) | liveness-probe     | Global ConfigMap |
+| autoMonitorTimeout | Optional | Timeout value(in seconds) to use for liveness probe based health monitor or default tcp health monitor                          | N/A                | Global ConfigMap |
+
+* autoMonitor: It provides options to configure CIS to either automatically create health monitor using pod liveness probe or create default tcp monitor or not create any health monitor in case custom health monitor annotation is not used in the Route.
+  * Supported values are "none", "liveness-probe" (default) and "service-endpoint".
+  * autoMonitor: none - CIS will not create health monitor for the pool.
+  * autoMonitor: liveness-probe - CIS will create health monitor for the pool based on the pod liveness probe configuration.
+  * autoMonitor: service-endpoint - CIS will create a default tcp health monitor for the pool.
+* autoMonitorTimeout: It provides option to configure timeout value for automatic monitor option selected.
+  * If not specified and pod contains liveness probe then timeout value of 3*interval+1 is used for automatic health monitor.
+  * If not specified and pod doesn't contain liveness probe then no automatic health monitor is created if autoMonitor is set to liveness-probe and default timeout value (16 seconds) is used if autoMonitor is set to service-endpoint.
 
 ```
  tlsCipher:

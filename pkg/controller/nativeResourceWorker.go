@@ -543,12 +543,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 						monitor,
 					)
 					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
+
 				}
 			}
-		} else {
+		} else if ctlr.resources.baseRouteConfig.AutoMonitor != None {
+			// Create health monitor if AutoMonitor is not set to None, which means either create pod liveness-probe  based HTTP monitor or default TCP monitor based on the autoMonitor value
 			// Skip NPL Annotation check on service
 			svcPods := ctlr.GetPodsForService(route.Namespace, bs.Name, false)
-
+			var interval int            // interval for health monitor
+			var initialDelaySeconds int // initial delay for health monitor
 			if svcPods != nil && len(svcPods) > 0 {
 				port := pool.ServicePort.IntVal
 				pod := svcPods[0]
@@ -560,6 +563,12 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 					}
 					for _, cPort := range container.Ports {
 						if cPort.ContainerPort == port {
+							interval = int(container.LivenessProbe.PeriodSeconds)
+							initialDelaySeconds = int(container.LivenessProbe.InitialDelaySeconds)
+							if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
+								break out
+							}
+
 							var scheme v1.URIScheme
 							switch container.LivenessProbe.HTTPGet.Scheme {
 							case v1.URISchemeHTTPS:
@@ -570,15 +579,29 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 								scheme = v1.URISchemeHTTP
 							}
 
+							// Use AutoMonitorTimeout as timeout if it is specified, else set timeout to 3*interval + 1 (BIG-IP recommended)
+							var timeout int
+							if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
+								timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
+							} else {
+								timeout = 3*interval + 1
+							}
+							targetPort := int32(container.LivenessProbe.HTTPGet.Port.IntValue())
+							path := container.LivenessProbe.HTTPGet.Path
+							if path == "" {
+								path = "/"
+							}
 							monitor := Monitor{
-								Name:      pool.Name + "_monitor",
-								Partition: rsCfg.Virtual.Partition,
-								Interval:  int(container.LivenessProbe.PeriodSeconds),
-								Type:      strings.ToLower(string(scheme)),
-								Send:      "GET /\r\n",
-								Recv:      "",
-								Timeout:   int(container.LivenessProbe.TimeoutSeconds),
-								Path:      container.LivenessProbe.HTTPGet.Path,
+								Name:        pool.Name + "_monitor",
+								Partition:   rsCfg.Virtual.Partition,
+								Interval:    interval,
+								Type:        strings.ToLower(string(scheme)),
+								Send:        fmt.Sprintf("GET %s HTTP/1.0\r\n", path), // Request conforming to the HTTP/1.0 protocol
+								Recv:        "HTTP/1\\.[01] [23][0-9][0-9]",           // Any code greater than or equal to 200 and less than 400 indicates success
+								Timeout:     timeout,
+								Path:        path,
+								TimeUntilUp: &initialDelaySeconds,
+								TargetPort:  targetPort,
 							}
 							rsCfg.Monitors = append(
 								rsCfg.Monitors,
@@ -589,6 +612,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 						}
 					}
 				}
+			}
+			// If autoMonitor is set as service-endpoint, create a default TCP monitor
+			if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
+				monitor := ctlr.createDefaultTCPMonitor(&pool, rsCfg, interval, initialDelaySeconds)
+				rsCfg.Monitors = append(
+					rsCfg.Monitors,
+					monitor,
+				)
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
 			}
 		}
 		rsCfg.Pools = append(rsCfg.Pools, pool)
@@ -828,7 +860,8 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 											}
 										}
 									}
-
+									var interval int            // interval for health monitor
+									var initialDelaySeconds int // initial delay for health monitor
 									var podMonitor Monitor
 								out:
 									for _, container := range pod.Spec.Containers {
@@ -837,6 +870,11 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 												if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
 													break out
 												} else {
+													interval = int(container.LivenessProbe.PeriodSeconds)
+													initialDelaySeconds = int(container.LivenessProbe.InitialDelaySeconds)
+													if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
+														break out
+													}
 													var scheme v1.URIScheme
 													switch container.LivenessProbe.HTTPGet.Scheme {
 													case v1.URISchemeHTTPS:
@@ -847,21 +885,41 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 														scheme = v1.URISchemeHTTP
 													}
 
+													// Use AutoMonitorTimeout as timeout if it is specified, else set
+													// timeout to 3*interval + 1 (BIG-IP recommended)
+													var timeout int
+													if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
+														timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
+													} else {
+														timeout = 3*interval + 1
+													}
+													targetPort := int32(container.LivenessProbe.HTTPGet.Port.IntValue())
+													path := container.LivenessProbe.HTTPGet.Path
+													if path == "" {
+														path = "/"
+													}
 													podMonitor = Monitor{
-														Name:      poolName + "_monitor",
-														Partition: freshRsCfg.Virtual.Partition,
-														Interval:  int(container.LivenessProbe.PeriodSeconds),
-														Type:      strings.ToLower(string(scheme)),
-														Send:      "GET /\r\n",
-														Recv:      "",
-														Timeout:   int(container.LivenessProbe.TimeoutSeconds),
-														Path:      container.LivenessProbe.HTTPGet.Path,
+														Name:        poolName + "_monitor",
+														Partition:   freshRsCfg.Virtual.Partition,
+														Interval:    interval,
+														Type:        strings.ToLower(string(scheme)),
+														Send:        fmt.Sprintf("GET %s HTTP/1.0\r\n", path), // Request conforming to the HTTP/1.0 protocol
+														Recv:        "HTTP/1\\.[01] [23][0-9][0-9]",           // Any code greater than or equal to 200 and less than 400 indicates success
+														Timeout:     timeout,
+														Path:        path,
+														TimeUntilUp: &initialDelaySeconds,
+														TargetPort:  targetPort,
 													}
 
 													break out
 												}
 											}
 										}
+									}
+
+									// If autoMonitor is set as service-endpoint, create a default TCP monitor
+									if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
+										podMonitor = ctlr.createDefaultTCPMonitor(&pool, rsCfg, interval, initialDelaySeconds)
 									}
 
 									for monitorInd, mon := range freshRsCfg.Monitors {
@@ -1064,7 +1122,9 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 	routeGroupsToBeProcessed := make(map[string]struct{})
 	// Get the base route config from the Global ConfigMap
+	oldBaseRouteConfig := ctlr.resources.baseRouteConfig
 	ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
+	baseRouteConfigUpdated := !reflect.DeepEqual(oldBaseRouteConfig, ctlr.resources.baseRouteConfig)
 	var partition string
 	if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
 		partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
@@ -1218,8 +1278,8 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		}
 	}
 	// Reprocess all route groups except the ones which are already reprocessed
-	if clusterRatioUpdate && !isDelete {
-		log.Debugf("[MultiCluster] Re-processing all route groups as cluster ratio is updated")
+	if (clusterRatioUpdate || baseRouteConfigUpdated) && !isDelete {
+		log.Debugf("%s Re-processing all route groups as baseRouteConfig/cluster ratio is updated", ctlr.getMultiClusterLog())
 		for routeGroupKey, _ := range ctlr.resources.extdSpecMap {
 			if _, ok := routeGroupsToBeProcessed[routeGroupKey]; ok {
 				continue
@@ -1355,6 +1415,23 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.Policy = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.Policy
 		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.BigIpPartition = baseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
 	}
+
+	// check for valid autoMonitor value
+	if baseRouteConfig.AutoMonitor == "" || baseRouteConfig.AutoMonitor == None ||
+		baseRouteConfig.AutoMonitor == LivenessProbe || baseRouteConfig.AutoMonitor == ServiceEndpoint {
+		ctlr.resources.baseRouteConfig.AutoMonitor = baseRouteConfig.AutoMonitor
+	} else {
+		log.Warningf("AutoMonitor value %v is not supported. Defaulting to %v", baseRouteConfig.AutoMonitor, LivenessProbe)
+		ctlr.resources.baseRouteConfig.AutoMonitor = LivenessProbe
+	}
+
+	// check for autoMonitorTimeout value
+	if baseRouteConfig.AutoMonitorTimeout != 0 {
+		ctlr.resources.baseRouteConfig.AutoMonitorTimeout = baseRouteConfig.AutoMonitorTimeout
+	} else {
+		ctlr.resources.baseRouteConfig.AutoMonitorTimeout = 0
+	}
+
 }
 
 func (ctlr *Controller) isGlobalExtendedCM(cm *v1.ConfigMap) bool {
@@ -2357,4 +2434,27 @@ func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig)
 	} else if ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval != haClusterConfig.RetryInterval {
 		ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval = haClusterConfig.RetryInterval
 	}
+}
+
+// createDefaultTCPMonitor creates a default tcp monitor for the pool
+func (ctlr *Controller) createDefaultTCPMonitor(pool *Pool, rsCfg *ResourceConfig, interval int, initialDelaySeconds int) Monitor {
+	// Set timeout and interval values
+	var timeout int
+	if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
+		timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
+	} else if interval == 0 {
+		interval = 5
+		timeout = 16 // default values used by BIG-IP
+	} else {
+		timeout = 3*interval + 1 // recommended by BIG-IP
+	}
+	monitor := Monitor{
+		Type:        "tcp",
+		Name:        pool.Name + "_monitor",
+		Partition:   rsCfg.Virtual.Partition,
+		Timeout:     timeout,
+		Interval:    interval,
+		TimeUntilUp: &initialDelaySeconds,
+	}
+	return monitor
 }

@@ -445,15 +445,16 @@ type (
 
 	// Monitor is Pool health monitor
 	Monitor struct {
-		Name       string `json:"name"`
-		Partition  string `json:"-"`
-		Interval   int    `json:"interval,omitempty"`
-		Type       string `json:"type,omitempty"`
-		Send       string `json:"send,omitempty"`
-		Recv       string `json:"recv"`
-		Timeout    int    `json:"timeout,omitempty"`
-		TargetPort int32  `json:"targetPort,omitempty"`
-		Path       string `json:"path,omitempty"`
+		Name        string `json:"name"`
+		Partition   string `json:"-"`
+		Interval    int    `json:"interval,omitempty"`
+		Type        string `json:"type,omitempty"`
+		Send        string `json:"send,omitempty"`
+		Recv        string `json:"recv"`
+		Timeout     int    `json:"timeout,omitempty"`
+		TargetPort  int32  `json:"targetPort,omitempty"`
+		Path        string `json:"path,omitempty"`
+		TimeUntilUp *int   `json:"timeUntilUp,omitempty"`
 	}
 	MonitorName struct {
 		Name string `json:"name"`
@@ -1257,6 +1258,8 @@ type (
 		TLSCipher               TLSCipher               `yaml:"tlsCipher"`
 		DefaultTLS              DefaultSSLProfile       `yaml:"defaultTLS,omitempty"`
 		DefaultRouteGroupConfig DefaultRouteGroupConfig `yaml:"defaultRouteGroup,omitempty"`
+		AutoMonitor             AutoMonitorType         `yaml:"autoMonitor,omitempty"`
+		AutoMonitorTimeout      int                     `yaml:"autoMonitorTimeout,omitempty"`
 	}
 
 	TLSCipher struct {
@@ -1282,11 +1285,15 @@ const (
 )
 
 type HAModeType string
+type AutoMonitorType string
 
 const (
-	Active  HAModeType = "active-active"
-	StandBy HAModeType = "active-standby"
-	Ratio   HAModeType = "ratio"
+	Active          HAModeType      = "active-active"
+	StandBy         HAModeType      = "active-standby"
+	Ratio           HAModeType      = "ratio"
+	None            AutoMonitorType = "none"
+	LivenessProbe   AutoMonitorType = "liveness-probe"
+	ServiceEndpoint AutoMonitorType = "service-endpoint"
 )
 
 type (

@@ -1128,28 +1128,43 @@ func (ctlr *Controller) handleVirtualServerTLS(
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
 			}
 		}
-		//Handle AB datagroup for virtualserver
-		if rsCfg.Virtual.VirtualAddress.Port == httpsPort || (rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure) {
-			ctlr.updateDataGroupForABVirtualServer(&pl,
-				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
-				rsCfg.Virtual.Partition,
-				vs.Namespace,
-				rsCfg.IntDgMap,
-				pl.ServicePort,
-				vs.Spec.Host,
-				tls.Spec.TLS.Termination,
-			)
-			//path based AB deployment/Cluster ratio not supported for passthrough
-			if (isVsPathBasedABDeployment(&pl) || isVsPathBasedRatioDeployment(&pl, ctlr.haModeType)) &&
-				(tls.Spec.TLS.Termination == TLSEdge ||
-					(tls.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
-				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
+
+		// handle AB deployment
+		abDeployment := isVSABDeployment(&pl)
+		if abDeployment || ctlr.haModeType == Ratio {
+			var skipABDeployment bool
+			// tls reencyrpt and httpTraffic allow is not valid use case, other than every use case handle the AB datagroup and iRule
+			if string(tls.Spec.TLS.Termination) == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
+				skipABDeployment = true
 			}
-			// handle AB traffic for edge termination with allow
-			if (isVSABDeployment(&pl) || ctlr.haModeType == Ratio) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
-				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
+			// if it's a secured route with redirect termination and current rsCfgMap is unsecured skip the AB Datagroup and iRule creation
+			if strings.ToLower(vs.Spec.HTTPTraffic) == TLSRedirectInsecure && rsCfg.MetaData.Protocol == "http" {
+				skipABDeployment = true
+			}
+			// for passthrough use case AB datagroup is required
+			// vsHost is required for AB datagroup and iRule & skip if vsHost not present
+			if !skipABDeployment && vs.Spec.Host != "" {
+				ctlr.updateDataGroupForABVirtualServer(&pl,
+					getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+					rsCfg.Virtual.Partition,
+					vs.Namespace,
+					rsCfg.IntDgMap,
+					pl.ServicePort,
+					vs.Spec.Host,
+					tls.Spec.TLS.Termination,
+				)
+				// for passthrough use case AB iRule is not required
+				if tls.Spec.TLS.Termination != TLSPassthrough {
+					// add the path based AB irule
+					rsCfg.addIRule(
+						getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+					abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
+						getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
+					rsCfg.Virtual.AddIRule(abPathIRule)
+				}
 			}
 		}
+
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
 		namespace:        vs.ObjectMeta.Namespace,
@@ -1819,23 +1834,6 @@ func (ctlr *Controller) handleDataGroupIRules(
 	}
 }
 
-func (ctlr *Controller) HandlePathBasedABIRule(
-	rsCfg *ResourceConfig,
-	vsHost string,
-	tlsTerminationType string,
-) {
-	// For https
-	if "" != tlsTerminationType && tlsTerminationType != TLSPassthrough {
-		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
-		if vsHost != "" {
-			abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
-				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
-			rsCfg.Virtual.AddIRule(abPathIRule)
-		}
-	}
-}
-
 func (ctlr *Controller) deleteVirtualServer(partition, rsName string) {
 	ctlr.resources.deleteVirtualServer(partition, rsName)
 }
@@ -2390,18 +2388,37 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 	}
 
-	if rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
-		ctlr.updateDataGroupForABRoute(route,
-			getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
-			rsCfg.Virtual.Partition,
-			route.Namespace,
-			rsCfg.IntDgMap,
-			servicePort,
-		)
-		if (isRoutePathBasedABDeployment(route) || isRoutePathBasedRatioDeployment(route, ctlr.haModeType)) &&
-			(route.Spec.TLS.Termination == TLSEdge ||
-				(route.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) != TLSAllowInsecure)) {
-			ctlr.HandlePathBasedABIRule(rsCfg, route.Spec.Host, string(route.Spec.TLS.Termination))
+	// handle AB deployment
+	abDeployment := isRouteABDeployment(route)
+	if abDeployment || ctlr.haModeType == Ratio {
+		var skipABDeployment bool
+		// tls reencyrpt and httpTraffic allow is not valid use case, other than every use case handle the AB datagroup and iRule
+		if string(route.Spec.TLS.Termination) == TLSReencrypt && strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) == TLSAllowInsecure {
+			skipABDeployment = true
+		}
+		// if it's a secured route with redirect termination and current rsCfgMap is unsecured skip the AB Datagroup and iRule creation
+		if strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) == TLSRedirectInsecure && rsCfg.MetaData.Protocol == "http" {
+			skipABDeployment = true
+		}
+		// for passthrough use case AB datagroup is required
+		// vsHost is required for AB datagroup and iRule & skip if vsHost not present
+		if !skipABDeployment && route.Spec.Host != "" {
+			ctlr.updateDataGroupForABRoute(route,
+				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+				rsCfg.Virtual.Partition,
+				route.Namespace,
+				rsCfg.IntDgMap,
+				servicePort,
+			)
+			// for passthrough use case AB iRule is not required
+			if string(route.Spec.TLS.Termination) != TLSPassthrough {
+				// add the path based AB irule
+				rsCfg.addIRule(
+					getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+				abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
+					getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
+				rsCfg.Virtual.AddIRule(abPathIRule)
+			}
 		}
 	}
 

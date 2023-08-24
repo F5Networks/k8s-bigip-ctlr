@@ -1121,9 +1121,6 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 ) {
-	if !isRouteABDeployment(route) && ctlr.haModeType != Ratio {
-		return
-	}
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
 	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
 		err := json.Unmarshal([]byte(annotation), &clusterSvcs)
@@ -1419,17 +1416,6 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	host string,
 	termination string,
 ) {
-	if !isVSABDeployment(pool) && ctlr.haModeType != Ratio {
-		/*
-				 AB		RATIO      Skip Updating DG
-			=========================================
-				True  	True    =       False
-				True  	False   =       False
-				False 	True    =       False
-				False  	False   =       True
-		*/
-		return
-	}
 
 	weightTotal := 0.0
 	backends := ctlr.GetPoolBackends(pool)

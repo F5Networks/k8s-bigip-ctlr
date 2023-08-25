@@ -721,6 +721,21 @@ spec:
                   pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                 clientSubnetPreferred:
                   type: boolean
+                persistenceEnabled:
+                  type: boolean
+                persistCidrIpv4:
+                  type: integer
+                  minimum: 0
+                  maximum: 32
+                persistCidrIpv6:
+                  type: integer
+                  minimum: 0
+                  maximum: 128
+                ttlPersistence:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  maximum: 4294967295
                 pools:
                   type: array
                   items:
@@ -732,21 +747,6 @@ spec:
                       dnsRecordType:
                         type: string
                         pattern: 'A'
-                      persistenceEnabled:
-                        type: boolean
-                      persistCidrIpv4:
-                        type: integer
-                        minimum: 0
-                        maximum: 32
-                      persistCidrIpv6:
-                        type: integer
-                        minimum: 0
-                        maximum: 128
-                      ttlPersistence:
-                        type: integer
-                        format: int64
-                        minimum: 0
-                        maximum: 4294967295
                       loadBalanceMethod:
                         type: string
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'

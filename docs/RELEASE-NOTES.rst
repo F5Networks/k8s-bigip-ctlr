@@ -15,7 +15,7 @@ Added Functionality
         * `Issue 2785 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2785>`_: Add EDNS support for service typeLB.
         * Support PERSISTENCE capability for service published through EDNS
         * Wildcard domain support for EDNS
-        * Support Client Subnet config capability from EDNS in AS3 mode
+        * Support Client Subnet config capability from EDNS in AS3 mode(>= AS3 v3.45)
         * Support NodePortLocal mode with all CRD resources
         * New log level **AS3DEBUG** to log the AS3 request & response.
         * `Issue 3004 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3004>`_:Support for fallbackLbmode with EDNS CRD

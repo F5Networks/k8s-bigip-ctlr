@@ -8,13 +8,13 @@ spec:
   domainName: example.com
   dnsRecordType: A
   loadBalanceMethod: round-robin
+  persistenceEnabled: true
+  persistCidrIpv4: 24
+  ttlPersistence: 1000
   pools:
   - dnsRecordType: A
     loadBalanceMethod: round-robin
     dataServerName: /Common/GSLBServer
-    persistenceEnabled: true
-    persistCidrIpv4: 24
-    ttlPersistence: 1000
     monitor:
       type: https
       send: "GET /"

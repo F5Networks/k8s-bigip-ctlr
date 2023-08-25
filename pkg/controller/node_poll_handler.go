@@ -54,7 +54,7 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	newNodes, err := ctlr.getNodes(obj)
 	if nil != err {
-		log.Warningf("%v Unable to get list of nodes, err=%+v %v", ctlr.getMultiClusterLog(), err, getClusterLog(clusterName))
+		log.Warningf("%v Unable to get list of nodes %v, err=%+v", ctlr.getMultiClusterLog(), getClusterLog(clusterName), err)
 		return
 	}
 	// process the node and update the all pool members for the cluster
@@ -62,7 +62,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 		if clusterName == "" {
 			// Compare last set of nodes with new one
 			if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
-				log.Debugf("Processing Node Updates for current cluster %v", getClusterLog(clusterName))
+				log.Debugf("Processing Node Updates for local cluster")
 				// Update node cache
 				ctlr.oldNodes = newNodes
 				if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
@@ -73,7 +73,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 				// Compare last set of nodes with new one
 				if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
-					log.Debugf("[Multicluster] Processing Node Updates for cluster: %v", clusterName)
+					log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
 					// Update node cache
 					nodeInf.oldNodes = newNodes
 					if ctlr.multiClusterResources.clusterSvcMap != nil {

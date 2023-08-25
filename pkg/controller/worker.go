@@ -249,7 +249,7 @@ func (ctlr *Controller) processResources() bool {
 			// Delete the route entry from hostPath Map
 			ctlr.deleteHostPathMapEntry(route)
 		}
-		if rKey.event != Create && ctlr.multiClusterMode != "" {
+		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 		}
@@ -295,7 +295,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 
-		if rKey.event != Create && ctlr.multiClusterMode != "" {
+		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 		}
@@ -383,7 +383,7 @@ func (ctlr *Controller) processResources() bool {
 				delete(ctlr.resources.processedNativeResources, rscRefKey)
 			}
 		}
-		if rKey.event != Create && ctlr.multiClusterMode != "" {
+		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 		}
@@ -403,6 +403,15 @@ func (ctlr *Controller) processResources() bool {
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
 		log.Infof("Worker got IngressLink: %v\n", ingLink)
 		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
+		if rKey.event != Create {
+			rsRef := resourceRef{
+				name:      ingLink.Name,
+				namespace: ingLink.Namespace,
+				kind:      IngressLink,
+			}
+			// clean the CIS cache
+			ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
+		}
 		err := ctlr.processIngressLink(ingLink, rscDelete)
 		if err != nil {
 			// TODO
@@ -468,6 +477,15 @@ func (ctlr *Controller) processResources() bool {
 		}
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			if rKey.event != Create {
+				rsRef := resourceRef{
+					name:      svc.Name,
+					namespace: svc.Namespace,
+					kind:      Service,
+				}
+				// clean the CIS cache
+				ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
+			}
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
@@ -2121,6 +2139,13 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	var poolMembers []PoolMember
 	if svc != nil {
 		_ = ctlr.processService(svc, clusterName)
+		// update the nlpStore cache with pods and their node annotations
+		if ctlr.PoolMemberType == NodePortLocal {
+			pods := ctlr.GetPodsForService(svcKey.namespace, svcKey.serviceName, true)
+			for _, pod := range pods {
+				ctlr.processPod(pod, false)
+			}
+		}
 		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, servicePort, nodeMemberLabel)...)
 	}
 	return poolMembers
@@ -3360,6 +3385,14 @@ func (ctlr *Controller) processIngressLink(
 			ServicePort:      svcPort,
 			ServiceNamespace: svc.ObjectMeta.Namespace,
 		}
+		// udpating the service cache
+		rsRef := resourceRef{
+			name:      ingLink.Name,
+			namespace: ingLink.Namespace,
+			kind:      IngressLink,
+		}
+		// updating the service cache
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.ObjectMeta.Name, "", pool, svcPort, "")
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {
@@ -3829,6 +3862,7 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 	podKey := pod.Namespace + "/" + pod.Name
 	if ispodDeleted {
 		delete(ctlr.resources.nplStore, podKey)
+		log.Debugf("Deleting Pod '%v/%v' from CIS cache as it's not referenced by monitored resources", pod.Namespace, pod.Name)
 		return nil
 	}
 	ann := pod.GetAnnotations()
@@ -3837,6 +3871,7 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 		if err := json.Unmarshal([]byte(val), &annotations); err != nil {
 			log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", podKey, err)
 		}
+		log.Debugf("Adding Pod '%v/%v' in CIS cache", pod.Namespace, pod.Name)
 		ctlr.resources.nplStore[podKey] = annotations
 	} else {
 		log.Debugf("key: %s, NPL annotation not found for Pod", pod.Name)

@@ -706,11 +706,12 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints, clusterName str
 		svc, exists, err = poolInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	}
 	if err != nil {
-		log.Infof("%v Error fetching service %v from the store: %v", ctlr.getMultiClusterLog(), svcKey, err)
+		log.Infof("%v Error fetching service %v %v from the store: %v", ctlr.getMultiClusterLog(), svcKey,
+			getClusterLog(clusterName), err)
 		return nil
 	}
 	if !exists {
-		log.Infof("%v Service %v doesn't exist", ctlr.getMultiClusterLog(), svcKey)
+		log.Infof("%v Service %v %v doesn't exist", ctlr.getMultiClusterLog(), svcKey, getClusterLog(clusterName))
 		return nil
 	}
 	return svc.(*v1.Service)
@@ -2058,7 +2059,7 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 					mSvcInf := poolInf.svcInformer
 					mItem, mFound, _ := mSvcInf.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
 					if !mFound {
-						return fmt.Errorf("[MultiCluster] Service '%v' not found! %v", svcKey, getClusterLog(svcKey.clusterName)), svc
+						return fmt.Errorf("[MultiCluster] Service %v not found!", svcKey), svc
 					}
 					svc, _ = mItem.(*v1.Service)
 				}
@@ -2737,7 +2738,7 @@ func (ctlr *Controller) processService(
 		if comInf.epsInformer != nil {
 			item, found, _ := comInf.epsInformer.GetIndexer().GetByKey(svc.Namespace + "/" + svc.Name)
 			if !found {
-				return fmt.Errorf("Endpoints for service '%v' not found! %v", svcKey, getClusterLog(clusterName))
+				return fmt.Errorf("Endpoints for service %v %v not found!", svcKey, getClusterLog(clusterName))
 			}
 			eps, _ = item.(*v1.Endpoints)
 		}
@@ -2755,7 +2756,7 @@ func (ctlr *Controller) processService(
 			if poolInf.epsInformer != nil {
 				mItem, mFound, _ := poolInf.epsInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
 				if !mFound {
-					return fmt.Errorf("[MultiCluster] Endpoints for service '#{svcKey}' not found! %v", getClusterLog(clusterName))
+					return fmt.Errorf("[MultiCluster] Endpoints for service %v %v not found!", svcKey, getClusterLog(clusterName))
 				}
 				eps, _ = mItem.(*v1.Endpoints)
 			}

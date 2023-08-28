@@ -1203,8 +1203,12 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 			}
 			runningWeightTotal = runningWeightTotal + be.Weight
 			weightedSliceThreshold := runningWeightTotal / weightTotal
+			svcNamespace := route.Namespace
+			if be.SvcNamespace != "" {
+				svcNamespace = be.SvcNamespace
+			}
 			poolName := ctlr.formatPoolName(
-				route.Namespace,
+				svcNamespace,
 				be.Name,
 				port,
 				"",
@@ -1438,6 +1442,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 			rbcs[beIdx].Weight = 0
 		}
 		rbcs[beIdx].Cluster = svc.ClusterName
+		rbcs[beIdx].SvcNamespace = svc.Namespace
 	}
 	return rbcs
 }
@@ -1469,9 +1474,6 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	backends := ctlr.GetPoolBackends(pool)
 	for _, svc := range backends {
 		weightTotal = weightTotal + svc.Weight
-		if svc.SvcNamespace != "" {
-			namespace = svc.SvcNamespace
-		}
 	}
 
 	path := pool.Path
@@ -1500,8 +1502,12 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			}
 			runningWeightTotal = runningWeightTotal + be.Weight
 			weightedSliceThreshold := runningWeightTotal / weightTotal
+			svcNamespace := namespace
+			if be.SvcNamespace != "" {
+				svcNamespace = be.SvcNamespace
+			}
 			poolName := ctlr.formatPoolName(
-				namespace,
+				svcNamespace,
 				be.Name,
 				port,
 				"",

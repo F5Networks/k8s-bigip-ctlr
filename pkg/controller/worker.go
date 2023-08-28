@@ -2109,10 +2109,14 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName)...)
 	}
 
+	// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
+	// pool associated with the HA peer cluster or external cluster and return
 	if len(ctlr.clusterRatio) > 0 {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster)...)
+		pool.Members = poolMembers
+		return
 	}
 
 	// For multiCluster services

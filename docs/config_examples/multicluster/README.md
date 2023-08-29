@@ -1,6 +1,6 @@
-# OpenShift/Kubernetes Multi-Cluster Preview
+# OpenShift/Kubernetes Multi-Cluster
 
-This page documents a new feature in CIS for Multi-Cluster. This is a preview release which supports limited features and is not recommended to use in production environments. To provide feedback on Container Ingress Services or this documentation, please file a [GitHub Issue](https://github.com/F5Networks/k8s-bigip-ctlr/issues)
+This page documents a new feature in CIS for Multi-Cluster. To provide feedback on Container Ingress Services or this documentation, please file a [GitHub Issue](https://github.com/F5Networks/k8s-bigip-ctlr/issues)
 
 ## Contents
 
@@ -26,7 +26,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 **Note**: 
 * CIS supports processing of routes in traditional way as well as with NextGen Controller and with Multi-Cluster support.
-* Currently, only nodePort is supported.
+* Currently, nodePort is supported.Cluster mode is supported with static route configuration on BIGIP(No tunnels)
 
 ## Prerequisites
 * Cluster node, where CIS is deployed, should be able to reach the API server of all OpenShift/Kubernetes clusters.
@@ -37,7 +37,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 ### Standalone CIS
 
-In a Standalone deployment of CIS, CIS is only deployed in one cluster, then create a route resource with a Multi-Cluster annotation to expose the apps in different OpenShift clusters.
+In a Standalone deployment of CIS, CIS is only deployed in one cluster, then create a route resource with a Multi-Cluster annotation or CRD resource with extendedServiceReferences to expose the apps in different OpenShift/K8s clusters.
 
 ![architecture](images/standaloneMultiCluster.png)
 
@@ -62,6 +62,7 @@ Below is the sample Multi-Cluster Config in an Extended Global ConfigMap.
       vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
       allowOverride: false           _____________________|
 ```
+**Note**: extendedRouteSpec is only applicable in case of openshift route resources not for CRD resources.
 
 ### High Availability CIS
 
@@ -175,7 +176,11 @@ Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global C
       vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
       allowOverride: false           _____________________|
 ```
-## Configuration 
+**Note**: extendedRouteSpec is only applicable in case of openshift route resources not for CRD resources.
+
+## Configuration
+
+### Openshift Routes with multi-cluster
 
 ### CIS Deployment Parameter
 
@@ -209,7 +214,7 @@ Following is the sample deployment for primary CIS deployment:
         - --extended-spec-configmap=kube-system/global-spec-config
         - --route-label=systest
         - --pool-member-type
-        - cluster
+        - nodeport
         - --multi-cluster-mode=primary
         command:
         - /app/bin/k8s-bigip-ctlr
@@ -292,6 +297,43 @@ virtual-server.f5.com/multiClusterServices:
      }
 ]'
 ```
+### CRD Resources with Multi-Cluster
+
+### CIS Deployment Parameter
+
+**Note**: Here **standalone** refers to standalone topology of CIS deployment, See [Standalone CIS](#standalone-cis).
+
+Following is the sample deployment for primary CIS deployment:
+
+```yaml
+    spec:
+      containers:
+      - args:
+        - --bigip-partition
+        - <partition>
+        - --bigip-url
+        - <ip-address>
+        - --bigip-username
+        - <user-name>
+        - --bigip-password
+        - <password>
+        - --log-level
+        - DEBUG
+        - --insecure
+        - --custom-resource-mode=true
+        - --extended-spec-configmap=kube-system/global-spec-config
+        - --pool-member-type
+        - nodeport
+        - --multi-cluster-mode=primary
+        command:
+        - /app/bin/k8s-bigip-ctlr
+        image: <image-name>
+```
+
+**Note:**
+1. Update the ```multi-cluster-mode``` to *secondary* for secondary CIS deployment in high availablility topology, See [High Availability CIS](#high-availability-cis).
+2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
+
 **Note**: _weight_ needs to be specified onlyonly in A/B scenario
 ### Virutal Server Pool with Multi-ClusterServices
 Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the VS Pool as mentioned below:
@@ -328,6 +370,53 @@ Services running in any other OpenShift/Kubernetes clusters, apart from the HA c
       namespace: ns2
       port: 8282
 ```
+
+## Static Routing Mode
+CIS supports configuring static routes in BIG-IP with node subnets assigned for the nodes in the OpenShift/k8s cluster.This enables direct routing from BIGIP to k8s Pods in cluster mode without vxaln tunnel configuration on BIGIP.
+
+### Configuration
+To enable the static route configuration, set --static-routing-mode to true and --orchestration-cni to CNI configured in the cluster.
+
+| Parameter            | Type    | Required  | Description                                                                                          | Allowed values                     | Default | Agent |
+|----------------------|---------|-----------|------------------------------------------------------------------------------------------------------|------------------------------------|---------|-------|
+| static-routing-mode  | Boolean | Optional  | Adds Static Routes on the BIGIP so that traffic can be directly route to the pods. (Without tunnels) | true,false                         | false   | AS3   |
+| orchestration-cni    | string  | Optional	 | Kubernetes Cluster CNI Name                                                                          | cilium-k8s, flannel,ovn-k8s,antrea | flannel | AS3   |
+| shared-static-routes | Boolean | Optional  | flag to enable configuration of static routes on bigip in common partition                           | true,false                         | false   | AS3   |
+
+### CIS Deployment Parameter
+
+**Note**: Here **standalone** refers to standalone topology of CIS deployment, See [Standalone CIS](#standalone-cis).
+
+Following is the sample deployment for primary CIS deployment:
+
+```yaml
+    spec:
+      containers:
+      - args:
+        - --bigip-partition
+        - <partition>
+        - --bigip-url
+        - <ip-address>
+        - --bigip-username
+        - <user-name>
+        - --bigip-password
+        - <password>
+        - --log-level
+        - DEBUG
+        - --insecure
+        - --custom-resource-mode=true
+        - --static-routing-mode=true
+        - --orchestration-cni=ovn-k8s
+        - --shared-static-routes=true
+        - --extended-spec-configmap=kube-system/global-spec-config
+        - --pool-member-type
+        - cluster
+        - --multi-cluster-mode=primary
+        command:
+        - /app/bin/k8s-bigip-ctlr
+        image: <image-name>
+```
+
 #### Route Annotation / VS or TS MultiClusterServices Parameters
 
 | Parameter   | Type       | Required   | Description                                             | Default | Examples |
@@ -347,7 +436,11 @@ while computing the final ratio.<br>
 **Note:** Cluster wise ratio for traffic distribution is supported in HA as well as non-HA CIS environment.
 
 ## Known issues
-* Multi-Cluster feature doesn't work with CIS running in cluster mode, as of this time.
+*  Pool members are not getting populated for extended service in ratio mode
+*  CIS doesn't update pool members if service doesn't exist in primary cluster but exists in secondary cluster for Route.
+*  CIS on start up in multiCluster mode, if any external cluster kube-api server is down/not reachable, CIS is struck and not processing any valid clusters config also.Workaround to remove unreachable cluster config from configmap and restart CIS
+*  CIS fails to post declaration with VS with health monitors in ratio mode.Issue is observed intermittently
+
 
 ## FAQ
 
@@ -357,6 +450,9 @@ Yes. Multi-Cluster support only works if --multi-cluster-mode is defined in CIS 
 ### Is extended configMap mandatory for Multi-Cluster support?
 Yes. Multi-Cluster support only works with extended configmap.
 
+### Is extended configmap update require CIS restart?
+Yes.It's recommended to restart CIS if any HA configuration or external cluster configurations are updated in extended Configmap. However CIS restart is not required when updating ratio in the extended Configmap.
+
 ### How do you add a new cluster?
 To add a new cluster, create a kube-config file with read only permissions. Then create a Kubernetes secret using the kube-config file. Refer this in secret in the extended ConfigMap to add the new cluster.
 CIS dynamically reads the new kube-config of the new cluster and starts listening to the services and endpoints in the new cluster when a route refers this new cluster.
@@ -365,10 +461,13 @@ CIS dynamically reads the new kube-config of the new cluster and starts listenin
 Manifests or Configuration objects are managed centralized in Primary Cluster and if HA is desired the same manifests are expected to be in Secondary Cluster.
 
 ### What are the supported CNIs?
-Currently only NodePort mode is supported.
+Currently, NodePort mode is supported.For cluster mode, static routing mode is supported to enable configuration of static routes on bigip for pod network subnets for direct routing from BIGIP to k8s Pods
+
+### What kind of providers are supported?
+CIS supports Hybrid Cloud, any public Cloud providers such as; AWS, Azure, GCP, On-Prem, VmWare, Tanzu etc. which is in same network/datacenter and can communicate with each other. 
 
 ### What kind of clusters are supported?
-CIS supports Hybrid Cloud, any public Cloud providers such as; AWS, Azure, GCP, On-Prem, VmWare, Tanzu etc. which is in same network/datacenter and can communicate with each other. 
+CIS multicluster solution is currently validated with openshift clusters and K8s clusters
 
 ### How does CIS start as a secondary Cluster?
 CIS recognizes as Secondary when it starts with a deployment parameter i.e. --multi-cluster-mode=secondary
@@ -389,4 +488,4 @@ No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts
 Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with A/B as well.
 
 ### Is A/B supported in multiCluster mode?
-Yes. CIS supports A/B with multiCluster, but for this the mode has to be set as ratio in the extended configmap.
+Yes. CIS supports A/B with multiCluster. However, it's not supported with extendedServices/multiClusterServices.

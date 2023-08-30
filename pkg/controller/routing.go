@@ -753,14 +753,24 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 								incr extension_start $extension_len
 							}
 							if { [info exists tls_servername] } {
+								set servername_lower [string tolower $tls_servername]
+                            	set domain_length [llength [split $servername_lower "."]]
+                				set domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]
+                				# Set wc_host with the wildcard domain
+								set wc_host ".$domain_wc"
 								set passthru_class "/%[1]s/%[2]s_ssl_passthrough_servername_dg"
 								if { [class exists $passthru_class] } {
-									set servername_lower [string tolower $tls_servername]
 									SSL::disable serverside
 									set dflt_pool_passthrough ""
 
 									# Disable Serverside SSL for Passthrough Class
 									set dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]
+									# If no match, try wildcard domain
+									if { $dflt_pool_passthrough == "" } {
+									    if { [class match $wc_host equals $passthru_class] } {
+            							        set dflt_pool_passthrough [class match -value $wc_host equals $passthru_class]
+									    }
+									}
 									if { not ($dflt_pool_passthrough equals "") } {
 										SSL::disable
 										HTTP::disable

@@ -567,6 +567,10 @@ func (ctlr *Controller) processResources() bool {
 		// Update the poolMembers for affected resources
 		ctlr.updatePoolMembersForService(svcKey)
 
+		if ctlr.mode == OpenShiftMode && rscDelete == false {
+			ctlr.UpdatePoolHealthMonitors(svcKey)
+		}
+
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
@@ -3866,10 +3870,19 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 	}
 	for _, obj := range services {
 		svc := obj.(*v1.Service)
-		if svc.Spec.Type != v1.ServiceTypeNodePort {
-			if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
-				return svc
+
+		// in the nodeportlocal mode, svc type nodeport is not supported by antrea CNI, we ignore svc type nodeport
+		if ctlr.PoolMemberType == NodePortLocal {
+			if svc.Spec.Type != v1.ServiceTypeNodePort {
+				if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+					return svc
+				}
 			}
+			return nil
+		}
+
+		if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+			return svc
 		}
 	}
 	return nil

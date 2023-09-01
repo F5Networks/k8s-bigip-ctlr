@@ -3531,7 +3531,13 @@ extendedRouteSpec:
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 
+				svcKey := MultiClusterServiceKey{
+					serviceName: svc.Name,
+					namespace:   svc.Namespace,
+					clusterName: "",
+				}
 				// Route count should be 0
+				Expect(mockCtlr.GetServiceRouteWithoutHealthAnnotation(svcKey)).To(BeNil())
 				//Expect(mockCtlr.GetServiceRouteWithoutHealthAnnotation(svc)).To(BeNil())
 
 				pod.Name = "pod1"

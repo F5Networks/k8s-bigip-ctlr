@@ -39,13 +39,17 @@ RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
 RUN microdnf update -y && \
-    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs findutils gcc openssl-devel bzip2-devel libffi-devel zlib-devel git shadow-utils tar -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
-    pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
-    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
-    python3 -m pip uninstall -y pip && \
+    curl -O https://www.python.org/ftp/python/3.11.5/Python-3.11.5.tgz  && \
+    tar xvf Python-3.11.5.tgz && \
+    pushd Python-3.11.5/ && ./configure --enable-optimizations && make altinstall && popd && \
+    rm -rf Python-3.11.5.tgz Python-3.11.5 && \
+    pip3.11 install --no-cache-dir --upgrade pip==20.0.2 && \
+    pip3.11 install --no-cache-dir -r /tmp/requirements.txt && \
+    python3.11 -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf remove libedit openssh openssh-clients perl-Git  perl-TermReadKey git-core git-core-doc git less shadow-utils -y && \
+    microdnf remove findutils tar gcc openssl-devel bzip2-devel libffi-devel zlib-devel libedit openssh openssh-clients perl-Git  perl-TermReadKey git-core git-core-doc git less shadow-utils -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 USER ctlr

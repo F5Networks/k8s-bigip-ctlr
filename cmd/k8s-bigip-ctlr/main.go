@@ -1077,6 +1077,10 @@ func main() {
 		DisableARP:        disableARP,
 		StaticRoutingMode: *staticRoutingMode,
 	}
+	// If AS3DEBUG is set, set log level to DEBUG
+	if gs.LogLevel == "AS3DEBUG" {
+		gs.LogLevel = "DEBUG"
+	}
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel
 	}

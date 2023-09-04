@@ -121,6 +121,11 @@ func NewAgent(params AgentParams) *Agent {
 		MultiClusterMode:  params.MultiClusterMode,
 	}
 
+	// If AS3DEBUG is set, set log level to DEBUG
+	if gs.LogLevel == "AS3DEBUG" {
+		gs.LogLevel = "DEBUG"
+	}
+
 	bs := bigIPSection{
 		BigIPUsername:   params.PostParams.BIGIPUsername,
 		BigIPPassword:   params.PostParams.BIGIPPassword,

@@ -407,7 +407,15 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	item, found, _ := svcIndexer.GetByKey(svcKey)
 	if !found {
 		log.Debugf("service '%v' not found", svcKey)
-		return targetPort
+
+		var err error
+		item, found, err = ctlr.getSvcFromHACluster(namespace, svcName)
+		if !found {
+			if err != nil {
+				log.Debugf("[MultiCluster] could not fetch service %v ", err)
+			}
+			return targetPort
+		}
 	}
 	svc := item.(*v1.Service)
 	for _, port := range svc.Spec.Ports {

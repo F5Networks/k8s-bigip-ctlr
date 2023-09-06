@@ -8,7 +8,7 @@ Refer to the [Release Notes](https://github.com/F5Networks/k8s-bigip-ctlr/blob/m
 Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR Schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml)
 
 Compatibility Matrix
--------------
+--------------------
 
 | CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version | OS Version                                          |
 |-------------|----------------|--------------------|---------------------------------------------------------------|-----|--------------------|-------------|-------------|-------------------|-------------------|-----------------------------------------------------|
@@ -39,11 +39,21 @@ Compatibility Matrix
 | v2.12.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes                | v3.41       | v0.1.9      | v0.0.4            | v0.0.24           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.12.1     | v16.0          | v1.24              | v4.12.0*                                                      | Yes | Yes                | v3.41       | v0.1.9      | v0.0.4            | v0.0.24           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.13.0     | v16.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.13.1     | v16.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.14.0     | v17.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.26           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
+Compatibility Matrix for Multi Cluster Support
+----------------------------------------------
+
+| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version | NodePort | SDN | OVN (Cluster Mode) | AS3 Version | CIS Chart Version | 
+|-------------|----------------|--------------------|-------------------|----------|-----|--------------------|-------------|-------------------|
+| v2.14.0     | v16.0          | v1.27              | v4.12.0           | Yes      | No  | Yes                | v3.45       | v0.0.26           |
+
+
 CIS Features and Examples
--------------
+-------------------------
 
 | Feature                              | Example                                                                                                                                                                                         | Description                                                                                                                                              | CIS Version |
 |--------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
@@ -314,6 +324,11 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
     * This setting is exclusive for NextGen route mode and not applicable for CRD resources
     * Policy level ssl profiles will have the highest precedence and will override route level profiles
     * In CRD mode CIS will process ssl profiles from tls profile
+
+### **Upgrading from 2.13.0 to 2.13.1:**
+
+Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
 
 ### **Upgrading from 2.13.1 to 2.14.0:**
 

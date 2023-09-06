@@ -1,6 +1,6 @@
 # OpenShift/Kubernetes Multi-Cluster
 
-This page documents a new feature in CIS for Multi-Cluster. To provide feedback on Container Ingress Services or this documentation, please file a [GitHub Issue](https://github.com/F5Networks/k8s-bigip-ctlr/issues)
+This page documents the multi cluster support in CIS. Check the Known Issues section for more information on features not supported.
 
 ## Contents
 

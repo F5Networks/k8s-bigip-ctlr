@@ -2125,7 +2125,6 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	if rsCfg.Virtual.HttpMrfRoutingEnabled == nil && plc.Spec.Profiles.HttpMrfRoutingEnabled != nil {
 		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
 	}
-
 	if plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile != "" &&
 		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
 		rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile = plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile
@@ -2235,6 +2234,25 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	return nil
 }
 
+func (ctlr *Controller) handlePoolResourceConfigForPolicy(
+	rsCfg *ResourceConfig,
+	plc *cisapiv1.Policy,
+) error {
+	for i, pl := range rsCfg.Pools {
+		if pl.ReselectTries == 0 && plc.Spec.PoolSettings.ReselectTries != 0 {
+			pl.ReselectTries = plc.Spec.PoolSettings.ReselectTries
+		}
+		if pl.ServiceDownAction == "" && plc.Spec.PoolSettings.ServiceDownAction != "" {
+			pl.ServiceDownAction = plc.Spec.PoolSettings.ServiceDownAction
+		}
+		if plc.Spec.PoolSettings.SlowRampTime != 0 {
+			pl.SlowRampTime = plc.Spec.PoolSettings.SlowRampTime
+		}
+		//update pool
+		rsCfg.Pools[i] = pl
+	}
+	return nil
+}
 func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }

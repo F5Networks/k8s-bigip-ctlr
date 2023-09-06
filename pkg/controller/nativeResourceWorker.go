@@ -134,7 +134,23 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Errorf("%v", err)
 				break
 			}
-
+			// handle pool settings from policy if defined
+			policy, err := ctlr.getPolicyForRoute(rsCfg, plc, extdSpec)
+			if err != nil {
+				processingError = true
+				log.Errorf("%v", err)
+				break
+			}
+			if policy != nil {
+				if policy.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+					err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, policy)
+					if err != nil {
+						processingError = true
+						log.Errorf("%v", err)
+						break
+					}
+				}
+			}
 			if isSecureRoute(rt) {
 				//TLS Logic
 				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, policySSLProfiles)
@@ -275,20 +291,9 @@ func (ctlr *Controller) handleInsecureABRoute(rsCfg *ResourceConfig, route *rout
 
 func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
 	au *AnnotationsUsed, extdSpec *ExtendedRouteGroupSpec) error {
-	var policy *cisapiv1.Policy
-	if extdSpec.HTTPServerPolicyCR != "" && rsCfg.MetaData.Protocol == HTTP {
-		// GetPolicy
-		splits := strings.Split(extdSpec.HTTPServerPolicyCR, "/")
-		if len(splits) != 2 {
-			return fmt.Errorf("Policy %s not in the format <namespace>/<policy-name>", extdSpec.HTTPServerPolicyCR)
-		}
-		var err error
-		policy, err = ctlr.getPolicy(splits[0], splits[1])
-		if err != nil {
-			return err
-		}
-	} else {
-		policy = plc
+	policy, err := ctlr.getPolicyForRoute(rsCfg, plc, extdSpec)
+	if err != nil {
+		return err
 	}
 	if policy != nil {
 		err := ctlr.handleVSResourceConfigForPolicy(rsCfg, policy)
@@ -321,6 +326,26 @@ func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (*
 		return ctlr.getPolicy(splits[0], splits[1])
 	}
 	return nil, nil
+}
+
+func (ctlr *Controller) getPolicyForRoute(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
+	extdSpec *ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
+	var policy *cisapiv1.Policy
+	if extdSpec.HTTPServerPolicyCR != "" && rsCfg.MetaData.Protocol == HTTP {
+		// GetPolicy
+		splits := strings.Split(extdSpec.HTTPServerPolicyCR, "/")
+		if len(splits) != 2 {
+			return nil, fmt.Errorf("Policy %s not in the format <namespace>/<policy-name>", extdSpec.HTTPServerPolicyCR)
+		}
+		var err error
+		policy, err = ctlr.getPolicy(splits[0], splits[1])
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		policy = plc
+	}
+	return policy, nil
 }
 
 // gets the target port for the route

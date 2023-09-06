@@ -1256,6 +1256,7 @@ func (ctlr *Controller) processVirtualServers(
 		for _, vrt := range virtuals {
 			passthroughVS := false
 			var tlsProf *cisapiv1.TLSProfile
+			var tlsTermination string
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
 				tlsProf = ctlr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
@@ -1264,6 +1265,8 @@ func (ctlr *Controller) processVirtualServers(
 					// Stop processing further virtuals
 					processingError = true
 					break
+				} else {
+					tlsTermination = tlsProf.Spec.TLS.Termination
 				}
 				if tlsProf.Spec.TLS.Termination == TLSPassthrough {
 					passthroughVS = true
@@ -1277,6 +1280,7 @@ func (ctlr *Controller) processVirtualServers(
 				rsCfg,
 				vrt,
 				passthroughVS,
+				tlsTermination,
 			)
 			if err != nil {
 				processingError = true

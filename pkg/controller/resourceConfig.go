@@ -439,10 +439,21 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
 	passthroughVS bool,
+	tlsTermination string,
 ) error {
 
+	var httpsPort int32
 	var httpPort int32
-	httpPort = DEFAULT_HTTP_PORT
+	if vs.Spec.VirtualServerHTTPSPort == 0 {
+		httpsPort = DEFAULT_HTTPS_PORT
+	} else {
+		httpsPort = vs.Spec.VirtualServerHTTPSPort
+	}
+	if vs.Spec.VirtualServerHTTPPort == 0 {
+		httpPort = DEFAULT_HTTP_PORT
+	} else {
+		httpPort = vs.Spec.VirtualServerHTTPPort
+	}
 	var snat string
 	snat = DEFAULT_SNAT
 	var pools Pools
@@ -551,6 +562,45 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				}
 			}
 			pools = append(pools, pool)
+			if tlsTermination != "" {
+				//Handle AB datagroup for secure virtualserver
+				if rsCfg.Virtual.VirtualAddress.Port == httpsPort || (rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure) {
+					ctlr.updateDataGroupForABVirtualServer(&pl,
+						getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+						rsCfg.Virtual.Partition,
+						vs.Namespace,
+						rsCfg.IntDgMap,
+						pl.ServicePort,
+						vs.Spec.Host,
+						tlsTermination,
+					)
+					//path based AB deployment/Cluster ratio not supported for passthrough
+					if (isVsPathBasedABDeployment(&pl) || isVsPathBasedRatioDeployment(&pl, ctlr.haModeType)) &&
+						(tlsTermination == TLSEdge ||
+							(tlsTermination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
+						ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
+					}
+					// handle AB traffic for edge termination with allow
+					if (isVSABDeployment(&pl) || ctlr.haModeType == Ratio) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
+						ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
+					}
+				}
+			} else {
+				if isVSABDeployment(&pl) || ctlr.haModeType == Ratio {
+					// Handle AB datagroup for insecure virtualserver
+					ctlr.updateDataGroupForABVirtualServer(&pl,
+						getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+						rsCfg.Virtual.Partition,
+						vs.Namespace,
+						rsCfg.IntDgMap,
+						pl.ServicePort,
+						vs.Spec.Host,
+						tlsTermination,
+					)
+					// Handle AB path based IRules for insecure virtualserver
+					ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
+				}
+			}
 		}
 	}
 
@@ -1126,28 +1176,6 @@ func (ctlr *Controller) handleVirtualServerTLS(
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
 			} else {
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
-			}
-		}
-		//Handle AB datagroup for virtualserver
-		if rsCfg.Virtual.VirtualAddress.Port == httpsPort || (rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure) {
-			ctlr.updateDataGroupForABVirtualServer(&pl,
-				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
-				rsCfg.Virtual.Partition,
-				vs.Namespace,
-				rsCfg.IntDgMap,
-				pl.ServicePort,
-				vs.Spec.Host,
-				tls.Spec.TLS.Termination,
-			)
-			//path based AB deployment/Cluster ratio not supported for passthrough
-			if (isVsPathBasedABDeployment(&pl) || isVsPathBasedRatioDeployment(&pl, ctlr.haModeType)) &&
-				(tls.Spec.TLS.Termination == TLSEdge ||
-					(tls.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
-				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
-			}
-			// handle AB traffic for edge termination with allow
-			if (isVSABDeployment(&pl) || ctlr.haModeType == Ratio) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
-				ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tls.Spec.TLS.Termination)
 			}
 		}
 	}
@@ -1824,8 +1852,8 @@ func (ctlr *Controller) HandlePathBasedABIRule(
 	vsHost string,
 	tlsTerminationType string,
 ) {
-	// For https
-	if "" != tlsTerminationType && tlsTerminationType != TLSPassthrough {
+	// For passthrough, don't add the iRule
+	if tlsTerminationType != TLSPassthrough {
 		rsCfg.addIRule(
 			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
 		if vsHost != "" {

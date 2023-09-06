@@ -259,7 +259,7 @@ var _ = Describe("Resource Config Tests", func() {
 					IRules:         []string{"SampleIRule"},
 				},
 			)
-			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
@@ -301,7 +301,7 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(len(rsCfg.Pools)).To(Equal(2), "AB pool not processed")
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
@@ -361,7 +361,7 @@ var _ = Describe("Resource Config Tests", func() {
 					IRules:         []string{"SampleIRule"},
 				},
 			)
-			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 
 		})
@@ -1072,6 +1072,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
 				"1.2",
 				"",
@@ -1385,11 +1386,10 @@ var _ = Describe("Resource Config Tests", func() {
 				},
 			})
 
-			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs1, false, tlsProf1.Spec.TLS.Termination)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 
-			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
-			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Process AB Deployment for Virtual Server")
 			nameRef := NameRef{
 				Name: "My_VS_80_ab_deployment_dg",
 			}
@@ -1397,36 +1397,37 @@ var _ = Describe("Resource Config Tests", func() {
 
 			// path = /
 			vs1.Spec.Pools[0].Path = "/"
-			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs1, false, tlsProf1.Spec.TLS.Termination)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 
-			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
-			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Process AB Virtual Server")
 			Expect(rsCfg.IntDgMap[nameRef]["test2"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
 
 			// TLSPassthrough
 			tlsProf1.Spec.TLS.Termination = TLSPassthrough
 			vs1.Spec.Pools[0].Path = "/"
-			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs1, true, tlsProf1.Spec.TLS.Termination)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 			nameRef = NameRef{
 				Name: "My_VS_80_ssl_passthrough_servername_dg",
 			}
-			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
-			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Process AB Virtual Server")
 			Expect(rsCfg.IntDgMap[nameRef]["default"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
 
 			// Weight = 0
 			zeroWeight := int32(0)
 			vs1.Spec.Pools[0].Weight = &zeroWeight
 			vs1.Spec.Pools[0].AlternateBackends[0].Weight = &zeroWeight
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs1, true, tlsProf1.Spec.TLS.Termination)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs1, tlsProf1, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 			nameRef = NameRef{
 				Name: "My_VS_80_ssl_passthrough_servername_dg",
 			}
-			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
-			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Process TLS for AB Virtual Server")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Process AB Virtual Server")
 			Expect(rsCfg.IntDgMap[nameRef]["default"].Records[0].Name).To(Equal("test.com"), "Failed to Process TLS for AB Virtual Server")
 
 		})
@@ -1475,25 +1476,25 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{},
 			)
-			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Virtual.SNAT).To(Equal(plc.Spec.SNAT), "Default SNAT should be set "+
 				"to /Common/snatpool")
 
 			vs.Spec.SNAT = "none"
-			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Virtual.SNAT).To(Equal(vs.Spec.SNAT), "SNAT should be set to none")
 
 			vs.Spec.SNAT = "/Common/snatpool"
-			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Virtual.SNAT).To(Equal(vs.Spec.SNAT), "SNAT should be set "+
 				"to /Common/snatpool")
 
 			rsCfg.Virtual.SNAT = ""
 			vs.Spec.SNAT = ""
-			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Virtual.SNAT).To(Equal(DEFAULT_SNAT), "Default SNAT should be set "+
 				"to automap")

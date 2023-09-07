@@ -426,7 +426,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 
 	for _, bs := range backendSvcs {
 		pool := Pool{
-			Name: formatPoolName(
+			Name: ctlr.formatPoolName(
 				route.Namespace,
 				bs.Name,
 				servicePort,
@@ -562,7 +562,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
-	poolName := formatPoolName(
+	poolName := ctlr.formatPoolName(
 		route.Namespace,
 		route.Spec.To.Name,
 		servicePort,
@@ -762,7 +762,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		return
 	}
 	servicePort := intstr.IntOrString{IntVal: port}
-	poolName := formatPoolName(
+	poolName := ctlr.formatPoolName(
 		service.Namespace,
 		service.Name,
 		servicePort,

@@ -638,12 +638,24 @@ func (ctlr *Controller) GetPathBasedABDeployIRule(rsVSName string, partition str
 				if {$ab_rule != ""} then {
 					set weight_selection [expr {rand()}]
 					set service_rules [split $ab_rule ";"]
+                    set active_pool ""
 					foreach service_rule $service_rules {
 						set fields [split $service_rule ","]
 						set pool_name [lindex $fields 0]
+                        if { [active_members $pool_name] >= 1 } {
+						    set active_pool $pool_name
+						}
 						set weight [expr {double([lindex $fields 1])}]
 						if {$weight_selection <= $weight} then {
-							return $pool_name
+							#check if active pool members are available
+						    if { [active_members $pool_name] >= 1 } {
+							    return $pool_name
+						    } else {
+                                  # select other pool with active members
+						          if {$active_pool!= ""} then {
+						              return $active_pool
+						          }    
+						    }
 						}
 					}
 				}
@@ -998,12 +1010,24 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string) stri
 				if {$ab_rule != ""} then {
 					set weight_selection [expr {rand()}]
 					set service_rules [split $ab_rule ";"]
+                    set active_pool ""
 					foreach service_rule $service_rules {
 						set fields [split $service_rule ","]
 						set pool_name [lindex $fields 0]
+                        if { [active_members $pool_name] >= 1 } {
+						    set active_pool $pool_name
+						}
 						set weight [expr {double([lindex $fields 1])}]
 						if {$weight_selection <= $weight} then {
-							return $pool_name
+                            #check if active pool members are available
+						    if { [active_members $pool_name] >= 1 } {
+							    return $pool_name
+						    } else {
+						          # select the any of pool with active members 
+						          if {$active_pool!= ""} then {
+						              return $active_pool
+						          }    
+						    }
 						}
 					}
 				}

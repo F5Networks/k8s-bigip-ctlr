@@ -146,6 +146,11 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				}
 
 				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
+			} else {
+				// handle ab deployment for insecure routes
+				if isRouteABDeployment(rt) || ctlr.haModeType == Ratio {
+					ctlr.handleInsecureABRoute(rsCfg, rt, servicePort)
+				}
 			}
 
 			ctlr.resources.processedNativeResources[resourceRef{
@@ -249,6 +254,23 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string,
 		}
 	}
 	return assocRoutes
+}
+
+func (ctlr *Controller) handleInsecureABRoute(rsCfg *ResourceConfig, route *routeapi.Route, servicePort intstr.IntOrString) {
+	// add the AB deployment data group
+	ctlr.updateDataGroupForABRoute(route,
+		getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+		rsCfg.Virtual.Partition,
+		route.Namespace,
+		rsCfg.IntDgMap,
+		servicePort,
+	)
+	// add the path based AB irule
+	rsCfg.addIRule(
+		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+	abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
+		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
+	rsCfg.Virtual.AddIRule(abPathIRule)
 }
 
 func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,

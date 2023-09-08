@@ -77,34 +77,34 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	}
 }
 
-func (ctlr *Controller) setInitialServiceCount() {
-	var svcCount int
-	for _, ns := range ctlr.getWatchingNamespaces() {
-		comInf, found := ctlr.getNamespacedCommonInformer(ns)
-		if !found {
-			continue
-		}
-		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
-		if err != nil {
-			continue
-		}
-		for _, obj := range services {
-			svc := obj.(*v1.Service)
-			if _, ok := K8SCoreServices[svc.Name]; ok {
-				continue
-			}
-			if ctlr.mode == OpenShiftMode {
-				if _, ok := OSCPCoreServices[svc.Name]; ok {
-					continue
-				}
-			}
-			if svc.Spec.Type != v1.ServiceTypeExternalName {
-				svcCount++
-			}
-		}
-	}
-	ctlr.initialResourceCount = svcCount
-}
+//func (ctlr *Controller) setInitialServiceCount() {
+//	var svcCount int
+//	for _, ns := range ctlr.getWatchingNamespaces() {
+//		comInf, found := ctlr.getNamespacedCommonInformer(ns)
+//		if !found {
+//			continue
+//		}
+//		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
+//		if err != nil {
+//			continue
+//		}
+//		for _, obj := range services {
+//			svc := obj.(*v1.Service)
+//			if _, ok := K8SCoreServices[svc.Name]; ok {
+//				continue
+//			}
+//			if ctlr.mode == OpenShiftMode {
+//				if _, ok := OSCPCoreServices[svc.Name]; ok {
+//					continue
+//				}
+//			}
+//			if svc.Spec.Type != v1.ServiceTypeExternalName {
+//				svcCount++
+//			}
+//		}
+//	}
+//	ctlr.initialResourceCount = svcCount
+//}
 
 func (ctlr *Controller) setInitialResourceCount() {
 	var rscCount int

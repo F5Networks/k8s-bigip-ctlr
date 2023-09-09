@@ -3377,7 +3377,7 @@ func (ctlr *Controller) processIngressLink(
 		)
 		svcPort := intstr.IntOrString{IntVal: port.Port}
 		pool := Pool{
-			Name: formatPoolName(
+			Name: ctlr.formatPoolName(
 				svc.ObjectMeta.Namespace,
 				svc.ObjectMeta.Name,
 				svcPort,

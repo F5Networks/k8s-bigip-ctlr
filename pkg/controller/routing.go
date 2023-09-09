@@ -1203,7 +1203,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 			}
 			runningWeightTotal = runningWeightTotal + be.Weight
 			weightedSliceThreshold := runningWeightTotal / weightTotal
-			poolName := formatPoolName(
+			poolName := ctlr.formatPoolName(
 				route.Namespace,
 				be.Name,
 				port,
@@ -1500,7 +1500,7 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			}
 			runningWeightTotal = runningWeightTotal + be.Weight
 			weightedSliceThreshold := runningWeightTotal / weightTotal
-			poolName := formatPoolName(
+			poolName := ctlr.formatPoolName(
 				namespace,
 				be.Name,
 				port,

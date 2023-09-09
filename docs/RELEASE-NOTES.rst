@@ -11,6 +11,7 @@ Added Functionality
     * CRD
 Bug Fixes
 ````````````
+* `https://github.com/F5Networks/k8s-bigip-ctlr/issues/3061`_: Provide stable pool name in multi cluster mode
 
 2.14.0
 -------------

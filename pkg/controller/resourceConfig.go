@@ -295,7 +295,7 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 			}
 			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
 		}
-		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
+		poolName = ctlr.formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
 	return poolName
 }
@@ -311,7 +311,7 @@ func (ctlr *Controller) framePoolNameForDefaultPool(ns string, pool cisapiv1.Def
 			}
 			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
 		}
-		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
+		poolName = ctlr.formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
 	return poolName
 }
@@ -327,18 +327,15 @@ func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host s
 		if (intstr.IntOrString{}) == targetPort {
 			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort)
 		}
-		poolName = formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, cxt.Cluster)
+		poolName = ctlr.formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, cxt.Cluster)
 	}
 	return poolName
 }
 
 // format the pool name for an VirtualServer
-func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host, cluster string) string {
+func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host, cluster string) string {
 	servicePort := fetchPortString(port)
-	if cluster != "" {
-		cluster = "_" + cluster
-	}
-	poolName := fmt.Sprintf("%s_%s_%s%s", svc, servicePort, namespace, cluster)
+	poolName := fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
 	if len(host) > 0 {
 		poolName = fmt.Sprintf("%s_%s", poolName, host)
 
@@ -347,6 +344,14 @@ func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLa
 		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 	}
+
+	if ctlr.multiClusterMode != "" {
+		if cluster == "" {
+			cluster = ctlr.multiClusterConfigs.LocalClusterName
+		}
+		poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+	}
+
 	return AS3NameFormatter(poolName)
 }
 
@@ -2027,7 +2032,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	svc *v1.Service,
 	svcPort v1.ServicePort,
 ) error {
-	poolName := formatPoolName(
+	poolName := ctlr.formatPoolName(
 		svc.Namespace,
 		svc.Name,
 		svcPort.TargetPort,
@@ -2394,7 +2399,7 @@ func (ctlr *Controller) handleRouteTLS(
 	var poolPathRefs []poolPathRef
 
 	for _, pl := range rsCfg.Pools {
-		if pl.Name == formatPoolName(
+		if pl.Name == ctlr.formatPoolName(
 			route.Namespace,
 			route.Spec.To.Name,
 			servicePort,
@@ -2406,7 +2411,7 @@ func (ctlr *Controller) handleRouteTLS(
 				poolPathRefs,
 				poolPathRef{
 					route.Spec.Path,
-					formatPoolName(
+					ctlr.formatPoolName(
 						route.ObjectMeta.Namespace,
 						route.Spec.To.Name,
 						pl.ServicePort,

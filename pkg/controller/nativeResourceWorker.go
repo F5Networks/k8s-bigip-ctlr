@@ -343,16 +343,15 @@ func (ctlr *Controller) getServicePort(
 		if strVal == "" {
 			port = route.Spec.Port.TargetPort.IntVal
 		} else {
-			port, err = resource.GetServicePort(route.Namespace, svcName, svcIndexer, strVal, resource.ResourceTypeRoute)
+			port, err = ctlr.getResourceServicePort(route.Namespace, svcName, svcIndexer, strVal, resource.ResourceTypeRoute)
 			if nil != err {
 				return fmt.Errorf("Error while processing port for route %s: %v", route.Name, err), port
 			}
 		}
 	} else {
-		port, err = resource.GetServicePort(route.Namespace, svcName, svcIndexer, "", resource.ResourceTypeRoute)
+		port, err = ctlr.getResourceServicePort(route.Namespace, svcName, svcIndexer, "", resource.ResourceTypeRoute)
 		if nil != err {
 			return fmt.Errorf("Error while processing port for route %s: %v", route.Name, err), port
-
 		}
 	}
 	log.Debugf("Port %v found for route %s", port, route.Name)

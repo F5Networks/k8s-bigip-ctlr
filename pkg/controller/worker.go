@@ -22,8 +22,10 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"os"
 	"reflect"
 	"sort"
@@ -77,34 +79,34 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	}
 }
 
-func (ctlr *Controller) setInitialServiceCount() {
-	var svcCount int
-	for _, ns := range ctlr.getWatchingNamespaces() {
-		comInf, found := ctlr.getNamespacedCommonInformer(ns)
-		if !found {
-			continue
-		}
-		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
-		if err != nil {
-			continue
-		}
-		for _, obj := range services {
-			svc := obj.(*v1.Service)
-			if _, ok := K8SCoreServices[svc.Name]; ok {
-				continue
-			}
-			if ctlr.mode == OpenShiftMode {
-				if _, ok := OSCPCoreServices[svc.Name]; ok {
-					continue
-				}
-			}
-			if svc.Spec.Type != v1.ServiceTypeExternalName {
-				svcCount++
-			}
-		}
-	}
-	ctlr.initialResourceCount = svcCount
-}
+//func (ctlr *Controller) setInitialServiceCount() {
+//	var svcCount int
+//	for _, ns := range ctlr.getWatchingNamespaces() {
+//		comInf, found := ctlr.getNamespacedCommonInformer(ns)
+//		if !found {
+//			continue
+//		}
+//		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
+//		if err != nil {
+//			continue
+//		}
+//		for _, obj := range services {
+//			svc := obj.(*v1.Service)
+//			if _, ok := K8SCoreServices[svc.Name]; ok {
+//				continue
+//			}
+//			if ctlr.mode == OpenShiftMode {
+//				if _, ok := OSCPCoreServices[svc.Name]; ok {
+//					continue
+//				}
+//			}
+//			if svc.Spec.Type != v1.ServiceTypeExternalName {
+//				svcCount++
+//			}
+//		}
+//	}
+//	ctlr.initialResourceCount = svcCount
+//}
 
 func (ctlr *Controller) setInitialResourceCount() {
 	var rscCount int
@@ -3397,7 +3399,7 @@ func (ctlr *Controller) processIngressLink(
 		)
 		svcPort := intstr.IntOrString{IntVal: port.Port}
 		pool := Pool{
-			Name: formatPoolName(
+			Name: ctlr.formatPoolName(
 				svc.ObjectMeta.Namespace,
 				svc.ObjectMeta.Name,
 				svcPort,
@@ -4246,4 +4248,37 @@ func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace 
 		}
 	}
 	return nodePort
+}
+
+func (ctlr *Controller) getResourceServicePort(ns string,
+	svcName string,
+	svcIndexer cache.Indexer,
+	portName string,
+	rscType string,
+) (int32, error) {
+	// GetServicePort returns the port number, for a given port name,
+	// else, returns the first port found for a Route's service.
+	key := ns + "/" + svcName
+
+	obj, found, err := svcIndexer.GetByKey(key)
+	if nil != err {
+		return 0, fmt.Errorf("Error looking for service '%s': %v", key, err)
+	}
+	if found {
+		svc := obj.(*v1.Service)
+		if portName != "" {
+			for _, port := range svc.Spec.Ports {
+				if port.Name == portName {
+					return port.Port, nil
+				}
+			}
+			return 0,
+				fmt.Errorf("Could not find service port '%s' on service '%s'", portName, key)
+		} else if rscType == resource.ResourceTypeRoute {
+			return svc.Spec.Ports[0].Port, nil
+		}
+	} else if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+		return ctlr.getSvcPortFromHACluster(ns, svcName, portName, rscType)
+	}
+	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
 }

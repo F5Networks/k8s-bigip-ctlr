@@ -89,6 +89,13 @@ var _ = Describe("Resource Config Tests", func() {
 	})
 
 	Describe("Name Formatting", func() {
+		var mockCtlr *mockController
+
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.mode = CustomResourceMode
+		})
 		It("Replace Unwanted Characters", func() {
 			inputName := "a.b:c/d%e-f=g"
 			name := AS3NameFormatter(inputName)
@@ -103,7 +110,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool Name", func() {
-			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
+			name := mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {

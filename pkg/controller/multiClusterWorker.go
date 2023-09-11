@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	v1 "k8s.io/api/core/v1"
 )
 
 func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRef, clusterSvcs []cisapiv1.MultiClusterServiceReference) {
@@ -58,16 +61,16 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 
 }
 
-func (ctlr *Controller) deleteResourceExternalClusterSvcReference(mSvcKey MultiClusterServiceKey) {
-
-	if mSvcKey.clusterName != "" && ctlr.multiClusterResources == nil {
-		return
-	}
-	ctlr.multiClusterResources.Lock()
-	defer ctlr.multiClusterResources.Unlock()
-	// for service referring to resource, remove the resource from clusterSvcMap
-	delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
-}
+//func (ctlr *Controller) deleteResourceExternalClusterSvcReference(mSvcKey MultiClusterServiceKey) {
+//
+//	if mSvcKey.clusterName != "" && ctlr.multiClusterResources == nil {
+//		return
+//	}
+//	ctlr.multiClusterResources.Lock()
+//	defer ctlr.multiClusterResources.Unlock()
+//	// for service referring to resource, remove the resource from clusterSvcMap
+//	delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
+//}
 
 func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey resourceRef) {
 	ctlr.multiClusterResources.Lock()
@@ -126,5 +129,62 @@ func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
 			delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
 			ctlr.stopMultiClusterInformers(clusterName)
 		}
+	}
+}
+
+func (ctlr *Controller) getSvcPortFromHACluster(svcNameSpace, svcName, portName, rscType string) (int32, error) {
+	obj, exists, err := ctlr.getSvcFromHACluster(svcNameSpace, svcName)
+	if exists {
+		svc := obj.(*v1.Service)
+		if portName != "" {
+			for _, port := range svc.Spec.Ports {
+				if port.Name == portName {
+					return port.Port, nil
+				}
+			}
+			return 0,
+				fmt.Errorf("Could not find service port '%s' on service '%s'", portName, svcNameSpace+"/"+svcName)
+		} else if rscType == resource.ResourceTypeRoute {
+			return svc.Spec.Ports[0].Port, nil
+		}
+	} else if err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
+
+func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (interface{}, bool, error) {
+
+	if ctlr.haModeType != Active || ctlr.multiClusterPoolInformers == nil {
+		return nil, false, nil
+	}
+
+	key := svcNameSpace + "/" + svcName
+	if _, ok := ctlr.multiClusterPoolInformers[ctlr.multiClusterConfigs.HAPairClusterName]; !ok {
+		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster %s'",
+			ctlr.multiClusterConfigs.HAPairClusterName)
+	}
+
+	ns := svcNameSpace
+	if ctlr.watchingAllNamespaces() {
+		ns = ""
+	}
+
+	if poolInf, found := ctlr.multiClusterPoolInformers[ctlr.multiClusterConfigs.HAPairClusterName][ns]; found {
+		obj, exists, err := poolInf.svcInformer.GetIndexer().GetByKey(key)
+
+		if nil != err {
+			return nil, false, fmt.Errorf("[MultiCluster] Error looking for service '%s': %v", key, err)
+		}
+
+		if !exists {
+			return nil, false, fmt.Errorf("[MultiCluster] Could not find service %v in cluster %v", key, ctlr.multiClusterConfigs.HAPairClusterName)
+		}
+
+		return obj, exists, nil
+
+	} else {
+		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster/namespace: %s/%s'",
+			ctlr.multiClusterConfigs.HAPairClusterName, svcNameSpace)
 	}
 }

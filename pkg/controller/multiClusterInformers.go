@@ -57,25 +57,25 @@ func (poolInfr *MultiClusterPoolInformer) stop() {
 	close(poolInfr.stopCh)
 }
 
-func (ctlr *Controller) getMultiClusterNamespacedPoolInformer(
-	namespace string,
-	clusterName string,
-) (*MultiClusterPoolInformer, bool) {
-	if ctlr.watchingAllNamespaces() {
-		namespace = ""
-	}
-
-	if ctlr.multiClusterPoolInformers == nil {
-		log.Debugf("[MultiCluster] informer not found for cluster %v", clusterName)
-		return nil, false
-	}
-
-	if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
-		poolInf, found := ctlr.multiClusterPoolInformers[clusterName][namespace]
-		return poolInf, found
-	}
-	return nil, false
-}
+//func (ctlr *Controller) getMultiClusterNamespacedPoolInformer(
+//	namespace string,
+//	clusterName string,
+//) (*MultiClusterPoolInformer, bool) {
+//	if ctlr.watchingAllNamespaces() {
+//		namespace = ""
+//	}
+//
+//	if ctlr.multiClusterPoolInformers == nil {
+//		log.Debugf("[MultiCluster] informer not found for cluster %v", clusterName)
+//		return nil, false
+//	}
+//
+//	if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
+//		poolInf, found := ctlr.multiClusterPoolInformers[clusterName][namespace]
+//		return poolInf, found
+//	}
+//	return nil, false
+//}
 
 func (ctlr *Controller) addMultiClusterNamespacedInformers(
 	clusterName string,

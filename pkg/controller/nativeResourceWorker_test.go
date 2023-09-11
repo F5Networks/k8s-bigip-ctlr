@@ -1902,3 +1902,538 @@ extendedRouteSpec:
 		})
 	})
 })
+
+var _ = Describe("Multi Cluster with Routes", func() {
+	var mockCtlr *mockController
+	var sct1, sct2, sct3, sct4 *v1.Secret
+	var cm *v1.ConfigMap
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.resources = NewResourceStore()
+		mockCtlr.mode = OpenShiftMode
+		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["default"] = true
+		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.nrInformers = make(map[string]*NRInformer)
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
+		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
+		mockCtlr.comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system")
+		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		mockCtlr.clusterRatio = make(map[string]*int)
+		var processedHostPath ProcessedHostPath
+		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
+		mockCtlr.processedHostPath = &processedHostPath
+		mockCtlr.TeemData = &teem.TeemsData{
+			ResourceType: teem.ResourceTypes{
+				RouteGroups:  make(map[string]int),
+				NativeRoutes: make(map[string]int),
+				ExternalDNS:  make(map[string]int),
+			},
+		}
+		mockCtlr.Agent = &Agent{
+			PostManager: &PostManager{
+				PostParams: PostParams{
+					BIGIPURL: "10.10.10.1",
+				},
+			},
+		}
+
+		cmName := "ecm"
+		cmNamespace := "kube-system"
+		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+		mockCtlr.resources = NewResourceStore()
+		data := make(map[string]string)
+		cm = test.NewConfigMap(
+			cmName,
+			"v1",
+			cmNamespace,
+			data)
+
+		data["extendedSpec"] = `
+highAvailabilityCIS:
+      primaryEndPoint: http://10.145.72.114:8001
+      probeInterval: 30
+      retryInterval: 3
+      primaryCluster:
+        clusterName: cluster1
+        secret: default/kubeconfig1
+      secondaryCluster:
+        clusterName: cluster2
+        secret: default/kubeconfig2
+externalClustersConfig:
+    - clusterName: cluster3
+      secret: default/kubeconfig3
+    - clusterName: cluster4
+      secret: default/kubeconfig4
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      policyCR : default/policy
+`
+		sct1 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		sct2 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig1", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		sct3 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig2", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		sct4 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig3", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		mockCtlr.addSecret(sct1)
+		mockCtlr.addSecret(sct2)
+		mockCtlr.addSecret(sct3)
+		mockCtlr.addSecret(sct4)
+		mockCtlr.addConfigMap(cm)
+		mockCtlr.initState = false
+		mockCtlr.clusterRatio = make(map[string]*int)
+
+	})
+
+	Describe("Process Routes with multi cluster config", func() {
+
+		var route1 *routeapi.Route
+		var rsCfg *ResourceConfig
+		var ps portStruct
+		BeforeEach(func() {
+			mockCtlr.multiClusterMode = PrimaryCIS
+			routeGroup := "default"
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge",
+					Certificate:                   "",
+					Key:                           "",
+					InsecureEdgeTerminationPolicy: "",
+					DestinationCACertificate:      "",
+				},
+			}
+
+			route1 = test.NewRoute("route1", "1", routeGroup, spec1, nil)
+			route1.Annotations = make(map[string]string)
+			ps = portStruct{HTTP, DEFAULT_HTTP_PORT}
+			// Resource Config for unsecured virtual server
+			// ResourceConfig for secured virtual server
+			rsCfg = &ResourceConfig{}
+			rsCfg.Virtual.Partition = routeGroup
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = "newroutes_443"
+			rsCfg.MetaData.Protocol = HTTPS
+			rsCfg.Virtual.SetVirtualAddress("10.8.3.11", DEFAULT_HTTPS_PORT)
+			// Portstruct for secured virtual server
+			ps.protocol = HTTPS
+			ps.port = DEFAULT_HTTPS_PORT
+		})
+
+		It("Process Route with multi cluster annotation without multicluster config", func() {
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+		})
+
+		It("Process Route with multi cluster annotation with multicluster config", func() {
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.processGlobalExtendedConfigMap()
+			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
+			clusterName := "cluster3"
+			// Setup informers with namespaces which are watched by CIS
+			for namespace := range mockCtlr.namespaces {
+				// add common informers  in all modes
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
+					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+				}
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+				}
+			}
+
+			//check with multi cluster service annotation
+			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "serviceName":"svc", "namespace": "default", "port": "8080" },
+{"clusterName": "cluster3", "serviceName":"svc1", "namespace": "default", "port": "8081" }]`
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+
+			resourceKey := resourceRef{
+				kind:      Route,
+				namespace: route1.Namespace,
+				name:      route1.Name,
+			}
+
+			one := 1
+			mockCtlr.clusterRatio["cluster1"] = &one
+			two := 2
+			mockCtlr.clusterRatio["cluster2"] = &two
+			three := 3
+			mockCtlr.clusterRatio["cluster3"] = &three
+			var weight int32 = 10
+			route1.Spec.To.Weight = &weight
+			mockCtlr.haModeType = Ratio
+
+			//remove annotation and check
+			delete(route1.Annotations, "virtual-server.f5.com/multiClusterServices")
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			// for local cluster service mapping must be present
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+
+			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "serviceName":"svc1", "namespace": "default", "port": "8081" }]`
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+
+		})
+
+	})
+})
+
+var _ = Describe("Multi Cluster with CRD", func() {
+	var mockCtlr *mockController
+	var sct1, sct2, sct3, sct4 *v1.Secret
+	var cm *v1.ConfigMap
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.resources = NewResourceStore()
+		mockCtlr.mode = CustomResourceMode
+		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["default"] = true
+		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.nrInformers = make(map[string]*NRInformer)
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
+		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
+		mockCtlr.comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system")
+		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		mockCtlr.clusterRatio = make(map[string]*int)
+		var processedHostPath ProcessedHostPath
+		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
+		mockCtlr.processedHostPath = &processedHostPath
+		mockCtlr.TeemData = &teem.TeemsData{
+			ResourceType: teem.ResourceTypes{
+				RouteGroups:  make(map[string]int),
+				NativeRoutes: make(map[string]int),
+				ExternalDNS:  make(map[string]int),
+			},
+		}
+		mockCtlr.Agent = &Agent{
+			PostManager: &PostManager{
+				PostParams: PostParams{
+					BIGIPURL: "10.10.10.1",
+				},
+			},
+		}
+
+		cmName := "ecm"
+		cmNamespace := "kube-system"
+		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+		mockCtlr.resources = NewResourceStore()
+		data := make(map[string]string)
+		cm = test.NewConfigMap(
+			cmName,
+			"v1",
+			cmNamespace,
+			data)
+
+		data["extendedSpec"] = `
+highAvailabilityCIS:
+      primaryEndPoint: http://10.145.72.114:8001
+      probeInterval: 30
+      retryInterval: 3
+      primaryCluster:
+        clusterName: cluster1
+        secret: default/kubeconfig1
+      secondaryCluster:
+        clusterName: cluster2
+        secret: default/kubeconfig2
+externalClustersConfig:
+    - clusterName: cluster3
+      secret: default/kubeconfig3
+    - clusterName: cluster4
+      secret: default/kubeconfig4
+`
+		sct1 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		sct2 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig1", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		sct3 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig2", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		sct4 = &v1.Secret{
+			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig3", Namespace: "default"},
+			Data: map[string][]byte{
+				"kubeconfig": []byte("apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: aGFpIHRoaXMgaXMgZm9yIHRlc3RpbmcgcHVycG9zZS4gYXNkYXNhbG5hLiBhZGFzZGFzZC4gYSBkYXNk\n    server: https://0.0.0.0:80\n  name: kubernetes\ncontexts:\n- context:\n    cluster: kubernetes\n    user: kubernetes\n  name: kubernetes@kubernetes\ncurrent-context: kubernetes@kubernetes\nkind: Config\npreferences: {}\nusers:\n- name: kubernetes\n  user:\n    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURaekNDQWsrZ0F3SUJBZ0lJV0MrTFZDazFmNFF3RFFZSktvWklodmNOQVFFTEJRQXdOakVTTUJBR0ExVUUKQ3hNSmIzQmxibk5vYVdaME1TQXdIZ1lEVlFRREV4ZGhaRzFwYmkxcmRXSmxZMjl1Wm1sbkxYTnBaMjVsY2pBZQpGdzB5TXpBeE1USXdOekV6TkRCYUZ3MHpNekF4TURrd056RXpOREZhTURBeEZ6QVZCZ05WQkFvVERuTjVjM1JsCmJUcHRZWE4wWlhKek1SVXdFd1lEVlFRREV3eHplWE4wWlcwNllXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURMeDlhRlowcDU2dmM1YWIwZzlQSXZFVU9tWkh6ODg3bm1CWDRZSFJBOAphZHhnZ1NtNWVYdVlzRjFBZ28rRE1WZnlCRjJvWFc5K0w3K2VWdVdyVzRkS3dNc1diUExJc0tKSFpzeE5qQ1Q0CjVUWE0wemtXZGRiZUdaNnU5OFZpM3Q5amhIVWpGRFA2YzRlR1pXTVlNWHY0elZJL0VrNnlWTWUxaFpzR2J6ZGsKcmgweGUxai9UK3pzVXl2TkZMekEyMjIxVlk2VmN1Nk1INjczM1p6MjZPTnR4akNBSm5lWFY2KzZiODNqL25JbgpqNWFJVzJIMzJrckowUWN6WStsQlpIM2s5cmZJMUdtK3NzV3FHdnQzWUpXRTN0Vi9DMm5RTGRJb1BSaTBBekd5CmJwcUR6Qi9kM2dkZ0d2eW43NUFBVkZwcEwzU1p5MGg2aVEveHhtenhPalhYQWdNQkFBR2pmekI5TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVU2OW1vcXJlNzZ4MFVLeUo2cElYWVF3aW5kTEl3SHdZRFZSMGpCQmd3CkZvQVUyTThzV3RsSkEzVzR3VzNCbWd5Mk1ya0oweEl3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUtHdi9rMSsKYytoay8rLzdWU1Y4Z2tjYzMrRm5qNktmWGpQNTBKZ0hDVjFubFhaOS9TZC9LdHdoVjZ4VE00a0IrdDNtY240NgprNWI3TTZMOWpSWVBhZFpHcVFUbEh4RUwrd1MwUiticmtqTlYwb2RQZmVIWVVaMTVCc2JzRWJZNml4UHpPU3p0CkpJUWkvbzFYZXVDRUMzSG5YTG5wUFZUc3EyNm44UXNRM3QrUzErSDRJdlFTWjZSRys2ZEowM2lIUUJMY1pKSVMKUHpSbGxxN01icnRWdUIzVHpqb08vNGR0eUp2Yi8yLzFuSkZ4Wnd4cTZERlNVRU90RGxZOGdDWEMyRFJOcXdtQQp4UExoSUhuWFN6YjlqT1l0eG1McklaWE8vRU5FVnJDMHhOMFZpSThQRU5Md3czTHlhT2RoQ0xoZG1Yc0hlbkU0CmxSa0tTZ3hPSWFLUjNvTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBeThmV2hXZEtlZXIzT1dtOUlQVHlMeEZEcG1SOC9QTzU1Z1YrR0IwUVBHbmNZSUVwCnVYbDdtTEJkUUlLUGd6Rlg4Z1JkcUYxdmZpKy9ubGJscTF1SFNzRExGbXp5eUxDaVIyYk1UWXdrK09VMXpOTTUKRm5YVzNobWVydmZGWXQ3Zlk0UjFJeFF6K25PSGhtVmpHREY3K00xU1B4Sk9zbFRIdFlXYkJtODNaSzRkTVh0WQovMC9zN0ZNcnpSUzh3TnR0dFZXT2xYTHVqQit1OTkyYzl1ampiY1l3Z0NaM2wxZXZ1bS9ONC81eUo0K1dpRnRoCjk5cEt5ZEVITTJQcFFXUjk1UGEzeU5ScHZyTEZxaHI3ZDJDVmhON1Zmd3RwMEMzU0tEMFl0QU14c202YWc4d2YKM2Q0SFlCcjhwKytRQUZSYWFTOTBtY3RJZW9rUDhjWnM4VG8xMXdJREFRQUJBb0lCQUNaSWJLeXpNdktraWIxbgpkL2h4Qys1N3Q5SFNud2lHWVM0dGFmcnR1dGNlckNBVkk5bU1VUVBtWGg1NGFLMmszM2pBQ1RoUUZWb0hibUE0Cnd2em1QUXgyRzdFaTFwbU5WVzlFaUswbzN1bERabEFNZm5VUnZrUUxYQnhTditwTEpIeDFyZXZoSjhLdFlaQ0cKQzQvSC9CcEp1R0hROXFmWjlZck1oc3MycVpsb0puZ2piNytmUnQwS1g5ck44VXVDajN2bDlBWW9jWDF6VmZKdwpYR1hjMkJjR2pTdHlQNnQ4cnQyeGZ0bmgrQUN1TVc4VlBWaVRsQkdXZWVEZndiNHBIa1B2UlhtQUR3ZU5xeVFNCkVhSGJkL1pJSWZ2QmNFTVQ2b0RValAzeWhkeTk4UTdTVHMxTEZUN0dOamhRemt6blNwNjhWUU45aWNWVklaOU0KcCtDMkJFRUNnWUVBMllLK0J2S1ozK2lUN2h5cCtJdTV5eXZsYXE1bHBGcTVZbnlPVjlaNTV0MjNSdjRWeHgwdgpqQVlCTUFlT0RVOGNYR05EMkJnUTFHM0o3eFlWbnE2NXFBR0VYYzFJNWlONXlmTE1iWDZ2SnlFQnlJN0Q2Q0pvCjEwL2tWdU53MUVIRWlBVG9CSFE1ZkJ3RHNyUW1tWXdCcy9POWIwNHVpQ1E1bnZPUUNmN0l6VTBDZ1lFQTc5Y2UKOXluWFdjWlhWNGZnSGxXbmVsQnZwSkRMUW1zdnF3S1VxS0xSMWc2c0x5bnFpRVVBMVhtS0lvZ1dNbzRpQWlUMApCQU95azdIT29kdm1SZlZxTSs3UEpCSmlsVDhqVFlWQklRK0t6Vlc0OHVpT2MzSWgyVS9Ndmhwd0JQWW9YeFNIClZuam9NVHlJb1UvMVo1MUxBaWR6OEZjSmJmQXpCTWRhLzdJY3piTUNnWUVBMGY4cFNmbmxWOGpyTVlPWkVtNk0KTlR5dkpQMDFBcVhZdjk0emExaVZuckJHcDVMZUlidnEwTXhuVHlDc0krdFNIVngwL3VmVkw5TERtRUlCSTQvYgpqUG5SK3VJY1ZKekJrNWtIaDFzODdaRXZjSnR0UnV3WnZtN1NySlN2dFMyOStmaUtyT290S2NhK1IwVW8weXZaCjVRd1l3NkoreUUvNUZaNWZYVmNRTlMwQ2dZRUFoZXgyY3dkZkk5Y1g0RjJUN1B4aE4zQ0Exc0N2YnhnUkZ3bXEKM3Z1RDltWmRDVHo3cERuN3ZEaFF4UFYraDU1TUtTeGZRWHFiRmRPOGtTOE1SMVpCaGx3OE9HVTN2U1R6WG84aApEZ2Z5dHJPK1FZMVFOZkN1Sy8xZVUyekp6a3R4d1ozaDhJdzFBNEZNdmQ2N0pxOXpPZkd6MEttWkwxVm45NndtCkNROTQrL2NDZ1lFQWkrRzU1TENEOU9HTGpXL2h1Ulp0SThvOFhJM0I0eld6UWFzMGNxd0F5ZWdSRENxMm9mQmIKZjYvcm96OGsyOENVd0tLb0pWejJGMDVQaUJHZTJCdVBNUWJwaFRrQVgwQ3dyZENTQzB4eGNwSjZpMFZaOXdVRwpiWS8rV29Rb3dnYnI5SlhSS3NySXNudmRBdTZnNFZxM1BSTzNZdnBoNkxVR3hUemEvQXVyTzFBPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=\n"),
+			},
+		}
+		mockCtlr.addSecret(sct1)
+		mockCtlr.addSecret(sct2)
+		mockCtlr.addSecret(sct3)
+		mockCtlr.addSecret(sct4)
+		mockCtlr.addConfigMap(cm)
+		mockCtlr.initState = false
+		mockCtlr.clusterRatio = make(map[string]*int)
+	})
+
+	Describe("Process CRD with multi cluster config", func() {
+		var rsCfg *ResourceConfig
+		BeforeEach(func() {
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.processGlobalExtendedConfigMap()
+		})
+		It("Process VS with multi cluster config", func() {
+			one := 1
+			mockCtlr.clusterRatio["cluster1"] = &one
+			two := 2
+			mockCtlr.clusterRatio["cluster2"] = &two
+			three := 3
+			mockCtlr.clusterRatio["cluster3"] = &three
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			weight1 := int32(70)
+			weight2 := int32(30)
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				"default",
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					Pools: []cisapiv1.Pool{
+						{
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+							Weight: &weight1,
+							AlternateBackends: []cisapiv1.AlternateBackend{
+								{
+									Service:          "svc1-b",
+									ServiceNamespace: "test2",
+									Weight:           &weight2,
+								},
+							},
+							MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+								{
+									ClusterName: "cluster3",
+									Namespace:   "default",
+									SvcName:     "test",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+						},
+					},
+				},
+			)
+			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
+			clusterName := "cluster3"
+			// Setup informers with namespaces which are watched by CIS
+			for namespace := range mockCtlr.namespaces {
+				// add common informers  in all modes
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
+					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+				}
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+				}
+			}
+			mockCtlr.haModeType = Ratio
+			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+
+			resourceKey := resourceRef{
+				kind:      VirtualServer,
+				namespace: vs.Namespace,
+				name:      vs.Name,
+			}
+
+			vs.Spec.Pools[0].MultiClusterServices = []cisapiv1.MultiClusterServiceReference{}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+			// for local cluster service mapping must be present
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+
+			vs.Spec.Pools[0].MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
+				{
+					ClusterName: "cluster3",
+					Namespace:   "default",
+					SvcName:     "test",
+					ServicePort: intstr.IntOrString{IntVal: 80},
+				},
+			}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+		})
+
+		It("Process TS with multi cluster config", func() {
+
+			one := 1
+			mockCtlr.clusterRatio["cluster1"] = &one
+			two := 2
+			mockCtlr.clusterRatio["cluster2"] = &two
+			three := 3
+			mockCtlr.clusterRatio["cluster3"] = &three
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			ts := test.NewTransportServer(
+				"SampleTS",
+				"default",
+				cisapiv1.TransportServerSpec{
+					Pool: cisapiv1.Pool{
+						Service:          "svc1",
+						ServicePort:      intstr.IntOrString{IntVal: 80},
+						ServiceNamespace: "test",
+						Monitor: cisapiv1.Monitor{
+							Type:     "tcp",
+							Timeout:  10,
+							Interval: 10,
+						},
+						MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+							{
+								ClusterName: "cluster3",
+								Namespace:   "default",
+								SvcName:     "svc",
+								ServicePort: intstr.IntOrString{IntVal: 80},
+							},
+						},
+					},
+				},
+			)
+			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
+			clusterName := "cluster3"
+			// Setup informers with namespaces which are watched by CIS
+			for namespace := range mockCtlr.namespaces {
+				// add common informers  in all modes
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
+					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+				}
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+				}
+			}
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+
+			resourceKey := resourceRef{
+				kind:      TransportServer,
+				namespace: ts.Namespace,
+				name:      ts.Name,
+			}
+
+			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			// for local cluster service mapping must be present
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+
+			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
+				{
+					ClusterName: "cluster3",
+					Namespace:   "default",
+					SvcName:     "test",
+					ServicePort: intstr.IntOrString{IntVal: 80},
+				},
+			}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+
+		})
+	})
+
+})

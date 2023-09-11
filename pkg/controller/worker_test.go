@@ -83,11 +83,11 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.Partition = "test"
 		mockCtlr.Agent = &Agent{
-			postChan:            make(chan ResourceConfigRequest, 1),
-			cachedTenantDeclMap: make(map[string]as3Tenant),
-			respChan:            make(chan resourceStatusMeta, 1),
-			retryTenantDeclMap:  make(map[string]*tenantParams),
+			respChan: make(chan resourceStatusMeta, 1),
 			PostManager: &PostManager{
+				postChan:            make(chan ResourceConfigRequest, 1),
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				retryTenantDeclMap:  make(map[string]*tenantParams),
 				PostParams: PostParams{
 					BIGIPURL: "10.10.10.1",
 				},
@@ -1540,10 +1540,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
 			mockCtlr.Agent = &Agent{
-				postChan:            make(chan ResourceConfigRequest, 1),
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				respChan:            make(chan resourceStatusMeta, 1),
-				retryTenantDeclMap:  make(map[string]*tenantParams),
+				respChan: make(chan resourceStatusMeta, 1),
 			}
 
 			mockPM = newMockPostManger()
@@ -2892,10 +2889,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
 			mockCtlr.Agent = &Agent{
-				postChan:            make(chan ResourceConfigRequest, 1),
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				respChan:            make(chan resourceStatusMeta, 1),
-				retryTenantDeclMap:  make(map[string]*tenantParams),
+				respChan: make(chan resourceStatusMeta, 1),
 			}
 
 			mockPM = newMockPostManger()
@@ -3733,11 +3727,11 @@ extendedRouteSpec:
 			mockCtlr = newMockController()
 			mockCtlr.Partition = "test"
 			mockCtlr.Agent = &Agent{
-				postChan:            make(chan ResourceConfigRequest, 1),
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				respChan:            make(chan resourceStatusMeta, 1),
-				retryTenantDeclMap:  make(map[string]*tenantParams),
+				respChan: make(chan resourceStatusMeta, 1),
 				PostManager: &PostManager{
+					retryTenantDeclMap:  make(map[string]*tenantParams),
+					postChan:            make(chan ResourceConfigRequest, 1),
+					cachedTenantDeclMap: make(map[string]as3Tenant),
 					PostParams: PostParams{
 						BIGIPURL: "10.10.10.1",
 					},

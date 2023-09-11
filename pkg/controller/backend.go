@@ -19,7 +19,6 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"reflect"
 	"sort"
@@ -60,27 +59,29 @@ var DEFAULT_GTM_PARTITION string
 func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
 	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
-	postMgr := NewPostManager(params)
+	postMgr := NewPostManager(params, false)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	agent := &Agent{
-		PostManager:           postMgr,
-		Partition:             params.Partition,
-		ConfigWriter:          configWriter,
-		EventChan:             make(chan interface{}),
-		postChan:              make(chan ResourceConfigRequest, 1),
-		retryChan:             make(chan struct{}, 1),
-		respChan:              make(chan resourceStatusMeta, 1),
-		cachedTenantDeclMap:   make(map[string]as3Tenant),
-		incomingTenantDeclMap: make(map[string]as3Tenant),
-		retryTenantDeclMap:    make(map[string]*tenantParams),
-		tenantPriorityMap:     make(map[string]int),
-		userAgent:             params.UserAgent,
-		HttpAddress:           params.HttpAddress,
-		ccclGTMAgent:          params.CCCLGTMAgent,
-		disableARP:            params.DisableARP,
+		PostManager:  postMgr,
+		Partition:    params.Partition,
+		ConfigWriter: configWriter,
+		EventChan:    make(chan interface{}),
+		respChan:     make(chan resourceStatusMeta, 1),
+		userAgent:    params.UserAgent,
+		HttpAddress:  params.HttpAddress,
+		ccclGTMAgent: params.CCCLGTMAgent,
+		disableARP:   params.DisableARP,
+	}
+	// if agent is running in as3 gtm mode and bipip gtm is different from bigip ltm create the gtm agent
+	if isGTMOnSeparateServer(params) {
+		agent.GTMPostManager = NewGTMPostManager(params)
+		go agent.gtmWorker()
+		// retryGTMWorker runs as a separate go routine
+		// blocks on retryChan ; retries failed declarations and polls for accepted tenant statuses
+		go agent.retryGTMWorker()
 	}
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
@@ -129,7 +130,7 @@ func NewAgent(params AgentParams) *Agent {
 	}
 
 	var gtm gtmBigIPSection
-	if len(params.GTMParams.GTMBigIpUrl) == 0 || len(params.GTMParams.GTMBigIpUsername) == 0 || len(params.GTMParams.GTMBigIpPassword) == 0 {
+	if len(params.GTMParams.BIGIPURL) == 0 || len(params.GTMParams.BIGIPUsername) == 0 || len(params.GTMParams.BIGIPPassword) == 0 {
 		// gs.GTM = false
 		gtm = gtmBigIPSection{
 			GtmBigIPUsername: params.PostParams.BIGIPUsername,
@@ -139,9 +140,9 @@ func NewAgent(params AgentParams) *Agent {
 		log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
 	} else {
 		gtm = gtmBigIPSection{
-			GtmBigIPUsername: params.GTMParams.GTMBigIpUsername,
-			GtmBigIPPassword: params.GTMParams.GTMBigIpPassword,
-			GtmBigIPURL:      params.GTMParams.GTMBigIpUrl,
+			GtmBigIPUsername: params.GTMParams.BIGIPUsername,
+			GtmBigIPPassword: params.GTMParams.BIGIPPassword,
+			GtmBigIPURL:      params.GTMParams.BIGIPURL,
 		}
 	}
 	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
@@ -156,12 +157,21 @@ func NewAgent(params AgentParams) *Agent {
 		// we only enable metrics as pythondriver is not initialized for ipv6
 		go agent.enableMetrics()
 	}
-	// Set the AS3 version for the agent
+	// Set the AS3 version for the LTM Postmanager
 	err = agent.IsBigIPAppServicesAvailable()
 	if err != nil {
 		log.Errorf("%v", err)
 		agent.Stop()
 		os.Exit(1)
+	}
+	// Set the AS3 version on the GTM Postmanager
+	if agent.GTMPostManager != nil {
+		err = agent.GTMPostManager.IsBigIPAppServicesAvailable()
+		if err != nil {
+			log.Errorf("%v", err)
+			agent.Stop()
+			os.Exit(1)
+		}
 	}
 	return agent
 }
@@ -171,48 +181,6 @@ func (agent *Agent) Stop() {
 	if !(agent.EnableIPV6) {
 		agent.stopPythonDriver()
 	}
-}
-
-// Method to verify if App Services are installed or CIS as3 version is
-// compatible with BIG-IP, it will return with error if any one of the
-// requirements are not met
-func (agent *Agent) IsBigIPAppServicesAvailable() error {
-	version, build, schemaVersion, err := agent.PostManager.GetBigipAS3Version()
-	if err != nil {
-		log.Errorf("[AS3] %v ", err)
-		return err
-	}
-	am := as3VersionInfo{
-		as3Version:       version,
-		as3SchemaVersion: schemaVersion,
-		as3Release:       version + "-" + build,
-	}
-	agent.AS3VersionInfo = am
-	versionstr := version[:strings.LastIndex(version, ".")]
-	bigIPAS3Version, err := strconv.ParseFloat(versionstr, 64)
-	if err != nil {
-		log.Errorf("[AS3] Error while converting AS3 version to float")
-		return err
-	}
-	agent.bigIPAS3Version = bigIPAS3Version
-	if bigIPAS3Version >= as3SupportedVersion && bigIPAS3Version <= as3Version {
-		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", version)
-		return nil
-	}
-
-	if bigIPAS3Version > as3Version {
-		am.as3Version = defaultAS3Version
-		am.as3SchemaVersion = fmt.Sprintf("%.2f.0", as3Version)
-		as3Build := defaultAS3Build
-		am.as3Release = am.as3Version + "-" + as3Build
-		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", bigIPAS3Version)
-		agent.AS3VersionInfo = am
-		return nil
-	}
-
-	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >=%v. "+
-		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
-		bigIPAS3Version, as3SupportedVersion)
 }
 
 func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
@@ -262,7 +230,7 @@ func (agent *Agent) agentWorker() {
 		}
 
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
-		// Otherwise, we will wait for retryWorker to complete its current iteration
+		// Otherwise, we will wait for other workers to complete its current iteration
 		agent.declUpdate.Lock()
 
 		// Fetch the latest config from channel
@@ -273,6 +241,10 @@ func (agent *Agent) agentWorker() {
 
 		if !(agent.EnableIPV6) && agent.ccclGTMAgent {
 			agent.PostGTMConfig(rsConfig)
+		}
+		// put GMT config in the post channel if gtm agent is running
+		if agent.GTMPostManager != nil {
+			agent.GTMPostManager.PostGTMConfig(rsConfig)
 		}
 
 		decl := agent.createTenantAS3Declaration(rsConfig)
@@ -350,7 +322,7 @@ func (agent *Agent) postTenantsDeclaration(decl as3Declaration, rsConfig Resourc
 		go agent.updateARPsForPoolMembers(rsConfig)
 	}
 
-	agent.updateTenantResponse(true)
+	agent.updateTenantResponseMap(true)
 
 	if len(agent.retryTenantDeclMap) > 0 {
 		// Activate retry
@@ -396,22 +368,6 @@ func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 	}
 }
 
-func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl interface{}) {
-	if resp.agentResponseCode == http.StatusOK {
-		// delete the tenant entry from retry if any
-		delete(agent.retryTenantDeclMap, tenant)
-		// if received the 200 response remove the entry from tenantPriorityMap
-		if _, ok := agent.tenantPriorityMap[tenant]; ok {
-			delete(agent.tenantPriorityMap, tenant)
-		}
-	} else {
-		agent.retryTenantDeclMap[tenant] = &tenantParams{
-			tenDecl,
-			tenantResponse{resp.agentResponseCode, resp.taskId, false},
-		}
-	}
-}
-
 func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
@@ -429,37 +385,6 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 		case agent.EventChan <- allPoolMems:
 			log.Debugf("Controller wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
-		}
-	}
-}
-
-func (agent *Agent) updateTenantResponse(agentWorkerUpdate bool) {
-	/*
-		Non 200 ok tenants will be added to retryTenantDeclMap map
-		Locks to update the map will be acquired in the calling method
-	*/
-	for tenant, resp := range agent.tenantResponseMap {
-		if resp.agentResponseCode == 200 {
-			if resp.isDeleted {
-				// Update the cache tenant map if tenant is deleted.
-				delete(agent.cachedTenantDeclMap, tenant)
-			} else {
-				// update cachedTenantDeclMap with successfully posted declaration
-				if agentWorkerUpdate {
-					agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
-				} else {
-					agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
-				}
-				// if received the 200 response remove the entry from tenantPriorityMap
-				if _, ok := agent.tenantPriorityMap[tenant]; ok {
-					delete(agent.tenantPriorityMap, tenant)
-				}
-			}
-		}
-		if agentWorkerUpdate {
-			agent.updateRetryMap(tenant, resp, agent.incomingTenantDeclMap[tenant])
-		} else {
-			agent.updateRetryMap(tenant, resp, agent.retryTenantDeclMap[tenant].as3Decl)
 		}
 	}
 }
@@ -511,86 +436,12 @@ func (agent *Agent) retryWorker() {
 			agent.pollTenantStatus()
 
 			//If there are any failed tenants, retry posting them
-			agent.retryFailedTenant()
+			agent.retryFailedTenant(agent.userAgent)
 
 			agent.notifyRscStatusHandler(0, false)
 
 			agent.declUpdate.Unlock()
 		}
-	}
-}
-
-func (agent *Agent) retryFailedTenant() {
-	var retryTenants []string
-
-	// this map is to collect all non-201 tenant configs
-	retryDecl := make(map[string]as3Tenant)
-
-	agent.tenantResponseMap = make(map[string]tenantResponse)
-
-	for tenant, cfg := range agent.retryTenantDeclMap {
-		// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
-		agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
-		if cfg.taskId == "" {
-			retryTenants = append(retryTenants, tenant)
-			retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
-		}
-	}
-
-	if len(retryTenants) > 0 {
-		// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
-		cfg := agentConfig{
-			data:      string(agent.createAS3Declaration(retryDecl)),
-			as3APIURL: agent.getAS3APIURL(retryTenants),
-			id:        0,
-		}
-		// Ignoring timeouts for custom errors
-		<-time.After(timeoutMedium)
-
-		agent.postConfig(&cfg)
-
-		agent.updateTenantResponse(false)
-	}
-
-}
-
-func (agent *Agent) pollTenantStatus() {
-
-	var acceptedTenants []string
-	// Create a set to hold unique polling ids
-	acceptedTenantIds := map[string]struct{}{}
-
-	agent.tenantResponseMap = make(map[string]tenantResponse)
-
-	for tenant, cfg := range agent.retryTenantDeclMap {
-		// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
-		agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
-		if cfg.taskId != "" {
-			if _, found := acceptedTenantIds[cfg.taskId]; !found {
-				acceptedTenantIds[cfg.taskId] = struct{}{}
-				acceptedTenants = append(acceptedTenants, tenant)
-			}
-		}
-	}
-
-	for len(acceptedTenantIds) > 0 {
-		// Keep retrying until accepted tenant statuses are updated
-		// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
-		for taskId := range acceptedTenantIds {
-			<-time.After(timeoutMedium)
-			agent.getTenantConfigStatus(taskId)
-		}
-		for _, tenant := range acceptedTenants {
-			acceptedTenantIds = map[string]struct{}{}
-			// Even if there is any pending tenant which is not updated, keep retrying for that ID
-			if agent.tenantResponseMap[tenant].taskId != "" {
-				acceptedTenantIds[agent.tenantResponseMap[tenant].taskId] = struct{}{}
-			}
-		}
-	}
-
-	if len(acceptedTenants) > 0 {
-		agent.updateTenantResponse(false)
 	}
 }
 
@@ -653,39 +504,14 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 	//	}
 	//}
 
-	return agent.createAS3Declaration(agent.incomingTenantDeclMap)
-}
-
-func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3Declaration {
-	var as3Config map[string]interface{}
-
-	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, agent.AS3VersionInfo.as3Version, agent.AS3VersionInfo.as3Release, agent.AS3VersionInfo.as3SchemaVersion)
-	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
-
-	adc := as3Config["declaration"].(map[string]interface{})
-
-	controlObj := make(map[string]interface{})
-	controlObj["class"] = "Controls"
-	controlObj["userAgent"] = agent.userAgent
-	adc["controls"] = controlObj
-
-	for tenant, decl := range tenantDeclMap {
-		adc[tenant] = decl
-	}
-	decl, err := json.Marshal(as3Config)
-	if err != nil {
-		log.Debugf("[AS3] Unified declaration: %v\n", err)
-	}
-
-	return as3Declaration(decl)
+	return agent.createAS3Declaration(agent.incomingTenantDeclMap, agent.userAgent)
 }
 
 func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := agent.createAS3LTMConfigADC(config)
-	if !agent.ccclGTMAgent {
+	if !agent.ccclGTMAgent && agent.GTMPostManager == nil {
 		adc = agent.createAS3GTMConfigADC(config, adc)
 	}
-
 	return adc
 }
 

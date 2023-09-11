@@ -373,8 +373,8 @@ var _ = Describe("Informers Tests", func() {
 				},
 			}
 			mockCtlr.Agent = &Agent{
-				postChan: make(chan ResourceConfigRequest, 1),
 				PostManager: &PostManager{
+					postChan: make(chan ResourceConfigRequest, 1),
 					PostParams: PostParams{
 						BIGIPURL: "10.10.10.1",
 					},

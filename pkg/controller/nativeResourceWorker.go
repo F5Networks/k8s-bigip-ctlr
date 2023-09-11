@@ -435,12 +435,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			// only process if route key is not present. else skip the processing
 			// on route update we are clearing the resource service
 			// if event comes from route then we will read and populate data, else we will skip processing
+			// However, unmarshal the multiClusterServices annotation as it is needed for GetRouteBackends
+			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+			if err != nil {
+				log.Warningf("[MultiCluster] unable to read extended service mapping for resource %v, error: %v",
+					rsRef, err)
+			}
 			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-				err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 				if err == nil {
 					ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
-				} else {
-					log.Warningf("[Multicluster] unable to read service mapping for resource %v", rsRef)
 				}
 			}
 		}
@@ -449,9 +452,13 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	backendSvcs := ctlr.GetRouteBackends(route, clusterSvcs)
 
 	for _, bs := range backendSvcs {
+		svcNamespace := route.Namespace
+		if bs.SvcNamespace != "" {
+			svcNamespace = bs.SvcNamespace
+		}
 		pool := Pool{
 			Name: ctlr.formatPoolName(
-				route.Namespace,
+				svcNamespace,
 				bs.Name,
 				servicePort,
 				"",
@@ -460,7 +467,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
-			ServiceNamespace: route.Namespace,
+			ServiceNamespace: svcNamespace,
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],

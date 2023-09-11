@@ -685,9 +685,10 @@ type (
 	Services        []*v1.Service
 	NodeList        []v1.Node
 	RouteBackendCxt struct {
-		Weight  float64
-		Name    string
-		Cluster string
+		Weight       float64
+		Name         string
+		Cluster      string
+		SvcNamespace string
 	}
 	SvcBackendCxt struct {
 		Weight       float64

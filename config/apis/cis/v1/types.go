@@ -311,14 +311,21 @@ type ExternalDNSList struct {
 }
 
 type PolicySpec struct {
-	L7Policies  L7PolicySpec  `json:"l7Policies,omitempty"`
-	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
-	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
-	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
-	IRuleList   []string      `json:"iRuleList,omitempty"`
-	Profiles    ProfileSpec   `json:"profiles,omitempty"`
-	SNAT        string        `json:"snat,omitempty"`
-	AutoLastHop string        `json:"autoLastHop,omitempty"`
+	L7Policies   L7PolicySpec     `json:"l7Policies,omitempty"`
+	L3Policies   L3PolicySpec     `json:"l3Policies,omitempty"`
+	LtmPolicies  LtmIRulesSpec    `json:"ltmPolicies,omitempty"`
+	IRules       LtmIRulesSpec    `json:"iRules,omitempty"`
+	IRuleList    []string         `json:"iRuleList,omitempty"`
+	Profiles     ProfileSpec      `json:"profiles,omitempty"`
+	SNAT         string           `json:"snat,omitempty"`
+	AutoLastHop  string           `json:"autoLastHop,omitempty"`
+	PoolSettings PoolSettingsSpec `json:"poolSettings,omitempty"`
+}
+
+type PoolSettingsSpec struct {
+	ReselectTries     int32  `json:"reselectTries,omitempty"`
+	ServiceDownAction string `json:"serviceDownAction,omitempty"`
+	SlowRampTime      int32  `json:"slowRampTime,omitempty"`
 }
 
 type SSLProfiles struct {

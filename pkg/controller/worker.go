@@ -1288,7 +1288,16 @@ func (ctlr *Controller) processVirtualServers(
 				processingError = true
 				break
 			}
-
+			// handle pool settings from policy cr
+			if plc != nil {
+				if plc.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+					err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
+					if err != nil {
+						processingError = true
+						break
+					}
+				}
+			}
 			if tlsProf != nil {
 				processed := ctlr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip)
 				if !processed {
@@ -2462,7 +2471,18 @@ func (ctlr *Controller) processTransportServers(
 		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
 		return nil
 	}
-
+	// handle pool settings from policy cr
+	if plc != nil {
+		if plc.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+			err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				if err != nil {
+					log.Errorf("%v", err)
+					return nil
+				}
+			}
+		}
+	}
 	// Add TS resource key to processedNativeResources to mark it as processed
 	ctlr.resources.processedNativeResources[resourceRef{
 		kind:      TransportServer,

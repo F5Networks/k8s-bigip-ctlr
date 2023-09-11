@@ -413,6 +413,7 @@ type (
 		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
 		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
 		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
+		SlowRampTime         int32                                   `json:"slowRampTime,omitempty"`
 		Weight               int32                                   `json:"weight,omitempty"`
 		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
 		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
@@ -934,6 +935,7 @@ type (
 		Monitors          []as3ResourcePointer `json:"monitors,omitempty"`
 		ServiceDownAction string               `json:"serviceDownAction,omitempty"`
 		ReselectTries     int32                `json:"reselectTries,omitempty"`
+		SlowRampTime      int32                `json:"slowRampTime,omitempty"`
 	}
 
 	// as3PoolMember maps to Pool_Member in AS3 Resources

@@ -980,6 +980,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		pool.Class = "Pool"
 		pool.ReselectTries = v.ReselectTries
 		pool.ServiceDownAction = v.ServiceDownAction
+		pool.SlowRampTime = v.SlowRampTime
 		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
 			// Skip duplicate pool members

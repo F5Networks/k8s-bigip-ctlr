@@ -356,7 +356,8 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string,
+	cluster string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
 
 	if len(hostName) > 0 {
@@ -373,6 +374,10 @@ func formatMonitorName(namespace, svc string, monitorType string, port intstr.In
 	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
 		servicePort := fetchPortString(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
+	}
+	// Add cluster name to monitor name
+	if cluster != "" {
+		monitorName = monitorName + "_" + cluster
 	}
 	return AS3NameFormatter(monitorName)
 }
@@ -592,7 +597,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 			if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
 				ctlr.createVirtualServerMonitor(pl.Monitor, &pool, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
-					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name)
+					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, SvcBackend.Cluster)
 			} else if pl.Monitors != nil {
 				var formatPort intstr.IntOrString
 				for _, monitor := range pl.Monitors {
@@ -602,7 +607,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						formatPort = pl.ServicePort
 					}
 					ctlr.createVirtualServerMonitor(monitor, &pool, rsCfg, formatPort, vs.Spec.Host, pl.Path,
-						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name)
+						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, SvcBackend.Cluster)
 				}
 			}
 			pools = append(pools, pool)
@@ -742,7 +747,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 }
 
 func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, host, path, vsName string) {
+	formatPort intstr.IntOrString, host, path, vsName string, cluster string) {
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
@@ -759,7 +764,11 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host, path)
+				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host,
+					path, cluster)
+			} else if cluster != "" {
+				// In case monitorName is specified then append cluster name to it to avoid conflict
+				monitorName += "_" + cluster
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -791,7 +800,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "")
+				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "", "")
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -858,7 +867,7 @@ func (ctlr *Controller) handleDefaultPool(
 							formatPort = vs.Spec.DefaultPool.ServicePort
 						}
 						if mtr.Name == "" {
-							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "")
+							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "", "")
 						}
 						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 						mntr := Monitor{
@@ -2114,9 +2123,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,

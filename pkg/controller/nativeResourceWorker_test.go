@@ -2318,6 +2318,20 @@ externalClustersConfig:
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
+			// Verify that distinct health monitors are created for all pools in ratio mode
+			expectedHealthMonitors := make(map[string]struct{})
+			expectedHealthMonitors = map[string]struct{}{
+				"svc1_default_test_com_foo":            struct{}{},
+				"svc1_default_test_com_foo_cluster2":   struct{}{},
+				"svc1_b_default_test_com_foo":          struct{}{},
+				"svc1_b_default_test_com_foo_cluster2": struct{}{},
+				"test_default_test_com_foo_cluster3":   struct{}{},
+			}
+			for _, hm := range rsCfg.Monitors {
+				_, ok := expectedHealthMonitors[hm.Name]
+				Expect(ok).To(Equal(true), "Expected health monitor %s not found while using "+
+					"ratio mode", hm.Name)
+			}
 			resourceKey := resourceRef{
 				kind:      VirtualServer,
 				namespace: vs.Namespace,

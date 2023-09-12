@@ -567,6 +567,10 @@ func (ctlr *Controller) processResources() bool {
 		// Update the poolMembers for affected resources
 		ctlr.updatePoolMembersForService(svcKey)
 
+		if ctlr.mode == OpenShiftMode && rscDelete == false {
+			ctlr.UpdatePoolHealthMonitors(svcKey)
+		}
+
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
@@ -1288,7 +1292,16 @@ func (ctlr *Controller) processVirtualServers(
 				processingError = true
 				break
 			}
-
+			// handle pool settings from policy cr
+			if plc != nil {
+				if plc.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+					err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
+					if err != nil {
+						processingError = true
+						break
+					}
+				}
+			}
 			if tlsProf != nil {
 				processed := ctlr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip)
 				if !processed {
@@ -2100,10 +2113,14 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName)...)
 	}
 
+	// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
+	// pool associated with the HA peer cluster or external cluster and return
 	if len(ctlr.clusterRatio) > 0 {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster)...)
+		pool.Members = poolMembers
+		return
 	}
 
 	// For multiCluster services
@@ -2462,7 +2479,18 @@ func (ctlr *Controller) processTransportServers(
 		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
 		return nil
 	}
-
+	// handle pool settings from policy cr
+	if plc != nil {
+		if plc.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+			err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				if err != nil {
+					log.Errorf("%v", err)
+					return nil
+				}
+			}
+		}
+	}
 	// Add TS resource key to processedNativeResources to mark it as processed
 	ctlr.resources.processedNativeResources[resourceRef{
 		kind:      TransportServer,
@@ -3842,10 +3870,19 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 	}
 	for _, obj := range services {
 		svc := obj.(*v1.Service)
-		if svc.Spec.Type != v1.ServiceTypeNodePort {
-			if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
-				return svc
+
+		// in the nodeportlocal mode, svc type nodeport is not supported by antrea CNI, we ignore svc type nodeport
+		if ctlr.PoolMemberType == NodePortLocal {
+			if svc.Spec.Type != v1.ServiceTypeNodePort {
+				if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+					return svc
+				}
 			}
+			return nil
+		}
+
+		if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+			return svc
 		}
 	}
 	return nil

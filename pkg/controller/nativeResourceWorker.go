@@ -134,7 +134,23 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Errorf("%v", err)
 				break
 			}
-
+			// handle pool settings from policy if defined
+			policy, err := ctlr.getPolicyForRoute(rsCfg, plc, extdSpec)
+			if err != nil {
+				processingError = true
+				log.Errorf("%v", err)
+				break
+			}
+			if policy != nil {
+				if policy.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+					err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, policy)
+					if err != nil {
+						processingError = true
+						log.Errorf("%v", err)
+						break
+					}
+				}
+			}
 			if isSecureRoute(rt) {
 				//TLS Logic
 				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, policySSLProfiles)
@@ -275,20 +291,9 @@ func (ctlr *Controller) handleInsecureABRoute(rsCfg *ResourceConfig, route *rout
 
 func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
 	au *AnnotationsUsed, extdSpec *ExtendedRouteGroupSpec) error {
-	var policy *cisapiv1.Policy
-	if extdSpec.HTTPServerPolicyCR != "" && rsCfg.MetaData.Protocol == HTTP {
-		// GetPolicy
-		splits := strings.Split(extdSpec.HTTPServerPolicyCR, "/")
-		if len(splits) != 2 {
-			return fmt.Errorf("Policy %s not in the format <namespace>/<policy-name>", extdSpec.HTTPServerPolicyCR)
-		}
-		var err error
-		policy, err = ctlr.getPolicy(splits[0], splits[1])
-		if err != nil {
-			return err
-		}
-	} else {
-		policy = plc
+	policy, err := ctlr.getPolicyForRoute(rsCfg, plc, extdSpec)
+	if err != nil {
+		return err
 	}
 	if policy != nil {
 		err := ctlr.handleVSResourceConfigForPolicy(rsCfg, policy)
@@ -321,6 +326,26 @@ func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (*
 		return ctlr.getPolicy(splits[0], splits[1])
 	}
 	return nil, nil
+}
+
+func (ctlr *Controller) getPolicyForRoute(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
+	extdSpec *ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
+	var policy *cisapiv1.Policy
+	if extdSpec.HTTPServerPolicyCR != "" && rsCfg.MetaData.Protocol == HTTP {
+		// GetPolicy
+		splits := strings.Split(extdSpec.HTTPServerPolicyCR, "/")
+		if len(splits) != 2 {
+			return nil, fmt.Errorf("Policy %s not in the format <namespace>/<policy-name>", extdSpec.HTTPServerPolicyCR)
+		}
+		var err error
+		policy, err = ctlr.getPolicy(splits[0], splits[1])
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		policy = plc
+	}
+	return policy, nil
 }
 
 // gets the target port for the route
@@ -410,12 +435,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			// only process if route key is not present. else skip the processing
 			// on route update we are clearing the resource service
 			// if event comes from route then we will read and populate data, else we will skip processing
+			// However, unmarshal the multiClusterServices annotation as it is needed for GetRouteBackends
+			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
+			if err != nil {
+				log.Warningf("[MultiCluster] unable to read extended service mapping for resource %v, error: %v",
+					rsRef, err)
+			}
 			if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-				err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 				if err == nil {
 					ctlr.processResourceExternalClusterServices(rsRef, clusterSvcs)
-				} else {
-					log.Warningf("[Multicluster] unable to read service mapping for resource %v", rsRef)
 				}
 			}
 		}
@@ -424,9 +452,13 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	backendSvcs := ctlr.GetRouteBackends(route, clusterSvcs)
 
 	for _, bs := range backendSvcs {
+		svcNamespace := route.Namespace
+		if bs.SvcNamespace != "" {
+			svcNamespace = bs.SvcNamespace
+		}
 		pool := Pool{
 			Name: ctlr.formatPoolName(
-				route.Namespace,
+				svcNamespace,
 				bs.Name,
 				servicePort,
 				"",
@@ -435,7 +467,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
-			ServiceNamespace: route.Namespace,
+			ServiceNamespace: svcNamespace,
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
@@ -747,11 +779,10 @@ func (ctlr *Controller) prepareRouteLTMRules(
 }
 
 // UpdatePoolHealthMonitors we need to call this method on update of pod/ pool members update
-// TODO: Remove this method as it's not used anymore
-func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg *ResourceConfig) {
+func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) {
 
 	//Get routes for service
-	route := ctlr.GetServiceRouteWithoutHealthAnnotation(service)
+	route := ctlr.GetServiceRouteWithoutHealthAnnotation(svcKey)
 	if route == nil {
 		return
 	}
@@ -760,125 +791,157 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 	if err != nil {
 		return
 	}
+
 	servicePort := intstr.IntOrString{IntVal: port}
 	poolName := ctlr.formatPoolName(
-		service.Namespace,
-		service.Name,
+		svcKey.namespace,
+		svcKey.serviceName,
 		servicePort,
 		"",
 		"",
 		"",
 	)
-	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
-	if svcPods != nil && len(svcPods) > 0 {
-		//Pick any one of the pod
-		pod := svcPods[0]
+	// for each cluster -> referred svcs -> for each svc -> port info and bigip vs and dependant resource(route)
+	if serviceKeys, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
+		if svcPorts, ok2 := serviceKeys[svcKey]; ok2 {
+			for _, poolIds := range svcPorts {
+				for poolId := range poolIds {
+					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName)
+					if rsCfg == nil {
+						continue
+					}
+					freshRsCfg := &ResourceConfig{}
+					freshRsCfg.copyConfig(rsCfg)
+					for _, pool := range freshRsCfg.Pools {
+						if pool.Name == poolId.poolName && pool.Partition == poolId.partition && pool.Name == poolName {
+							if poolId.rsKey.kind == Route {
+								svcPods := ctlr.GetPodsForService(svcKey.namespace, svcKey.serviceName, false)
+								if svcPods != nil && len(svcPods) > 0 {
 
-		var podMonitor Monitor
-	out:
-		for _, container := range pod.Spec.Containers {
-			for _, cPort := range container.Ports {
-				if cPort.ContainerPort == servicePort.IntVal {
-					if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
-						break out
-					} else {
-						var scheme v1.URIScheme
-						switch container.LivenessProbe.HTTPGet.Scheme {
-						case v1.URISchemeHTTPS:
-							scheme = v1.URISchemeHTTPS
-						case v1.URISchemeHTTP:
-							scheme = v1.URISchemeHTTP
-						default:
-							scheme = v1.URISchemeHTTP
+									var pod *v1.Pod
+									for _, svcPod := range svcPods {
+										if pod == nil {
+											pod = svcPod
+										} else {
+											if pod.ObjectMeta.CreationTimestamp.Before(&svcPod.ObjectMeta.CreationTimestamp) {
+												pod = svcPod
+											}
+										}
+									}
+
+									var podMonitor Monitor
+								out:
+									for _, container := range pod.Spec.Containers {
+										for _, cPort := range container.Ports {
+											if cPort.ContainerPort == servicePort.IntVal {
+												if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
+													break out
+												} else {
+													var scheme v1.URIScheme
+													switch container.LivenessProbe.HTTPGet.Scheme {
+													case v1.URISchemeHTTPS:
+														scheme = v1.URISchemeHTTPS
+													case v1.URISchemeHTTP:
+														scheme = v1.URISchemeHTTP
+													default:
+														scheme = v1.URISchemeHTTP
+													}
+
+													podMonitor = Monitor{
+														Name:      poolName + "_monitor",
+														Partition: freshRsCfg.Virtual.Partition,
+														Interval:  int(container.LivenessProbe.PeriodSeconds),
+														Type:      strings.ToLower(string(scheme)),
+														Send:      "GET /\r\n",
+														Recv:      "",
+														Timeout:   int(container.LivenessProbe.TimeoutSeconds),
+														Path:      container.LivenessProbe.HTTPGet.Path,
+													}
+
+													break out
+												}
+											}
+										}
+									}
+
+									for monitorInd, mon := range freshRsCfg.Monitors {
+										if mon.Name == poolName+"_monitor" {
+											//If liveness spec is not modified, return
+											if reflect.DeepEqual(mon, podMonitor) {
+												return
+											} else {
+												//If liveness spec is modified/removed, remove the monitor from the config
+												if len(freshRsCfg.Monitors) == 1 {
+													freshRsCfg.Monitors = make([]Monitor, 0)
+												} else if monitorInd == len(freshRsCfg.Monitors)-1 {
+													freshRsCfg.Monitors = freshRsCfg.Monitors[:monitorInd]
+												} else if monitorInd == 0 {
+													freshRsCfg.Monitors = freshRsCfg.Monitors[1:]
+												} else {
+													freshRsCfg.Monitors = append(freshRsCfg.Monitors[:monitorInd], freshRsCfg.Monitors[monitorInd+1:]...)
+												}
+											}
+											break
+										}
+									}
+									//Add monitor if LivenessProbe is present in pod
+									if podMonitor != (Monitor{}) {
+										freshRsCfg.Monitors = append(
+											freshRsCfg.Monitors,
+											podMonitor,
+										)
+									}
+
+									for poolInd, pool := range freshRsCfg.Pools {
+										if pool.Name == poolName {
+											for monInd, monitorName := range pool.MonitorNames {
+												if monitorName.Name == poolName+"_monitor" {
+													//If liveness spec is modified/removed,Remove the monitor name from the pool
+													if len(pool.MonitorNames) == 1 {
+														freshRsCfg.Pools[poolInd].MonitorNames = make([]MonitorName, 0)
+													} else if monInd == len(pool.MonitorNames)-1 {
+														freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[:monInd]
+													} else if monInd == 0 {
+														freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[1:]
+													} else {
+														freshRsCfg.Pools[poolInd].MonitorNames = append(pool.MonitorNames[:monInd], pool.MonitorNames[monInd+1:]...)
+													}
+													break
+												}
+											}
+											//Add monitor name to the pool if LivenessProbe is present in pod
+											if podMonitor != (Monitor{}) {
+												freshRsCfg.Pools[poolInd].MonitorNames = append(freshRsCfg.Pools[poolInd].MonitorNames, MonitorName{Name: podMonitor.Name})
+											}
+											break
+										}
+									}
+									_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
+								}
+							}
 						}
-
-						podMonitor = Monitor{
-							Name:      poolName + "_monitor",
-							Partition: freshRsCfg.Virtual.Partition,
-							Interval:  int(container.LivenessProbe.PeriodSeconds),
-							Type:      strings.ToLower(string(scheme)),
-							Send:      "GET /\r\n",
-							Recv:      "",
-							Timeout:   int(container.LivenessProbe.TimeoutSeconds),
-							Path:      container.LivenessProbe.HTTPGet.Path,
-						}
-
-						break out
 					}
 				}
-			}
-		}
-
-		for monitorInd, mon := range freshRsCfg.Monitors {
-			if mon.Name == poolName+"_monitor" {
-				//If liveness spec is not modified, return
-				if reflect.DeepEqual(mon, podMonitor) {
-					return
-				} else {
-					//If liveness spec is modified/removed, remove the monitor from the config
-					if len(freshRsCfg.Monitors) == 1 {
-						freshRsCfg.Monitors = make([]Monitor, 0)
-					} else if monitorInd == len(freshRsCfg.Monitors)-1 {
-						freshRsCfg.Monitors = freshRsCfg.Monitors[:monitorInd]
-					} else if monitorInd == 0 {
-						freshRsCfg.Monitors = freshRsCfg.Monitors[1:]
-					} else {
-						freshRsCfg.Monitors = append(freshRsCfg.Monitors[:monitorInd], freshRsCfg.Monitors[monitorInd+1:]...)
-					}
-				}
-				break
-			}
-		}
-		//Add monitor if LivenessProbe is present in pod
-		if podMonitor != (Monitor{}) {
-			freshRsCfg.Monitors = append(
-				freshRsCfg.Monitors,
-				podMonitor,
-			)
-		}
-
-		for poolInd, pool := range freshRsCfg.Pools {
-			if pool.Name == poolName {
-				for monInd, monitorName := range pool.MonitorNames {
-					if monitorName.Name == poolName+"_monitor" {
-						//If liveness spec is modified/removed,Remove the monitor name from the pool
-						if len(pool.MonitorNames) == 1 {
-							freshRsCfg.Pools[poolInd].MonitorNames = make([]MonitorName, 0)
-						} else if monInd == len(pool.MonitorNames)-1 {
-							freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[:monInd]
-						} else if monInd == 0 {
-							freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[1:]
-						} else {
-							freshRsCfg.Pools[poolInd].MonitorNames = append(pool.MonitorNames[:monInd], pool.MonitorNames[monInd+1:]...)
-						}
-						break
-					}
-				}
-				//Add monitor name to the pool if LivenessProbe is present in pod
-				if podMonitor != (Monitor{}) {
-					freshRsCfg.Pools[poolInd].MonitorNames = append(freshRsCfg.Pools[poolInd].MonitorNames, MonitorName{Name: podMonitor.Name})
-				}
-				break
 			}
 		}
 	}
 }
 
-func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Service) *routeapi.Route {
-	natvInf, ok := ctlr.getNamespacedNativeInformer(service.Namespace)
+func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(svcKey MultiClusterServiceKey) *routeapi.Route {
+	natvInf, ok := ctlr.getNamespacedNativeInformer(svcKey.namespace)
 	if !ok {
-		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), service.Namespace)
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), svcKey.namespace)
 		return nil
 	}
-	routes, _ := natvInf.routeInformer.GetIndexer().ByIndex("namespace", service.Namespace)
+	routes, _ := natvInf.routeInformer.GetIndexer().ByIndex("namespace", svcKey.namespace)
 	routeMatched := false
 	for _, obj := range routes {
 		route := obj.(*routeapi.Route)
-		if route.Spec.To.Name == service.Name {
+		if route.Spec.To.Name == svcKey.serviceName {
 			routeMatched = true
 		} else {
 			for _, altBEnd := range route.Spec.AlternateBackends {
-				if altBEnd.Name == service.Name {
+				if altBEnd.Name == svcKey.serviceName {
 					routeMatched = true
 				}
 			}

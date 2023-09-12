@@ -6,17 +6,18 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 ## Components
 ### Policy Components
 
-| Parameter   | Type   | Required | Default | Description                                                                                                                                                                           |
-|-------------|--------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| l7Policies  | Object | Optional | N/A     | BIG-IP l7Policies in Policy CR.                                                                                                                                                       |
-| l3Policies  | Object | Optional | N/A     | BIG-IP l3Policies in Policy CR.                                                                                                                                                       |
-| ltmPolicies | Object | Optional | N/A     | BIG-IP LTM Policies in Policy CR.                                                                                                                                                     |
-| iRules      | Object | Optional | N/A     | BIG-IP iRules in Policy CR.                                                                                                                                                           |
- | iRuleList   | List   | Optional | N/A     | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
-| profiles    | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 |
-| tcp         | Object | Optional | N/A     | BIG-IP TCP client and server profiles in Policy CR.                                                                                                                                   |
-| snat        | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
-| autoLastHop | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
+| Parameter    | Type   | Required | Default | Description                                                                                                                                                                           |
+|--------------|--------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| l7Policies   | Object | Optional | N/A     | BIG-IP l7Policies in Policy CR.                                                                                                                                                       |
+| l3Policies   | Object | Optional | N/A     | BIG-IP l3Policies in Policy CR.                                                                                                                                                       |
+| ltmPolicies  | Object | Optional | N/A     | BIG-IP LTM Policies in Policy CR.                                                                                                                                                     |
+| iRules       | Object | Optional | N/A     | BIG-IP iRules in Policy CR.                                                                                                                                                           |
+ | iRuleList    | List   | Optional | N/A     | List of BIGIP iRules to attach to virtuals via policy CR                                                                                                                              |
+| profiles     | Object | Optional | N/A     | Various BIG-IP Profiles in Policy CR.                                                                                                                                                 |
+| tcp          | Object | Optional | N/A     | BIG-IP TCP client and server profiles in Policy CR.                                                                                                                                   |
+| snat         | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
+| autoLastHop  | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
+| poolSettings | Object | Optional | N/A     | Default pool settings to set on virtuals via  Policy CR                                                                                                                               |
 
 ### L7 Policy Components
 
@@ -113,3 +114,11 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 
 **Note**:
 * SSL profile components are only applicable to NextGen routes
+
+### poolSettings Components
+
+| Parameter         | Type    | Required | Default | Description                                                                                         |
+|-------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------------|
+| reselectTries     | Integer | Optional | 0       | reselectTries specifies the maximum number of attempts to find a responsive member for a connection |
+| serviceDownAction | String  | Optional | None    | serviceDownAction specifies connection handling when member is non-responsive                       |
+| slowRampTime      | Integer | Optional | 10      | BIG-IP AS3 sets the connection rate to a newly-active member slowly during this interval (seconds)  |

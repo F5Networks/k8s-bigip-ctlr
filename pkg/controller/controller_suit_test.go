@@ -54,18 +54,21 @@ func (m *mockController) shutdown() error {
 
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
-		PostManager: &PostManager{},
-		Responses:   []int{},
-		RespIndex:   0,
+		PostManager: &PostManager{
+			postChan:            make(chan ResourceConfigRequest, 1),
+			cachedTenantDeclMap: make(map[string]as3Tenant),
+			retryTenantDeclMap:  make(map[string]*tenantParams),
+		},
+		Responses: []int{},
+		RespIndex: 0,
 	}
 	mockPM.tenantResponseMap = make(map[string]tenantResponse)
 	mockPM.firstPost = true
 	return mockPM
 }
 
-func (mockPM *mockPostManager) setResponses(responces []responceCtx, method string) {
+func getMockHttpClient(responces []responceCtx, method string) (*http.Client, error) {
 	var body string
-
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
 
@@ -89,17 +92,20 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 		})
 	}
 
-	client, _ := mockhc.NewMockHTTPClient(responseMap)
+	return mockhc.NewMockHTTPClient(responseMap)
+}
+
+func (mockPM *mockPostManager) setResponses(responces []responceCtx, method string) {
+	client, _ := getMockHttpClient(responces, method)
 	mockPM.httpClient = client
 }
 
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
-		PostManager:     nil,
+		PostManager:     &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
 		Partition:       "test",
 		ConfigWriter:    writer,
 		EventChan:       make(chan interface{}),
-		postChan:        make(chan ResourceConfigRequest, 1),
 		PythonDriverPID: 0,
 		//cachedTenantDeclMap:   make(map[string]interface{}),
 		//incomingTenantDeclMap: make(map[string]interface{}),

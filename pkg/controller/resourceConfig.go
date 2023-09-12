@@ -293,7 +293,7 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 			if pool.ServiceNamespace != "" {
 				svcNamespace = pool.ServiceNamespace
 			}
-			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
+			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
 		}
 		poolName = ctlr.formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
@@ -309,7 +309,7 @@ func (ctlr *Controller) framePoolNameForDefaultPool(ns string, pool cisapiv1.Def
 			if pool.ServiceNamespace != "" {
 				svcNamespace = pool.ServiceNamespace
 			}
-			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
+			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
 		}
 		poolName = ctlr.formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
@@ -325,7 +325,7 @@ func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host s
 			svcNamespace = cxt.SvcNamespace
 		}
 		if (intstr.IntOrString{}) == targetPort {
-			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort)
+			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort, cxt.Cluster)
 		}
 		poolName = ctlr.formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, cxt.Cluster)
 	}
@@ -356,7 +356,8 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string,
+	cluster string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
 
 	if len(hostName) > 0 {
@@ -373,6 +374,10 @@ func formatMonitorName(namespace, svc string, monitorType string, port intstr.In
 	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
 		servicePort := fetchPortString(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
+	}
+	// Add cluster name to monitor name
+	if cluster != "" {
+		monitorName = monitorName + "_" + cluster
 	}
 	return AS3NameFormatter(monitorName)
 }
@@ -391,33 +396,64 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 }
 
 // fetch target port from service
-func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort intstr.IntOrString) intstr.IntOrString {
+func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort intstr.IntOrString, cluster string) intstr.IntOrString {
 	var targetPort intstr.IntOrString
 	var svcIndexer cache.Indexer
+	var svc *v1.Service
 	svcKey := namespace + "/" + svcName
-	if ctlr.watchingAllNamespaces() {
-		svcIndexer = ctlr.comInformers[""].svcInformer.GetIndexer()
-	} else {
-		if informer, ok := ctlr.comInformers[namespace]; ok {
-			svcIndexer = informer.svcInformer.GetIndexer()
+	if cluster == "" {
+		if ctlr.watchingAllNamespaces() {
+			svcIndexer = ctlr.comInformers[""].svcInformer.GetIndexer()
 		} else {
-			return targetPort
-		}
-	}
-	item, found, _ := svcIndexer.GetByKey(svcKey)
-	if !found {
-		log.Debugf("service '%v' not found", svcKey)
-
-		var err error
-		item, found, err = ctlr.getSvcFromHACluster(namespace, svcName)
-		if !found {
-			if err != nil {
-				log.Debugf("[MultiCluster] could not fetch service %v ", err)
+			if informer, ok := ctlr.comInformers[namespace]; ok {
+				svcIndexer = informer.svcInformer.GetIndexer()
+			} else {
+				return targetPort
 			}
+		}
+		item, found, _ := svcIndexer.GetByKey(svcKey)
+		if !found {
+			log.Debugf("service '%v' not found", svcKey)
+
+			var err error
+			item, found, err = ctlr.getSvcFromHACluster(namespace, svcName)
+			if !found {
+				if err != nil {
+					log.Debugf("[MultiCluster] could not fetch service %v ", err)
+				}
+				return targetPort
+			}
+		}
+		svc = item.(*v1.Service)
+	} else {
+		if _, ok := ctlr.multiClusterPoolInformers[cluster]; ok {
+			var poolInf *MultiClusterPoolInformer
+			var found bool
+			if poolInf, found = ctlr.multiClusterPoolInformers[cluster][""]; !found {
+				poolInf, found = ctlr.multiClusterPoolInformers[cluster][namespace]
+			}
+			if !found {
+				// If informers not found for the namespace, return empty targetPort
+				log.Warningf("[MultiCluster] Informer not found for namespace: %v in cluster: %s", namespace, cluster)
+				return targetPort
+			}
+
+			if poolInf.svcInformer != nil {
+				item, mFound, _ := poolInf.svcInformer.GetIndexer().GetByKey(svcKey)
+				if !mFound {
+					log.Warningf("[MultiCluster] service '%v' %s not found", svcKey, getClusterLog(cluster))
+					return targetPort
+				}
+				svc = item.(*v1.Service)
+			} else {
+				// If service informer not found return empty targetPort
+				return targetPort
+			}
+		} else {
+			// If informers not found for the cluster, return empty targetPort
 			return targetPort
 		}
 	}
-	svc := item.(*v1.Service)
 	for _, port := range svc.Spec.Ports {
 		if servicePort.StrVal == "" {
 			if port.Port == servicePort.IntVal {
@@ -493,7 +529,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			if SvcBackend.SvcNamespace != "" {
 				svcNamespace = SvcBackend.SvcNamespace
 			}
-			targetPort := ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
+			targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, SvcBackend.Cluster)
 			pool := Pool{
 				Name:              poolName,
 				Partition:         rsCfg.Virtual.Partition,
@@ -561,7 +597,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 			if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
 				ctlr.createVirtualServerMonitor(pl.Monitor, &pool, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
-					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name)
+					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, SvcBackend.Cluster)
 			} else if pl.Monitors != nil {
 				var formatPort intstr.IntOrString
 				for _, monitor := range pl.Monitors {
@@ -571,7 +607,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						formatPort = pl.ServicePort
 					}
 					ctlr.createVirtualServerMonitor(monitor, &pool, rsCfg, formatPort, vs.Spec.Host, pl.Path,
-						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name)
+						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, SvcBackend.Cluster)
 				}
 			}
 			pools = append(pools, pool)
@@ -711,7 +747,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 }
 
 func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, host, path, vsName string) {
+	formatPort intstr.IntOrString, host, path, vsName string, cluster string) {
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
@@ -728,7 +764,11 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host, path)
+				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host,
+					path, cluster)
+			} else if cluster != "" {
+				// In case monitorName is specified then append cluster name to it to avoid conflict
+				monitorName += "_" + cluster
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -760,7 +800,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "")
+				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "", "")
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -799,7 +839,7 @@ func (ctlr *Controller) handleDefaultPool(
 			if vs.Spec.DefaultPool.ServiceNamespace != "" {
 				svcNamespace = vs.Spec.DefaultPool.ServiceNamespace
 			}
-			targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.DefaultPool.Service, vs.Spec.DefaultPool.ServicePort)
+			targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.DefaultPool.Service, vs.Spec.DefaultPool.ServicePort, "")
 			if (intstr.IntOrString{}) == targetPort {
 				targetPort = vs.Spec.DefaultPool.ServicePort
 			}
@@ -827,7 +867,7 @@ func (ctlr *Controller) handleDefaultPool(
 							formatPort = vs.Spec.DefaultPool.ServicePort
 						}
 						if mtr.Name == "" {
-							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "")
+							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "", "")
 						}
 						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 						mntr := Monitor{
@@ -1901,7 +1941,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	if vs.Spec.Pool.ServiceNamespace != "" {
 		svcNamespace = vs.Spec.Pool.ServiceNamespace
 	}
-	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
+	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort, "")
 
 	pool := Pool{
 		Name:              poolName,
@@ -2083,9 +2123,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,
@@ -2138,7 +2178,6 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	if rsCfg.Virtual.HttpMrfRoutingEnabled == nil && plc.Spec.Profiles.HttpMrfRoutingEnabled != nil {
 		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
 	}
-
 	if plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile != "" &&
 		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
 		rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile = plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile
@@ -2248,6 +2287,25 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	return nil
 }
 
+func (ctlr *Controller) handlePoolResourceConfigForPolicy(
+	rsCfg *ResourceConfig,
+	plc *cisapiv1.Policy,
+) error {
+	for i, pl := range rsCfg.Pools {
+		if pl.ReselectTries == 0 && plc.Spec.PoolSettings.ReselectTries != 0 {
+			pl.ReselectTries = plc.Spec.PoolSettings.ReselectTries
+		}
+		if pl.ServiceDownAction == "" && plc.Spec.PoolSettings.ServiceDownAction != "" {
+			pl.ServiceDownAction = plc.Spec.PoolSettings.ServiceDownAction
+		}
+		if plc.Spec.PoolSettings.SlowRampTime != 0 {
+			pl.SlowRampTime = plc.Spec.PoolSettings.SlowRampTime
+		}
+		//update pool
+		rsCfg.Pools[i] = pl
+	}
+	return nil
+}
 func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }
@@ -2695,6 +2753,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 			sbcs[beIdx].Weight = 0
 		}
 		sbcs[beIdx].Cluster = svc.ClusterName
+		sbcs[beIdx].SvcNamespace = svc.Namespace
 	}
 	return sbcs
 }

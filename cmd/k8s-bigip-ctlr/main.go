@@ -856,10 +856,16 @@ func initController(
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
-	GtmParams := controller.GTMParams{
-		GTMBigIpUsername: *gtmBigIPUsername,
-		GTMBigIpPassword: *gtmBigIPPassword,
-		GTMBigIpUrl:      *gtmBigIPURL,
+	GtmParams := controller.PostParams{
+		BIGIPUsername:     *gtmBigIPUsername,
+		BIGIPPassword:     *gtmBigIPPassword,
+		BIGIPURL:          *gtmBigIPURL,
+		TrustedCerts:      "",
+		SSLInsecure:       true,
+		AS3PostDelay:      *as3PostDelay,
+		LogAS3Response:    *logAS3Response,
+		LogAS3Request:     *logAS3Request,
+		HTTPClientMetrics: *httpClientMetrics,
 	}
 
 	agentParams := controller.AgentParams{

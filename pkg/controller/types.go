@@ -413,6 +413,7 @@ type (
 		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
 		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
 		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
+		SlowRampTime         int32                                   `json:"slowRampTime,omitempty"`
 		Weight               int32                                   `json:"weight,omitempty"`
 		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
 		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
@@ -684,9 +685,10 @@ type (
 	Services        []*v1.Service
 	NodeList        []v1.Node
 	RouteBackendCxt struct {
-		Weight  float64
-		Name    string
-		Cluster string
+		Weight       float64
+		Name         string
+		Cluster      string
+		SvcNamespace string
 	}
 	SvcBackendCxt struct {
 		Weight       float64
@@ -697,36 +699,30 @@ type (
 )
 
 type (
+	GTMPostManager struct {
+		*PostManager
+		Partition string
+	}
 	Agent struct {
 		*PostManager
 		Partition       string
 		ConfigWriter    writer.Writer
-		postChan        chan ResourceConfigRequest
 		EventChan       chan interface{}
-		retryChan       chan struct{}
 		respChan        chan resourceStatusMeta
 		PythonDriverPID int
 		userAgent       string
-		AS3VersionInfo  as3VersionInfo
 		HttpAddress     string
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
-		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
-		cachedTenantDeclMap   map[string]as3Tenant
-		incomingTenantDeclMap map[string]as3Tenant
-		// this map stores the tenant priority map
-		tenantPriorityMap map[string]int
-		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
-		retryTenantDeclMap map[string]*tenantParams
-		ccclGTMAgent       bool
-		disableARP         bool
-		bigIPAS3Version    float64
-		HAMode             bool
+		ccclGTMAgent    bool
+		disableARP      bool
+		HAMode          bool
+		GTMPostManager  *GTMPostManager
 	}
 
 	AgentParams struct {
 		PostParams                      PostParams
-		GTMParams                       GTMParams
+		GTMParams                       PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
 		Partition          string
@@ -750,6 +746,18 @@ type (
 		PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		firstPost                       bool
+		AS3VersionInfo                  as3VersionInfo
+		bigIPAS3Version                 float64
+		postManagerPrefix               string
+		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
+		cachedTenantDeclMap   map[string]as3Tenant
+		incomingTenantDeclMap map[string]as3Tenant
+		// this map stores the tenant priority map
+		tenantPriorityMap map[string]int
+		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
+		retryTenantDeclMap map[string]*tenantParams
+		postChan           chan ResourceConfigRequest
+		retryChan          chan struct{}
 	}
 
 	PrimaryClusterHealthProbeParams struct {
@@ -934,6 +942,7 @@ type (
 		Monitors          []as3ResourcePointer `json:"monitors,omitempty"`
 		ServiceDownAction string               `json:"serviceDownAction,omitempty"`
 		ReselectTries     int32                `json:"reselectTries,omitempty"`
+		SlowRampTime      int32                `json:"slowRampTime,omitempty"`
 	}
 
 	// as3PoolMember maps to Pool_Member in AS3 Resources

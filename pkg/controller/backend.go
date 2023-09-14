@@ -629,6 +629,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
 				agent.PrimaryClusterHealthProbeParams.statusChanged) {
 			agent.removeDeletedTenantsForBigIP(&config, cisLabel)
+			agent.firstPost = false
 		}
 	}
 

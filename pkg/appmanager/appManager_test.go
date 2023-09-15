@@ -735,7 +735,7 @@ var _ = Describe("AppManager Tests", func() {
 
 			expectedNodes := []*v1.Node{
 				test.NewNode("node0", "0", true, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 				test.NewNode("node1", "1", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.1"}},
 					[]v1.Taint{
@@ -743,7 +743,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:    "node-role.kubernetes.io/worker",
 							Effect: v1.TaintEffectPreferNoSchedule,
 						},
-					}),
+					}, nil),
 				test.NewNode("node2", "2", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.2"}},
 					[]v1.Taint{
@@ -751,9 +751,9 @@ var _ = Describe("AppManager Tests", func() {
 							Key:    "node-role.kubernetes.io/worker",
 							Effect: v1.TaintEffectNoSchedule,
 						},
-					}),
+					}, nil),
 				test.NewNode("node3", "3", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil),
 			}
 
 			expectedReturn := []Node{
@@ -783,7 +783,7 @@ var _ = Describe("AppManager Tests", func() {
 			// Existing Node data
 			expectedNodes := []*v1.Node{
 				test.NewNode("node0", "0", true, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 				test.NewNode("node1", "1", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.1"}},
 					[]v1.Taint{
@@ -791,15 +791,15 @@ var _ = Describe("AppManager Tests", func() {
 							Key:    "node-role.kubernetes.io/worker",
 							Effect: v1.TaintEffectPreferNoSchedule,
 						},
-					}),
+					}, nil),
 				test.NewNode("node2", "2", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}, nil),
 				test.NewNode("node3", "3", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil),
 				test.NewNode("node4", "4", false, []v1.NodeAddress{
-					{Type: "InternalIP", Address: "127.0.0.4"}}, []v1.Taint{}),
+					{Type: "InternalIP", Address: "127.0.0.4"}}, []v1.Taint{}, nil),
 				test.NewNode("node5", "5", false, []v1.NodeAddress{
-					{Type: "Hostname", Address: "127.0.0.5"}}, []v1.Taint{}),
+					{Type: "Hostname", Address: "127.0.0.5"}}, []v1.Taint{}, nil),
 				test.NewNode("node6", "6", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.6"}},
 					[]v1.Taint{
@@ -807,7 +807,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:    "node-role.kubernetes.io/worker",
 							Effect: v1.TaintEffectNoSchedule,
 						},
-					}),
+					}, nil),
 			}
 
 			expectedReturn := []Node{
@@ -862,17 +862,17 @@ var _ = Describe("AppManager Tests", func() {
 		It("should process node updates", func() {
 			originalSet := []v1.Node{
 				*test.NewNode("node0", "0", true, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 				*test.NewNode("node1", "1", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil),
 				*test.NewNode("node2", "2", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}, nil),
 				*test.NewNode("node3", "3", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil),
 				*test.NewNode("node4", "4", false, []v1.NodeAddress{
-					{Type: "InternalIP", Address: "127.0.0.4"}}, []v1.Taint{}),
+					{Type: "InternalIP", Address: "127.0.0.4"}}, []v1.Taint{}, nil),
 				*test.NewNode("node5", "5", false, []v1.NodeAddress{
-					{Type: "Hostname", Address: "127.0.0.5"}}, []v1.Taint{}),
+					{Type: "Hostname", Address: "127.0.0.5"}}, []v1.Taint{}, nil),
 				*test.NewNode("node6", "6", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.6"}},
 					[]v1.Taint{
@@ -880,7 +880,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:    "node-role.kubernetes.io/worker",
 							Effect: v1.TaintEffectNoSchedule,
 						},
-					}),
+					}, nil),
 				*test.NewNode("node7", "7", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.7"}},
 					[]v1.Taint{
@@ -888,7 +888,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:    "node-role.kubernetes.io/worker",
 							Effect: v1.TaintEffectNoExecute,
 						},
-					}),
+					}, []v1.NodeCondition{{Type: v1.NodeReady, Status: v1.ConditionFalse}}),
 			}
 			// should ignore nodes with NotReady state(v1.TaintEffectNoExecute)
 			expectedOgSet := []Node{
@@ -929,11 +929,11 @@ var _ = Describe("AppManager Tests", func() {
 
 			// add some nodes
 			_, err = fakeClient.CoreV1().Nodes().Create(context.TODO(), test.NewNode("nodeAdd", "nodeAdd", false,
-				[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.6"}}, []v1.Taint{}), metav1.CreateOptions{})
+				[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.6"}}, []v1.Taint{}, nil), metav1.CreateOptions{})
 			Expect(err).To(BeNil(), "Create should not return err.")
 
 			_, err = fakeClient.CoreV1().Nodes().Create(context.TODO(), test.NewNode("nodeExclude", "nodeExclude",
-				true, []v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.7"}}, []v1.Taint{}), metav1.CreateOptions{})
+				true, []v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.7"}}, []v1.Taint{}, nil), metav1.CreateOptions{})
 
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -1123,7 +1123,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodeSet := []v1.Node{
 					*test.NewNode("node0", "0", false, []v1.NodeAddress{
-						{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+						{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 				}
 
 				mockMgr.processNodeUpdate(nodeSet)
@@ -1275,14 +1275,14 @@ var _ = Describe("AppManager Tests", func() {
 					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 				nodes := []*v1.Node{
 					test.NewNode("node0", "0", true, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 					test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil),
 					test.NewNode("node2", "2", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}, nil),
 				}
 				extraNode := test.NewNode("node3", "3", false,
-					[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil)
 
 				nodeCh := make(chan struct{})
 				mapCh := make(chan struct{})
@@ -1405,9 +1405,9 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes := []*v1.Node{
 					test.NewNode("node0", "0", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 					test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil),
 				}
 				for _, node := range nodes {
 					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
@@ -1554,14 +1554,14 @@ var _ = Describe("AppManager Tests", func() {
 					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 				nodes := []v1.Node{
 					*test.NewNode("node0", "0", true, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 					*test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil),
 					*test.NewNode("node2", "2", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}, nil),
 				}
 				extraNode := test.NewNode("node3", "3", false,
-					[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil)
 
 				addrs := []string{"127.0.0.0", "127.0.0.1", "127.0.0.2"}
 
@@ -1872,7 +1872,7 @@ var _ = Describe("AppManager Tests", func() {
 				wrongNamespace := "wrongnamespace"
 
 				node := test.NewNode("node3", "3", false,
-					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil)
 				_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -1974,16 +1974,16 @@ var _ = Describe("AppManager Tests", func() {
 					[]v1.ServicePort{{Port: 80, NodePort: 20202}})
 				nodes := []v1.Node{
 					*test.NewNode("node0", "0", true, []v1.NodeAddress{
-						{Type: "InternalIP", Address: "192.168.0.0"}}, []v1.Taint{}),
+						{Type: "InternalIP", Address: "192.168.0.0"}}, []v1.Taint{}, nil),
 					*test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "InternalIP", Address: "192.168.0.1"}}, []v1.Taint{}),
+						{Type: "InternalIP", Address: "192.168.0.1"}}, []v1.Taint{}, nil),
 					*test.NewNode("node2", "2", false, []v1.NodeAddress{
-						{Type: "InternalIP", Address: "192.168.0.2"}}, []v1.Taint{}),
+						{Type: "InternalIP", Address: "192.168.0.2"}}, []v1.Taint{}, nil),
 					*test.NewNode("node3", "3", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "192.168.0.3"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "192.168.0.3"}}, []v1.Taint{}, nil),
 				}
 				extraNode := test.NewNode("node4", "4", false, []v1.NodeAddress{
-					{Type: "InternalIP", Address: "192.168.0.4"}}, []v1.Taint{})
+					{Type: "InternalIP", Address: "192.168.0.4"}}, []v1.Taint{}, nil)
 
 				addrs := []string{"192.168.0.0", "192.168.0.1", "192.168.0.2"}
 
@@ -2230,13 +2230,13 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes := []*v1.Node{
 					test.NewNode("node0", "0", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 					test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil),
 					test.NewNode("node2", "2", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}, nil),
 					test.NewNode("node3", "3", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil),
 				}
 				for _, node := range nodes {
 					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
@@ -2319,17 +2319,17 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes := []*v1.Node{
 					test.NewNode("node0", "0", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil),
 					test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil),
 					test.NewNode("node2", "2", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}, nil),
 					test.NewNode("node3", "3", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil),
 					test.NewNode("node4", "4", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.4"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.4"}}, []v1.Taint{}, nil),
 					test.NewNode("node5", "5", false, []v1.NodeAddress{
-						{Type: "ExternalIP", Address: "127.0.0.5"}}, []v1.Taint{}),
+						{Type: "ExternalIP", Address: "127.0.0.5"}}, []v1.Taint{}, nil),
 				}
 				for _, node := range nodes {
 					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
@@ -2413,7 +2413,7 @@ var _ = Describe("AppManager Tests", func() {
 				svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 
 				node := test.NewNode("node0", "0", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{})
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil)
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil(), "Should not fail creating node.")
 				Expect(n).To(Equal(node))
@@ -2480,7 +2480,7 @@ var _ = Describe("AppManager Tests", func() {
 				svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 
 				node := test.NewNode("node0", "0", false, []v1.NodeAddress{
-					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{})
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}, nil)
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil(), "Should not fail creating node.")
 				Expect(n).To(Equal(node))
@@ -2642,7 +2642,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.useNodeInternal = true
 				// Create Node so we get endpoints
 				node := test.NewNode("node1", "1", false,
-					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil)
 				_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -3594,7 +3594,7 @@ var _ = Describe("AppManager Tests", func() {
 				err := mockMgr.startNonLabelMode([]string{ns1, ns2})
 				Expect(err).To(BeNil())
 				node := test.NewNode("node1", "1", false,
-					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil)
 				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -3675,7 +3675,7 @@ var _ = Describe("AppManager Tests", func() {
 				err := mockMgr.startNonLabelMode([]string{ns1, ns2})
 				Expect(err).To(BeNil())
 				node := test.NewNode("node1", "1", false,
-					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil)
 				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -3776,7 +3776,7 @@ var _ = Describe("AppManager Tests", func() {
 				ns3 := test.NewNamespace("ns3", "1", map[string]string{nsLabel: "yes"})
 
 				node := test.NewNode("node1", "1", false,
-					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{}, nil)
 				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})

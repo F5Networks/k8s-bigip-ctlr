@@ -3240,11 +3240,11 @@ extendedRouteSpec:
 				}
 				cnt := v1.Container{
 					LivenessProbe: &v1.Probe{
-
-						TimeoutSeconds:   10,
-						PeriodSeconds:    10,
-						SuccessThreshold: 1,
-						Handler:          Handler,
+						TimeoutSeconds:      10,
+						PeriodSeconds:       10,
+						SuccessThreshold:    1,
+						Handler:             Handler,
+						InitialDelaySeconds: 3,
 					},
 					Ports: []v1.ContainerPort{
 						v1.ContainerPort{

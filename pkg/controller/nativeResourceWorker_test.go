@@ -1072,6 +1072,8 @@ extendedRouteSpec:
 						},
 						DefaultSSLProfile{},
 						DefaultRouteGroupConfig{},
+						"",
+						0,
 					},
 				},
 			}
@@ -1769,6 +1771,116 @@ extendedRouteSpec:
 			err, ok = mockCtlr.processConfigMap(cm, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
+		})
+
+		It("Verify autoMonitor Options", func() {
+			mockCtlr.Partition = "test"
+			// Verify autoMonitor defaults to liveness-probe when invalid value is provided
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    autoMonitor: invalid-automonitor
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+`
+			err, ok := mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+			Expect(mockCtlr.resources.baseRouteConfig.AutoMonitor).To(Equal(LivenessProbe))
+
+			// Verify autoMonitor is set to service-endpoint
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    autoMonitor: service-endpoint
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+`
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			routeGroup := "default"
+
+			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+				override: false,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "nextgenroutes",
+					VServerAddr:   "10.8.3.11",
+					AllowOverride: "True",
+				},
+				namespaces: []string{routeGroup},
+				partition:  "test",
+			}
+
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge"},
+			}
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001}}
+			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", routeGroup, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			annotations := make(map[string]string)
+			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
+			mockCtlr.addRoute(route1)
+			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			err = mockCtlr.processRoutes(routeGroup, false)
+			Expect(err).To(BeNil())
+			zero := 0
+			expectedDefaultTCPMonitor := Monitor{
+				Name:        "foo_80_default_monitor",
+				Interval:    5,
+				Timeout:     16,
+				Type:        "tcp",
+				Partition:   "test",
+				TimeUntilUp: &zero,
+			}
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
+
+			// Verify autoMonitorTimeout
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    autoMonitor: service-endpoint
+    autoMonitorTimeout: 50
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+`
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			err = mockCtlr.processRoutes(routeGroup, false)
+			Expect(err).To(BeNil())
+			expectedDefaultTCPMonitor = Monitor{
+				Name:        "foo_80_default_monitor",
+				Timeout:     50,
+				Type:        "tcp",
+				Partition:   "test",
+				TimeUntilUp: &zero,
+			}
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
+
 		})
 	})
 })

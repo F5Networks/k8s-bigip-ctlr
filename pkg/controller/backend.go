@@ -1545,6 +1545,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		monitor.TargetPort = v.TargetPort
 		targetAddressStr := ""
 		monitor.TargetAddress = &targetAddressStr
+		monitor.TimeUnitilUp = v.TimeUntilUp
 		//Monitor type
 		switch v.Type {
 		case "http":
@@ -1555,7 +1556,6 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			if v.Recv != "" {
 				monitor.Receive = v.Recv
 			}
-			monitor.TimeUnitilUp = &val
 			monitor.Send = v.Send
 		case "https":
 			//Todo: For https monitor type
@@ -1565,6 +1565,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				monitor.Receive = v.Recv
 			}
 			monitor.Send = v.Send
+			monitor.TimeUnitilUp = v.TimeUntilUp
 		case "tcp", "udp":
 			adaptiveFalse := false
 			monitor.Adaptive = &adaptiveFalse

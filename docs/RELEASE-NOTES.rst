@@ -18,6 +18,10 @@ Bug Fixes
 * `https://github.com/F5Networks/k8s-bigip-ctlr/issues/3061`_: Provide stable pool name in multi cluster mode
 * `Issue 3079<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
 
+Known Issues
+`````````````
+*  [Multi-Cluster] Route status is not updated in other HA cluster.
+
 2.14.0
 -------------
 

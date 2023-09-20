@@ -196,6 +196,7 @@ func NewNode(
 	unsched bool,
 	addresses []v1.NodeAddress,
 	taints []v1.Taint,
+	conditions []v1.NodeCondition,
 ) *v1.Node {
 	return &v1.Node{
 		TypeMeta: metav1.TypeMeta{
@@ -211,7 +212,8 @@ func NewNode(
 			Taints:        taints,
 		},
 		Status: v1.NodeStatus{
-			Addresses: addresses,
+			Addresses:  addresses,
+			Conditions: conditions,
 		},
 	}
 }

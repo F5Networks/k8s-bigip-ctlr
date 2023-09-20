@@ -1068,7 +1068,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			}
 			// Create Node so we get endpoints
 			node := test.NewNode("node1", "1", false,
-				[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
+				[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{}, nil)
 			mockMgr.addNode(node, namespace)
 			Expect(len(mockMgr.appMgr.nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(1))
 

@@ -3179,9 +3179,10 @@ func (appMgr *Manager) getNodes(
 	for _, node := range nodes {
 		// Ignore the Nodes with status NotReady
 		var notExecutable bool
-		for _, t := range node.Spec.Taints {
-			if v1.TaintEffectNoExecute == t.Effect {
+		for _, nodeCondition := range node.Status.Conditions {
+			if nodeCondition.Type == v1.NodeReady && nodeCondition.Status != v1.ConditionTrue {
 				notExecutable = true
+				break
 			}
 		}
 		if notExecutable == true {
@@ -3753,9 +3754,10 @@ func (appMgr *Manager) processStaticRouteUpdate(
 		node := obj.(*v1.Node)
 		// Ignore the Nodes with status NotReady
 		var notExecutable bool
-		for _, t := range node.Spec.Taints {
-			if v1.TaintEffectNoExecute == t.Effect {
+		for _, nodeCondition := range node.Status.Conditions {
+			if nodeCondition.Type == v1.NodeReady && nodeCondition.Status != v1.ConditionTrue {
 				notExecutable = true
+				break
 			}
 		}
 		if notExecutable == true {

@@ -45,18 +45,14 @@ var _ = Describe("Node Poller Handler", func() {
 			Type:    v1.NodeInternalIP,
 			Address: "1.2.3.6",
 		}
+		nodecondition := v1.NodeCondition{Type: v1.NodeReady, Status: v1.ConditionFalse}
 		nodeObjs := []v1.Node{
 			*test.NewNode("worker1", "1", false,
-				[]v1.NodeAddress{nodeAddr1}, nil),
+				[]v1.NodeAddress{nodeAddr1}, nil, nil),
 			*test.NewNode("worker2", "1", false,
-				[]v1.NodeAddress{nodeAddr2}, nil),
+				[]v1.NodeAddress{nodeAddr2}, nil, nil),
 			*test.NewNode("worker3", "1", false,
-				[]v1.NodeAddress{nodeAddr3}, []v1.Taint{
-					{
-						Key:    "node-role.kubernetes.io/worker",
-						Effect: v1.TaintEffectNoExecute,
-					},
-				}),
+				[]v1.NodeAddress{nodeAddr3}, nil, []v1.NodeCondition{nodecondition}),
 		}
 
 		for _, node := range nodeObjs {
@@ -111,7 +107,7 @@ var _ = Describe("Node Poller Handler", func() {
 		}
 		nodeObjs := []v1.Node{
 			*test.NewNode("worker1", "1", false,
-				[]v1.NodeAddress{nodeAddr1}, nil),
+				[]v1.NodeAddress{nodeAddr1}, nil, nil),
 		}
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)

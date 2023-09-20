@@ -567,7 +567,7 @@ func (ctlr *Controller) processResources() bool {
 		// Update the poolMembers for affected resources
 		ctlr.updatePoolMembersForService(svcKey)
 
-		if ctlr.mode == OpenShiftMode && rscDelete == false {
+		if ctlr.mode == OpenShiftMode && rscDelete == false && ctlr.resources.baseRouteConfig.AutoMonitor != None {
 			ctlr.UpdatePoolHealthMonitors(svcKey)
 		}
 

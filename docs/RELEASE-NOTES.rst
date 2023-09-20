@@ -8,6 +8,8 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
+    * Next Generation Routes
+        * Improvements in pod liveness probe based health monitor and autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
     * CRD
     * Support for AS3 GTM agent with separate GTM server
 Bug Fixes

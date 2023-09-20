@@ -440,7 +440,7 @@ while computing the final ratio.<br>
 *  CIS doesn't update pool members if service doesn't exist in primary cluster but exists in secondary cluster for Route.
 *  CIS on start up in multiCluster mode, if any external cluster kube-api server is down/not reachable, CIS is struck and not processing any valid clusters config also.Workaround to remove unreachable cluster config from configmap and restart CIS
 *  CIS fails to post declaration with VS with health monitors in ratio mode.Issue is observed intermittently
-
+*  Route status is not updated in other HA cluster. For eg: Active Primary CIS cluster doesn't update the route status in Secondary HA cluster and vice-versa.
 
 ## FAQ
 

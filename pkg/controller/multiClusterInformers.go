@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"k8s.io/client-go/rest"
 	"os"
@@ -46,11 +47,26 @@ func (poolInfr *MultiClusterPoolInformer) start() {
 		go poolInfr.podInformer.Run(poolInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, poolInfr.podInformer.HasSynced)
 	}
-	cache.WaitForNamedCacheSync(
+	// Wait for the all informer caches for the cluster to be synced before proceeding further to ensure it has the latest data.
+	// Typically, informer cache synchronization is a fast process.However, if it takes longer than 30 seconds, it may
+	// indicate an issue with the API server of the cluster.
+	// To avoid CIS getting blocked indefinitely, we are setting a timeout of 30 seconds and then CIS will continue to
+	// proceed further after logging the error to indicate the admin which cluster is having issues.
+	// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
+	// will start processing the events as and when it receives those from the affected cluster.
+	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	log.Debugf("[MultiCluster] Waiting for 30 Seconds for informer caches to sync for Cluster: %s", poolInfr.clusterName)
+	if cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
-		poolInfr.stopCh,
+		infSyncCtx.Done(),
 		cacheSyncs...,
-	)
+	) {
+		log.Debugf("[MultiCluster] Successfully synced informer caches for Cluster: %s", poolInfr.clusterName)
+	} else {
+		log.Warningf("[MultiCluster] Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
+			"API server in Cluster: %s", poolInfr.clusterName, poolInfr.clusterName)
+	}
 }
 
 func (poolInfr *MultiClusterPoolInformer) stop() {

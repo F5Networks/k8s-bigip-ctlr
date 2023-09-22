@@ -101,7 +101,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 	if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
 		for svcKey, _ := range svcKeys {
-			ctlr.updatePoolMembersForService(svcKey)
+			ctlr.updatePoolMembersForService(svcKey, false)
 		}
 		key := &rqKey{
 			kind: NodeUpdate,

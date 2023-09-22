@@ -505,7 +505,7 @@ func (ctlr *Controller) processResources() bool {
 		_ = ctlr.processService(svc, rKey.clusterName)
 
 		// Update the poolMembers for affected resources
-		ctlr.updatePoolMembersForService(svcKey)
+		ctlr.updatePoolMembersForService(svcKey, rKey.svcPortUpdated)
 
 	case Endpoints:
 		ep := rKey.rsc.(*v1.Endpoints)
@@ -535,7 +535,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 		// Just update the endpoints instead of processing them entirely
-		ctlr.updatePoolMembersForService(svcKey)
+		ctlr.updatePoolMembersForService(svcKey, false)
 
 	case Pod:
 		pod := rKey.rsc.(*v1.Pod)
@@ -565,7 +565,7 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		// Update the poolMembers for affected resources
-		ctlr.updatePoolMembersForService(svcKey)
+		ctlr.updatePoolMembersForService(svcKey, false)
 
 		if ctlr.mode == OpenShiftMode && rscDelete == false && ctlr.resources.baseRouteConfig.AutoMonitor != None {
 			ctlr.UpdatePoolHealthMonitors(svcKey)
@@ -1974,7 +1974,7 @@ func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKe
 	ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig][poolId] = struct{}{}
 }
 
-func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKey) {
+func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKey, svcPortUpdated bool) {
 	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
 		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
@@ -1987,7 +1987,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 					freshRsCfg.copyConfig(rsCfg)
 					for index, pool := range freshRsCfg.Pools {
 						if pool.Name == poolId.poolName && pool.Partition == poolId.partition {
-							if pool.ServicePort.IntVal == 0 {
+							if pool.ServicePort.IntVal == 0 || svcPortUpdated {
 								switch poolId.rsKey.kind {
 								case Route:
 									// this case happens when a route does not contain a target port and service is created after route creation

@@ -177,12 +177,13 @@ type (
 		nsInformer cache.SharedIndexInformer
 	}
 	rqKey struct {
-		namespace   string
-		kind        string
-		rscName     string
-		rsc         interface{}
-		event       string
-		clusterName string
+		namespace      string
+		kind           string
+		rscName        string
+		rsc            interface{}
+		event          string
+		clusterName    string
+		svcPortUpdated bool
 	}
 
 	metaData struct {

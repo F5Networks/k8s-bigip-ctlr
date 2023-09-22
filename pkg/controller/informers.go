@@ -1126,6 +1126,9 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		event:       Create,
 		clusterName: clusterName,
 	}
+	if !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
+		key.svcPortUpdated = true
+	}
 	ctlr.resourceQueue.Add(key)
 }
 

@@ -1553,4 +1553,41 @@ var _ = Describe("Resource Config Tests", func() {
 				"to automap")
 		})
 	})
+
+	Describe("Handle pool resource config for a policy", func() {
+		var rsCfg *ResourceConfig
+		var mockCtlr *mockController
+		var plc *cisapiv1.Policy
+
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			rsCfg = &ResourceConfig{}
+			rsCfg.Pools = Pools{
+				{
+					ReselectTries: 0,
+					ServiceDownAction: "",
+				},
+				{
+					ReselectTries: 0,
+					ServiceDownAction: "",
+				},
+			}
+			plc = test.NewPolicy("plc1", namespace, cisapiv1.PolicySpec{})
+			plc.Spec.PoolSettings = cisapiv1.PoolSettingsSpec{
+				ReselectTries: 10,
+				ServiceDownAction: "reset",
+				SlowRampTime: 300,
+			}
+		})
+		It("Verifies pool settings are set properly for a policy", func() {
+			err := mockCtlr.handlePoolResourceConfigForPolicy(rsCfg, plc);
+			Expect(err).To(BeNil(), "Failed to handle pool resource config for policy")
+			Expect(rsCfg.Pools[0].ReselectTries).To(Equal(plc.Spec.PoolSettings.ReselectTries), "ReselectTries should be set to 10")
+			Expect(rsCfg.Pools[0].ServiceDownAction).To(Equal(plc.Spec.PoolSettings.ServiceDownAction), "ServiceDownAction should be set to reset")
+			Expect(rsCfg.Pools[0].SlowRampTime).To(Equal(plc.Spec.PoolSettings.SlowRampTime), "SlowRampTime should be set to 300")
+			Expect(rsCfg.Pools[1].ReselectTries).To(Equal(plc.Spec.PoolSettings.ReselectTries), "ReselectTries should be set to 10")
+			Expect(rsCfg.Pools[1].ServiceDownAction).To(Equal(plc.Spec.PoolSettings.ServiceDownAction), "ServiceDownAction should be set to reset")
+			Expect(rsCfg.Pools[1].SlowRampTime).To(Equal(plc.Spec.PoolSettings.SlowRampTime), "SlowRampTime should be set to 300")
+		});
+	})
 })

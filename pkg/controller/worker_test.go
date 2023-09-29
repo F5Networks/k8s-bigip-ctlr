@@ -1185,6 +1185,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc")).ToNot(BeNil())
 			Expect(getNodeport(svc, 81)).To(BeEquivalentTo(0))
+			Expect(mockCtlr.getNodeportForNPL(81, "default", "svc")).To(BeEquivalentTo(0))
 		})
 
 		Describe("Processing Service of type LB with policy", func() {

@@ -3014,6 +3014,9 @@ func (appMgr *Manager) getEndpointsForCluster(
 	appMgr.processedResourcesMutex.Lock()
 	appMgr.processedResources[prepareResourceKey(Endpoints, eps.Namespace, eps.Name)] = true
 	appMgr.processedResourcesMutex.Unlock()
+
+	svcPorts := appMgr.getServicePortsFromEndpoint(eps)
+
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
 			if portName == p.Name {
@@ -3023,7 +3026,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 						member := Member{
 							Address: addr.IP,
 							Port:    p.Port,
-							SvcPort: p.Port,
+							SvcPort: appMgr.getServicePortFromTargetPort(svcPorts, p.Port),
 							Session: "user-enabled",
 						}
 						members = append(members, member)
@@ -3033,6 +3036,59 @@ func (appMgr *Manager) getEndpointsForCluster(
 		}
 	}
 	return members
+}
+
+func (appMgr *Manager) getServicePortFromTargetPort(svcPorts map[int32]int32, targePort int32) int32 {
+	if svcPorts == nil {
+		return 0
+	}
+	svcPort, ok := svcPorts[targePort]
+	if ok {
+		return svcPort
+	} else {
+		return 0
+	}
+}
+
+func (appMgr *Manager) getServicePortsFromEndpoint(ep *v1.Endpoints) map[int32]int32 {
+	var svc interface{}
+	var exists bool
+	var err error
+
+	if ep == nil {
+		return nil
+	}
+
+	svcKey := fmt.Sprintf("%s/%s", ep.Namespace, ep.Name)
+	comInf, ok := appMgr.getNamespaceInformer(ep.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", ep.Namespace)
+		return nil
+	}
+	svc, exists, err = comInf.svcInformer.GetIndexer().GetByKey(svcKey)
+
+	if !exists {
+		log.Errorf("Service not found for endpoint: %v", svcKey)
+		return nil
+	}
+
+	if err != nil {
+		log.Errorf("Error fetching service : %v", svcKey)
+		return nil
+	}
+
+	svcPorts := make(map[int32]int32)
+	var targerPort int32
+	for _, portSpec := range svc.(*v1.Service).Spec.Ports {
+		targerPort = portSpec.TargetPort.IntVal
+		if targerPort == 0 {
+			targerPort = portSpec.Port
+		}
+		svcPorts[targerPort] = portSpec.Port
+	}
+
+	return svcPorts
+
 }
 
 func (appMgr *Manager) getEndpointsForNodePort(
@@ -3346,13 +3402,16 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			} else {
 				eps, _ = item.(*v1.Endpoints)
 			}
+
+			svcPorts := appMgr.getServicePortsFromEndpoint(eps)
+
 			for _, subset := range eps.Subsets {
 				for _, port := range subset.Ports {
 					for _, addr := range subset.Addresses {
 						member := Member{
 							Address: addr.IP,
 							Port:    port.Port,
-							SvcPort: port.Port,
+							SvcPort: appMgr.getServicePortFromTargetPort(svcPorts, port.Port),
 						}
 						if _, ok := uniqueMembersMap[member]; !ok {
 							uniqueMembersMap[member] = struct{}{}

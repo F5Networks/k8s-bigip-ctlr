@@ -1,9 +1,9 @@
 # autoMonitor is used to configure whether CIS should automatically create health monitor the pool or not.
 # It's specified in baseRouteSpec which applies to all RouteGroups and used only when custom health monitors annotations
 # are not specified.
-# supported values are "none", "liveness-probe" (default) and "service-endpoint"
+# supported values are "none"(default), "readiness-probe" and "service-endpoint"
 # autoMonitor: none - CIS will not create health monitor for the pool
-# autoMonitor: liveness-probe - CIS will create health monitor for the pool based on the pod liveness probe configuration
+# autoMonitor: readiness-probe - CIS will create health monitor for the pool based on the pod readiness probe configuration
 # autoMonitor: service-endpoint - CIS will create a tcp health monitor for the pool
 apiVersion: v1
 kind: ConfigMap

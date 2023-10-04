@@ -339,3 +339,6 @@ Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ct
   |-------------|-------------|-------------|
   | *.foo.com   | *.foo.com   | yes         | 
   | *.foo.com   | abc.foo.com | not matched | 
+
+### **Upgrading from 2.14.0 to 2.15.0:**
+* Disabled default health monitoring with routes, use autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_

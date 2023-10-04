@@ -3159,7 +3159,9 @@ extendedRouteSpec:
 					data)
 
 				data["extendedSpec"] = `
-baseRouteSpec: 
+baseRouteSpec:
+    autoMonitor: readiness-probe
+    autoMonitorTimeout: 30
     tlsCipher:
       tlsVersion : 1.2
       ciphers: DEFAULT
@@ -3204,7 +3206,7 @@ extendedRouteSpec:
 
 			})
 
-			It("Test Liveness Probe", func() {
+			It("Test Readiness Probe", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
@@ -3234,8 +3236,9 @@ extendedRouteSpec:
 					},
 				}
 				Handler := v1.Handler{
-					Exec: &v1.ExecAction{
-						Command: nil,
+					HTTPGet: &v1.HTTPGetAction{
+						Path: "/health",
+						Port: intstr.IntOrString{IntVal: 8080},
 					},
 				}
 				cnt := v1.Container{
@@ -3246,9 +3249,20 @@ extendedRouteSpec:
 						Handler:             Handler,
 						InitialDelaySeconds: 3,
 					},
+					ReadinessProbe: &v1.Probe{
+						TimeoutSeconds:      10,
+						PeriodSeconds:       10,
+						SuccessThreshold:    1,
+						Handler:             Handler,
+						InitialDelaySeconds: 3,
+					},
 					Ports: []v1.ContainerPort{
-						v1.ContainerPort{
+						{
 							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+						},
+						{
+							ContainerPort: 8080,
 							Protocol:      v1.ProtocolTCP,
 						},
 					},
@@ -3280,8 +3294,30 @@ extendedRouteSpec:
 					To(Equal("default"), "auto last hop not processed")
 				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
 					To(Equal(true), "http mrf route not processed")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors)).
+					To(Equal(1), "readiness-based health monitor not processed")
 				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.HttpMrfRoutingEnabled).
 					To(Equal(false), "http mrf route not processed")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors)).
+					To(Equal(1), "readiness-based health monitor not processed")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
+					To(Equal("http"), "readiness-based health monitor not processed")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
+					To(Equal("http"), "readiness-based health monitor not processed")
+				// update the readiness probe and liveness probe to tcp based probe
+				HandlerTCP := v1.Handler{
+					TCPSocket: &v1.TCPSocketAction{
+						Port: intstr.IntOrString{IntVal: 8080},
+					},
+				}
+				cnt.LivenessProbe.Handler = HandlerTCP
+				cnt.ReadinessProbe.Handler = HandlerTCP
+				mockCtlr.updatePod(pod)
+				mockCtlr.processResources()
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
+					To(Equal("tcp"), "readiness-based health monitor not processed")
+				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
+					To(Equal("tcp"), "readiness-based health monitor not processed")
 			})
 			It("Test http profile analytics with routes", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
@@ -3321,6 +3357,13 @@ extendedRouteSpec:
 						PeriodSeconds:    10,
 						SuccessThreshold: 1,
 						Handler:          Handler,
+					},
+					ReadinessProbe: &v1.Probe{
+						TimeoutSeconds:      10,
+						PeriodSeconds:       10,
+						SuccessThreshold:    1,
+						Handler:             Handler,
+						InitialDelaySeconds: 3,
 					},
 					Ports: []v1.ContainerPort{
 						v1.ContainerPort{
@@ -3472,6 +3515,13 @@ extendedRouteSpec:
 						SuccessThreshold: 1,
 						Handler:          Handler,
 					},
+					ReadinessProbe: &v1.Probe{
+						TimeoutSeconds:      10,
+						PeriodSeconds:       10,
+						SuccessThreshold:    1,
+						Handler:             Handler,
+						InitialDelaySeconds: 3,
+					},
 					Ports: []v1.ContainerPort{
 						v1.ContainerPort{
 							ContainerPort: 80,
@@ -3558,7 +3608,7 @@ extendedRouteSpec:
 				mockCtlr.deleteEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				pod.Spec.Containers[0].LivenessProbe.TimeoutSeconds = 1
+				pod.Spec.Containers[0].ReadinessProbe.TimeoutSeconds = 1
 				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
@@ -3566,7 +3616,7 @@ extendedRouteSpec:
 				mockCtlr.deleteEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				pod.Spec.Containers[0].LivenessProbe = &v1.Probe{
+				pod.Spec.Containers[0].ReadinessProbe = &v1.Probe{
 					FailureThreshold: 3,
 					TimeoutSeconds:   10,
 					PeriodSeconds:    10,

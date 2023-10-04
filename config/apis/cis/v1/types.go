@@ -40,6 +40,7 @@ type VirtualServerSpec struct {
 	TLSProfileName                   string           `json:"tlsProfileName,omitempty"`
 	HTTPTraffic                      string           `json:"httpTraffic,omitempty"`
 	SNAT                             string           `json:"snat,omitempty"`
+	ConnectionMirroring              string           `json:"connectionMirroring,omitempty"`
 	WAF                              string           `json:"waf,omitempty"`
 	RewriteAppRoot                   string           `json:"rewriteAppRoot,omitempty"`
 	AllowVLANs                       []string         `json:"allowVlans,omitempty"`
@@ -240,6 +241,7 @@ type TransportServerSpec struct {
 	HostGroup            string           `json:"hostGroup,omitempty"`
 	Mode                 string           `json:"mode"`
 	SNAT                 string           `json:"snat"`
+	ConnectionMirroring  string           `json:"connectionMirroring,omitempty"`
 	Pool                 Pool             `json:"pool"`
 	AllowVLANs           []string         `json:"allowVlans,omitempty"`
 	Type                 string           `json:"type,omitempty"`

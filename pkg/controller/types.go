@@ -214,6 +214,7 @@ type (
 		VirtualAddress             *virtualAddress       `json:"-"`
 		AdditionalVirtualAddresses []string              `json:"additionalVirtualAddresses,omitempty"`
 		SNAT                       string                `json:"snat,omitempty"`
+		ConnectionMirroring        string                `json:"connectionMirroring,omitempty"`
 		WAF                        string                `json:"waf,omitempty"`
 		Firewall                   string                `json:"firewallPolicy,omitempty"`
 		LogProfiles                []string              `json:"logProfiles,omitempty"`
@@ -981,6 +982,7 @@ type (
 		VirtualPort            int                  `json:"virtualPort,omitempty"`
 		AutoLastHop            string               `json:"lastHop,omitempty"`
 		SNAT                   as3MultiTypeParam    `json:"snat,omitempty"`
+		Mirroring              string               `json:"mirroring,omitempty"`
 		PolicyEndpoint         as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
 		ClientTLS              as3MultiTypeParam    `json:"clientTLS,omitempty"`
 		ServerTLS              as3MultiTypeParam    `json:"serverTLS,omitempty"`

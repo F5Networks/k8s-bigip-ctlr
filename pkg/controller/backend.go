@@ -1704,7 +1704,10 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
 		}
 	}
-
+	// Enable connection mirroring
+	if cfg.Virtual.ConnectionMirroring != "" {
+		svc.Mirroring = cfg.Virtual.ConnectionMirroring
+	}
 	//Attach AllowVLANs
 	if cfg.Virtual.AllowVLANs != nil {
 		for _, vlan := range cfg.Virtual.AllowVLANs {

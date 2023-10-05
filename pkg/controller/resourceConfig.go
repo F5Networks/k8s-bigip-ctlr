@@ -678,6 +678,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.WAF = vs.Spec.WAF
 	}
 
+	// set the ConnectionMirroring
+	if vs.Spec.ConnectionMirroring != "" {
+		rsCfg.Virtual.ConnectionMirroring = vs.Spec.ConnectionMirroring
+	}
 	//Attach allowVlans.
 	if len(vs.Spec.AllowVLANs) > 0 {
 		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
@@ -2039,7 +2043,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	} else {
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
-
+	// Set Connection Mirroring
+	if vs.Spec.ConnectionMirroring != "" {
+		rsCfg.Virtual.ConnectionMirroring = vs.Spec.ConnectionMirroring
+	}
 	if vs.Spec.DOS != "" {
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}

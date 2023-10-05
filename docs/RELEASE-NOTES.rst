@@ -11,6 +11,7 @@ Added Functionality
     * Next Generation Routes
         * Improvements in pod liveness probe based health monitor and autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
     * CRD
+       * `Issue 3062<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
     * Support for AS3 GTM agent with separate GTM server
 Bug Fixes
 ````````````

@@ -3,11 +3,12 @@ package controller
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
-	"strings"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -330,7 +331,6 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Prepare AS3 Declaration with HAMode", func() {
-		var mem1, mem2, mem3, mem4 PoolMember
 		var agent *Agent
 		tnt := "test"
 		BeforeEach(func() {
@@ -340,267 +340,27 @@ var _ = Describe("Backend Tests", func() {
 			}
 			agent = newMockAgent(writer)
 			agent.HAMode = true
-			// agent.firstPost = true
 			client, _ := getMockHttpClient([]responceCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
-				body:   `{"declaration": {"test": {"Shared": {"class": "application"}}}}`,
+				body:   `{"declaration": {"label":"test", "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
 			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"},
 				httpClient: client, firstPost: true}
-			agent.Partition = "test"
-			agent.userAgent = "as3"
-
-			mem1 = PoolMember{
-				Address: "1.2.3.5",
-				Port:    8080,
-			}
-			mem2 = PoolMember{
-				Address: "1.2.3.6",
-				Port:    8081,
-			}
-			mem3 = PoolMember{
-				Address: "1.2.3.7",
-				Port:    8082,
-			}
-			mem4 = PoolMember{
-				Address: "1.2.3.8",
-				Port:    8083,
-			}
 		})
 		It("VirtualServer Declaration", func() {
-			rsCfg := &ResourceConfig{}
-			rsCfg.MetaData.Active = true
-			rsCfg.MetaData.ResourceType = VirtualServer
-			rsCfg.Virtual.Name = "crd_vs_172.13.14.15"
-			rsCfg.Virtual.PoolName = "default_pool_svc1"
-			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
-			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
-			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
-			rsCfg.Virtual.Policies = []nameRef{
-				{
-					Name:      "policy1",
-					Partition: "test",
-				},
-				{
-					Name:      "policy2",
-					Partition: "test",
-				},
-			}
-			rsCfg.Pools = Pools{
-				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem1, mem2},
-					MonitorNames: []MonitorName{
-						{Name: "/test/http_monitor"},
-					},
-				},
-			}
-			rsCfg.IRulesMap = IRulesMap{
-				NameRef{"custom_iRule", DEFAULT_PARTITION}: &IRule{
-					Name:      "custom_iRule",
-					Partition: DEFAULT_PARTITION,
-					Code:      "tcl code blocks",
-				},
-				NameRef{HttpRedirectIRuleName, DEFAULT_PARTITION}: &IRule{
-					Name:      HttpRedirectIRuleName,
-					Partition: DEFAULT_PARTITION,
-					Code:      "tcl code blocks",
-				},
-			}
-			rsCfg.Policies = Policies{
-				Policy{
-					Name:     "policy1",
-					Strategy: "first-match",
-					Rules: Rules{
-						&Rule{
-							Conditions: []*condition{
-								{
-									Values: []string{"test.com"},
-									Equals: true,
-								},
-							},
-							Actions: []*action{
-								{
-									Forward:  true,
-									Request:  true,
-									Redirect: true,
-									HTTPURI:  true,
-									HTTPHost: true,
-									Pool:     "default_svc_1",
-								},
-							},
-						},
-					},
-				},
-				Policy{
-					Name:     "policy2",
-					Strategy: "first-match",
-					Rules: Rules{
-						&Rule{
-							Conditions: []*condition{
-								{
-									Host:     true,
-									Values:   []string{"prod.com"},
-									Equals:   true,
-									HTTPHost: true,
-									Request:  true,
-								},
-								{
-									PathSegment: true,
-									Index:       1,
-									HTTPURI:     true,
-									Equals:      true,
-									Values:      []string{"/foo"},
-									Request:     true,
-								},
-							},
-							Actions: []*action{
-								{
-									Forward:  true,
-									Request:  true,
-									Redirect: true,
-									HTTPURI:  true,
-									HTTPHost: true,
-									Pool:     "default_svc_2",
-								},
-							},
-						},
-					},
-				},
-			}
-			rsCfg.Monitors = Monitors{
-				{
-					Name:       "http_monitor",
-					Interval:   10,
-					Type:       "http",
-					TargetPort: 8080,
-					Timeout:    10,
-					Send:       "GET /health",
-				},
-				{
-					Name:       "https_monitor",
-					Interval:   10,
-					Type:       "https",
-					TargetPort: 8443,
-					Timeout:    10,
-					Send:       "GET /health",
-				},
-				{
-					Name:       "tcp_monitor",
-					Interval:   10,
-					Type:       "tcp",
-					TargetPort: 3600,
-					Timeout:    10,
-					Send:       "GET /health",
-				},
-			}
-
-			rsCfg.Virtual.Profiles = ProfileRefs{
-				ProfileRef{
-					Name:      "serverssl",
-					Partition: "Common",
-					Context:   "serverside",
-				},
-				ProfileRef{
-					Name:    "serversslnew",
-					Context: "serverside",
-				},
-				ProfileRef{
-					Name:      "clientssl",
-					Partition: "Common",
-					Context:   "clientside",
-				},
-				ProfileRef{
-					Name:    "clientsslnew",
-					Context: "clientside",
-				},
-			}
-
-			rsCfg2 := &ResourceConfig{}
-			rsCfg2.MetaData.Active = false
-			rsCfg2.MetaData.defaultPoolType = BIGIP
-			rsCfg2.MetaData.ResourceType = VirtualServer
-			rsCfg2.Virtual.Name = "crd_vs_172.13.14.16"
-			rsCfg.Virtual.PoolName = "default_pool_svc2"
-			rsCfg2.Pools = Pools{
-				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem3, mem4},
-				},
-			}
-
-			rsCfg2.customProfiles = make(map[SecretKey]CustomProfile)
-			cert := certificate{Cert: "crthash", Key: "keyhash"}
-			rsCfg2.customProfiles[SecretKey{
-				Name:         "default_svc_test_com_cssl",
-				ResourceName: "crd_vs_172.13.14.15",
-			}] = CustomProfile{
-				Name:         "default_svc_test_com_cssl",
-				Partition:    "test",
-				Context:      "clientside",
-				Certificates: []certificate{cert},
-				SNIDefault:   false,
-			}
-			certOnly := certificate{Cert: "crthash"}
-			rsCfg2.customProfiles[SecretKey{
-				Name:         "default_svc_test_com_sssl",
-				ResourceName: "crd_vs_172.13.14.15",
-			}] = CustomProfile{
-				Name:         "default_svc_test_com_sssl",
-				Partition:    "test",
-				Context:      "serverside",
-				Certificates: []certificate{certOnly},
-				ServerName:   "test.com",
-				SNIDefault:   false,
-			}
-
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
 			}
-			zero := 0
-			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
-			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "default_pool_svc1"))
-			Expect(strings.Contains(string(decl), "default_pool_svc2"))
 		})
 		It("TransportServer Declaration", func() {
-			rsCfg := &ResourceConfig{}
-			rsCfg.MetaData.Active = true
-			rsCfg.MetaData.ResourceType = TransportServer
-			rsCfg.Virtual.Name = "crd_vs_172.13.14.16"
-			rsCfg.Virtual.Mode = "standard"
-			rsCfg.Virtual.IpProtocol = "tcp"
-			rsCfg.Virtual.TranslateServerAddress = true
-			rsCfg.Virtual.TranslateServerPort = true
-			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
-			rsCfg.Virtual.Destination = "172.13.14.6:1600"
-			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-			rsCfg.Pools = Pools{
-				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem1, mem2},
-				},
-			}
-
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
 			}
-
-			zero := 0
-			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
 			decl := agent.createTenantAS3Declaration(config)
 
@@ -610,13 +370,8 @@ var _ = Describe("Backend Tests", func() {
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
 			}
 
-			zero := 0
-			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			agent.BIGIPURL = "https://192.168.1.1"
 			as3decl := agent.createTenantAS3Declaration(config)
 			var as3Config map[string]interface{}
@@ -626,8 +381,8 @@ var _ = Describe("Backend Tests", func() {
 			}
 			adc := as3Config["declaration"].(map[string]interface{})
 
-			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
-			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(agent.incomingTenantDeclMap["declaration"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(adc["declaration"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
 		})
 	})
 

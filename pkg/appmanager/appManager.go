@@ -151,12 +151,13 @@ type Manager struct {
 	nplStoreMutex sync.Mutex
 	AgentName     string
 	//vxlan
-	vxlanName         string
-	ciliumTunnelName  string
-	vxlanMode         string
-	configWriter      writer.Writer
-	staticRoutingMode bool
-	orchestrationCNI  string
+	vxlanName           string
+	ciliumTunnelName    string
+	vxlanMode           string
+	configWriter        writer.Writer
+	staticRoutingMode   bool
+	orchestrationCNI    string
+	staticRouteNodeCIDR string
 }
 
 // Store of processed host-Path map
@@ -227,11 +228,12 @@ type Params struct {
 	DefaultRouteDomain int
 	PoolMemberType     string
 	//vxlan
-	VXLANName         string
-	VXLANMode         string
-	CiliumTunnelName  string
-	StaticRoutingMode bool
-	OrchestrationCNI  string
+	VXLANName           string
+	VXLANMode           string
+	CiliumTunnelName    string
+	StaticRoutingMode   bool
+	OrchestrationCNI    string
+	StaticRouteNodeCIDR string
 }
 
 // Configuration options for Routes in OpenShift
@@ -343,6 +345,7 @@ const (
 	OVN_K8S                    = "ovn-k8s"
 	OVNK8sNodeSubnetAnnotation = "k8s.ovn.org/node-subnets"
 	OVNK8sNodeIPAnnotation     = "k8s.ovn.org/node-primary-ifaddr"
+	OVNK8sNodeIPAnnotation2    = "k8s.ovn.org/host-addresses"
 
 	CILIUM_K8S                      = "cilium-k8s"
 	CiliumK8sNodeSubnetAnnotation12 = "io.cilium.network.ipv4-pod-cidr"
@@ -404,6 +407,7 @@ func NewManager(params *Params) *Manager {
 		configWriter:           params.ConfigWriter,
 		staticRoutingMode:      params.StaticRoutingMode,
 		orchestrationCNI:       params.OrchestrationCNI,
+		staticRouteNodeCIDR:    params.StaticRouteNodeCIDR,
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -3834,17 +3838,38 @@ func (appMgr *Manager) processStaticRouteUpdate(
 				}
 				route.Network = nodesubnet
 			}
-			if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
-				log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
-				continue
-			} else {
-				nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
+			if appMgr.staticRouteNodeCIDR != "" {
+				_, nodenetwork, err := net.ParseCIDR(appMgr.staticRouteNodeCIDR)
 				if err != nil {
-					log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
+					log.Errorf("Unable to parse cidr %v with error %v", appMgr.staticRouteNodeCIDR, err)
 					continue
+				} else {
+					if hostaddresses, ok := annotations[OVNK8sNodeIPAnnotation2]; !ok {
+						log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
+						continue
+					} else {
+						nodeIP, err := parseHostAddresses(hostaddresses, nodenetwork)
+						if err != nil {
+							log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation2, node.Name, err)
+							continue
+						}
+						route.Gateway = nodeIP
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+					}
 				}
-				route.Gateway = nodeIP
-				route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+			} else {
+				if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
+					log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation, node.Name)
+					continue
+				} else {
+					nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
+					if err != nil {
+						log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
+						continue
+					}
+					route.Gateway = nodeIP
+					route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+				}
 			}
 
 		} else if appMgr.orchestrationCNI == CILIUM_K8S {
@@ -3938,5 +3963,18 @@ func parseNodeIP(ann, nodeName string) (string, error) {
 	err := fmt.Errorf("%s annotation for "+
 		"node '%s' has invalid format; cannot validate node IP. "+
 		"Should be of the form: '{\"ipv4\":\"<node-ip>\"}'", OVNK8sNodeIPAnnotation, nodeName)
+	return "", err
+}
+
+func parseHostAddresses(ann string, nodenetwork *net.IPNet) (string, error) {
+	var hostaddresses []string
+	json.Unmarshal([]byte(ann), &hostaddresses)
+	for _, IP := range hostaddresses {
+		ip := net.ParseIP(IP)
+		if nodenetwork.Contains(ip) {
+			return ip.String(), nil
+		}
+	}
+	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OVNK8sNodeIPAnnotation2, nodenetwork)
 	return "", err
 }

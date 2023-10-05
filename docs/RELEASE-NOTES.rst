@@ -13,7 +13,7 @@ Added Functionality
     * CRD
        * `Issue 3062<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
     * Support for AS3 GTM agent with separate GTM server
-
+    * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode.See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_
 Bug Fixes
 ````````````
 * ``Issue 3057 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3057>`_: Support for pool settings for reslect with policy CR.

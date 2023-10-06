@@ -245,8 +245,8 @@ var _ = Describe("Backend Tests", func() {
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "default_pool_svc1"))
-			Expect(strings.Contains(string(decl), "default_pool_svc2"))
+			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "default_pool_svc2")).To(BeTrue())
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}
@@ -343,33 +343,35 @@ var _ = Describe("Backend Tests", func() {
 			client, _ := getMockHttpClient([]responceCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
-				body:   `{"declaration": {"label":"test", "test": {"Shared": {"class": "application"}}}}`,
+				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
 			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"},
 				httpClient: client, firstPost: true}
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
+				ltmConfig: make(LTMConfig),
 			}
 
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
 		})
 		It("TransportServer Declaration", func() {
 			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
+				ltmConfig: make(LTMConfig),
 			}
 
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
 
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
+				ltmConfig: make(LTMConfig),
 			}
 
 			agent.BIGIPURL = "https://192.168.1.1"

@@ -827,6 +827,9 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			if shareNodes {
 				member.ShareNodes = shareNodes
 			}
+			if val.AdminState != "" {
+				member.AdminState = val.AdminState
+			}
 			pool.Members = append(pool.Members, member)
 		}
 		for _, val := range v.MonitorNames {

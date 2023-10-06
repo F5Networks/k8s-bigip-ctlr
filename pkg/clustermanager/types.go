@@ -4,6 +4,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+type AdminState string
+
+const (
+	Disable AdminState = "disable"
+	Enable  AdminState = "enable"
+	Offline AdminState = "offline"
+)
+
 type (
 	// MultiClusterConfig defines a structure for holding cluster configuration
 	MultiClusterConfig struct {

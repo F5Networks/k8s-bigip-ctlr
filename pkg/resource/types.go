@@ -113,10 +113,11 @@ type (
 
 	// Pool Member
 	Member struct {
-		Address string `json:"address"`
-		Port    int32  `json:"port"`
-		SvcPort int32  `json:"svcPort"`
-		Session string `json:"session,omitempty"`
+		Address    string `json:"address"`
+		Port       int32  `json:"port"`
+		SvcPort    int32  `json:"svcPort"`
+		Session    string `json:"session,omitempty"`
+		AdminState string `json:"adminState,omitempty"`
 	}
 
 	// Pool config

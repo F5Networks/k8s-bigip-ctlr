@@ -1117,7 +1117,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 }
 
 // process the routeConfigFromGlobalConfigMap
-func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool, clusterRatioUpdate bool) (error, bool) {
+func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool, clusterConfigUpdate bool) (error, bool) {
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 	routeGroupsToBeProcessed := make(map[string]struct{})
@@ -1278,8 +1278,8 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		}
 	}
 	// Reprocess all route groups except the ones which are already reprocessed
-	if (clusterRatioUpdate || baseRouteConfigUpdated) && !isDelete {
-		log.Debugf("%s Re-processing all route groups as baseRouteConfig/cluster ratio is updated", ctlr.getMultiClusterLog())
+	if (clusterConfigUpdate || baseRouteConfigUpdated) && !isDelete {
+		log.Debugf("%s Re-processing all route groups as baseRouteConfig/cluster ratio/cluster AdminState is updated", ctlr.getMultiClusterLog())
 		for routeGroupKey, _ := range ctlr.resources.extdSpecMap {
 			if _, ok := routeGroupsToBeProcessed[routeGroupKey]; ok {
 				continue
@@ -2107,6 +2107,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
 				}
 			}
+			ctlr.readAndUpdateClusterAdminState(haClusterConfig.PrimaryCluster, ctlr.multiClusterMode == PrimaryCIS)
 		}
 		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
@@ -2118,8 +2119,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = &one
 				}
 			}
+			ctlr.readAndUpdateClusterAdminState(haClusterConfig.SecondaryCluster, ctlr.multiClusterMode == SecondaryCIS)
 		}
-
 		// Set up health probe
 		if ctlr.multiClusterMode == SecondaryCIS {
 			if haClusterConfig.PrimaryClusterEndPoint == "" {
@@ -2278,6 +2279,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					ctlr.clusterRatio[mcc.ClusterName] = &one
 				}
 			}
+			// Update cluster admin state so that admin state updates are not missed
+			ctlr.readAndUpdateClusterAdminState(mcc, false)
 			continue
 		}
 
@@ -2296,6 +2299,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				ctlr.clusterRatio[mcc.ClusterName] = &one
 			}
 		}
+		ctlr.readAndUpdateClusterAdminState(mcc, false)
 	}
 	// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
 	for clusterName, _ := range ctlr.resources.externalClustersConfig {
@@ -2457,4 +2461,48 @@ func (ctlr *Controller) createDefaultTCPMonitor(pool *Pool, rsCfg *ResourceConfi
 		TimeUntilUp: &initialDelaySeconds,
 	}
 	return monitor
+}
+
+func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, localCluster bool) {
+	// read cluster admin state and update the cluster config
+	if cluster == nil {
+		return
+	}
+	switch cluster.(type) {
+	case ExternalClusterConfig:
+		// For external cluster config
+		mcc := cluster.(ExternalClusterConfig)
+		if mcc.AdminState != "" {
+			if mcc.AdminState == clustermanager.Enable || mcc.AdminState == clustermanager.Disable ||
+				mcc.AdminState == clustermanager.Offline {
+				ctlr.clusterAdminState[mcc.ClusterName] = mcc.AdminState
+			} else {
+				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for cluster: %v, supported "+
+					"values (enable, disable, offline). Defaulting to enable", mcc.AdminState, mcc.ClusterName)
+				ctlr.clusterAdminState[mcc.ClusterName] = clustermanager.Enable
+			}
+		} else {
+			ctlr.clusterAdminState[mcc.ClusterName] = clustermanager.Enable
+		}
+	case ClusterDetails:
+		// For HA cluster config
+		clusterData := cluster.(ClusterDetails)
+		clusterNameKey := ""
+		// For local cluster use "" as the clusterNameKey
+		if !localCluster {
+			clusterNameKey = clusterData.ClusterName
+		}
+		if clusterData.AdminState != "" {
+			if clusterData.AdminState == clustermanager.Enable || clusterData.AdminState == clustermanager.Disable ||
+				clusterData.AdminState == clustermanager.Offline {
+				ctlr.clusterAdminState[clusterNameKey] = clusterData.AdminState
+			} else {
+				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for cluster: %v, supported "+
+					"values (enable, disable, offline). Defaulting to enable", clusterData.AdminState, clusterData.ClusterName)
+				ctlr.clusterAdminState[clusterNameKey] = clustermanager.Enable
+			}
+		} else {
+			ctlr.clusterAdminState[clusterNameKey] = clustermanager.Enable
+		}
+	}
 }

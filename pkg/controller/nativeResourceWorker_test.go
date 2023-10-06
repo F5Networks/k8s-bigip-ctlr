@@ -2019,6 +2019,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 	var mockCtlr *mockController
 	var sct1, sct2, sct3, sct4 *v1.Secret
 	var cm *v1.ConfigMap
+	var data map[string]string
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
@@ -2043,6 +2044,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
+		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -2239,6 +2241,44 @@ extendedRouteSpec:
 
 		})
 
+		It("Process Route with multi cluster annotation and cluster AdminState in multicluster config", func() {
+			mockCtlr.multiClusterMode = PrimaryCIS
+			data = make(map[string]string)
+			data["extendedSpec"] = `
+highAvailabilityCIS:
+      primaryEndPoint: http://10.145.72.114:8001
+      probeInterval: 30
+      retryInterval: 3
+      primaryCluster:
+        clusterName: cluster1
+        secret: default/kubeconfig1
+      secondaryCluster:
+        clusterName: cluster2
+        secret: default/kubeconfig2
+        adminState: disable
+externalClustersConfig:
+    - clusterName: cluster3
+      secret: default/kubeconfig3
+      adminState: offline
+    - clusterName: cluster4
+      secret: default/kubeconfig4
+      adminState: enable
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      policyCR : default/policy
+`
+			cm.Data = data
+			mockCtlr.updateConfigMap(cm)
+			mockCtlr.processGlobalExtendedConfigMap()
+			Expect(len(mockCtlr.clusterAdminState)).To(Equal(3))
+			Expect(mockCtlr.clusterAdminState[""]).To(Equal(clustermanager.Enable))
+			Expect(mockCtlr.clusterAdminState["cluster2"]).To(Equal(clustermanager.Disable))
+			Expect(mockCtlr.clusterAdminState["cluster3"]).To(Equal(clustermanager.Offline))
+		})
+
 	})
 })
 
@@ -2351,6 +2391,7 @@ externalClustersConfig:
 		mockCtlr.addConfigMap(cm)
 		mockCtlr.initState = false
 		mockCtlr.clusterRatio = make(map[string]*int)
+		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
 	})
 
 	Describe("Process CRD with multi cluster config", func() {

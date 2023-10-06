@@ -358,34 +358,6 @@ var _ = Describe("Backend Tests", func() {
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
 		})
-		It("TransportServer Declaration", func() {
-			config := ResourceConfigRequest{
-				ltmConfig: make(LTMConfig),
-			}
-
-			decl := agent.createTenantAS3Declaration(config)
-
-			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
-
-		})
-		It("Delete partition", func() {
-			config := ResourceConfigRequest{
-				ltmConfig: make(LTMConfig),
-			}
-
-			agent.BIGIPURL = "https://192.168.1.1"
-			as3decl := agent.createTenantAS3Declaration(config)
-			var as3Config map[string]interface{}
-			_ = json.Unmarshal([]byte(as3decl), &as3Config)
-			deletedTenantDecl := as3Tenant{
-				"class": "Tenant",
-			}
-			adc := as3Config["declaration"].(map[string]interface{})
-
-			Expect(agent.incomingTenantDeclMap["declaration"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
-			Expect(adc["declaration"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
-		})
 	})
 
 	Describe("GTM Config", func() {

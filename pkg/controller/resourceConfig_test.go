@@ -1,9 +1,10 @@
 package controller
 
 import (
+	"sort"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sort"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
@@ -1564,23 +1565,23 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg = &ResourceConfig{}
 			rsCfg.Pools = Pools{
 				{
-					ReselectTries: 0,
+					ReselectTries:     0,
 					ServiceDownAction: "",
 				},
 				{
-					ReselectTries: 0,
+					ReselectTries:     0,
 					ServiceDownAction: "",
 				},
 			}
 			plc = test.NewPolicy("plc1", namespace, cisapiv1.PolicySpec{})
 			plc.Spec.PoolSettings = cisapiv1.PoolSettingsSpec{
-				ReselectTries: 10,
+				ReselectTries:     10,
 				ServiceDownAction: "reset",
-				SlowRampTime: 300,
+				SlowRampTime:      300,
 			}
 		})
 		It("Verifies pool settings are set properly for a policy", func() {
-			err := mockCtlr.handlePoolResourceConfigForPolicy(rsCfg, plc);
+			err := mockCtlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
 			Expect(err).To(BeNil(), "Failed to handle pool resource config for policy")
 			Expect(rsCfg.Pools[0].ReselectTries).To(Equal(plc.Spec.PoolSettings.ReselectTries), "ReselectTries should be set to 10")
 			Expect(rsCfg.Pools[0].ServiceDownAction).To(Equal(plc.Spec.PoolSettings.ServiceDownAction), "ServiceDownAction should be set to reset")
@@ -1588,6 +1589,6 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Pools[1].ReselectTries).To(Equal(plc.Spec.PoolSettings.ReselectTries), "ReselectTries should be set to 10")
 			Expect(rsCfg.Pools[1].ServiceDownAction).To(Equal(plc.Spec.PoolSettings.ServiceDownAction), "ServiceDownAction should be set to reset")
 			Expect(rsCfg.Pools[1].SlowRampTime).To(Equal(plc.Spec.PoolSettings.SlowRampTime), "SlowRampTime should be set to 300")
-		});
+		})
 	})
 })

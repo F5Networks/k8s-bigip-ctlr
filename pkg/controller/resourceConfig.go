@@ -2764,3 +2764,12 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	}
 	return sbcs
 }
+
+// updateClusterAdminStateForPoolMembers updates the admin state of pool members based on the cluster admin state
+func (ctlr *Controller) updateClusterAdminStateForPoolMembers(poolMembers *[]PoolMember, clusterName string) {
+	if adminState, ok := ctlr.clusterAdminState[clusterName]; ok && adminState != "" {
+		for i := 0; i < len(*poolMembers); i++ {
+			(*poolMembers)[i].AdminState = string(adminState)
+		}
+	}
+}

@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -2172,6 +2173,10 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		}
 		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, servicePort, nodeMemberLabel)...)
 	}
+	// Update the cluster admin state for pool members if multi cluster mode is enabled
+	if ctlr.multiClusterMode != "" {
+		ctlr.updateClusterAdminStateForPoolMembers(&poolMembers, clusterName)
+	}
 	return poolMembers
 }
 
@@ -3945,9 +3950,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	if err != nil {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
 	}
-	// clusterRatioUpdated and oldClusterRatio are used for tracking cluster ratio updates
-	clusterRatioUpdated := false
+	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
+	clusterConfigUpdated := false
 	oldClusterRatio := make(map[string]int)
+	oldClusterAdminState := make(map[string]clustermanager.AdminState)
 	if ctlr.isGlobalExtendedCM(cm) && ctlr.multiClusterMode != "" {
 		// Get Multicluster kube-config
 		if isDelete {
@@ -3989,6 +3995,25 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				oldClusterRatio[cluster] = *ratio
 			}
 		}
+		// Store old cluster admin state before processing multiClusterConfig
+		if len(ctlr.clusterAdminState) > 0 {
+			for clusterName, adminState := range ctlr.clusterAdminState {
+				oldClusterAdminState[clusterName] = adminState
+			}
+		}
+		// Update cluster admin state for local cluster in standalone mode
+		if ctlr.multiClusterMode == StandAloneCIS {
+			if es.LocalClusterAdminState == "" {
+				ctlr.clusterAdminState[""] = clustermanager.Enable
+			} else if es.LocalClusterAdminState == clustermanager.Enable ||
+				es.LocalClusterAdminState == clustermanager.Disable || es.LocalClusterAdminState == clustermanager.Offline {
+				ctlr.clusterAdminState[""] = es.LocalClusterAdminState
+			} else {
+				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for local cluster, supported "+
+					"values (enable, disable, offline). Defaulting to enable", es.LocalClusterAdminState)
+				ctlr.clusterAdminState[""] = clustermanager.Enable
+			}
+		}
 		// Read multi-cluster config from extended CM
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
 		ctlr.checkSecondaryCISConfig()
@@ -4003,10 +4028,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				// Check if cluster ratio is updated
 				if oldRatio, ok := oldClusterRatio[cluster]; ok {
 					if oldRatio != *ctlr.clusterRatio[cluster] {
-						clusterRatioUpdated = true
+						clusterConfigUpdated = true
 					}
 				} else {
-					clusterRatioUpdated = true
+					clusterConfigUpdated = true
 				}
 				if cluster == "" {
 					cluster = "local cluster"
@@ -4015,11 +4040,28 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 			log.Debugf("[MultiCluster] Cluster ratios:%s", ratioKeyValues)
 		}
+		// Check if cluster Admin state has been updated for any cluster
+		// Check only if CIS is running in multiCluster mode
+		if ctlr.multiClusterConfigs != nil {
+			for clusterName, _ := range ctlr.clusterAdminState {
+				// Check any cluster has been removed which means config has been updated
+				if adminState, ok := oldClusterAdminState[clusterName]; ok {
+					if adminState != ctlr.clusterAdminState[clusterName] {
+						log.Debugf("[MultiCluster] Cluster Admin State has been modified.")
+						clusterConfigUpdated = true
+						break
+					}
+				} else {
+					clusterConfigUpdated = true
+					break
+				}
+			}
+		}
 	}
 	// Process the routeSpec defined in extended configMap
 	if ctlr.mode == OpenShiftMode {
 		if ctlr.isGlobalExtendedCM(cm) {
-			return ctlr.processRouteConfigFromGlobalCM(es, isDelete, clusterRatioUpdated)
+			return ctlr.processRouteConfigFromGlobalCM(es, isDelete, clusterConfigUpdated)
 		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
 			return ctlr.processRouteConfigFromLocalCM(es, isDelete, cm.Namespace)
 		}

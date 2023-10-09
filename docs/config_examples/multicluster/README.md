@@ -178,6 +178,70 @@ Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global C
 ```
 **Note**: extendedRouteSpec is only applicable in case of openshift route resources not for CRD resources.
 
+Below is the sample Multi-Cluster Configs with HA and cluster AdminState in Extended Global ConfigMap.
+```
+  extendedSpec: |
+    mode: active-active    --------------------------------------|----------------------------|
+    highAvailabilityCIS:   --------------------------------------|                            |
+      primaryEndPoint: http://10.145.72.114:8001                 |                            |
+      probeInterval: 30                                          |                            |
+      retryInterval: 3                                           |                            |
+      primaryCluster:                                            |---> Cluster configs for    |
+        clusterName: cluster1                                    |     High availability      |
+        secret: default/kubeconfig1                              |     clusters               |---> Multi-Cluster configs
+      secondaryCluster:                                          |                            |
+        clusterName: cluster2                                    |                            |
+        secret: default/kubeconfig2                              |                            |
+        adminState: enable                                       |                            |
+    externalClustersConfig:    ----------------------------------|                            |
+    - clusterName: cluster3                                      |                            |
+      secret: default/kubeconfig3                                |---> Cluster configs for    |
+      adminState: disable                                        |     all other clusters     |
+    - clusterName: cluster4                                      |     except HA clusters     |
+      secret: default/kubeconfig4                                |                            |
+    - clusterName: cluster5                                      |                            |
+      secret: default/kubeconfig5                                |                            |  
+      adminState: offline          ------------------------------|----------------------------|
+    extendedRouteSpec:
+    - namespace: foo   -------------------------------------|
+      vserverAddr: 10.8.0.4                                 |
+      vserverName: nextgenroutes                            |----------------> RouteGroup with namespace
+      allowOverride: true                                   |
+      bigIpPartition: MultiTenant                           |
+      policyCR: default/sample-policy  _____________________|
+    - namespace: bar -------------------------------------|
+      vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
+      allowOverride: false           _____________________|
+```
+**Note**: extendedRouteSpec is only applicable in case of openshift route resources not for CRD resources.
+
+Below is the sample Multi-Cluster Configs with standalone CIS and cluster AdminState in Extended Global ConfigMap.
+```
+  extendedSpec: |
+    localClusterAdminState: disable  ----------------------------|AdminState for local cluster|
+    externalClustersConfig:    ----------------------------------|----------------------------|
+    - clusterName: cluster3                                      |                            |
+      secret: default/kubeconfig3                                |---> Cluster configs for    |
+      adminState: enable                                         |     all other clusters     |
+    - clusterName: cluster4                                      |     except HA clusters     |
+      secret: default/kubeconfig4                                |                            |
+    - clusterName: cluster5                                      |                            |
+      secret: default/kubeconfig5                                |                            |  
+      adminState: offline          ------------------------------|----------------------------|
+    extendedRouteSpec:
+    - namespace: foo   -------------------------------------|
+      vserverAddr: 10.8.0.4                                 |
+      vserverName: nextgenroutes                            |----------------> RouteGroup with namespace
+      allowOverride: true                                   |
+      bigIpPartition: MultiTenant                           |
+      policyCR: default/sample-policy  _____________________|
+    - namespace: bar -------------------------------------|
+      vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
+      allowOverride: false           _____________________|
+```
+**Note**: localClusterAdminState is only applicable in case of standalone CIS. It's ignored if specified in HA CIS mode. 
+
+
 ## Configuration
 
 ### Openshift Routes with multi-cluster
@@ -233,6 +297,9 @@ Following is the sample deployment for primary CIS deployment:
 |-------------|--------|-----------|---------------------------------------------------------------------------|---------|-------------------------|
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
+| ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
+| adminState  | String | Optional  | adminState can be used to disable/enable/force-offline clusters           | 1       | 3                       |
+
 
 **Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in externalClustersConfig.
 
@@ -270,6 +337,7 @@ Specifies whether the CIS HA cluster is configured with active-active mode, acti
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 | ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
+| adminState  | String | Optional  | adminState can be used to disable/enable/force-offline clusters           | 1       | 3                       |
 
 
 **Note**: In order to run CIS in high availability mode, multi-cluster-mode parameter (primary/secondary) needs to be set in the CIS deployment arguments.
@@ -434,6 +502,14 @@ distribution is computed taking into consideration both the service weights and 
 However, the ratio of the clusters those haven't hosted any services linked to the concerned route are not taken into consideration 
 while computing the final ratio.<br>
 **Note:** Cluster wise ratio for traffic distribution is supported in HA as well as non-HA CIS environment.
+
+### Cluster adminState to enable/disable/offline a cluster
+adminState can be provided for a cluster to dictate the state of a particular cluster.
+Supported values for adminState are [enable, disable, offline]<br>
+By default clusters are in enabled state.<br>
+**adminState: enable**, allow connections to the pool members in the cluster.<br>
+**adminState: disable**, disallow new connections but allow existing connections to drain for the pool members in the cluster.<br>
+**adminState: offline**, force immediate termination of all connections to the pool members in the cluster.
 
 ## Known issues
 *  Pool members are not getting populated for extended service in ratio mode

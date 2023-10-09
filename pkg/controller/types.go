@@ -92,6 +92,7 @@ type (
 		multiClusterMode       string
 		haModeType             HAModeType
 		clusterRatio           map[string]*int
+		clusterAdminState      map[string]clustermanager.AdminState
 		resourceContext
 	}
 	resourceContext struct {
@@ -954,6 +955,7 @@ type (
 		ServerAddresses  []string `json:"serverAddresses,omitempty"`
 		ServicePort      int32    `json:"servicePort,omitempty"`
 		ShareNodes       bool     `json:"shareNodes,omitempty"`
+		AdminState       string   `json:"adminState,omitempty"`
 	}
 
 	// as3ResourcePointer maps to following in AS3 Resources
@@ -1098,10 +1100,11 @@ type (
 	}
 
 	PoolMember struct {
-		Address string `json:"address"`
-		Port    int32  `json:"port"`
-		SvcPort int32  `json:"svcPort,omitempty"`
-		Session string `json:"session,omitempty"`
+		Address    string `json:"address"`
+		Port       int32  `json:"port"`
+		SvcPort    int32  `json:"svcPort,omitempty"`
+		Session    string `json:"session,omitempty"`
+		AdminState string `json:"adminState,omitempty"`
 	}
 )
 
@@ -1226,10 +1229,11 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		ExternalClustersConfig    []ExternalClusterConfig `yaml:"externalClustersConfig"`
-		HAClusterConfig           HAClusterConfig         `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType              `yaml:"mode"`
-		LocalClusterRatio         *int                    `yaml:"localClusterRatio"`
+		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
+		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
+		HAMode                    HAModeType                `yaml:"mode"`
+		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
+		LocalClusterAdminState    clustermanager.AdminState `yaml:"localClusterAdminState"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1301,9 +1305,10 @@ const (
 
 type (
 	ExternalClusterConfig struct {
-		ClusterName string `yaml:"clusterName"`
-		Secret      string `yaml:"secret"`
-		Ratio       *int   `yaml:"ratio"`
+		ClusterName string                    `yaml:"clusterName"`
+		Secret      string                    `yaml:"secret"`
+		Ratio       *int                      `yaml:"ratio"`
+		AdminState  clustermanager.AdminState `yaml:"adminState"`
 	}
 
 	HAClusterConfig struct {
@@ -1321,9 +1326,10 @@ type (
 	}
 
 	ClusterDetails struct {
-		ClusterName string `yaml:"clusterName"`
-		Secret      string `yaml:"secret"`
-		Ratio       *int   `yaml:"ratio"`
+		ClusterName string                    `yaml:"clusterName"`
+		Secret      string                    `yaml:"secret"`
+		Ratio       *int                      `yaml:"ratio"`
+		AdminState  clustermanager.AdminState `yaml:"adminState"`
 	}
 
 	PoolIdentifier struct {

@@ -1299,7 +1299,7 @@ const (
 	StandBy         HAModeType      = "active-standby"
 	Ratio           HAModeType      = "ratio"
 	None            AutoMonitorType = "none"
-	LivenessProbe   AutoMonitorType = "liveness-probe"
+	ReadinessProbe  AutoMonitorType = "readiness-probe"
 	ServiceEndpoint AutoMonitorType = "service-endpoint"
 )
 

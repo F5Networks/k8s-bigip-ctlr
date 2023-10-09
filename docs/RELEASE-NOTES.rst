@@ -9,16 +9,21 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * Next Generation Routes
-        * Improvements in pod liveness probe based health monitor and autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor
     * CRD
        * `Issue 3062<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
     * Support for AS3 GTM agent with separate GTM server
+
 Bug Fixes
 ````````````
 * ``Issue 3057 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3057>`_: Support for pool settings for reslect with policy CR.
 * `https://github.com/F5Networks/k8s-bigip-ctlr/issues/3061`_: Provide stable pool name in multi cluster mode
 * `Issue 3079<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
 * `Issue 3073<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3073>`_: Fix AS3 config map multi port service issue
+
+Upgrade notes
+``````````````
+* Disabled default health monitoring with routes, use autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_
 
 Known Issues
 `````````````

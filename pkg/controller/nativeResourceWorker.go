@@ -547,75 +547,9 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				}
 			}
 		} else if ctlr.resources.baseRouteConfig.AutoMonitor != None {
-			// Create health monitor if AutoMonitor is not set to None, which means either create pod liveness-probe  based HTTP monitor or default TCP monitor based on the autoMonitor value
-			// Skip NPL Annotation check on service
-			svcPods := ctlr.GetPodsForService(route.Namespace, bs.Name, false)
-			var interval int            // interval for health monitor
-			var initialDelaySeconds int // initial delay for health monitor
-			if svcPods != nil && len(svcPods) > 0 {
-				port := pool.ServicePort.IntVal
-				pod := svcPods[0]
-
-			out:
-				for _, container := range pod.Spec.Containers {
-					if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
-						continue
-					}
-					for _, cPort := range container.Ports {
-						if cPort.ContainerPort == port {
-							interval = int(container.LivenessProbe.PeriodSeconds)
-							initialDelaySeconds = int(container.LivenessProbe.InitialDelaySeconds)
-							if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
-								break out
-							}
-
-							var scheme v1.URIScheme
-							switch container.LivenessProbe.HTTPGet.Scheme {
-							case v1.URISchemeHTTPS:
-								scheme = v1.URISchemeHTTPS
-							case v1.URISchemeHTTP:
-								scheme = v1.URISchemeHTTP
-							default:
-								scheme = v1.URISchemeHTTP
-							}
-
-							// Use AutoMonitorTimeout as timeout if it is specified, else set timeout to 3*interval + 1 (BIG-IP recommended)
-							var timeout int
-							if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
-								timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
-							} else {
-								timeout = 3*interval + 1
-							}
-							targetPort := int32(container.LivenessProbe.HTTPGet.Port.IntValue())
-							path := container.LivenessProbe.HTTPGet.Path
-							if path == "" {
-								path = "/"
-							}
-							monitor := Monitor{
-								Name:        pool.Name + "_monitor",
-								Partition:   rsCfg.Virtual.Partition,
-								Interval:    interval,
-								Type:        strings.ToLower(string(scheme)),
-								Send:        fmt.Sprintf("GET %s HTTP/1.0\r\n", path), // Request conforming to the HTTP/1.0 protocol
-								Recv:        "HTTP/1\\.[01] [23][0-9][0-9]",           // Any code greater than or equal to 200 and less than 400 indicates success
-								Timeout:     timeout,
-								Path:        path,
-								TimeUntilUp: &initialDelaySeconds,
-								TargetPort:  targetPort,
-							}
-							rsCfg.Monitors = append(
-								rsCfg.Monitors,
-								monitor,
-							)
-							pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
-							break out
-						}
-					}
-				}
-			}
-			// If autoMonitor is set as service-endpoint, create a default TCP monitor
-			if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
-				monitor := ctlr.createDefaultTCPMonitor(&pool, rsCfg, interval, initialDelaySeconds)
+			// handle auto-monitor for route
+			monitor := ctlr.handleAutoMonitor(rsCfg, route.Namespace, bs.Name, &pool)
+			if monitor != (Monitor{}) {
 				rsCfg.Monitors = append(
 					rsCfg.Monitors,
 					monitor,
@@ -847,135 +781,62 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 					for _, pool := range freshRsCfg.Pools {
 						if pool.Name == poolId.poolName && pool.Partition == poolId.partition && pool.Name == poolName {
 							if poolId.rsKey.kind == Route {
-								svcPods := ctlr.GetPodsForService(svcKey.namespace, svcKey.serviceName, false)
-								if svcPods != nil && len(svcPods) > 0 {
+								podMonitor := ctlr.handleAutoMonitor(rsCfg, svcKey.namespace, svcKey.serviceName, &pool)
 
-									var pod *v1.Pod
-									for _, svcPod := range svcPods {
-										if pod == nil {
-											pod = svcPod
+								// update the monitor name in the config
+								for monitorInd, mon := range freshRsCfg.Monitors {
+									if mon.Name == poolName+"_monitor" {
+										//If readiness probe spec is not modified, return
+										if reflect.DeepEqual(mon, podMonitor) {
+											return
 										} else {
-											if pod.ObjectMeta.CreationTimestamp.Before(&svcPod.ObjectMeta.CreationTimestamp) {
-												pod = svcPod
-											}
-										}
-									}
-									var interval int            // interval for health monitor
-									var initialDelaySeconds int // initial delay for health monitor
-									var podMonitor Monitor
-								out:
-									for _, container := range pod.Spec.Containers {
-										for _, cPort := range container.Ports {
-											if cPort.ContainerPort == servicePort.IntVal {
-												if container.LivenessProbe == nil || container.LivenessProbe.HTTPGet == nil {
-													break out
-												} else {
-													interval = int(container.LivenessProbe.PeriodSeconds)
-													initialDelaySeconds = int(container.LivenessProbe.InitialDelaySeconds)
-													if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
-														break out
-													}
-													var scheme v1.URIScheme
-													switch container.LivenessProbe.HTTPGet.Scheme {
-													case v1.URISchemeHTTPS:
-														scheme = v1.URISchemeHTTPS
-													case v1.URISchemeHTTP:
-														scheme = v1.URISchemeHTTP
-													default:
-														scheme = v1.URISchemeHTTP
-													}
-
-													// Use AutoMonitorTimeout as timeout if it is specified, else set
-													// timeout to 3*interval + 1 (BIG-IP recommended)
-													var timeout int
-													if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
-														timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
-													} else {
-														timeout = 3*interval + 1
-													}
-													targetPort := int32(container.LivenessProbe.HTTPGet.Port.IntValue())
-													path := container.LivenessProbe.HTTPGet.Path
-													if path == "" {
-														path = "/"
-													}
-													podMonitor = Monitor{
-														Name:        poolName + "_monitor",
-														Partition:   freshRsCfg.Virtual.Partition,
-														Interval:    interval,
-														Type:        strings.ToLower(string(scheme)),
-														Send:        fmt.Sprintf("GET %s HTTP/1.0\r\n", path), // Request conforming to the HTTP/1.0 protocol
-														Recv:        "HTTP/1\\.[01] [23][0-9][0-9]",           // Any code greater than or equal to 200 and less than 400 indicates success
-														Timeout:     timeout,
-														Path:        path,
-														TimeUntilUp: &initialDelaySeconds,
-														TargetPort:  targetPort,
-													}
-
-													break out
-												}
-											}
-										}
-									}
-
-									// If autoMonitor is set as service-endpoint, create a default TCP monitor
-									if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
-										podMonitor = ctlr.createDefaultTCPMonitor(&pool, rsCfg, interval, initialDelaySeconds)
-									}
-
-									for monitorInd, mon := range freshRsCfg.Monitors {
-										if mon.Name == poolName+"_monitor" {
-											//If liveness spec is not modified, return
-											if reflect.DeepEqual(mon, podMonitor) {
-												return
+											//If readiness probe spec is modified/removed, remove the monitor from the config
+											if len(freshRsCfg.Monitors) == 1 {
+												freshRsCfg.Monitors = make([]Monitor, 0)
+											} else if monitorInd == len(freshRsCfg.Monitors)-1 {
+												freshRsCfg.Monitors = freshRsCfg.Monitors[:monitorInd]
+											} else if monitorInd == 0 {
+												freshRsCfg.Monitors = freshRsCfg.Monitors[1:]
 											} else {
-												//If liveness spec is modified/removed, remove the monitor from the config
-												if len(freshRsCfg.Monitors) == 1 {
-													freshRsCfg.Monitors = make([]Monitor, 0)
-												} else if monitorInd == len(freshRsCfg.Monitors)-1 {
-													freshRsCfg.Monitors = freshRsCfg.Monitors[:monitorInd]
-												} else if monitorInd == 0 {
-													freshRsCfg.Monitors = freshRsCfg.Monitors[1:]
-												} else {
-													freshRsCfg.Monitors = append(freshRsCfg.Monitors[:monitorInd], freshRsCfg.Monitors[monitorInd+1:]...)
-												}
+												freshRsCfg.Monitors = append(freshRsCfg.Monitors[:monitorInd], freshRsCfg.Monitors[monitorInd+1:]...)
 											}
-											break
 										}
+										break
 									}
-									//Add monitor if LivenessProbe is present in pod
-									if podMonitor != (Monitor{}) {
-										freshRsCfg.Monitors = append(
-											freshRsCfg.Monitors,
-											podMonitor,
-										)
-									}
-
-									for poolInd, pool := range freshRsCfg.Pools {
-										if pool.Name == poolName {
-											for monInd, monitorName := range pool.MonitorNames {
-												if monitorName.Name == poolName+"_monitor" {
-													//If liveness spec is modified/removed,Remove the monitor name from the pool
-													if len(pool.MonitorNames) == 1 {
-														freshRsCfg.Pools[poolInd].MonitorNames = make([]MonitorName, 0)
-													} else if monInd == len(pool.MonitorNames)-1 {
-														freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[:monInd]
-													} else if monInd == 0 {
-														freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[1:]
-													} else {
-														freshRsCfg.Pools[poolInd].MonitorNames = append(pool.MonitorNames[:monInd], pool.MonitorNames[monInd+1:]...)
-													}
-													break
-												}
-											}
-											//Add monitor name to the pool if LivenessProbe is present in pod
-											if podMonitor != (Monitor{}) {
-												freshRsCfg.Pools[poolInd].MonitorNames = append(freshRsCfg.Pools[poolInd].MonitorNames, MonitorName{Name: podMonitor.Name})
-											}
-											break
-										}
-									}
-									_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
 								}
+								//Add monitor if autoMonitor is present in config
+								if podMonitor != (Monitor{}) {
+									freshRsCfg.Monitors = append(
+										freshRsCfg.Monitors,
+										podMonitor,
+									)
+								}
+								// update the pool's monitor name
+								for poolInd, pool := range freshRsCfg.Pools {
+									if pool.Name == poolName {
+										for monInd, monitorName := range pool.MonitorNames {
+											if monitorName.Name == poolName+"_monitor" {
+												//If readiness spec is modified/removed,Remove the monitor name from the pool
+												if len(pool.MonitorNames) == 1 {
+													freshRsCfg.Pools[poolInd].MonitorNames = make([]MonitorName, 0)
+												} else if monInd == len(pool.MonitorNames)-1 {
+													freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[:monInd]
+												} else if monInd == 0 {
+													freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[1:]
+												} else {
+													freshRsCfg.Pools[poolInd].MonitorNames = append(pool.MonitorNames[:monInd], pool.MonitorNames[monInd+1:]...)
+												}
+												break
+											}
+										}
+										//Add monitor name to the pool if readinessProbe is present in pod
+										if podMonitor != (Monitor{}) {
+											freshRsCfg.Pools[poolInd].MonitorNames = append(freshRsCfg.Pools[poolInd].MonitorNames, MonitorName{Name: podMonitor.Name})
+										}
+										break
+									}
+								}
+								_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
 							}
 						}
 					}
@@ -1417,12 +1278,12 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 	}
 
 	// check for valid autoMonitor value
-	if baseRouteConfig.AutoMonitor == "" || baseRouteConfig.AutoMonitor == None ||
-		baseRouteConfig.AutoMonitor == LivenessProbe || baseRouteConfig.AutoMonitor == ServiceEndpoint {
+	if baseRouteConfig.AutoMonitor == None || baseRouteConfig.AutoMonitor == ReadinessProbe ||
+		baseRouteConfig.AutoMonitor == ServiceEndpoint {
 		ctlr.resources.baseRouteConfig.AutoMonitor = baseRouteConfig.AutoMonitor
 	} else {
-		log.Warningf("AutoMonitor value %v is not supported. Defaulting to %v", baseRouteConfig.AutoMonitor, LivenessProbe)
-		ctlr.resources.baseRouteConfig.AutoMonitor = LivenessProbe
+		log.Warningf("AutoMonitor value %v is not defined or not supported. Defaulting to %v", baseRouteConfig.AutoMonitor, None)
+		ctlr.resources.baseRouteConfig.AutoMonitor = None
 	}
 
 	// check for autoMonitorTimeout value
@@ -2440,25 +2301,114 @@ func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig)
 	}
 }
 
-// createDefaultTCPMonitor creates a default tcp monitor for the pool
-func (ctlr *Controller) createDefaultTCPMonitor(pool *Pool, rsCfg *ResourceConfig, interval int, initialDelaySeconds int) Monitor {
-	// Set timeout and interval values
-	var timeout int
-	if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
-		timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
-	} else if interval == 0 {
-		interval = 5
-		timeout = 16 // default values used by BIG-IP
-	} else {
-		timeout = 3*interval + 1 // recommended by BIG-IP
+func (ctlr *Controller) handleAutoMonitor(rsCfg *ResourceConfig, svcNamespace, svcName string, pool *Pool) Monitor {
+	// Create health monitor if AutoMonitor is not set to None, which means either create pod readiness-probe  based HTTP monitor or default TCP monitor based on the autoMonitor value
+	// Skip NPL Annotation check on service
+	svcPods := ctlr.GetPodsForService(svcNamespace, svcName, false)
+	var interval int            // interval for health monitor
+	var initialDelaySeconds int // initial delay for health monitor
+	var monitor Monitor
+	if svcPods != nil && len(svcPods) > 0 {
+		port := pool.ServicePort.IntVal
+		var pod *v1.Pod
+		for _, svcPod := range svcPods {
+			if pod == nil {
+				pod = svcPod
+			} else {
+				// In case of update, use the latest pod as there might be a chance that there is two pod instances,
+				// one in terminating state and other in running state
+				if pod.ObjectMeta.CreationTimestamp.Before(&svcPod.ObjectMeta.CreationTimestamp) {
+					pod = svcPod
+				}
+			}
+		}
+	out:
+		for _, container := range pod.Spec.Containers {
+			if container.ReadinessProbe == nil {
+				continue
+			}
+			if container.ReadinessProbe.HTTPGet != nil || container.ReadinessProbe.TCPSocket != nil {
+				for _, cPort := range container.Ports {
+					if cPort.ContainerPort == port {
+						interval = int(container.ReadinessProbe.PeriodSeconds)
+						initialDelaySeconds = int(container.ReadinessProbe.InitialDelaySeconds)
+						// in case of serviceEndpoint, create a default TCP monitor hence break out of the loop
+						if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
+							break out
+						}
+
+						var timeout int
+						// Use AutoMonitorTimeout as timeout if it is specified, else set timeout to 3*interval + 1 (BIG-IP recommended)
+						if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
+							timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
+						} else {
+							timeout = 3*interval + 1
+						}
+						var targetPort int32
+						if container.ReadinessProbe.HTTPGet != nil {
+							var scheme v1.URIScheme
+							switch container.ReadinessProbe.HTTPGet.Scheme {
+							case v1.URISchemeHTTPS:
+								scheme = v1.URISchemeHTTPS
+							case v1.URISchemeHTTP:
+								scheme = v1.URISchemeHTTP
+							default:
+								scheme = v1.URISchemeHTTP
+							}
+							targetPort = int32(container.ReadinessProbe.HTTPGet.Port.IntValue())
+							path := container.ReadinessProbe.HTTPGet.Path
+							if path == "" {
+								path = "/"
+							}
+							monitor = Monitor{
+								Name:        pool.Name + "_monitor",
+								Partition:   rsCfg.Virtual.Partition,
+								Interval:    interval,
+								Type:        strings.ToLower(string(scheme)),
+								Send:        fmt.Sprintf("GET %s HTTP/1.0\r\n", path), // Request conforming to the HTTP/1.0 protocol
+								Recv:        "HTTP/1\\.[01] [23][0-9][0-9]",           // Any code greater than or equal to 200 and less than 400 indicates success
+								Timeout:     timeout,
+								Path:        path,
+								TimeUntilUp: &initialDelaySeconds,
+								TargetPort:  targetPort,
+							}
+						} else {
+							targetPort = int32(container.ReadinessProbe.TCPSocket.Port.IntValue())
+							monitor = Monitor{
+								Name:        pool.Name + "_monitor",
+								Partition:   rsCfg.Virtual.Partition,
+								Interval:    interval,
+								Type:        "tcp",
+								Timeout:     timeout,
+								TimeUntilUp: &initialDelaySeconds,
+								TargetPort:  targetPort,
+							}
+						}
+						break out
+					}
+				}
+			}
+		}
 	}
-	monitor := Monitor{
-		Type:        "tcp",
-		Name:        pool.Name + "_monitor",
-		Partition:   rsCfg.Virtual.Partition,
-		Timeout:     timeout,
-		Interval:    interval,
-		TimeUntilUp: &initialDelaySeconds,
+	// If autoMonitor is set as service-endpoint, create a default TCP monitor
+	if ctlr.resources.baseRouteConfig.AutoMonitor == ServiceEndpoint {
+		var timeout int
+		if ctlr.resources.baseRouteConfig.AutoMonitorTimeout != 0 {
+			timeout = ctlr.resources.baseRouteConfig.AutoMonitorTimeout
+		} else if interval == 0 {
+			interval = 5
+			timeout = 16 // default values used by BIG-IP
+		} else {
+			timeout = 3*interval + 1 // recommended by BIG-IP
+		}
+		monitor = Monitor{
+			Type:        "tcp",
+			Name:        pool.Name + "_monitor",
+			Partition:   rsCfg.Virtual.Partition,
+			Timeout:     timeout,
+			Interval:    interval,
+			TimeUntilUp: &initialDelaySeconds,
+		}
 	}
 	return monitor
 }

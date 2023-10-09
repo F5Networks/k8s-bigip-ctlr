@@ -1775,7 +1775,7 @@ extendedRouteSpec:
 
 		It("Verify autoMonitor Options", func() {
 			mockCtlr.Partition = "test"
-			// Verify autoMonitor defaults to liveness-probe when invalid value is provided
+			// Verify autoMonitor defaults to readiness-probe when invalid value is provided
 			data["extendedSpec"] = `
 baseRouteSpec: 
     autoMonitor: invalid-automonitor
@@ -1788,7 +1788,7 @@ extendedRouteSpec:
 			err, ok := mockCtlr.processConfigMap(cm, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
-			Expect(mockCtlr.resources.baseRouteConfig.AutoMonitor).To(Equal(LivenessProbe))
+			Expect(mockCtlr.resources.baseRouteConfig.AutoMonitor).To(Equal(None))
 
 			// Verify autoMonitor is set to service-endpoint
 			data["extendedSpec"] = `

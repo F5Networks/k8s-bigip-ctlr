@@ -197,10 +197,11 @@ var (
 	gtmBigIPPassword *string
 	gtmCredsDir      *string
 
-	httpClientMetrics  *bool
-	staticRoutingMode  *bool
-	orchestrationCNI   *string
-	sharedStaticRoutes *bool
+	httpClientMetrics   *bool
+	staticRoutingMode   *bool
+	orchestrationCNI    *string
+	sharedStaticRoutes  *bool
+	staticRouteNodeCIDR *string
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -262,6 +263,7 @@ func _init() {
 	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
 	sharedStaticRoutes = globalFlags.Bool("shared-static-routes", false, "Optional, flag to enable configuration of static routes on bigip in common partition")
+	staticRouteNodeCIDR = globalFlags.String("static-route-node-cidr", "", "Optional, flag to specify node network cidr to be used for static routing when node has multiple interfaces.This is supported only with CNI ovn-k8s")
 	// Custom Resource
 	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
 		"Optional, flag to enbale ipv6 network support.")
@@ -922,6 +924,7 @@ func initController(
 			RouteLabel:                  *routeLabel,
 			StaticRoutingMode:           *staticRoutingMode,
 			OrchestrationCNI:            *orchestrationCNI,
+			StaticRouteNodeCIDR:         *staticRouteNodeCIDR,
 			MultiClusterMode:            *multiClusterMode,
 		},
 	)
@@ -1244,6 +1247,7 @@ func getAppManagerParams() appmanager.Params {
 		ConfigWriter:           getConfigWriter(),
 		StaticRoutingMode:      *staticRoutingMode,
 		OrchestrationCNI:       *orchestrationCNI,
+		StaticRouteNodeCIDR:    *staticRouteNodeCIDR,
 	}
 }
 

@@ -86,6 +86,7 @@ type (
 		ipamHostSpecEmpty      bool
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
+		StaticRouteNodeCIDR    string
 		cacheIPAMHostSpecs     CacheIPAM
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		multiClusterResources  *MultiClusterResourceStore
@@ -133,6 +134,7 @@ type (
 		RouteLabel                  string
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
+		StaticRouteNodeCIDR         string
 		MultiClusterMode            string
 	}
 

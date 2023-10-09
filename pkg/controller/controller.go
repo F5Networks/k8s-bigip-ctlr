@@ -148,6 +148,7 @@ func NewController(params Params) *Controller {
 		ciliumTunnelName:      params.CiliumTunnelName,
 		StaticRoutingMode:     params.StaticRoutingMode,
 		OrchestrationCNI:      params.OrchestrationCNI,
+		StaticRouteNodeCIDR:   params.StaticRouteNodeCIDR,
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
 		multiClusterResources: newMultiClusterResourceStore(),
 		multiClusterMode:      params.MultiClusterMode,

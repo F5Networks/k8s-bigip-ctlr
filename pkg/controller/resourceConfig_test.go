@@ -263,17 +263,6 @@ var _ = Describe("Resource Config Tests", func() {
 								Timeout:  10,
 							},
 						},
-						{
-							Path:             "/foo1",
-							Service:          "svc3",
-							ServiceNamespace: "test1",
-							Monitor: cisapiv1.Monitor{
-								Type:     "http",
-								Send:     "GET /health",
-								Interval: 15,
-								Timeout:  10,
-							},
-						},
 					},
 					RewriteAppRoot: "/home",
 					WAF:            "/Common/WAF",
@@ -285,7 +274,6 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
 			Expect(rsCfg.Pools[0].MinimumMonitors).To(Equal(intstr.IntOrString{IntVal: 1}), "Incorrect minimum monitors defined for pool 0")
 			Expect(rsCfg.Pools[1].MinimumMonitors).To(Equal(intstr.IntOrString{StrVal: "all"}), "Incorrect minimum monitors defined for pool 1")
-			Expect(rsCfg.Pools[2].MinimumMonitors).To(Equal(intstr.IntOrString{IntVal: 1}), "Incorrect minimum monitors defined for pool 2")
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 

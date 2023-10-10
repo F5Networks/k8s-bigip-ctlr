@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -65,8 +66,9 @@ var _ = Describe("Backend Tests", func() {
 			}
 			rsCfg.Pools = Pools{
 				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem1, mem2},
+					Name:            "pool1",
+					MinimumMonitors: intstr.IntOrString{StrVal: "all"},
+					Members:         []PoolMember{mem1, mem2},
 					MonitorNames: []MonitorName{
 						{Name: "/test/http_monitor"},
 					},
@@ -203,6 +205,7 @@ var _ = Describe("Backend Tests", func() {
 				Pool{
 					Name:    "pool1",
 					Members: []PoolMember{mem3, mem4},
+					MinimumMonitors: intstr.IntOrString{IntVal: 1},
 				},
 			}
 
@@ -262,8 +265,9 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 			rsCfg.Pools = Pools{
 				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem1, mem2},
+					Name:            "pool1",
+					Members:         []PoolMember{mem1, mem2},
+					MinimumMonitors: intstr.IntOrString{IntVal: 1},
 				},
 			}
 

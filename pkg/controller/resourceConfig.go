@@ -543,7 +543,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServiceDownAction: pl.ServiceDownAction,
 				Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
 			}
-			log.Debugf("[AS3] test the minimum monitors 123 %v", pool.MinimumMonitors)
 			if ctlr.multiClusterMode != "" {
 				//check for external service reference
 				if len(pl.MultiClusterServices) > 0 {

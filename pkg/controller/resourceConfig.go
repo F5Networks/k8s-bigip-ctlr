@@ -538,14 +538,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServicePort:       targetPort,
 				NodeMemberLabel:   pl.NodeMemberLabel,
 				Balance:           pl.Balance,
+				MinimumMonitors:   pl.MinimumMonitors,
 				ReselectTries:     pl.ReselectTries,
 				ServiceDownAction: pl.ServiceDownAction,
 				Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
-			}
-			if pl.MinimumMonitors.StrVal != "" || pl.MinimumMonitors.IntVal != 0 {
-				pool.MinimumMonitors = pl.MinimumMonitors
-			} else {
-				pool.MinimumMonitors = intstr.IntOrString{IntVal: 1}
 			}
 			log.Debugf("[AS3] test the minimum monitors 123 %v", pool.MinimumMonitors)
 			if ctlr.multiClusterMode != "" {

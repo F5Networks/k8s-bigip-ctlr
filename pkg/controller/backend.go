@@ -29,6 +29,7 @@ import (
 	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -847,7 +848,11 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			}
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
-		pool.MinimumMonitors = v.MinimumMonitors
+		if v.MinimumMonitors.StrVal != "" || v.MinimumMonitors.IntVal != 0 {
+			pool.MinimumMonitors = v.MinimumMonitors
+		} else {
+			pool.MinimumMonitors = intstr.IntOrString{IntVal: 1}
+		}
 		sharedApp[v.Name] = pool
 	}
 }

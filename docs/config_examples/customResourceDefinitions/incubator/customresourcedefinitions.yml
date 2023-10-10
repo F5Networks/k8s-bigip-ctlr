@@ -287,8 +287,6 @@ spec:
                         x-kubernetes-int-or-string: true
                         anyOf:
                           - type: integer
-                            minimum: 1
-                            maximum: 63
                           - type: string
                       reselectTries:
                         type: integer

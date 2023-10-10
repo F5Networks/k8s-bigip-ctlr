@@ -847,6 +847,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			}
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
+		pool.MinimumMonitors = v.MinimumMonitors
 		sharedApp[v.Name] = pool
 	}
 }

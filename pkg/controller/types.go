@@ -18,7 +18,7 @@ package controller
 
 import (
 	"container/list"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"sync"
@@ -416,6 +416,7 @@ type (
 		Members              []PoolMember                            `json:"members"`
 		NodeMemberLabel      string                                  `json:"-"`
 		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
+		MinimumMonitors      intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
 		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
 		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
 		SlowRampTime         int32                                   `json:"slowRampTime,omitempty"`
@@ -946,6 +947,7 @@ type (
 		LoadBalancingMode string               `json:"loadBalancingMode,omitempty"`
 		Members           []as3PoolMember      `json:"members,omitempty"`
 		Monitors          []as3ResourcePointer `json:"monitors,omitempty"`
+		MinimumMonitors   intstr.IntOrString   `json:"minimumMonitors,omitempty"`
 		ServiceDownAction string               `json:"serviceDownAction,omitempty"`
 		ReselectTries     int32                `json:"reselectTries,omitempty"`
 		SlowRampTime      int32                `json:"slowRampTime,omitempty"`

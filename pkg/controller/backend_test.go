@@ -2,11 +2,13 @@ package controller
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
-	"strings"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -243,8 +245,8 @@ var _ = Describe("Backend Tests", func() {
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "default_pool_svc1"))
-			Expect(strings.Contains(string(decl), "default_pool_svc2"))
+			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "default_pool_svc2")).To(BeTrue())
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}
@@ -325,6 +327,36 @@ var _ = Describe("Backend Tests", func() {
 			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3ResourcePointer{BigIP: "/Common/pm1"}}))
 			svc.addPersistenceMethod("pm2")
 			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3ResourcePointer{BigIP: "pm2"}}))
+		})
+	})
+
+	Describe("Prepare AS3 Declaration with HAMode", func() {
+		var agent *Agent
+		tnt := "test"
+		BeforeEach(func() {
+			writer := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
+			}
+			agent = newMockAgent(writer)
+			agent.HAMode = true
+			client, _ := getMockHttpClient([]responceCtx{{
+				tenant: tnt,
+				status: http.StatusOK,
+				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
+			}}, http.MethodGet)
+			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"},
+				httpClient: client, firstPost: true}
+		})
+		It("VirtualServer Declaration", func() {
+			config := ResourceConfigRequest{
+				ltmConfig: make(LTMConfig),
+			}
+
+			decl := agent.createTenantAS3Declaration(config)
+
+			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
 		})
 	})
 

@@ -268,4 +268,37 @@ var _ = Describe("PostManager Tests", func() {
 			mockPM.logAS3Request(as3config)
 		})
 	})
+
+	Describe("Get BIGIP AS3 Declaration", func() {
+		It("Get Declaration successfully", func() {
+			tnt := "test"
+			mockPM.setResponses([]responceCtx{{
+				tenant: tnt,
+				status: http.StatusOK,
+				body:   `{"declaration": {"test": {"Shared": {"class": "application"}}}}`,
+			}}, http.MethodGet)
+			dec, err := mockPM.GetAS3DeclarationFromBigIP()
+			Expect(err).To(BeNil(), "Failed to fetch declaration")
+			Expect(dec).NotTo(BeEmpty(), "Fetched invalid declaration")
+		})
+		It("Handle Failures while Getting Declaration", func() {
+			tnt := "test"
+			mockPM.setResponses([]responceCtx{
+				{
+					tenant: tnt,
+					status: http.StatusNotFound,
+					body:   fmt.Sprintf(`{"code":%d}`, http.StatusNotFound),
+				},
+				{
+					tenant: tnt,
+					status: http.StatusServiceUnavailable,
+					body:   fmt.Sprintf(`{"code":%d}`, http.StatusServiceUnavailable),
+				},
+			}, http.MethodGet)
+
+			dec, err := mockPM.GetAS3DeclarationFromBigIP()
+			Expect(err).NotTo(BeNil(), "Failed to fetch declaration")
+			Expect(dec).To(BeEmpty(), "Fetched invalid declaration")
+		})
+	})
 })

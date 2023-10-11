@@ -11,8 +11,6 @@ type HealthChecker struct {
 	SubPID int
 }
 
-// TODO: Add additional health checks
-// TODO: add health check if Kubernetes API is still reachable
 func (hc HealthChecker) HealthCheckHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if hc.SubPID != 0 {

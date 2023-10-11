@@ -89,6 +89,7 @@ type Pool struct {
 	NodeMemberLabel      string                         `json:"nodeMemberLabel,omitempty"`
 	Monitor              Monitor                        `json:"monitor"`
 	Monitors             []Monitor                      `json:"monitors"`
+	MinimumMonitors      intstr.IntOrString             `json:"minimumMonitors,omitempty"`
 	Rewrite              string                         `json:"rewrite,omitempty"`
 	Balance              string                         `json:"loadBalancingMethod,omitempty"`
 	WAF                  string                         `json:"waf,omitempty"`

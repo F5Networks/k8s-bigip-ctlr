@@ -249,11 +249,13 @@ var _ = Describe("Resource Config Tests", func() {
 								Interval: 15,
 								Timeout:  10,
 							},
-							Rewrite: "/bar",
+							Rewrite:         "/bar",
+							MinimumMonitors: intstr.IntOrString{IntVal: 1},
 						},
 						{
-							Path:    "/",
-							Service: "svc2",
+							Path:            "/",
+							Service:         "svc2",
+							MinimumMonitors: intstr.IntOrString{StrVal: "all"},
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -270,6 +272,8 @@ var _ = Describe("Resource Config Tests", func() {
 			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+			Expect(rsCfg.Pools[0].MinimumMonitors).To(Equal(intstr.IntOrString{IntVal: 1}), "Incorrect minimum monitors defined for pool 0")
+			Expect(rsCfg.Pools[1].MinimumMonitors).To(Equal(intstr.IntOrString{StrVal: "all"}), "Incorrect minimum monitors defined for pool 1")
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 

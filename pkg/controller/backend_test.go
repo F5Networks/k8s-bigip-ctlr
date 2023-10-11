@@ -203,8 +203,8 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.PoolName = "default_pool_svc2"
 			rsCfg2.Pools = Pools{
 				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem3, mem4},
+					Name:    		 "pool1",
+					Members: 		 []PoolMember{mem3, mem4},
 					MinimumMonitors: intstr.IntOrString{IntVal: 1},
 				},
 			}

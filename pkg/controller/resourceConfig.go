@@ -538,11 +538,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServicePort:       targetPort,
 				NodeMemberLabel:   pl.NodeMemberLabel,
 				Balance:           pl.Balance,
+				MinimumMonitors:   pl.MinimumMonitors,
 				ReselectTries:     pl.ReselectTries,
 				ServiceDownAction: pl.ServiceDownAction,
 				Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
 			}
-
 			if ctlr.multiClusterMode != "" {
 				//check for external service reference
 				if len(pl.MultiClusterServices) > 0 {

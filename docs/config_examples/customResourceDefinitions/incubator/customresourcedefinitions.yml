@@ -283,6 +283,11 @@ spec:
                             reference:
                               type: string
                               enum: [bigip]
+                      minimumMonitors:
+                        x-kubernetes-int-or-string: true
+                        anyOf:
+                          - type: integer
+                          - type: string
                       reselectTries:
                         type: integer
                         minimum: 0

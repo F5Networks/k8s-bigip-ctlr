@@ -12,8 +12,6 @@ This page documents the multi cluster support in CIS. Check the Known Issues sec
 
 [ExtendedSpecConfigMap](#extendedspecconfigmap)
 
-[Examples](#examples)
-
 [Known Issues](#known-issues)
 
 [FAQ](#faq)

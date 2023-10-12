@@ -508,6 +508,13 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		} else {
 			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 		}
+		// Handle Route pod concurrent connections
+		podConnections, ok := route.ObjectMeta.Annotations[PodConcurrentConnectionsAnnotation]
+		if ok {
+			p, _ := strconv.ParseInt(podConnections, 10, 32)
+			connections := int32(p)
+			pool.ConnectionLimit = connections
+		}
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {

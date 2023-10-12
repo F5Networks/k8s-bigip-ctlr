@@ -10,6 +10,7 @@ Added Functionality
     * Multi Cluster
     * Next Generation Routes
         * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor
+        * Support for new route annotation **virtual-server.f5.com/pod-concurrent-connections**, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
     * CRD
        * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
        * `Issue 2963 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2963>`_: Support MinimumMonitors in virtualserver CR

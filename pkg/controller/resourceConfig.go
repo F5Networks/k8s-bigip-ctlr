@@ -2767,11 +2767,16 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	return sbcs
 }
 
-// updateClusterAdminStateForPoolMembers updates the admin state of pool members based on the cluster admin state
-func (ctlr *Controller) updateClusterAdminStateForPoolMembers(poolMembers *[]PoolMember, clusterName string) {
-	if adminState, ok := ctlr.clusterAdminState[clusterName]; ok && adminState != "" {
-		for i := 0; i < len(*poolMembers); i++ {
+// updatePoolMembersConfig updates the common config related to pool members
+func (ctlr *Controller) updatePoolMembersConfig(poolMembers *[]PoolMember, clusterName string, podConnections int32) {
+	for i := 0; i < len(*poolMembers); i++ {
+		// updates the admin state of pool members based on the cluster admin state
+		if adminState, ok := ctlr.clusterAdminState[clusterName]; ok && adminState != "" {
 			(*poolMembers)[i].AdminState = string(adminState)
+		}
+		// updates the connection limit of pool members based on the pod connections allowed
+		if podConnections != 0 {
+			(*poolMembers)[i].ConnectionLimit = podConnections
 		}
 	}
 }

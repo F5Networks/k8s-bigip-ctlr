@@ -349,7 +349,9 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 		if cluster == "" {
 			cluster = ctlr.multiClusterConfigs.LocalClusterName
 		}
-		poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+		if cluster != "" {
+			poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+		}
 	}
 
 	return AS3NameFormatter(poolName)

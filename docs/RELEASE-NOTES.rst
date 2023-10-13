@@ -11,16 +11,18 @@ Added Functionality
     * Next Generation Routes
         * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor
     * CRD
-       * `Issue 3062<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
-       * `Issue 2963<https://github.com/F5Networks/k8s-bigip-ctlr/issues/2963>`_: Support MinimumMonitors in virtualserver CR
+       * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
+       * `Issue 2963 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2963>`_: Support MinimumMonitors in virtualserver CR
     * Support for AS3 GTM agent with separate GTM server
+    * Support for /ready endpoint to check the CIS health
     * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode.See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_
 Bug Fixes
 ````````````
-* ``Issue 3057 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3057>`_: Support for pool settings for reslect with policy CR.
-* `https://github.com/F5Networks/k8s-bigip-ctlr/issues/3061`_: Provide stable pool name in multi cluster mode
-* `Issue 3079<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
-* `Issue 3073<https://github.com/F5Networks/k8s-bigip-ctlr/issues/3073>`_: Fix AS3 config map multi port service issue
+* `Issue 3057 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3057>`_: Support for pool settings for reslect with policy CR.
+* `Issue 3061 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3061>`_: Provide stable pool name in multi cluster mode
+* `Issue 3079 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
+* `Issue 3073 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3073>`_: Fix AS3 config map multi port service issue
+* `Issue 2985 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2985>`_: Improve CIS primary and secondary coordination
 
 Upgrade notes
 ``````````````

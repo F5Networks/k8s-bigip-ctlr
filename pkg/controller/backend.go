@@ -855,10 +855,10 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			if v.MinimumMonitors.StrVal != "" || v.MinimumMonitors.IntVal != 0 {
 				pool.MinimumMonitors = v.MinimumMonitors
 			} else {
-				pool.MinimumMonitors = intstr.IntOrString{IntVal: 1}
+				pool.MinimumMonitors = intstr.IntOrString{Type: 0, IntVal: 1}
 			}
 		} else {
-			pool.MinimumMonitors = intstr.IntOrString{StrVal: "all"}
+			pool.MinimumMonitors = intstr.IntOrString{Type: 1, StrVal: "all"}
 		}
 		sharedApp[v.Name] = pool
 	}

@@ -1886,7 +1886,7 @@ func (ctlr *Controller) handleDataGroupIRules(
 		tlsIRuleName := JoinBigipPath(rsCfg.Virtual.Partition,
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange))
+			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange, rsCfg.Virtual.MultiPoolPersistence))
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)
@@ -1911,7 +1911,8 @@ func (ctlr *Controller) HandlePathBasedABIRule(
 	// For passthrough, don't add the iRule
 	if tlsTerminationType != TLSPassthrough {
 		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition,
+			ctlr.getPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.MultiPoolPersistence))
 		if vsHost != "" {
 			abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
 				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
@@ -2170,6 +2171,10 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
+	if ctlr.PoolMemberType == Cluster {
+		rsCfg.Virtual.MultiPoolPersistence.Method = plc.Spec.PoolSettings.MultiPoolPersistence.Method
+		rsCfg.Virtual.MultiPoolPersistence.TimeOut = plc.Spec.PoolSettings.MultiPoolPersistence.TimeOut
+	}
 	rsCfg.Virtual.ProfileMultiplex = plc.Spec.Profiles.ProfileMultiplex
 	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense

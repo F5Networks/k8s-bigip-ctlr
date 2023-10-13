@@ -1044,6 +1044,7 @@ spec:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
                 poolSettings:
+                  type: object
                   properties:
                     reselectTries:
                       type: integer
@@ -1055,4 +1056,13 @@ spec:
                       type: integer
                       minimum: 0
                       maximum: 900
-                  type: object
+                    multiPoolPersistence:
+                      type: object
+                      properties:
+                        method:
+                          type: string
+                          enum: [ uieSourceAddress, hashSourceAddress ]
+                        timeOut:
+                          type: integer
+                          minimum: 1
+                          default: 180

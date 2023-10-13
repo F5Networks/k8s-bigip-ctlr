@@ -283,7 +283,8 @@ func (ctlr *Controller) handleInsecureABRoute(rsCfg *ResourceConfig, route *rout
 	)
 	// add the path based AB irule
 	rsCfg.addIRule(
-		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition,
+		ctlr.getPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.MultiPoolPersistence))
 	abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
 		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
 	rsCfg.Virtual.AddIRule(abPathIRule)

@@ -650,23 +650,24 @@ spec:
 
 ## Legacy vs next generation routes feature comparison
 
-| Features              | Legacy Routes | Next-gen Routes |
-|-----------------------|---------------| ------ |
-| Insecure              | YES           | YES | 
-| Secure                | YES           | YES | 
-| Health Monitors       | YES           | YES |
-| WAF                   | YES           | YES |
-| iRules                | YES           | YES |
-| iRuleList             | NO            | YES |
-| Multiple VIP          | NO            | YES |
-| Multiple Partition    | NO            | YES |
-| SSL Profiles          | YES           | YES | 
-| Load Balancing Method | YES           | YES | 
-| allow-source-range    | YES           | YES | 
-| URL-rewrite           | YES           | YES | 
-| App-rewrite           | YES           | YES |
-| A/B Deployment        | YES           | YES | 
-| Policy CR             | NO            | YES | 
+| Features                   | Legacy Routes | Next-gen Routes |
+|----------------------------|---------------|-----------------|
+| Insecure                   | YES           | YES             | 
+| Secure                     | YES           | YES             | 
+| Health Monitors            | YES           | YES             |
+| WAF                        | YES           | YES             |
+| iRules                     | YES           | YES             |
+| iRuleList                  | NO            | YES             |
+| Multiple VIP               | NO            | YES             |
+| Multiple Partition         | NO            | YES             |
+| SSL Profiles               | YES           | YES             | 
+| Load Balancing Method      | YES           | YES             | 
+| allow-source-range         | YES           | YES             | 
+| URL-rewrite                | YES           | YES             | 
+| App-rewrite                | YES           | YES             |
+| Pod concurrent connections | NO            | YES             |
+| A/B Deployment             | YES           | YES             | 
+| Policy CR                  | NO            | YES             | 
 
 Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details.
 

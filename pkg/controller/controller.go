@@ -108,11 +108,12 @@ const (
 	TLSAllowInsecure    = "allow"
 	TLSNoInsecure       = "none"
 
-	LBServiceIPAMLabelAnnotation  = "cis.f5.com/ipamLabel"
-	LBServiceHostAnnotation       = "cis.f5.com/host"
-	HealthMonitorAnnotation       = "cis.f5.com/health"
-	LBServicePolicyNameAnnotation = "cis.f5.com/policyName"
-	LegacyHealthMonitorAnnotation = "virtual-server.f5.com/health"
+	LBServiceIPAMLabelAnnotation       = "cis.f5.com/ipamLabel"
+	LBServiceHostAnnotation            = "cis.f5.com/host"
+	HealthMonitorAnnotation            = "cis.f5.com/health"
+	LBServicePolicyNameAnnotation      = "cis.f5.com/policyName"
+	LegacyHealthMonitorAnnotation      = "virtual-server.f5.com/health"
+	PodConcurrentConnectionsAnnotation = "virtual-server.f5.com/pod-concurrent-connections"
 
 	//Antrea NodePortLocal support
 	NPLPodAnnotation = "nodeportlocal.antrea.io"

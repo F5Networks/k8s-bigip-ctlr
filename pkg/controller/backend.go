@@ -831,6 +831,9 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			if val.AdminState != "" {
 				member.AdminState = val.AdminState
 			}
+			if val.ConnectionLimit != 0 {
+				member.ConnectionLimit = val.ConnectionLimit
+			}
 			pool.Members = append(pool.Members, member)
 		}
 		for _, val := range v.MonitorNames {

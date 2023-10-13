@@ -273,7 +273,6 @@ var _ = Describe("Routes", func() {
 			}
 			annotations := make(map[string]string)
 			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
-
 			route1 := test.NewRoute("route1", "1", "default", spec1, annotations)
 			route2 := test.NewRoute("route2", "1", "test", spec1, nil)
 			route3 := test.NewRoute("route3", "1", "default", spec2, nil)
@@ -826,6 +825,7 @@ extendedRouteSpec:
 			annotation1 := make(map[string]string)
 			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
 			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotation1[PodConcurrentConnectionsAnnotation] = "5"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route1)
@@ -835,6 +835,8 @@ extendedRouteSpec:
 			vsName := frameRouteVSName(mockCtlr.resources.extdSpecMap[routeGroup].global.VServerName, mockCtlr.resources.extdSpecMap[routeGroup].global.VServerAddr, portStruct{protocol: "https", port: 443})
 			Expect(err).To(BeNil())
 			Expect(len(mockCtlr.resources.ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap[vsName].Pools[0].ConnectionLimit).
+				To(Equal(int32(5)), "pod concurrent connections not processed")
 
 			var alternateBackend []routeapi.RouteTargetReference
 			weight := new(int32)

@@ -424,6 +424,7 @@ type (
 		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
 		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
 		Cluster              string                                  `json:"-"`
+		ConnectionLimit      int32                                   `json:"-"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -960,6 +961,7 @@ type (
 		ServicePort      int32    `json:"servicePort,omitempty"`
 		ShareNodes       bool     `json:"shareNodes,omitempty"`
 		AdminState       string   `json:"adminState,omitempty"`
+		ConnectionLimit  int32    `json:"connectionLimit,omitempty"`
 	}
 
 	// as3ResourcePointer maps to following in AS3 Resources
@@ -1104,11 +1106,12 @@ type (
 	}
 
 	PoolMember struct {
-		Address    string `json:"address"`
-		Port       int32  `json:"port"`
-		SvcPort    int32  `json:"svcPort,omitempty"`
-		Session    string `json:"session,omitempty"`
-		AdminState string `json:"adminState,omitempty"`
+		Address         string `json:"address"`
+		Port            int32  `json:"port"`
+		SvcPort         int32  `json:"svcPort,omitempty"`
+		Session         string `json:"session,omitempty"`
+		AdminState      string `json:"adminState,omitempty"`
+		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
 	}
 )
 

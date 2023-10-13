@@ -41,6 +41,9 @@ spec:
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                connectionMirroring:
+                  type: string
+                  enum: [ none, L4 ]
                 tlsProfileName:
                   type: string
                   pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
@@ -494,6 +497,9 @@ spec:
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                connectionMirroring:
+                  type: string
+                  enum: [ none, L4 ]
                 profiles:
                   type: object
                   properties:
@@ -1037,3 +1043,16 @@ spec:
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                poolSettings:
+                  properties:
+                    reselectTries:
+                      type: integer
+                      minimum: 0
+                      maximum: 65535
+                    serviceDownAction:
+                      type: string
+                    slowRampTime:
+                      type: integer
+                      minimum: 0
+                      maximum: 900
+                  type: object

@@ -848,15 +848,17 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			}
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
+		log.Debugf("monitors length %v", len(pool.Monitors))
 		if len(pool.Monitors) > 0 {
 			if v.MinimumMonitors.StrVal != "" || v.MinimumMonitors.IntVal != 0 {
 				pool.MinimumMonitors = v.MinimumMonitors
 			} else {
-				pool.MinimumMonitors = intstr.IntOrString{IntVal: 1}
+				pool.MinimumMonitors = intstr.IntOrString{Type: 0, IntVal: 1}
 			}
 		} else {
-			pool.MinimumMonitors = intstr.IntOrString{StrVal: "all"}
+			pool.MinimumMonitors = intstr.IntOrString{Type: 1, StrVal: "all"}
 		}
+		log.Debugf("minimum monitors %v", pool.MinimumMonitors)
 		sharedApp[v.Name] = pool
 	}
 }

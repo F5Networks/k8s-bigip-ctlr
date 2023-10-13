@@ -67,7 +67,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:            "pool1",
-					MinimumMonitors: intstr.IntOrString{StrVal: "all"},
+					MinimumMonitors: intstr.IntOrString{Type: 1, StrVal: "all"},
 					Members:         []PoolMember{mem1, mem2},
 					MonitorNames: []MonitorName{
 						{Name: "/test/http_monitor"},
@@ -205,7 +205,7 @@ var _ = Describe("Backend Tests", func() {
 				Pool{
 					Name:            "pool1",
 					Members:         []PoolMember{mem3, mem4},
-					MinimumMonitors: intstr.IntOrString{IntVal: 1},
+					MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
 				},
 			}
 
@@ -267,7 +267,7 @@ var _ = Describe("Backend Tests", func() {
 				Pool{
 					Name:            "pool1",
 					Members:         []PoolMember{mem1, mem2},
-					MinimumMonitors: intstr.IntOrString{IntVal: 1},
+					MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
 				},
 			}
 

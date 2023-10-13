@@ -115,7 +115,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
-			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path", "")
+			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")
 			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
@@ -127,6 +127,51 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("vs_test_com_foo_sample_pool"))
 
 		})
+		It("Monitor Name with MultiCluster mode", func() {
+			// Standalone, no ratio and monitor for local cluster pool
+			mockCtlr.multiClusterMode = StandAloneCIS
+			mockCtlr.clusterRatio = make(map[string]*int)
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			monitorName := "pytest_svc_1_default_foo_example_com_foo_http_80"
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Standalone, no ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Standalone, ratio and monitor for local cluster pool
+			mockCtlr.clusterRatio["cluster3"] = new(int)
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_local_cluster"), "Invalid Monitor Name")
+			// Standalone, ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
+
+			// Primary, no ratio and monitor for local cluster pool
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.clusterRatio = make(map[string]*int)
+			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Primary, no ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Primary, ratio and monitor for local cluster pool
+			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			// Primary, ratio and monitor for external cluster pool
+			mockCtlr.clusterRatio["cluster3"] = new(int) // external cluster ratio
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
+
+			// Secondary, no ratio and monitor for local cluster pool
+			mockCtlr.multiClusterMode = SecondaryCIS
+			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			mockCtlr.clusterRatio = make(map[string]*int)
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Secondary, no ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Secondary, ratio and monitor for local cluster pool
+			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			// Secondary, ratio and monitor for external cluster pool
+			mockCtlr.clusterRatio["cluster3"] = new(int)
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
+
+		})
+
 	})
 
 	Describe("Handle iRules and DataGroups", func() {

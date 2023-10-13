@@ -358,8 +358,7 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string,
-	cluster string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
 
 	if len(hostName) > 0 {
@@ -377,10 +376,7 @@ func formatMonitorName(namespace, svc string, monitorType string, port intstr.In
 		servicePort := fetchPortString(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
 	}
-	// Add cluster name to monitor name
-	if cluster != "" {
-		monitorName = monitorName + "_" + cluster
-	}
+
 	return AS3NameFormatter(monitorName)
 }
 
@@ -545,6 +541,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServiceDownAction: pl.ServiceDownAction,
 				Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
 			}
+
 			if ctlr.multiClusterMode != "" {
 				//check for external service reference
 				if len(pl.MultiClusterServices) > 0 {
@@ -771,11 +768,11 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 			monitorName := monitor.Name
 			if monitorName == "" {
 				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host,
-					path, cluster)
-			} else if cluster != "" {
-				// In case monitorName is specified then append cluster name to it to avoid conflict
-				monitorName += "_" + cluster
+					path)
 			}
+
+			// Format the monitor name in case of multi cluster ratio mode
+			monitorName = ctlr.formatMonitorNameForMultiCluster(monitorName, cluster)
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 			monitor := Monitor{
@@ -806,7 +803,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "", "")
+				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "")
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -873,7 +870,7 @@ func (ctlr *Controller) handleDefaultPool(
 							formatPort = vs.Spec.DefaultPool.ServicePort
 						}
 						if mtr.Name == "" {
-							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "", "")
+							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "")
 						}
 						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 						mntr := Monitor{
@@ -2132,9 +2129,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,
@@ -2779,4 +2776,29 @@ func (ctlr *Controller) updatePoolMembersConfig(poolMembers *[]PoolMember, clust
 			(*poolMembers)[i].ConnectionLimit = podConnections
 		}
 	}
+}
+
+// formatMonitorNameForMultiCluster formats the monitor name based on the cluster name
+func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, cluster string) string {
+	// Update monitor name only in case of multiCluster ratio mode as in this mode only CIS creates distinct pools for
+	// services in different clusters,thus we need to update the monitor name to make them distinguishable
+	if ctlr.multiClusterMode == "" || len(ctlr.clusterRatio) == 0 {
+		return monitorName
+	}
+	if cluster != "" {
+		// If cluster is specified then append the cluster name to the monitor name
+		monitorName += "_" + cluster
+	} else {
+		// If cluster is not specified then it means that  the monitor is for a pool belonging to the local cluster,
+		// where CIS is running. In this scenario append the local cluster name to the monitor name.
+		// For standalone mode as local cluster name is not specified, append "_local_cluster" to the monitor name.
+		// For all other modes the local cluster name is provided in the extended configmap as Primary/Secondary cluster
+		// details, which is stored in LocalClusterName based on whether the CIS is running in primary or secondary mode.
+		if ctlr.multiClusterMode != StandAloneCIS {
+			monitorName += "_" + ctlr.multiClusterConfigs.LocalClusterName
+		} else {
+			monitorName += "_local_cluster"
+		}
+	}
+	return monitorName
 }

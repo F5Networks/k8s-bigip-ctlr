@@ -2476,9 +2476,9 @@ externalClustersConfig:
 			// Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
 			expectedHealthMonitors = map[string]struct{}{
-				"svc1_default_test_com_foo":            struct{}{},
+				"svc1_default_test_com_foo_cluster1":   struct{}{},
 				"svc1_default_test_com_foo_cluster2":   struct{}{},
-				"svc1_b_default_test_com_foo":          struct{}{},
+				"svc1_b_default_test_com_foo_cluster1": struct{}{},
 				"svc1_b_default_test_com_foo_cluster2": struct{}{},
 				"test_default_test_com_foo_cluster3":   struct{}{},
 			}

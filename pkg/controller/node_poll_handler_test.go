@@ -225,7 +225,28 @@ var _ = Describe("Node Poller Handler", func() {
 			},
 		}
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-
+		// OrchestrationCNI = ovn_k8s and node network CIDR
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations["k8s.ovn.org/host-addresses"] = "[\"10.244.0.0\"]"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
+		Expect(ok).To(Equal(true))
+		Expect(len(mockWriter.Sections)).To(Equal(1))
+		expectedRouteSection = routeSection{
+			Entries: []routeConfig{
+				{
+					Name:    "k8s-worker1-10.244.0.0",
+					Network: "10.244.0.0/28",
+					Gateway: "10.244.0.0",
+				},
+			},
+		}
+		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
 		// OrchestrationCNI = CILIUM_K8S with no valid cilium-k8s annotation
 		mockCtlr.OrchestrationCNI = CILIUM_K8S
 		mockCtlr.UseNodeInternal = true

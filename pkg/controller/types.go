@@ -240,6 +240,11 @@ type (
 		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
 		AutoLastHop                string                `json:"lastHop,omitempty"`
 		AnalyticsProfiles          AnalyticsProfiles     `json:"analyticsProfiles,omitempty"`
+		MultiPoolPersistence       MultiPoolPersistence  `json:"multiPoolPersistence,omitempty"`
+	}
+	MultiPoolPersistence struct {
+		Method  string `json:"method,omitempty"`
+		TimeOut int32  `json:"timeOut,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual

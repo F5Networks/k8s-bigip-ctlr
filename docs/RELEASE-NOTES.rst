@@ -8,6 +8,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
+        * Support for a/b deployment custom persistence in ratio mode with cluster mode
     * Next Generation Routes
         * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor
         * Support for new route annotation **virtual-server.f5.com/pod-concurrent-connections**, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
@@ -24,6 +25,7 @@ Bug Fixes
 * `Issue 3079 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
 * `Issue 3073 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3073>`_: Fix AS3 config map multi port service issue
 * `Issue 2985 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2985>`_: Improve CIS primary and secondary coordination
+* `Issue 2985 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3066>`_: Support for a/b deployment custom persistence in CRD, nextGen routes with cluster mode
 
 Upgrade notes
 ``````````````

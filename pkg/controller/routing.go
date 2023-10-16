@@ -619,7 +619,7 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
-func (ctlr *Controller) GetPathBasedABDeployIRule(rsVSName string, partition string) string {
+func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition string, multiPoolPersistence MultiPoolPersistence) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
 	iRule := fmt.Sprintf(`proc select_ab_pool {path default_pool } {
@@ -664,20 +664,62 @@ func (ctlr *Controller) GetPathBasedABDeployIRule(rsVSName string, partition str
 				HTTP::respond 503
 			}
 			return $default_pool
-		}
-		when HTTP_REQUEST priority 200 {
+		}`, dgPath, rsVSName)
+
+	persistenceType := getPersistenceType(multiPoolPersistence.Method)
+	if persistenceType != "" {
+		iRule += fmt.Sprintf(`
+			when HTTP_REQUEST priority 200 {
+			   set path [string tolower [HTTP::host]][HTTP::path]
+			   set persist_key "[IP::client_addr]:$path"
+			   set persist_record [linsert [persist lookup %v [list $persist_key any pool] ] 1 member]
+			   
+			   if {$persist_record ne "member"} then {
+							pool [lindex $persist_record 0] member [lindex $persist_record 2] [lindex $persist_record 3]
+							event disable
+				} else {
+				   set selected_pool [call select_ab_pool $path ""]
+				   if {$selected_pool != ""} then {
+						pool $selected_pool
+						persist %v $persist_key %v
+						event disable
+					}
+				}
+}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut)
+	} else {
+		iRule += fmt.Sprintf(`
+			when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
 			set selected_pool [call select_ab_pool $path ""]
 			if {$selected_pool != ""} then {
 				pool $selected_pool
 				event disable
 			}
-		}`, dgPath, rsVSName)
+		}`)
+	}
 
 	return iRule
 }
 
-func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSourceRange []string) string {
+func getPersistenceType(key string) string {
+	if key == "" {
+		return key
+	}
+	// supported persistence types
+	// the keys should be in sync with the supported values of multiPoolPersistence in policy
+	// any change to the multiPoolPersistence def should be reflected here
+	persisMap := map[string]string{
+		"uieSourceAddress":  "uie",
+		"hashSourceAddress": "hash",
+	}
+	if val, ok := persisMap[key]; ok {
+		return val
+	} else {
+		return ""
+	}
+}
+
+func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSourceRange []string, multiPoolPersistence MultiPoolPersistence) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
 	iRule := fmt.Sprintf(`
@@ -796,7 +838,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 											pool $dflt_pool_passthrough
 										}
 									} else {
-										set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough]
+										set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough ""]
 										if { $selected_pool == "" } then {
 											log local0.debug "Failed to find pool for $servername_lower"
 										} else {
@@ -822,6 +864,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
                 reject ; event disable all; return;
                 }
             set sslpath [lindex [split [SSL::payload]] 1]
+			set domainpath $sslpath
             set routepath ""
             set wc_routepath ""
             
@@ -911,7 +954,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
                 }
 				set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
                 if { [class exists $ab_class] } {
-                    set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+                    set selected_pool [call select_ab_pool $servername_lower $dflt_pool $domainpath]
                     if { $selected_pool == "" } then {
                         log local0.debug "Unable to find pool for $servername_lower"
                     } else {
@@ -976,7 +1019,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 			}
         }`, dgPath, rsVSName)
 
-	iRuleCode := fmt.Sprintf("%s\n\n%s\n\n%s", ctlr.selectClientAcceptediRule(rsVSName, dgPath, allowSourceRange), ctlr.selectPoolIRuleFunc(rsVSName, dgPath), iRule)
+	iRuleCode := fmt.Sprintf("%s\n\n%s\n\n%s", ctlr.selectClientAcceptediRule(rsVSName, dgPath, allowSourceRange), ctlr.selectPoolIRuleFunc(rsVSName, dgPath, multiPoolPersistence), iRule)
 
 	return iRuleCode
 }
@@ -990,10 +1033,10 @@ func (ctlr *Controller) selectClientAcceptediRule(rsVSName string, dgPath string
 	return iRulePrefix
 }
 
-func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string) string {
+func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string, multiPoolPersistence MultiPoolPersistence) string {
 
 	iRuleFunc := fmt.Sprintf(`
-		proc select_ab_pool {path default_pool } {
+		proc select_ab_pool {path default_pool domainpath} {
 			set last_slash [string length $path]
 			set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
 			while {$last_slash >= 0} {
@@ -1003,8 +1046,11 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string) stri
 				set last_slash [string last "/" $path $last_slash]
 				incr last_slash -1
 				set path [string range $path 0 $last_slash]
-			}
+			}`, dgPath, rsVSName)
 
+	persistenceType := getPersistenceType(multiPoolPersistence.Method)
+	if persistenceType == "" {
+		iRuleFunc += fmt.Sprintf(`
 			if {$last_slash >= 0} {
 				set ab_rule [class match -value $path equals $ab_class]
 				if {$ab_rule != ""} then {
@@ -1036,7 +1082,56 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string) stri
 				HTTP::respond 503
 			}
 			return $default_pool
-		}`, dgPath, rsVSName)
+		}`)
+	} else {
+		iRuleFunc += fmt.Sprintf(`
+			if {$last_slash >= 0} {
+				set ab_rule [class match -value $path equals $ab_class]
+				if {$ab_rule != ""} then {
+					# skip processing of any path based domain 
+					# this is to skip creation of persistence entry for any path based domain
+					# any path based domain will be processed by default pool
+					if {$domainpath ne "" && $domainpath ne "/"}{
+							return $default_pool
+					}
+					set persist_key "[IP::client_addr]:$path"
+					set persist_record [linsert [persist lookup %v [list $persist_key any pool] ] 1 member]
+					if {$persist_record ne "member"} {
+						pool [lindex $persist_record 0] member [lindex $persist_record 2] [lindex $persist_record 3]
+						return 
+					}
+					set weight_selection [expr {rand()}]
+					set service_rules [split $ab_rule ";"]
+                    set active_pool ""
+					foreach service_rule $service_rules {
+						set fields [split $service_rule ","]
+						set pool_name [lindex $fields 0]
+                        if { [active_members $pool_name] >= 1 } {
+						    set active_pool $pool_name
+						}
+						set weight [expr {double([lindex $fields 1])}]
+						if {$weight_selection <= $weight} then {
+                            #check if active pool members are available
+						    if { [active_members $pool_name] >= 1 } {
+								persist %v $persist_key %v
+							    return $pool_name
+						    } else {
+						          # select the any of pool with active members 
+						          if {$active_pool!= ""} then {
+                                      persist %v $persist_key %v
+						              return $active_pool
+						          }    
+						    }
+						}
+					}
+				}
+				# If we had a match, but all weights were 0 then
+				# retrun a 503 (Service Unavailable)
+				HTTP::respond 503
+			}
+			return $default_pool
+		}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut, persistenceType, multiPoolPersistence.TimeOut)
+	}
 
 	return iRuleFunc
 }

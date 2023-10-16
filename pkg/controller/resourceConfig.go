@@ -2699,6 +2699,9 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	beIdx := 0
 	// Route backend service in local cluster
 	sbcs[beIdx].Name = pool.Service
+	if pool.ServiceNamespace != "" {
+		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
+	}
 	if pool.Weight != nil {
 		sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
 			(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
@@ -2710,6 +2713,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 		beIdx++
 		sbcs[beIdx].Name = pool.Service
+		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
 				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
@@ -2725,6 +2729,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 		for _, svc := range pool.AlternateBackends {
 			beIdx = beIdx + 1
 			sbcs[beIdx].Name = svc.Service
+			sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 			if svc.Weight != nil {
 				sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
 					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
@@ -2736,6 +2741,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 			if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 				beIdx = beIdx + 1
 				sbcs[beIdx].Name = svc.Service
+				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
 						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)

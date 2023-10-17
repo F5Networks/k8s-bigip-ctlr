@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -107,11 +108,12 @@ const (
 	TLSAllowInsecure    = "allow"
 	TLSNoInsecure       = "none"
 
-	LBServiceIPAMLabelAnnotation  = "cis.f5.com/ipamLabel"
-	LBServiceHostAnnotation       = "cis.f5.com/host"
-	HealthMonitorAnnotation       = "cis.f5.com/health"
-	LBServicePolicyNameAnnotation = "cis.f5.com/policyName"
-	LegacyHealthMonitorAnnotation = "virtual-server.f5.com/health"
+	LBServiceIPAMLabelAnnotation       = "cis.f5.com/ipamLabel"
+	LBServiceHostAnnotation            = "cis.f5.com/host"
+	HealthMonitorAnnotation            = "cis.f5.com/health"
+	LBServicePolicyNameAnnotation      = "cis.f5.com/policyName"
+	LegacyHealthMonitorAnnotation      = "virtual-server.f5.com/health"
+	PodConcurrentConnectionsAnnotation = "virtual-server.f5.com/pod-concurrent-connections"
 
 	//Antrea NodePortLocal support
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
@@ -125,6 +127,7 @@ const (
 	as3Version        = 3.45
 	defaultAS3Version = "3.45.0"
 	defaultAS3Build   = "5"
+	clusterHealthPath = "/readyz"
 )
 
 // NewController creates a new Controller Instance.
@@ -256,6 +259,8 @@ func NewController(params Params) *Controller {
 	go ctlr.Start()
 
 	go ctlr.setOtherSDNType()
+	// Start the CIS health check
+	go ctlr.CISHealthCheck()
 
 	return ctlr
 }
@@ -502,4 +507,34 @@ func (ctlr *Controller) Stop() {
 	if ctlr.Agent.EventChan != nil {
 		close(ctlr.Agent.EventChan)
 	}
+}
+
+func (ctlr *Controller) CISHealthCheck() {
+	// Expose cis health endpoint
+	http.Handle("/ready", ctlr.CISHealthCheckHandler())
+}
+
+func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ctlr.kubeClient != nil {
+			var response string
+			// Check if kube-api server is reachable
+			_, err := ctlr.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+			if err != nil {
+				response = "kube-api server is not reachable."
+			}
+			// Check if big-ip server is reachable
+			_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
+			if err2 != nil {
+				response = response + "big-ip server is not reachable."
+			}
+			if err2 == nil && err == nil {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Ok"))
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(response))
+			}
+		}
+	})
 }

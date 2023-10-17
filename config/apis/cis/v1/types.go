@@ -326,9 +326,10 @@ type PolicySpec struct {
 }
 
 type PoolSettingsSpec struct {
-	ReselectTries     int32  `json:"reselectTries,omitempty"`
-	ServiceDownAction string `json:"serviceDownAction,omitempty"`
-	SlowRampTime      int32  `json:"slowRampTime,omitempty"`
+	ReselectTries        int32                `json:"reselectTries,omitempty"`
+	ServiceDownAction    string               `json:"serviceDownAction,omitempty"`
+	SlowRampTime         int32                `json:"slowRampTime,omitempty"`
+	MultiPoolPersistence MultiPoolPersistence `json:"multiPoolPersistence,omitempty"`
 }
 
 type SSLProfiles struct {
@@ -373,6 +374,10 @@ type ProfileSpec struct {
 	SSLProfiles           SSLProfiles       `json:"sslProfiles,omitempty"`
 	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
 	ProfileWebSocket      string            `json:"profileWebSocket,omitempty"`
+}
+type MultiPoolPersistence struct {
+	Method  string `json:"method,omitempty"`
+	TimeOut int32  `json:"timeOut,omitempty"`
 }
 type ProfileTCP struct {
 	Client string `json:"client,omitempty"`

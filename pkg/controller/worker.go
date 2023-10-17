@@ -2100,7 +2100,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if pool.Cluster == "" {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, "")...)
+				pool.NodeMemberLabel, "", pool.ConnectionLimit)...)
 		if len(ctlr.clusterRatio) > 0 {
 			pool.Members = poolMembers
 			return
@@ -2111,7 +2111,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName)...)
+				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)...)
 	}
 
 	// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
@@ -2119,7 +2119,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if len(ctlr.clusterRatio) > 0 {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, pool.Cluster)...)
+				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit)...)
 		pool.Members = poolMembers
 		return
 	}
@@ -2137,7 +2137,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
 			poolMembers = append(poolMembers,
 				ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
-					pool.NodeMemberLabel, mcs.ClusterName)...)
+					pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit)...)
 		}
 	}
 	pool.Members = poolMembers
@@ -2145,7 +2145,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 
 // fetchPoolMembersForService returns pool members associated with a service created in specified cluster
 func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNamespace string,
-	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string) []PoolMember {
+	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32) []PoolMember {
 	svcKey := MultiClusterServiceKey{
 		serviceName: serviceName,
 		namespace:   serviceNamespace,
@@ -2174,9 +2174,8 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, servicePort, nodeMemberLabel)...)
 	}
 	// Update the cluster admin state for pool members if multi cluster mode is enabled
-	if ctlr.multiClusterMode != "" {
-		ctlr.updateClusterAdminStateForPoolMembers(&poolMembers, clusterName)
-	}
+	ctlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
+
 	return poolMembers
 }
 

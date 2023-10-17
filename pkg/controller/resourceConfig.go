@@ -349,15 +349,16 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 		if cluster == "" {
 			cluster = ctlr.multiClusterConfigs.LocalClusterName
 		}
-		poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+		if cluster != "" {
+			poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+		}
 	}
 
 	return AS3NameFormatter(poolName)
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string,
-	cluster string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
 
 	if len(hostName) > 0 {
@@ -375,10 +376,7 @@ func formatMonitorName(namespace, svc string, monitorType string, port intstr.In
 		servicePort := fetchPortString(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
 	}
-	// Add cluster name to monitor name
-	if cluster != "" {
-		monitorName = monitorName + "_" + cluster
-	}
+
 	return AS3NameFormatter(monitorName)
 }
 
@@ -543,6 +541,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServiceDownAction: pl.ServiceDownAction,
 				Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
 			}
+
 			if ctlr.multiClusterMode != "" {
 				//check for external service reference
 				if len(pl.MultiClusterServices) > 0 {
@@ -769,11 +768,11 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 			monitorName := monitor.Name
 			if monitorName == "" {
 				monitorName = formatMonitorName(pool.ServiceNamespace, pool.ServiceName, monitor.Type, formatPort, host,
-					path, cluster)
-			} else if cluster != "" {
-				// In case monitorName is specified then append cluster name to it to avoid conflict
-				monitorName += "_" + cluster
+					path)
 			}
+
+			// Format the monitor name in case of multi cluster ratio mode
+			monitorName = ctlr.formatMonitorNameForMultiCluster(monitorName, cluster)
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 			monitor := Monitor{
@@ -804,7 +803,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "", "")
+				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "")
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -871,7 +870,7 @@ func (ctlr *Controller) handleDefaultPool(
 							formatPort = vs.Spec.DefaultPool.ServicePort
 						}
 						if mtr.Name == "" {
-							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "", "")
+							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, vs.Spec.Host, "")
 						}
 						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 						mntr := Monitor{
@@ -1887,7 +1886,7 @@ func (ctlr *Controller) handleDataGroupIRules(
 		tlsIRuleName := JoinBigipPath(rsCfg.Virtual.Partition,
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange))
+			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange, rsCfg.Virtual.MultiPoolPersistence))
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)
@@ -1912,7 +1911,8 @@ func (ctlr *Controller) HandlePathBasedABIRule(
 	// For passthrough, don't add the iRule
 	if tlsTerminationType != TLSPassthrough {
 		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition,
+			ctlr.getPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.MultiPoolPersistence))
 		if vsHost != "" {
 			abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
 				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
@@ -2130,9 +2130,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", "", ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,
@@ -2171,6 +2171,10 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
+	if ctlr.PoolMemberType == Cluster {
+		rsCfg.Virtual.MultiPoolPersistence.Method = plc.Spec.PoolSettings.MultiPoolPersistence.Method
+		rsCfg.Virtual.MultiPoolPersistence.TimeOut = plc.Spec.PoolSettings.MultiPoolPersistence.TimeOut
+	}
 	rsCfg.Virtual.ProfileMultiplex = plc.Spec.Profiles.ProfileMultiplex
 	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
@@ -2695,6 +2699,9 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	beIdx := 0
 	// Route backend service in local cluster
 	sbcs[beIdx].Name = pool.Service
+	if pool.ServiceNamespace != "" {
+		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
+	}
 	if pool.Weight != nil {
 		sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
 			(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
@@ -2706,6 +2713,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 		beIdx++
 		sbcs[beIdx].Name = pool.Service
+		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
 				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
@@ -2721,6 +2729,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 		for _, svc := range pool.AlternateBackends {
 			beIdx = beIdx + 1
 			sbcs[beIdx].Name = svc.Service
+			sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 			if svc.Weight != nil {
 				sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
 					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
@@ -2732,6 +2741,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 			if ctlr.multiClusterConfigs.HAPairClusterName != "" {
 				beIdx = beIdx + 1
 				sbcs[beIdx].Name = svc.Service
+				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
 						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
@@ -2765,11 +2775,41 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	return sbcs
 }
 
-// updateClusterAdminStateForPoolMembers updates the admin state of pool members based on the cluster admin state
-func (ctlr *Controller) updateClusterAdminStateForPoolMembers(poolMembers *[]PoolMember, clusterName string) {
-	if adminState, ok := ctlr.clusterAdminState[clusterName]; ok && adminState != "" {
-		for i := 0; i < len(*poolMembers); i++ {
+// updatePoolMembersConfig updates the common config related to pool members
+func (ctlr *Controller) updatePoolMembersConfig(poolMembers *[]PoolMember, clusterName string, podConnections int32) {
+	for i := 0; i < len(*poolMembers); i++ {
+		// updates the admin state of pool members based on the cluster admin state
+		if adminState, ok := ctlr.clusterAdminState[clusterName]; ok && adminState != "" {
 			(*poolMembers)[i].AdminState = string(adminState)
 		}
+		// updates the connection limit of pool members based on the pod connections allowed
+		if podConnections != 0 {
+			(*poolMembers)[i].ConnectionLimit = podConnections
+		}
 	}
+}
+
+// formatMonitorNameForMultiCluster formats the monitor name based on the cluster name
+func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, cluster string) string {
+	// Update monitor name only in case of multiCluster ratio mode as in this mode only CIS creates distinct pools for
+	// services in different clusters,thus we need to update the monitor name to make them distinguishable
+	if ctlr.multiClusterMode == "" || len(ctlr.clusterRatio) == 0 {
+		return monitorName
+	}
+	if cluster != "" {
+		// If cluster is specified then append the cluster name to the monitor name
+		monitorName += "_" + cluster
+	} else {
+		// If cluster is not specified then it means that  the monitor is for a pool belonging to the local cluster,
+		// where CIS is running. In this scenario append the local cluster name to the monitor name.
+		// For standalone mode as local cluster name is not specified, append "_local_cluster" to the monitor name.
+		// For all other modes the local cluster name is provided in the extended configmap as Primary/Secondary cluster
+		// details, which is stored in LocalClusterName based on whether the CIS is running in primary or secondary mode.
+		if ctlr.multiClusterMode != StandAloneCIS {
+			monitorName += "_" + ctlr.multiClusterConfigs.LocalClusterName
+		} else {
+			monitorName += "_local_cluster"
+		}
+	}
+	return monitorName
 }

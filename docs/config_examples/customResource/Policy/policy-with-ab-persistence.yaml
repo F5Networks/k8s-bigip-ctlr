@@ -1,0 +1,22 @@
+# multiPoolPersistence is for a/b persistence
+# supported in both CRD, and nextGen mode
+# supported in cluster mode only
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy1
+  namespace: foo
+spec:
+  iRuleList: []
+  iRules: {}
+  l3Policies: {}
+  l7Policies:
+    waf: /Common/WAF_Policy1
+  poolSettings:
+    multiPoolPersistence:
+      # supported values for method: [uieSourceAddress, hashSourceAddress]
+      method: uieSourceAddress
+      # default time out is 180 seconds
+      timeOut: 2

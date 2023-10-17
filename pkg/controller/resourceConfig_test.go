@@ -115,7 +115,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
-			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path", "")
+			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")
 			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
@@ -127,6 +127,51 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("vs_test_com_foo_sample_pool"))
 
 		})
+		It("Monitor Name with MultiCluster mode", func() {
+			// Standalone, no ratio and monitor for local cluster pool
+			mockCtlr.multiClusterMode = StandAloneCIS
+			mockCtlr.clusterRatio = make(map[string]*int)
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			monitorName := "pytest_svc_1_default_foo_example_com_foo_http_80"
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Standalone, no ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Standalone, ratio and monitor for local cluster pool
+			mockCtlr.clusterRatio["cluster3"] = new(int)
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_local_cluster"), "Invalid Monitor Name")
+			// Standalone, ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
+
+			// Primary, no ratio and monitor for local cluster pool
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.clusterRatio = make(map[string]*int)
+			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Primary, no ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Primary, ratio and monitor for local cluster pool
+			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			// Primary, ratio and monitor for external cluster pool
+			mockCtlr.clusterRatio["cluster3"] = new(int) // external cluster ratio
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
+
+			// Secondary, no ratio and monitor for local cluster pool
+			mockCtlr.multiClusterMode = SecondaryCIS
+			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			mockCtlr.clusterRatio = make(map[string]*int)
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Secondary, no ratio and monitor for external cluster pool
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
+			// Secondary, ratio and monitor for local cluster pool
+			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			// Secondary, ratio and monitor for external cluster pool
+			mockCtlr.clusterRatio["cluster3"] = new(int)
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
+
+		})
+
 	})
 
 	Describe("Handle iRules and DataGroups", func() {
@@ -250,12 +295,12 @@ var _ = Describe("Resource Config Tests", func() {
 								Timeout:  10,
 							},
 							Rewrite:         "/bar",
-							MinimumMonitors: intstr.IntOrString{IntVal: 1},
+							MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
 						},
 						{
 							Path:            "/",
 							Service:         "svc2",
-							MinimumMonitors: intstr.IntOrString{StrVal: "all"},
+							MinimumMonitors: intstr.IntOrString{Type: 1, StrVal: "all"},
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -272,8 +317,8 @@ var _ = Describe("Resource Config Tests", func() {
 			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
-			Expect(rsCfg.Pools[0].MinimumMonitors).To(Equal(intstr.IntOrString{IntVal: 1}), "Incorrect minimum monitors defined for pool 0")
-			Expect(rsCfg.Pools[1].MinimumMonitors).To(Equal(intstr.IntOrString{StrVal: "all"}), "Incorrect minimum monitors defined for pool 1")
+			Expect(rsCfg.Pools[0].MinimumMonitors).To(Equal(intstr.IntOrString{Type: 0, IntVal: 1}), "Incorrect minimum monitors defined for pool 0")
+			Expect(rsCfg.Pools[1].MinimumMonitors).To(Equal(intstr.IntOrString{Type: 1, StrVal: "all"}), "Incorrect minimum monitors defined for pool 1")
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 

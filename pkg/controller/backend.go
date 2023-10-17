@@ -831,6 +831,9 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			if val.AdminState != "" {
 				member.AdminState = val.AdminState
 			}
+			if val.ConnectionLimit != 0 {
+				member.ConnectionLimit = val.ConnectionLimit
+			}
 			pool.Members = append(pool.Members, member)
 		}
 		for _, val := range v.MonitorNames {
@@ -852,10 +855,10 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			if v.MinimumMonitors.StrVal != "" || v.MinimumMonitors.IntVal != 0 {
 				pool.MinimumMonitors = v.MinimumMonitors
 			} else {
-				pool.MinimumMonitors = intstr.IntOrString{IntVal: 1}
+				pool.MinimumMonitors = intstr.IntOrString{Type: 0, IntVal: 1}
 			}
 		} else {
-			pool.MinimumMonitors = intstr.IntOrString{StrVal: "all"}
+			pool.MinimumMonitors = intstr.IntOrString{Type: 1, StrVal: "all"}
 		}
 		sharedApp[v.Name] = pool
 	}

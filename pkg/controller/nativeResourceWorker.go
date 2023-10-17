@@ -283,7 +283,8 @@ func (ctlr *Controller) handleInsecureABRoute(rsCfg *ResourceConfig, route *rout
 	)
 	// add the path based AB irule
 	rsCfg.addIRule(
-		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition,
+		ctlr.getPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.MultiPoolPersistence))
 	abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
 		getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
 	rsCfg.Virtual.AddIRule(abPathIRule)
@@ -507,6 +508,13 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			}
 		} else {
 			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+		}
+		// Handle Route pod concurrent connections
+		podConnections, ok := route.ObjectMeta.Annotations[PodConcurrentConnectionsAnnotation]
+		if ok {
+			p, _ := strconv.ParseInt(podConnections, 10, 32)
+			connections := int32(p)
+			pool.ConnectionLimit = connections
 		}
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)

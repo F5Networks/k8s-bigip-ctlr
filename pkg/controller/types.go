@@ -240,6 +240,11 @@ type (
 		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
 		AutoLastHop                string                `json:"lastHop,omitempty"`
 		AnalyticsProfiles          AnalyticsProfiles     `json:"analyticsProfiles,omitempty"`
+		MultiPoolPersistence       MultiPoolPersistence  `json:"multiPoolPersistence,omitempty"`
+	}
+	MultiPoolPersistence struct {
+		Method  string `json:"method,omitempty"`
+		TimeOut int32  `json:"timeOut,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -424,6 +429,7 @@ type (
 		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
 		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
 		Cluster              string                                  `json:"-"`
+		ConnectionLimit      int32                                   `json:"-"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -960,6 +966,7 @@ type (
 		ServicePort      int32    `json:"servicePort,omitempty"`
 		ShareNodes       bool     `json:"shareNodes,omitempty"`
 		AdminState       string   `json:"adminState,omitempty"`
+		ConnectionLimit  int32    `json:"connectionLimit,omitempty"`
 	}
 
 	// as3ResourcePointer maps to following in AS3 Resources
@@ -1104,11 +1111,12 @@ type (
 	}
 
 	PoolMember struct {
-		Address    string `json:"address"`
-		Port       int32  `json:"port"`
-		SvcPort    int32  `json:"svcPort,omitempty"`
-		Session    string `json:"session,omitempty"`
-		AdminState string `json:"adminState,omitempty"`
+		Address         string `json:"address"`
+		Port            int32  `json:"port"`
+		SvcPort         int32  `json:"svcPort,omitempty"`
+		Session         string `json:"session,omitempty"`
+		AdminState      string `json:"adminState,omitempty"`
+		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
 	}
 )
 

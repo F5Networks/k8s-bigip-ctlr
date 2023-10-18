@@ -18,7 +18,7 @@ Added Functionality
     * Support for AS3 GTM agent with separate GTM server
     * Support for /ready endpoint to check the CIS health
     * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode.See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_
-    * Add support for AS3 3.48.0
+    * Add support for AS3 3.47.0
 Bug Fixes
 ````````````
 * `Issue 3057 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3057>`_: Support for pool settings for reslect with policy CR.
@@ -120,7 +120,7 @@ Added Functionality
     * New parameter --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
     * Support for kubernetes 1.27
     * Support for operator in openshift 4.12
-    * Support for AS3 3.48.0
+    * Support for AS3 3.47.0
 
 Bug Fixes
 ````````````

@@ -19,12 +19,13 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
@@ -124,9 +125,9 @@ const (
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
 	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
-	as3Version        = 3.48
-	defaultAS3Version = "3.48.0"
-	defaultAS3Build   = "5"
+	as3Version        = 3.47
+	defaultAS3Version = "3.47.0"
+	defaultAS3Build   = "8"
 	clusterHealthPath = "/readyz"
 )
 

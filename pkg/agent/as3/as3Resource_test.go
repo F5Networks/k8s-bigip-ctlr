@@ -200,7 +200,7 @@ var _ = Describe("AS3Manager Tests", func() {
 		Expect(DeepEqualJSON(mockMgr.as3ActiveConfig.unifiedDeclaration, unifiedDecl)).To(BeTrue())
 
 		// verify with multiple client ssl profiles
-		mockMgr.bigIPAS3Version = 3.48
+		mockMgr.bigIPAS3Version = 3.47
 		clientSecret2 := SecretKey{Name: "test-client-secret2", ResourceName: "test_virtual_secure"}
 		clientSecret3 := SecretKey{Name: "test-server-secret3", ResourceName: "test_virtual_secure"}
 		mockMgr.Profs[clientSecret2] = CustomProfile{

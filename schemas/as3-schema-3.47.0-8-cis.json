@@ -53,6 +53,8 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.47.0",
+            "3.46.0",
             "3.45.0",
             "3.44.0",
             "3.43.0",
@@ -740,7 +742,6 @@
               "Service_Address",
               "SNAT_Pool",
               "SNAT_Translation",
-              "iRule",
               "WAF_Policy",
               "Persist",
               "Pool",
@@ -760,7 +761,6 @@
               "Multiplex_Profile",
               "SOCKS_Profile",
               "TCP_Profile",
-              "L4_Profile",
               "Classification_Profile",
               "Radius_Profile",
               "IP_Other_Profile",
@@ -799,13 +799,13 @@
               "GSLB_Topology_Region",
               "ALG_Log_Profile",
               "Security_Log_Profile",
-              "Log_Destination",
               "Traffic_Log_Profile",
               "Endpoint_Policy",
               "Endpoint_Strategy",
               "Bandwidth_Control_Policy",
               "Idle_Timeout_Policy",
               "Net_Address_List",
+              "Net_Port_List",
               "Enforcement_Policy",
               "Enforcement_Diameter_Endpoint_Profile",
               "Enforcement_iRule",
@@ -827,6 +827,9 @@
               "HTTP_Compress",
               "HTTP_Profile",
               "HTTP2_Profile",
+              "iRule",
+              "L4_Profile",
+              "Log_Destination",
               "Log_Publisher",
               "UDP_Profile"
             ]
@@ -963,18 +966,6 @@
             },
             "then": {
               "$ref": "#/definitions/SNAT_Translation"
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "class": {
-                  "const": "iRule"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/iRule"
             }
           },
           {
@@ -1203,18 +1194,6 @@
             },
             "then": {
               "$ref": "#/definitions/TCP_Profile"
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "class": {
-                  "const": "L4_Profile"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/L4_Profile"
             }
           },
           {
@@ -1677,18 +1656,6 @@
             "if": {
               "properties": {
                 "class": {
-                  "const": "Log_Destination"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/Log_Destination"
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "class": {
                   "const": "Traffic_Log_Profile"
                 }
               }
@@ -1755,6 +1722,18 @@
             },
             "then": {
               "$ref": "#/definitions/Net_Address_List"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Net_Port_List"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Net_Port_List"
             }
           },
           {
@@ -2013,6 +1992,42 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "iRule"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/IRule"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "L4_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/L4_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Log_Destination"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Log_Destination"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "Log_Publisher"
                 }
               }
@@ -2255,8 +2270,28 @@
         },
         "virtualPort": {
           "title": "Virtual server TCP port",
-          "description": "Default 80 is well-known HTTP port",
-          "type": "integer",
+          "description": "Default 80 is well-known HTTP port. Accepts either an integer or a reference to a Firewall_Port_List that contains the ports on which to listen. Firewall_Port_List is only supported on BIG-IP 14.1 and later. If a Firewall_Port_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Port_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           "default": 80
         }
       },
@@ -2314,8 +2349,28 @@
         },
         "virtualPort": {
           "title": "Virtual server TCP port",
-          "description": "Default 443 is well-known HTTPS port",
-          "type": "integer",
+          "description": "Default 443 is well-known HTTPS port. Accepts either an integer or a reference to a Firewall_Port_List that contains the ports on which to listen. Firewall_Port_List is only supported on BIG-IP 14.1 and later. If a Firewall_Port_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Port_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           "default": 443
         },
         "redirect80": {
@@ -2792,8 +2847,28 @@
         },
         "virtualPort": {
           "title": "virtual server TCP port",
-          "description": "virtual server TCP port",
-          "type": "integer",
+          "description": "Accepts either an integer or a reference to a Firewall_Port_List that contains the ports on which to listen. Firewall_Port_List is only supported on BIG-IP 14.1 and later. If a Firewall_Port_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Port_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           "minimum": 0,
           "maximum": 65535
         },
@@ -3177,8 +3252,28 @@
         },
         "virtualPort": {
           "title": "Virtual server UDP port",
-          "description": "Virtual server UDP port",
-          "type": "integer",
+          "description": "Accepts either an integer or a reference to a Firewall_Port_List that contains the ports on which to listen. Firewall_Port_List is only supported on BIG-IP 14.1 and later. If a Firewall_Port_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Port_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           "minimum": 0,
           "maximum": 65535
         },
@@ -3360,8 +3455,28 @@
         },
         "virtualPort": {
           "title": "virtual server SCTP port",
-          "description": "virtual server port",
-          "type": "integer",
+          "description": "Accepts either an integer or a reference to a Firewall_Port_List that contains the ports on which to listen. Firewall_Port_List is only supported on BIG-IP 14.1 and later. If a Firewall_Port_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Port_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           "minimum": 0,
           "maximum": 65535
         },
@@ -3466,8 +3581,28 @@
       "properties": {
         "virtualPort": {
           "title": "virtual server TCP port",
-          "description": "virtual server port",
-          "type": "integer",
+          "description": "Accepts either an integer or a reference to a Firewall_Port_List that contains the ports on which to listen. Firewall_Port_List is only supported on BIG-IP 14.1 and later. If a Firewall_Port_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Port_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           "minimum": 0,
           "maximum": 65535
         },
@@ -3800,47 +3935,67 @@
         },
         "virtualAddresses": {
           "title": "Virtual addresses",
-          "description": "Virtual server will listen to each IP address in list.  To accept connections only from certain subnet(s), replace IP address with array [IP-address, accept-from-subnet]. IP address can also be replaced by a reference to a Service_Address.",
-          "type": "array",
-          "f5PostProcess": {
-            "tag": "virtualAddress"
-          },
-          "items": {
-            "if": {
-              "type": "string"
-            },
-            "then": {
-              "format": "f5ip"
-            },
-            "else": {
-              "if": {
-                "type": "array"
+          "description": "Accepts either an array or a reference to an Address_List which contains destination addresses to which this virtual will listen. To accept connections only from certain subnet(s), replace IP address in the provided array with array [IP-address, accept-from-subnet]. If you do this, you cannot also include the sourceAddress property. IP address in the provided array can also be replaced by a reference to a Service_Address. A reference to an Address_List is only supported on BIG-IP 14.1 and later. If an Address_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual.",
+          "oneOf": [
+            {
+              "type": "array",
+              "f5PostProcess": {
+                "tag": "virtualAddress"
               },
-              "then": {
-                "type": "array",
-                "items": {
-                  "title": "Virtual address",
+              "items": {
+                "if": {
+                  "type": "string"
+                },
+                "then": {
+                  "format": "f5ip"
+                },
+                "else": {
                   "if": {
-                    "type": "string"
+                    "type": "array"
                   },
                   "then": {
-                    "format": "f5ip"
+                    "type": "array",
+                    "items": {
+                      "title": "Virtual address",
+                      "if": {
+                        "type": "string"
+                      },
+                      "then": {
+                        "format": "f5ip"
+                      },
+                      "else": {
+                        "$ref": "#/definitions/Pointer_Service_Address"
+                      }
+                    },
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "uniqueItems": true
                   },
                   "else": {
                     "$ref": "#/definitions/Pointer_Service_Address"
                   }
-                },
-                "minItems": 2,
-                "maxItems": 2,
-                "uniqueItems": true
+                }
               },
-              "else": {
-                "$ref": "#/definitions/Pointer_Service_Address"
-              }
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Address_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
             }
-          },
-          "minItems": 1,
-          "uniqueItems": true
+          ]
         },
         "serviceDownImmediateAction": {
           "title": "Service Down Immediate Action",
@@ -3861,9 +4016,29 @@
         },
         "sourceAddress": {
           "title": "Source address",
-          "description": "Accept connections only from these subnet(s). Only allowed if virtualType is internal, otherwise use virtualAddresses.",
-          "type": "string",
-          "format": "f5ip"
+          "description": "Accepts either a string or a reference to an Address_List which contains source addresses from which this virtual will listen. A reference to an Address_List is only supported on BIG-IP 14.1 and later. If an Address_List is provided, BIG-IP AS3 will create a traffic-matching-criteria for the virtual. If you also include the virtualAddresses property, those addresses cannot include the accept-from-subnet field.",
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "f5ip"
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Pointer_Address_List"
+                },
+                {
+                  "f5PostProcess": {
+                    "tag": "minVersion",
+                    "data": {
+                      "version": "14.1",
+                      "strict": true
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         },
         "enable": {
           "title": "Enable",
@@ -4515,8 +4690,30 @@
           "then": {
             "required": [
               "virtualAddresses"
-            ],
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "virtualAddresses": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "required": [
+              "virtualAddresses"
+            ]
+          },
+          "then": {
             "not": {
+              "properties": {
+                "sourceAddress": {}
+              },
               "required": [
                 "sourceAddress"
               ]
@@ -4803,64 +5000,9 @@
         "address"
       ]
     },
-    "iRule": {
-      "title": "iRule",
-      "description": "An iRule",
-      "type": "object",
-      "properties": {
-        "class": {
-          "title": "Class",
-          "type": "string",
-          "const": "iRule"
-        },
-        "label": {
-          "$ref": "#/definitions/Label"
-        },
-        "remark": {
-          "$ref": "#/definitions/Remark"
-        },
-        "expand": {
-          "title": "Expand",
-          "description": "If true (default), expand backquoted variables in iRule",
-          "type": "boolean",
-          "default": true
-        },
-        "iRule": {
-          "$ref": "#/definitions/iRule_Core"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "class",
-        "iRule"
-      ]
-    },
-    "iRule_Core": {
-      "title": "iRule Core definition",
-      "description": "Reference to an iRule or text of an iRule",
-      "allOf": [
-        {
-          "$ref": "#/definitions/F5string"
-        },
-        {
-          "f5PostProcess": {
-            "tag": "expand",
-            "data": {
-              "when": "1/expand"
-            }
-          }
-        },
-        {
-          "f5PostProcess": {
-            "tag": "fetch",
-            "data": "string"
-          }
-        }
-      ]
-    },
     "WAF_Policy": {
       "title": "WAF_Policy",
-      "description": "A Web Application Firewall Policy",
+      "description": "A Web Application Firewall Policy. Supports both traditional and advanced WAF policies. Advanced WAF policies require TMOS version 16.0 or newer.",
       "type": "object",
       "f5PostProcess": {
         "tag": "modules",
@@ -4938,7 +5080,7 @@
         },
         "enforcementMode": {
           "title": "Enforcement Mode",
-          "description": "Overrides the enforcement mode setting of the WAF policy",
+          "description": "Overrides the enforcement mode setting of the WAF policy. Ignored on Advanced WAF policies",
           "type": "string",
           "enum": [
             "blocking",
@@ -4947,7 +5089,7 @@
         },
         "serverTechnologies": {
           "title": "Server Technologies",
-          "description": "Define server technologies for the WAF Policy, such as Java Servlets or Apache Struts",
+          "description": "Define server technologies for the WAF Policy, such as Java Servlets or Apache Struts. Ignored on Advanced WAF policies",
           "type": "array",
           "items": {
             "title": "Server Technology",
@@ -4957,13 +5099,24 @@
         },
         "disabledSignatures": {
           "title": "Disabled attack signatures",
-          "description": "Disable various attack signatures by ID.",
+          "description": "Disable various attack signatures by ID. Ignored on Advanced WAF policies",
           "type": "array",
           "items": {
             "title": "Attack Signature ID",
             "type": "integer",
             "minimum": 200000000,
             "maximum": 399999999
+          },
+          "uniqueItems": true
+        },
+        "expand": {
+          "title": "Expand",
+          "description": "Performs AS3 string expansion on specified values within the WAF Policy. WAF Policies that are not in JSON format will be ignored",
+          "type": "array",
+          "items": {
+            "title": "JSON pointer",
+            "description": "A JSON pointer to a value within the WAF Policy that requires AS3 string expansion. Pointing to a parent property results in AS3 traversing the sub-properties and expanding any strings that it may find",
+            "type": "string"
           },
           "uniqueItems": true
         }
@@ -5704,6 +5857,9 @@
             "tag": "node"
           }
         },
+        "metadata": {
+          "$ref": "#/definitions/Metadata"
+        },
         "reselectTries": {
           "title": "Reselect tries",
           "description": "Maximum number of attempts to find a responsive member for a connection",
@@ -6135,6 +6291,9 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 63
+        },
+        "metadata": {
+          "$ref": "#/definitions/Metadata"
         },
         "adminState": {
           "title": "Administration State",
@@ -8776,6 +8935,18 @@
             }
           ],
           "default": "indefinite"
+        },
+        "sslSignHash": {
+          "title": "SSL Sign Hash",
+          "description": "Specifies SSL sign hash algorithm which is used to sign and verify SSL Server Key Exchange and Certificate Verify messages for the specified SSL profiles.",
+          "type": "string",
+          "enum": [
+            "any",
+            "sha1",
+            "sha256",
+            "sha384"
+          ],
+          "default": "any"
         }
       },
       "additionalProperties": false,
@@ -9290,6 +9461,18 @@
             }
           ],
           "default": "indefinite"
+        },
+        "sslSignHash": {
+          "title": "SSL Sign Hash",
+          "description": "Specifies SSL sign hash algorithm which is used to sign and verify SSL Server Key Exchange and Certificate Verify messages for the specified SSL profiles.",
+          "type": "string",
+          "enum": [
+            "any",
+            "sha1",
+            "sha256",
+            "sha384"
+          ],
+          "default": "any"
         }
       },
       "allOf": [
@@ -10455,9 +10638,16 @@
         },
         "routeDomain": {
           "description": "The route domain that will be used for outbound connect requests",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 65534,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65534
+            },
+            {
+              "type": "string"
+            }
+          ],
           "default": 0
         },
         "tunnelName": {
@@ -11181,120 +11371,6 @@
       "f5aliases": {
         "synCookieAllowlist": "synCookieWhitelist"
       }
-    },
-    "L4_Profile": {
-      "title": "L4_Profile",
-      "description": "Configures a Fast Layer 4 profile",
-      "type": "object",
-      "properties": {
-        "class": {
-          "title": "Class",
-          "type": "string",
-          "const": "L4_Profile"
-        },
-        "label": {
-          "$ref": "#/definitions/Label"
-        },
-        "remark": {
-          "$ref": "#/definitions/Remark"
-        },
-        "clientTimeout": {
-          "title": "Client timeout",
-          "description": "Number of seconds allowed for a client to transmit enough data to select a server when you have late binding enabled. Value -1 means indefinite (not recommended)",
-          "type": "integer",
-          "minimum": -1,
-          "maximum": 86400,
-          "default": 30
-        },
-        "idleTimeout": {
-          "title": "Idle timeout",
-          "description": "Number of seconds (default 300; may not be 0) connection may remain idle before it becomes eligible for deletion.  Value -1 (not recommended) means infinite",
-          "type": "integer",
-          "anyOf": [
-            {
-              "minimum": 1,
-              "maximum": 86400
-            },
-            {
-              "const": -1
-            }
-          ],
-          "default": 300
-        },
-        "keepAliveInterval": {
-          "title": "Keep-alive interval",
-          "description": "Number of seconds between keep-alive probes. A value of 0 seconds disables the feature.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4294967295,
-          "default": 0
-        },
-        "looseClose": {
-          "title": "Loose close",
-          "description": "When true, system closes a loosely-initiated connection when the system receives the first FIN packet from either the client or the server (default false).",
-          "type": "boolean",
-          "default": false
-        },
-        "looseInitialization": {
-          "title": "Loose initialization",
-          "description": "When true, system initializes a connection when it receives any TCP packet, rather than requiring a SYN packet for connection initiation (default false).",
-          "type": "boolean",
-          "default": false
-        },
-        "maxSegmentSize": {
-          "title": "MSS",
-          "description": "Sets MSS advertised to peer.  Value 0 (default) will set MSS automatically in proportion to interface MTU.  Default 0 is usually the best choice",
-          "type": "integer",
-          "anyOf": [
-            {
-              "minimum": 256,
-              "maximum": 9162
-            },
-            {
-              "const": 0
-            }
-          ],
-          "default": 0
-        },
-        "resetOnTimeout": {
-          "title": "Reset on timeout",
-          "description": "If true (default), connections which time out will be reset (that is, the system sends an RST packet to the peer) before the system expunges them",
-          "type": "boolean",
-          "default": true
-        },
-        "synCookieAllowlist": {
-          "title": "Syn Cookie Allowlist",
-          "description": "Specifies whether or not to use a SYN Cookie Allowlist when doing software SYN Cookies. This means not doing a SYN Cookie for the same src IP address if it has been done already in the previous tm.flowstate.timeout (30) seconds. The default value is disabled.",
-          "type": "boolean",
-          "default": false
-        },
-        "synCookieEnable": {
-          "title": "SYN cookie enable",
-          "description": "Enables syn-cookies capability on this virtual server. If true (default), the system may use SYN cookies to avert connection-table overflow (for example, from DoS attacks)",
-          "type": "boolean",
-          "default": true
-        },
-        "tcpCloseTimeout": {
-          "title": "TCP Close timeout",
-          "description": "Specifies an TCP close timeout in seconds.  Value -1 means indefinite (not recommended)",
-          "type": "integer",
-          "minimum": -1,
-          "maximum": 86400,
-          "default": 5
-        },
-        "tcpHandshakeTimeout": {
-          "title": "TCP Handshake timeout",
-          "description": "Specifies a TCP handshake timeout in seconds. The default value is 5 seconds.  Value -1 means indefinite (not recommended)",
-          "type": "integer",
-          "minimum": -1,
-          "maximum": 86400,
-          "default": 5
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "class"
-      ]
     },
     "Classification_Profile": {
       "title": "Classification_Profile",
@@ -13695,34 +13771,40 @@
                 "description": "The name of the service type",
                 "type": "string",
                 "enum": [
-                  "dhcp",
-                  "dns",
-                  "gtp",
-                  "imap",
-                  "mqtt",
-                  "netbios_ns",
-                  "nntp",
-                  "pop3",
-                  "sip",
-                  "snmp",
-                  "ssl",
-                  "telnet",
-                  "wins",
-                  "diameter",
-                  "ftp",
-                  "http",
-                  "irc",
-                  "mysql",
-                  "netbios_ssn",
-                  "other",
-                  "radius",
-                  "smtp",
-                  "ssh",
-                  "sunrpc",
-                  "tftp",
+                  "boxp",
                   "coap",
+                  "dhcp",
+                  "diameter",
+                  "dns",
+                  "ftp",
+                  "gtp",
+                  "http",
+                  "imap",
+                  "ipsec",
+                  "irc",
+                  "mqtt",
+                  "mysql",
+                  "netbios_ns",
+                  "netbios_ssn",
+                  "nntp",
                   "oracle",
-                  "pfcp"
+                  "other",
+                  "pfcp",
+                  "pop3",
+                  "radius",
+                  "rdp",
+                  "rmi",
+                  "rsh",
+                  "sip",
+                  "smtp",
+                  "snmp",
+                  "ssh",
+                  "ssl",
+                  "sunrpc",
+                  "telnet",
+                  "tftp",
+                  "thrift",
+                  "wins"
                 ]
               },
               "compliance": {
@@ -18211,7 +18293,7 @@
           "default": true
         },
         "iRule": {
-          "$ref": "#/definitions/iRule_Core"
+          "$ref": "#/definitions/IRule_Core"
         }
       },
       "additionalProperties": false,
@@ -22264,258 +22346,6 @@
       },
       "additionalProperties": false
     },
-    "Log_Destination": {
-      "title": "Log_Destination",
-      "description": "Configures a log destination",
-      "type": "object",
-      "properties": {
-        "class": {
-          "title": "Class",
-          "type": "string",
-          "const": "Log_Destination"
-        },
-        "label": {
-          "$ref": "#/definitions/Label"
-        },
-        "remark": {
-          "$ref": "#/definitions/Remark"
-        },
-        "type": {
-          "description": "The type of the log destination",
-          "type": "string",
-          "enum": [
-            "management-port",
-            "remote-high-speed-log",
-            "remote-syslog",
-            "splunk"
-          ]
-        }
-      },
-      "required": [
-        "class",
-        "type"
-      ],
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "management-port"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Log_Destination_Management_Port"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "remote-syslog"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Log_Destination_Remote_Syslog"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "remote-high-speed-log"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Log_Destination_Remote_High_Speed_Log"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "splunk"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Log_Destination_Splunk"
-          }
-        }
-      ]
-    },
-    "Log_Destination_Management_Port": {
-      "description": "Sends received messages to a specified IP address and port through the management interface",
-      "type": "object",
-      "properties": {
-        "address": {
-          "description": "Specifies the IP address that will receive messages from the specified local Log Destination",
-          "type": "string",
-          "format": "f5ip"
-        },
-        "port": {
-          "description": "Specifies the port of the IP address that will receive messages from the specified local Log Destination ",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 65535
-        },
-        "protocol": {
-          "description": "Specifies the protocol for the system to use to send logs to the specified location",
-          "type": "string",
-          "enum": [
-            "tcp",
-            "udp"
-          ],
-          "default": "tcp"
-        }
-      },
-      "required": [
-        "address",
-        "port"
-      ]
-    },
-    "Log_Destination_Remote_Syslog": {
-      "description": "Configures Remote Syslog destinations to format log messages into Syslog format and forward them to a Remote High-Speed Log destination",
-      "type": "object",
-      "properties": {
-        "format": {
-          "description": "Specifies the method to use to format the logs",
-          "type": "string",
-          "enum": [
-            "legacy-bigip",
-            "rfc3164",
-            "rfc5424"
-          ],
-          "default": "rfc3164"
-        },
-        "defaultFacility": {
-          "description": "Specifies the facility given to log messages received that do not already have a facility listed",
-          "type": "string",
-          "enum": [
-            "local0",
-            "local1",
-            "local2",
-            "local3",
-            "local4",
-            "local5",
-            "local6",
-            "local7"
-          ],
-          "default": "local0"
-        },
-        "defaultSeverity": {
-          "description": "Specifies the severity given to log messages received that do not already have a severity listed",
-          "type": "string",
-          "enum": [
-            "alert",
-            "crit",
-            "debug",
-            "emerg",
-            "err",
-            "info",
-            "notice",
-            "warn"
-          ],
-          "default": "info"
-        },
-        "remoteHighSpeedLog": {
-          "description": "Specifies a remote high-speed log destination, which the system uses to forward the logs to a pool of remote log servers",
-          "type": "object",
-          "properties": {
-            "use": {
-              "title": "Use",
-              "description": "BIG-IP AS3 pointer to remote high speed log declaration",
-              "type": "string",
-              "minLength": 1,
-              "f5PostProcess": {
-                "tag": "pointer",
-                "data": {
-                  "properties": {
-                    "class": {
-                      "const": "Log_Destination"
-                    },
-                    "type": {
-                      "const": "remote-high-speed-log"
-                    }
-                  },
-                  "required": [
-                    "class"
-                  ]
-                }
-              }
-            },
-            "bigip": {
-              "title": "BIG-IP remote high speed log",
-              "description": "Pathname of existing BIG-IP remote high speed log",
-              "type": "string",
-              "format": "f5bigip"
-            }
-          },
-          "additionalProperties": false,
-          "minProperties": 1,
-          "maxProperties": 1,
-          "f5PostProcess": {
-            "tag": "bigComponent",
-            "data": [
-              "query sys log-config destination remote-high-speed-log"
-            ]
-          }
-        }
-      },
-      "required": [
-        "remoteHighSpeedLog"
-      ]
-    },
-    "Log_Destination_Remote_High_Speed_Log": {
-      "description": "Sends received messages to a specified pool",
-      "type": "object",
-      "properties": {
-        "distribution": {
-          "description": "Specifies the distribution method used to send messages to pool members",
-          "type": "string",
-          "enum": [
-            "adaptive",
-            "balanced",
-            "replicated"
-          ],
-          "default": "adaptive"
-        },
-        "protocol": {
-          "description": "Specifies the protocol for the system to use to send logs to the pool",
-          "type": "string",
-          "enum": [
-            "tcp",
-            "udp"
-          ],
-          "default": "tcp"
-        },
-        "pool": {
-          "$ref": "#/definitions/Pointer_Pool"
-        }
-      },
-      "required": [
-        "pool"
-      ]
-    },
-    "Log_Destination_Splunk": {
-      "description": "Configures Splunk formatting destinations to format incoming log messages into Splunk format",
-      "type": "object",
-      "properties": {
-        "forwardTo": {
-          "description": "Specifies the log destination to which logs are forwarded",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Pointer_Log_Destination"
-            }
-          ]
-        }
-      },
-      "required": [
-        "forwardTo"
-      ]
-    },
     "Traffic_Log_Profile": {
       "title": "Traffic_Log_Profile",
       "description": "A traffic log profile",
@@ -22902,6 +22732,7 @@
             "httpHeader",
             "httpRedirect",
             "httpUri",
+            "botDefense",
             "waf",
             "forward",
             "drop",
@@ -22935,6 +22766,18 @@
           },
           "then": {
             "$ref": "#/definitions/Policy_Action_WAF"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "botDefense"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Policy_Action_Bot_Defense"
           }
         },
         {
@@ -23013,7 +22856,7 @@
           "if": {
             "properties": {
               "type": {
-                "const": "serverSsl"
+                "const": "clientSsl"
               }
             }
           },
@@ -23106,6 +22949,26 @@
       },
       "required": []
     },
+    "Policy_Action_Bot_Defense": {
+      "type": "object",
+      "description": "Enable or disable Unified Bot Defense processing",
+      "properties": {
+        "event": {
+          "type": "string",
+          "description": "When to run this event in the request-response cycle",
+          "enum": [
+            "client-accepted",
+            "proxy-request",
+            "request"
+          ],
+          "default": "request"
+        },
+        "profile": {
+          "$ref": "#/definitions/Pointer_Bot_Defense_Profile"
+        }
+      },
+      "required": []
+    },
     "Policy_Action_Drop": {
       "type": "object",
       "description": "Reset connection",
@@ -23176,6 +23039,7 @@
               "type": "string",
               "description": "When to run this event in the request-response cycle",
               "enum": [
+                "client-accepted",
                 "ssl-client-hello",
                 "request"
               ],
@@ -23969,13 +23833,14 @@
           "description": "Selects the LTM policy condition this object describes",
           "type": "string",
           "enum": [
+            "geoip",
+            "httpCookie",
             "httpHeader",
+            "httpHost",
             "httpMethod",
             "httpUri",
-            "httpCookie",
             "sslExtension",
-            "tcp",
-            "geoip"
+            "tcp"
           ]
         }
       },
@@ -24002,6 +23867,18 @@
           },
           "then": {
             "$ref": "#/definitions/Policy_Condition_HTTP_Header"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "httpHost"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Policy_Condition_HTTP_Host"
           }
         },
         {
@@ -24362,6 +24239,79 @@
               "required": [
                 "all",
                 "name"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Policy_Condition_HTTP_Host": {
+      "description": "Match against an HTTP request's Host header",
+      "type": "object",
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "event": {
+              "description": "When to evaluate this condition in the request-response cycle",
+              "type": "string",
+              "enum": [
+                "proxy-request",
+                "request",
+                "proxy-connect"
+              ],
+              "default": "proxy-request"
+            }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "all": {
+                  "description": "Match against the full string of the Host header",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_String"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "host": {
+                  "description": "Match against the host of the Host header",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_String"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "host"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "port": {
+                  "description": "Match against the port of the Host header",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_Number"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "port"
               ]
             }
           ]
@@ -25284,6 +25234,59 @@
         {
           "required": [
             "addressLists"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "Net_Port_List": {
+      "title": "Net_Port_List",
+      "description": "You can use the port-list component to define reusable lists of ports. This property requires a BIG-IP version of 14.1 or higher.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Net_Port_List"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "ports": {
+          "type": "array",
+          "description": "A list of ports and port ranges (for example, 80, \"8080-8090\").",
+          "items": {
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "minItems": 1
+        },
+        "portLists": {
+          "type": "array",
+          "description": "A list of other port lists (each by BIG-IP AS3 pointer or BIG-IP pathname).",
+          "items": {
+            "$ref": "#/definitions/Pointer_Net_Port_List"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "ports"
+          ]
+        },
+        {
+          "required": [
+            "portLists"
           ]
         }
       ],
@@ -26566,7 +26569,7 @@
           "default": true
         },
         "iRule": {
-          "$ref": "#/definitions/iRule_Core"
+          "$ref": "#/definitions/IRule_Core"
         }
       },
       "additionalProperties": false,
@@ -28826,6 +28829,35 @@
         }
       ]
     },
+    "Pointer_Firewall_Port_List": {
+      "description": "Reference to a firewall port list",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to firewall port list declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "Firewall_Port_List"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1
+    },
     "Pointer_Firewall_Rule_List": {
       "description": "Reference to a firewall rule list",
       "type": "object",
@@ -29784,6 +29816,50 @@
         }
       ]
     },
+    "Pointer_Net_Port_List": {
+      "description": "Reference to a net port list",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to net port list declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "Net_Port_List"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP net port list",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query net port-list"
+            ]
+          }
+        }
+      ]
+    },
     "Pointer_Persist_Profile": {
       "description": "Reference to a Persist Profile",
       "type": "object",
@@ -30031,50 +30107,6 @@
             "tag": "bigComponent",
             "data": [
               "query ltm profile ipother"
-            ]
-          }
-        }
-      ]
-    },
-    "Pointer_L4_Profile": {
-      "description": "Reference to a fast L4 profile",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to fast L4 profile declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5PostProcess": {
-            "tag": "pointer",
-            "data": {
-              "properties": {
-                "class": {
-                  "enum": [
-                    "L4_Profile"
-                  ]
-                }
-              },
-              "required": [
-                "class"
-              ]
-            }
-          }
-        },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP fast L4 profile",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
-        {
-          "f5PostProcess": {
-            "tag": "bigComponent",
-            "data": [
-              "query ltm profile fastl4"
             ]
           }
         }
@@ -30651,6 +30683,52 @@
             "tag": "bigComponent",
             "data": [
               "query ltm profile server-ssl"
+            ]
+          }
+        }
+      ]
+    },
+    "Pointer_Port_List": {
+      "description": "Reference to a firewall port list or net port list",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to firewall port list or net port list declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "Firewall_Port_List",
+                    "Net_Port_List"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP firewall port list or net port list",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query security firewall port-list",
+              "query net port-list"
             ]
           }
         }
@@ -31479,11 +31557,7 @@
           "$ref": "#/definitions/Remark"
         },
         "captureFilter": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/Capture_Filter"
-            }
-          ],
+          "$ref": "#/definitions/Capture_Filter",
           "default": {}
         },
         "collectGeo": {
@@ -32931,7 +33005,8 @@
           "minProperties": 1,
           "maxProperties": 1
         }
-      ]
+      ],
+      "errorMessage": "must be a string or an object with a single property of 'text', 'base64', 'url', or 'copyFrom'. Example formats: 'your_string', { \"text\": \"your_string\" }, { \"base64\": \"base64_value\" }, { \"url\": \"your_url\" }, or { \"copyFrom\": \"pointer_value\" }"
     },
     "HTTP_Acceleration_Profile": {
       "title": "HTTP acceleration profile",
@@ -32976,7 +33051,7 @@
           "default": true
         },
         "maximumAge": {
-          "description": "How long the system will consider the cached content will be valid",
+          "description": "How long (in seconds) the system will consider the cached content valid",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -32990,7 +33065,7 @@
           "default": 10000
         },
         "maximumObjectSize": {
-          "description": "The largest object that the system will cache",
+          "description": "The largest object (in bytes) that the system will cache",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -32998,24 +33073,20 @@
         },
         "metadataMaxSize": {
           "default": 25,
-          "description": "The maximum size of the metadata cache",
+          "description": "The maximum size (in megabytes) of the metadata cache",
           "maximum": 4294967295,
           "minimum": 0,
           "type": "integer"
         },
         "minimumObjectSize": {
-          "description": "The smallest object that the system will cache",
+          "description": "The smallest object (in bytes) that the system will cache",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "default": 500
         },
         "parentProfile": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/Pointer_HTTP_Acceleration_Profile"
-            }
-          ],
+          "$ref": "#/definitions/Pointer_HTTP_Acceleration_Profile",
           "default": {
             "bigip": "/Common/webacceleration"
           },
@@ -34125,9 +34196,64 @@
       ],
       "additionalProperties": false
     },
+    "IRule": {
+      "title": "iRule",
+      "type": "object",
+      "description": "iRule definition with configurable options",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "iRule"
+        },
+        "expand": {
+          "title": "Expand",
+          "description": "If true (default), expand backquoted variables in iRule",
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "iRule": {
+          "$ref": "#/definitions/IRule_Core"
+        }
+      },
+      "required": [
+        "class",
+        "iRule"
+      ],
+      "additionalProperties": false
+    },
+    "IRule_Core": {
+      "title": "iRule Core definition",
+      "description": "Reference to an iRule or text of an iRule",
+      "allOf": [
+        {
+          "$ref": "#/definitions/F5_String"
+        },
+        {
+          "f5PostProcess": {
+            "tag": "expand",
+            "data": {
+              "when": "1/expand"
+            }
+          }
+        },
+        {
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "string"
+          }
+        }
+      ]
+    },
     "JWE": {
       "title": "JWE cryptogram",
-      "description": "A value in a cryptogram which is a Flattened JWE JSON Serialization object.  If 'miniJWE' is true then enc=(none|f5sv) only (in JOSE header)",
+      "description": "A value in a cryptogram which is a Flattened JWE JSON Serialization object. If 'miniJWE' is true then enc=(none|f5sv) only (in JOSE header)",
       "type": "object",
       "properties": {
         "ciphertext": {
@@ -34168,6 +34294,378 @@
       },
       "required": [
         "protected"
+      ]
+    },
+    "L4_Profile": {
+      "title": "L4 Profile",
+      "description": "Configures a Fast Layer 4 profile",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "L4_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "clientTimeout": {
+          "title": "Client timeout",
+          "description": "Number of seconds allowed for a client to transmit enough data to select a server when you have late binding enabled. Value -1 means indefinite (not recommended)",
+          "type": "integer",
+          "maximum": 86400,
+          "minimum": -1,
+          "default": 30
+        },
+        "idleTimeout": {
+          "title": "Idle timeout",
+          "description": "Number of seconds (default 300; may not be 0) connection may remain idle before it becomes eligible for deletion. Value -1 (not recommended) means infinite",
+          "type": "integer",
+          "default": 300,
+          "anyOf": [
+            {
+              "maximum": 86400,
+              "minimum": 1
+            },
+            {
+              "const": -1
+            }
+          ]
+        },
+        "keepAliveInterval": {
+          "title": "Keep-alive interval",
+          "description": "Number of seconds between keep-alive probes. A value of 0 seconds disables the feature.",
+          "type": "integer",
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0
+        },
+        "looseClose": {
+          "title": "Loose close",
+          "description": "When true, system closes a loosely-initiated connection when the system receives the first FIN packet from either the client or the server (default false).",
+          "type": "boolean",
+          "default": false
+        },
+        "looseInitialization": {
+          "title": "Loose initialization",
+          "description": "When true, system initializes a connection when it receives any TCP packet, rather than requiring a SYN packet for connection initiation (default false).",
+          "type": "boolean",
+          "default": false
+        },
+        "maxSegmentSize": {
+          "title": "MSS",
+          "description": "Sets MSS advertised to peer. Value 0 (default) will set MSS automatically in proportion to interface MTU. Default 0 is usually the best choice",
+          "type": "integer",
+          "default": 0,
+          "anyOf": [
+            {
+              "maximum": 9162,
+              "minimum": 256
+            },
+            {
+              "const": 0
+            }
+          ]
+        },
+        "resetOnTimeout": {
+          "title": "Reset on timeout",
+          "description": "If true (default), connections which time out will be reset (that is, the system sends an RST packet to the peer) before the system expunges them",
+          "type": "boolean",
+          "default": true
+        },
+        "synCookieAllowlist": {
+          "title": "Syn Cookie Allowlist",
+          "description": "Specifies whether or not to use a SYN Cookie Allowlist when doing software SYN Cookies. This means not doing a SYN Cookie for the same src IP address if it has been done already in the previous tm.flowstate.timeout (30) seconds. The default value is disabled.",
+          "type": "boolean",
+          "default": false
+        },
+        "synCookieEnable": {
+          "title": "SYN cookie enable",
+          "description": "Enables syn-cookies capability on this virtual server. If true (default), the system may use SYN cookies to avert connection-table overflow (for example, from DoS attacks)",
+          "type": "boolean",
+          "default": true
+        },
+        "tcpCloseTimeout": {
+          "title": "TCP Close timeout",
+          "description": "Specifies an TCP close timeout in seconds. Value -1 means indefinite (not recommended)",
+          "type": "integer",
+          "default": 5,
+          "maximum": 86400,
+          "minimum": -1
+        },
+        "tcpHandshakeTimeout": {
+          "title": "TCP Handshake timeout",
+          "description": "Specifies a TCP handshake timeout in seconds. The default value is 5 seconds. Value -1 means indefinite (not recommended)",
+          "type": "integer",
+          "maximum": 86400,
+          "default": 5,
+          "minimum": -1
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false
+    },
+    "Log_Destination": {
+      "title": "Log Destination",
+      "description": "Configures a log destination",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Log_Destination"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "type": {
+          "description": "The type of the log destination",
+          "type": "string",
+          "enum": [
+            "management-port",
+            "remote-high-speed-log",
+            "remote-syslog",
+            "splunk"
+          ]
+        }
+      },
+      "required": [
+        "class",
+        "type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "management-port"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Management_Port"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "remote-syslog"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Remote_Syslog"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "remote-high-speed-log"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Remote_High_Speed_Log"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "splunk"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Splunk"
+          }
+        }
+      ]
+    },
+    "Log_Destination_Management_Port": {
+      "title": "Log Destination Management Port",
+      "description": "Sends received messages to a specified IP address and port through the management interface",
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Specifies the IP address that will receive messages from the specified local Log Destination",
+          "type": "string",
+          "format": "f5ip"
+        },
+        "port": {
+          "description": "Specifies the port of the IP address that will receive messages from the specified local Log Destination",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "protocol": {
+          "description": "Specifies the protocol for the system to use to send logs to the specified location",
+          "type": "string",
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "default": "tcp"
+        }
+      },
+      "required": [
+        "address",
+        "port"
+      ]
+    },
+    "Log_Destination_Remote_High_Speed_Log": {
+      "title": "Log Destination Remote High Speed Log",
+      "description": "Sends received messages to a specified pool",
+      "type": "object",
+      "properties": {
+        "distribution": {
+          "description": "Specifies the distribution method used to send messages to pool members",
+          "type": "string",
+          "enum": [
+            "adaptive",
+            "balanced",
+            "replicated"
+          ],
+          "default": "adaptive"
+        },
+        "protocol": {
+          "description": "Specifies the protocol for the system to use to send logs to the pool",
+          "type": "string",
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "default": "tcp"
+        },
+        "pool": {
+          "$ref": "#/definitions/Pointer_Pool"
+        }
+      },
+      "required": [
+        "pool"
+      ]
+    },
+    "Log_Destination_Remote_Syslog": {
+      "title": "Log Destination Remote Syslog",
+      "description": "Configures Remote Syslog destinations to format log messages into Syslog format and forward them to a Remote High-Speed Log destination",
+      "type": "object",
+      "properties": {
+        "format": {
+          "description": "Specifies the method to use to format the logs",
+          "type": "string",
+          "enum": [
+            "legacy-bigip",
+            "rfc3164",
+            "rfc5424"
+          ],
+          "default": "rfc3164"
+        },
+        "defaultFacility": {
+          "description": "Specifies the facility given to log messages received that do not already have a facility listed",
+          "type": "string",
+          "enum": [
+            "local0",
+            "local1",
+            "local2",
+            "local3",
+            "local4",
+            "local5",
+            "local6",
+            "local7"
+          ],
+          "default": "local0"
+        },
+        "defaultSeverity": {
+          "description": "Specifies the severity given to log messages received that do not already have a severity listed",
+          "type": "string",
+          "enum": [
+            "alert",
+            "crit",
+            "debug",
+            "emerg",
+            "err",
+            "info",
+            "notice",
+            "warn"
+          ],
+          "default": "info"
+        },
+        "remoteHighSpeedLog": {
+          "description": "Specifies a remote high-speed log destination, which the system uses to forward the logs to a pool of remote log servers",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_BIGIP_Or_Use"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "use": {
+                  "description": "BIG-IP AS3 pointer to remote high speed log declaration",
+                  "minLength": 1,
+                  "f5PostProcess": {
+                    "tag": "pointer",
+                    "data": {
+                      "properties": {
+                        "class": {
+                          "const": "Log_Destination"
+                        },
+                        "type": {
+                          "const": "remote-high-speed-log"
+                        }
+                      },
+                      "required": [
+                        "class"
+                      ]
+                    }
+                  }
+                },
+                "bigip": {
+                  "description": "Pathname of existing BIG-IP remote high speed log",
+                  "format": "f5bigip"
+                }
+              },
+              "f5PostProcess": {
+                "tag": "bigComponent",
+                "data": [
+                  "query sys log-config destination remote-high-speed-log"
+                ]
+              }
+            }
+          ],
+          "minProperties": 1,
+          "maxProperties": 1
+        }
+      },
+      "required": [
+        "remoteHighSpeedLog"
+      ]
+    },
+    "Log_Destination_Splunk": {
+      "title": "Log Destination Splunk",
+      "description": "Configures Splunk formatting destinations to format incoming log messages into Splunk format",
+      "type": "object",
+      "properties": {
+        "forwardTo": {
+          "description": "Specifies the log destination to which logs are forwarded",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Log_Destination"
+            }
+          ]
+        }
+      },
+      "required": [
+        "forwardTo"
       ]
     },
     "Log_Publisher": {
@@ -34471,6 +34969,48 @@
       "description": "Reference to a HTTP Profile",
       "maxProperties": 1,
       "minProperties": 1
+    },
+    "Pointer_L4_Profile": {
+      "title": "Pointer L4 Profile",
+      "description": "Reference to a fast L4 profile",
+      "maxProperties": 1,
+      "minProperties": 1,
+      "allOf": [
+        {
+          "$ref": "#/definitions/Pointer_BIGIP_Or_Use"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "use": {
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "properties": {
+                    "class": {
+                      "enum": [
+                        "L4_Profile"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
+              }
+            },
+            "bigip": {
+              "format": "f5bigip"
+            }
+          },
+          "f5PostProcess": {
+            "data": [
+              "query ltm profile fastl4"
+            ],
+            "tag": "bigComponent"
+          }
+        }
+      ]
     },
     "Pointer_Log_Destination": {
       "title": "Pointer Log Destination",

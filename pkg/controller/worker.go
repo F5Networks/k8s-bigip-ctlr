@@ -724,27 +724,6 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints, clusterName str
 	return svc.(*v1.Service)
 }
 
-// getVirtualServersForService gets the List of VirtualServers which are effected
-// by the addition/deletion/updation of service.
-func (ctlr *Controller) getVirtualServersForService(svc *v1.Service) []*cisapiv1.VirtualServer {
-
-	allVirtuals := ctlr.getAllVirtualServers(svc.ObjectMeta.Namespace)
-	if nil == allVirtuals {
-		log.Infof("No VirtualServers found in namespace %s",
-			svc.ObjectMeta.Namespace)
-		return nil
-	}
-
-	// find VirtualServers that reference the service
-	virtualsForService := filterVirtualServersForService(allVirtuals, svc)
-	if nil == virtualsForService {
-		log.Debugf("Change in Service %s does not effect any VirtualServer",
-			svc.ObjectMeta.Name)
-		return nil
-	}
-	return virtualsForService
-}
-
 // getVirtualsForTLSProfile gets the List of VirtualServers which are effected
 // by the addition/deletion/updation of TLSProfile.
 func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*cisapiv1.VirtualServer {
@@ -878,46 +857,7 @@ func (ctlr *Controller) getAllVSFromMonitoredNamespaces() []*cisapiv1.VirtualSer
 	for ns := range ctlr.namespaces {
 		allVirtuals = append(allVirtuals, ctlr.getAllVirtualServers(ns)...)
 	}
-
 	return allVirtuals
-}
-
-// filterVirtualServersForService returns list of VirtualServers that are
-// affected by the service under process.
-func filterVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
-	svc *v1.Service) []*cisapiv1.VirtualServer {
-
-	var result []*cisapiv1.VirtualServer
-	svcName := svc.ObjectMeta.Name
-	svcNamespace := svc.ObjectMeta.Namespace
-
-	for _, vs := range allVirtuals {
-		if vs.ObjectMeta.Namespace != svcNamespace {
-			continue
-		}
-
-		isValidVirtual := false
-		for _, pool := range vs.Spec.Pools {
-			if pool.Service == svcName {
-				isValidVirtual = true
-				break
-			}
-			// check if svc matches ab
-			for _, ab := range pool.AlternateBackends {
-				if ab.Service == svcName {
-					isValidVirtual = true
-					break
-				}
-			}
-		}
-		if !isValidVirtual {
-			continue
-		}
-
-		result = append(result, vs)
-	}
-
-	return result
 }
 
 // getVirtualServersForTLS returns list of VirtualServers that are
@@ -2000,44 +1940,28 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case VirtualServer:
 									var item interface{}
-									if svcKey.clusterName == "" {
-										inf, _ := ctlr.getNamespacedCommonInformer(svcKey.namespace)
-										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
-									} else {
-										inf, _ := ctlr.getNamespaceMultiClusterPoolInformer(svcKey.namespace, svcKey.clusterName)
-										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
-									}
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									item, _, _ = inf.vsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
 										continue
 									}
-									virtuals := ctlr.getVirtualServersForService(item.(*v1.Service))
-									// If nil No Virtuals are effected with the change in service.
-									if nil != virtuals {
-										for _, virtual := range virtuals {
-											_ = ctlr.processVirtualServers(virtual, false)
-										}
+									virtual, found := item.(*cisapiv1.VirtualServer)
+									if found {
+										_ = ctlr.processVirtualServers(virtual, false)
 									}
 									return
 								case TransportServer:
 									var item interface{}
-									if svcKey.clusterName == "" {
-										inf, _ := ctlr.getNamespacedCommonInformer(svcKey.namespace)
-										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
-									} else {
-										inf, _ := ctlr.getNamespaceMultiClusterPoolInformer(svcKey.namespace, svcKey.clusterName)
-										item, _, _ = inf.svcInformer.GetIndexer().GetByKey(svcKey.namespace + "/" + svcKey.serviceName)
-									}
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									item, _, _ = inf.tsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
 										continue
 									}
-									virtuals := ctlr.getTransportServersForService(item.(*v1.Service))
-									// If nil No Virtuals are effected with the change in service.
-									if nil != virtuals {
-										for _, virtual := range virtuals {
-											_ = ctlr.processTransportServers(virtual, false)
-										}
+									virtual, found := item.(*cisapiv1.TransportServer)
+									if found {
+										_ = ctlr.processTransportServers(virtual, false)
 									}
 									return
 								}
@@ -2585,54 +2509,6 @@ func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
 	}
 
 	return allLBServices
-}
-
-// getTransportServersForService gets the List of VirtualServers which are effected
-// by the addition/deletion/updation of service.
-func (ctlr *Controller) getTransportServersForService(svc *v1.Service) []*cisapiv1.TransportServer {
-
-	allVirtuals := ctlr.getAllTransportServers(svc.ObjectMeta.Namespace)
-	if nil == allVirtuals {
-		log.Infof("No VirtualServers for TransportServer found in namespace %s",
-			svc.ObjectMeta.Namespace)
-		return nil
-	}
-
-	// find VirtualServers that reference the service
-	virtualsForService := filterTransportServersForService(allVirtuals, svc)
-	if nil == virtualsForService {
-		log.Debugf("Change in Service %s does not effect any VirtualServer for TransportServer",
-			svc.ObjectMeta.Name)
-		return nil
-	}
-	return virtualsForService
-}
-
-// filterTransportServersForService returns list of VirtualServers that are
-// affected by the service under process.
-func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
-	svc *v1.Service) []*cisapiv1.TransportServer {
-
-	var result []*cisapiv1.TransportServer
-	svcName := svc.ObjectMeta.Name
-	svcNamespace := svc.ObjectMeta.Namespace
-
-	for _, vs := range allVirtuals {
-		if vs.ObjectMeta.Namespace != svcNamespace {
-			continue
-		}
-
-		isValidVirtual := false
-		if vs.Spec.Pool.Service == svcName {
-			isValidVirtual = true
-		}
-		if !isValidVirtual {
-			continue
-		}
-		result = append(result, vs)
-	}
-
-	return result
 }
 
 func (ctlr *Controller) processLBServices(

@@ -296,7 +296,7 @@ Following is the sample deployment for primary CIS deployment:
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 | ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
-| adminState  | String | Optional  | adminState can be used to disable/enable/force-offline clusters           | 1       | 3                       |
+| adminState  | String | Optional  | adminState can be used to disable/enable/offline clusters           | 1       | 3                       |
 
 
 **Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in externalClustersConfig.
@@ -335,7 +335,7 @@ Specifies whether the CIS HA cluster is configured with active-active mode, acti
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 | ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
-| adminState  | String | Optional  | adminState can be used to disable/enable/force-offline clusters           | 1       | 3                       |
+| adminState  | String | Optional  | adminState can be used to disable/enable/offline clusters           | 1       | 3                       |
 
 
 **Note**: In order to run CIS in high availability mode, multi-cluster-mode parameter (primary/secondary) needs to be set in the CIS deployment arguments.
@@ -499,15 +499,18 @@ It works even along with A/B where different weights are defined for each servic
 distribution is computed taking into consideration both the service weights and cluster ratio.<br>
 However, the ratio of the clusters those haven't hosted any services linked to the concerned route are not taken into consideration 
 while computing the final ratio.<br>
-**Note:** Cluster wise ratio for traffic distribution is supported in HA as well as non-HA CIS environment.
+
+**Note:** 
+* Cluster wise ratio for traffic distribution is supported in HA as well as non-HA CIS environment.
+* Ratio is only supported for NextGen Routes and Virtual Server CR.
 
 ### Cluster adminState to enable/disable/offline a cluster
 adminState can be provided for a cluster to dictate the state of a particular cluster.
 Supported values for adminState are [enable, disable, offline]<br>
 By default clusters are in enabled state.<br>
-**adminState: enable**, allow connections to the pool members in the cluster.<br>
-**adminState: disable**, disallow new connections but allow existing connections to drain for the pool members in the cluster.<br>
-**adminState: offline**, force immediate termination of all connections to the pool members in the cluster.
+**adminState: enable**, all new connections are allowed to the pool members from the cluster.<br>
+**adminState: disable**, all new connections except those which match an existing persistence session are not allowed for the pool members from the cluster.<br>
+**adminState: offline**, no new connections are allowed to the pool members from the cluster, even if they match an existing persistence session.
 
 ## Known issues
 *  Pool members are not getting populated for extended service in ratio mode
@@ -515,6 +518,7 @@ By default clusters are in enabled state.<br>
 *  CIS on start up in multiCluster mode, if any external cluster kube-api server is down/not reachable, CIS is struck and not processing any valid clusters config also.Workaround to remove unreachable cluster config from configmap and restart CIS
 *  CIS fails to post declaration with VS with health monitors in ratio mode.Issue is observed intermittently
 *  Route status is not updated in other HA cluster. For eg: Active Primary CIS cluster doesn't update the route status in Secondary HA cluster and vice-versa.
+*  CIS on switch over from ratio to active-standby mode, doesn't add the external cluster services. Any change to mode, it is always recommended to restart the CIS
 
 ## FAQ
 
@@ -524,8 +528,11 @@ Yes. Multi-Cluster support only works if --multi-cluster-mode is defined in CIS 
 ### Is extended configMap mandatory for Multi-Cluster support?
 Yes. Multi-Cluster support only works with extended configmap.
 
-### Is extended configmap update require CIS restart?
-Yes.It's recommended to restart CIS if any HA configuration or external cluster configurations are updated in extended Configmap. However CIS restart is not required when updating ratio in the extended Configmap.
+### Does extended configmap update require CIS restart?
+No. It's recommended to restart CIS if any HA configuration or external cluster configurations are updated in extended Configmap. However CIS restart is not required when updating ratio in the extended Configmap.
+
+### Does mode update require CIS restart?
+Yes. CIS has to be restarted when there is a change in the mode. 
 
 ### How do you add a new cluster?
 To add a new cluster, create a kube-config file with read only permissions. Then create a Kubernetes secret using the kube-config file. Refer this in secret in the extended ConfigMap to add the new cluster.
@@ -562,4 +569,7 @@ No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts
 Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with A/B as well.
 
 ### Is A/B supported in multiCluster mode?
-Yes. CIS supports A/B with multiCluster. However, it's not supported with extendedServices/multiClusterServices.
+Yes. CIS supports A/B with multiCluster.
+
+### Is A/B custom persistence supported in all the modes?
+No. A/B persistence is supported in ratio mode and pool member type as cluster.

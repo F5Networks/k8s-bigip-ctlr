@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

@@ -21,7 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

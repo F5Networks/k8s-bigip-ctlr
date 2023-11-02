@@ -3,8 +3,8 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	"net"
 	"reflect"

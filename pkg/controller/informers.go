@@ -28,9 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"

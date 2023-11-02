@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 
 	"encoding/json"
 

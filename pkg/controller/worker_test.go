@@ -4,9 +4,9 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -20,14 +20,14 @@ import (
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
-	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
+	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -858,7 +858,7 @@ var _ = Describe("Worker Tests", func() {
 			}
 			mockCtlr.Partition = "default"
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+			//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
 
@@ -1139,7 +1139,7 @@ var _ = Describe("Worker Tests", func() {
 				}
 				mockCtlr.Partition = namespace
 				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-				mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+				//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 				svc1.Spec.Type = v1.ServiceTypeLoadBalancer
 

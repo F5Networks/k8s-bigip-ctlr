@@ -41,7 +41,7 @@ Compatibility Matrix
 | v2.13.0     | v16.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.13.1     | v16.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.14.0     | v17.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.26           | Red Hat Enterprise Linux release 9.1 (Plow)         |
-| v2.15.0     | v17.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.47       | v0.1.9      | v0.0.4            | v0.0.26           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.15.0     | v17.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.48       | v0.1.9      | v0.0.4            | v0.0.26           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
@@ -51,7 +51,7 @@ Compatibility Matrix for Multi Cluster Support
 | CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version | NodePort | SDN | OVN (Cluster Mode) | AS3 Version | CIS Chart Version | 
 |-------------|----------------|--------------------|-------------------|----------|-----|--------------------|-------------|-------------------|
 | v2.14.0     | v16.0          | v1.27              | v4.12.0           | Yes      | No  | Yes                | v3.45       | v0.0.26           |
-| v2.15.0     | v16.0          | v1.27              | v4.12.0           | Yes      | No  | Yes                | v3.47       | v0.0.26           |
+| v2.15.0     | v16.0          | v1.27              | v4.12.0           | Yes      | No  | Yes                | v3.48       | v0.0.26           |
 
 
 CIS Features and Examples
@@ -344,3 +344,4 @@ Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ct
 
 ### **Upgrading from 2.14.0 to 2.15.0:**
 * Disabled default health monitoring with routes, use autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_
+*  `Issue 775 <https://github.com/F5Networks/f5-appsvcs-extension/issues/775>`_: If customer is using referenced monitor then they should not use AS3 3.48. Its recommended to use AS3 3.47 or lower on BIGIP

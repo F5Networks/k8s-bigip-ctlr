@@ -53,6 +53,7 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.48.0",
             "3.47.0",
             "3.46.0",
             "3.45.0",
@@ -746,7 +747,6 @@
               "Persist",
               "Pool",
               "Address_Discovery",
-              "Monitor",
               "TLS_Server",
               "TLS_Client",
               "FIX_Profile",
@@ -831,6 +831,7 @@
               "L4_Profile",
               "Log_Destination",
               "Log_Publisher",
+              "Monitor",
               "UDP_Profile"
             ]
           }
@@ -1014,18 +1015,6 @@
             },
             "then": {
               "$ref": "#/definitions/Address_Discovery"
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "class": {
-                  "const": "Monitor"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/Monitor"
             }
           },
           {
@@ -2034,6 +2023,18 @@
             },
             "then": {
               "$ref": "#/definitions/Log_Publisher"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Monitor"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Monitor"
             }
           },
           {
@@ -6193,7 +6194,9 @@
             "azure",
             "consul"
           ],
-          "f5serviceDiscovery": true
+          "f5PostProcess": {
+            "tag": "serviceDiscovery"
+          }
         },
         "shareNodes": {
           "description": "If enabled, nodes are created in /Common instead of the tenant's partition",
@@ -6331,11 +6334,14 @@
             "$ref": "#/definitions/Pointer_Address_Discovery"
           },
           "default": "static",
-          "f5serviceDiscovery": {
-            "exceptions": [
-              "static",
-              "fqdn"
-            ]
+          "f5PostProcess": {
+            "tag": "serviceDiscovery",
+            "data": {
+              "exceptions": [
+                "static",
+                "fqdn"
+              ]
+            }
           }
         },
         "shareNodes": {
@@ -6846,1563 +6852,6 @@
           "$ref": "#/definitions/Service_Discovery_Polling_Core"
         }
       ]
-    },
-    "Basic_Monitor": {
-      "title": "Basic Monitor",
-      "description": "Holds name of simple monitor or BIG-IP AS3 pointer to a monitor declaration",
-      "if": {
-        "type": "string"
-      },
-      "then": {
-        "enum": [
-          "http",
-          "https",
-          "http2",
-          "icmp",
-          "tcp-half-open",
-          "tcp"
-        ]
-      },
-      "else": {
-        "type": "object",
-        "properties": {
-          "use": {
-            "title": "Use",
-            "description": "BIG-IP AS3 pointer to monitor declaration",
-            "type": "string",
-            "minLength": 1,
-            "f5PostProcess": {
-              "tag": "pointer",
-              "data": {
-                "properties": {
-                  "class": {
-                    "const": "Monitor"
-                  }
-                },
-                "required": [
-                  "class"
-                ]
-              }
-            }
-          },
-          "bigip": {
-            "title": "BIG-IP monitor",
-            "description": "Pathname of existing BIG-IP monitor",
-            "type": "string",
-            "format": "f5bigip"
-          }
-        },
-        "additionalProperties": false,
-        "minProperties": 1,
-        "maxProperties": 1,
-        "f5PostProcess": {
-          "tag": "bigComponent",
-          "data": [
-            "probe ltm monitor icmp"
-          ]
-        }
-      }
-    },
-    "Monitor": {
-      "title": "Monitor",
-      "description": "Declares a (possibly complex) monitor",
-      "type": "object",
-      "properties": {
-        "class": {
-          "title": "Class",
-          "type": "string",
-          "const": "Monitor"
-        },
-        "label": {
-          "$ref": "#/definitions/Label"
-        },
-        "remark": {
-          "$ref": "#/definitions/Remark"
-        },
-        "monitorType": {
-          "title": "Monitor type",
-          "description": "You may customize each monitor type",
-          "type": "string",
-          "enum": [
-            "dns",
-            "external",
-            "ftp",
-            "http",
-            "https",
-            "http2",
-            "icmp",
-            "inband",
-            "ldap",
-            "mysql",
-            "postgresql",
-            "radius",
-            "sip",
-            "smtp",
-            "tcp",
-            "tcp-half-open",
-            "udp"
-          ]
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "not": {
-              "properties": {
-                "monitorType": {
-                  "const": "inband"
-                }
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "targetAddress": {
-                "title": "Address",
-                "description": "IP address monitor should probe; if empty (default) then pool member address",
-                "type": "string",
-                "format": "f5ip",
-                "default": ""
-              },
-              "interval": {
-                "title": "Interval",
-                "description": "Poll interval (seconds)",
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 3600,
-                "default": 5
-              },
-              "upInterval": {
-                "title": "Up-Interval",
-                "description": "Poll interval when service is already up (seconds)",
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 3600,
-                "default": 0
-              },
-              "timeUntilUp": {
-                "title": "Time until up",
-                "description": "Delay between successful probe and sending traffic to node (seconds)",
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 1800,
-                "default": 0
-              },
-              "timeout": {
-                "title": "Timeout",
-                "description": "Time limit for node to respond (seconds)",
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 900,
-                "default": 16
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "icmp"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_ICMP"
-          },
-          "else": {
-            "if": {
-              "properties": {
-                "monitorType": {
-                  "const": "inband"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/Monitor_Inband"
-            },
-            "else": {
-              "properties": {
-                "targetPort": {
-                  "title": "Port",
-                  "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 65535,
-                  "default": 0
-                }
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "http"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_HTTP"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "https"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_HTTPS"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "http2"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_HTTP2"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "external"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_External"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "tcp"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "dscp": {
-                "title": "IP DSCP",
-                "description": "Value for IP DSCP (ex-TOS) field (default 0)",
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 63,
-                "default": 0
-              }
-            },
-            "allOf": [
-              {
-                "$ref": "#/definitions/Monitor_TCP"
-              }
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "udp"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_UDP"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "smtp"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_SMTP"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "mysql"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_MySQL"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "postgresql"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_PostgreSQL"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "sip"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_SIP"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "tcp-half-open"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_TCP_Half_Open"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "ldap"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_LDAP"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "dns"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_DNS"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "radius"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_RADIUS"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "monitorType": {
-                "const": "ftp"
-              }
-            }
-          },
-          "then": {
-            "$ref": "#/definitions/Monitor_FTP"
-          }
-        }
-      ],
-      "required": [
-        "class",
-        "monitorType"
-      ]
-    },
-    "Monitor_May_Adapt": {
-      "description": "Additional Monitor class properties available when monitorType = http, https, tcp, udp, or icmp",
-      "type": "object",
-      "properties": {
-        "adaptive": {
-          "title": "Adaptive",
-          "description": "If true, use adaptive probe timing",
-          "type": "boolean",
-          "default": false
-        },
-        "adaptiveDivergenceType": {
-          "title": "Adaptive divergence type",
-          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
-          "type": "string",
-          "enum": [
-            "absolute",
-            "relative"
-          ],
-          "default": "relative"
-        },
-        "adaptiveDivergenceMilliseconds": {
-          "title": "Adaptive divergence msec",
-          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10000,
-          "default": 500
-        },
-        "adaptiveDivergencePercentage": {
-          "title": "Adaptive divergence percent",
-          "description": "Probe fails if response latency exceeds mean by this percentage",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 500,
-          "default": 100
-        },
-        "adaptiveLimitMilliseconds": {
-          "title": "Adaptive limit msec",
-          "description": "Probe fails if response latency exceeds this number of milliseconds",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10000,
-          "default": 1000
-        },
-        "adaptiveWindow": {
-          "title": "Adaptive window",
-          "description": "Time window over which the system samples latency (seconds)",
-          "type": "integer",
-          "minimum": 60,
-          "maximum": 1800,
-          "default": 180
-        }
-      }
-    },
-    "Monitor_External": {
-      "description": "Additional Monitor class properties available when monitorType = external",
-      "type": "object",
-      "properties": {
-        "pathname": {
-          "title": "pathname",
-          "description": "Tmsh object path name of an imported existing external monitor (e.g. /Common/arg_example)",
-          "type": "string",
-          "minLength": 2,
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "expand": {
-          "title": "Expand",
-          "description": "If true (default), expand backquoted variables in script",
-          "type": "boolean",
-          "default": true
-        },
-        "script": {
-          "title": "External monitor script",
-          "description": "Bash(1) script which implements external monitor",
-          "allOf": [
-            {
-              "$ref": "#/definitions/F5string"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "expand",
-                "data": {
-                  "when": "1/expand"
-                }
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "string"
-              }
-            }
-          ]
-        },
-        "arguments": {
-          "title": "Arguments",
-          "description": "Arguments to specified external monitor (will be backquote-expanded)",
-          "type": "string",
-          "default": "",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "environmentVariables": {
-          "description": "Specifies user defined command line parameters that the external program requires.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
-        }
-      },
-      "oneOf": [
-        {
-          "required": [
-            "pathname"
-          ]
-        },
-        {
-          "required": [
-            "script"
-          ]
-        }
-      ]
-    },
-    "Monitor_FTP": {
-      "description": "Additional Monitor class properties available when monitorType = ftp",
-      "type": "object",
-      "properties": {
-        "mode": {
-          "title": "Mode",
-          "description": "Specifies the data transfer process (DTP) mode. The default value is passive.",
-          "type": "string",
-          "default": "passive",
-          "enum": [
-            "passive",
-            "port"
-          ]
-        },
-        "username": {
-          "title": "Username",
-          "description": "Username if any for query authentication",
-          "type": "string"
-        },
-        "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "filename": {
-          "title": "Filename",
-          "description": "Specifies the full path and file name of the file that the system attempts to download. The health check is successful if the system can download the file.",
-          "type": "string"
-        }
-      }
-    },
-    "Monitor_HTTP": {
-      "description": "Additional Monitor class properties available when monitorType = http or https or http2",
-      "type": "object",
-      "properties": {
-        "send": {
-          "title": "Send",
-          "description": "Send this (backquote-expanded) string to query node",
-          "type": "string",
-          "default": "HEAD / HTTP/1.0\\r\\n\\r\\n",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "receive": {
-          "title": "Receive = up",
-          "description": "Mark node up upon receipt of this (backquote-expanded) string",
-          "type": "string",
-          "default": "HTTP/1.",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "receiveDown": {
-          "title": "Receive = down",
-          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
-          "type": "string",
-          "default": "",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "reverse": {
-          "title": "Reverse",
-          "description": "If true, mark node down upon receipt of 'receive' string",
-          "type": "boolean",
-          "default": false
-        },
-        "username": {
-          "title": "Username",
-          "description": "Username if any for query authentication",
-          "type": "string"
-        },
-        "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "transparent": {
-          "title": "Transparent",
-          "description": "If true, treat pool member address as gateway to server (node) (default false)",
-          "type": "boolean",
-          "default": false
-        },
-        "dscp": {
-          "title": "IP DSCP",
-          "description": "Value for IP DSCP (ex-TOS) field (default 0)",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 63,
-          "default": 0
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_May_Adapt"
-        }
-      ],
-      "dependencies": {
-        "reverse": {
-          "if": {
-            "properties": {
-              "reverse": {
-                "const": true
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "receiveDown": {
-                "const": ""
-              }
-            }
-          }
-        }
-      }
-    },
-    "Monitor_HTTPS": {
-      "description": "Additional Monitor class properties available when monitorType = https",
-      "type": "object",
-      "properties": {
-        "ciphers": {
-          "title": "Ciphers",
-          "description": "Ciphersuite selection string",
-          "type": "string",
-          "default": "DEFAULT"
-        },
-        "clientCertificate": {
-          "title": "Client certificate",
-          "description": "BIG-IP AS3 pointer to client Certificate declaration, for TLS authentication (optional)",
-          "type": "string",
-          "minLength": 1,
-          "f5PostProcess": {
-            "tag": "pointer",
-            "data": {
-              "properties": {
-                "class": {
-                  "const": "Certificate"
-                }
-              },
-              "required": [
-                "class"
-              ]
-            }
-          }
-        },
-        "clientTLS": {
-          "title": "Client TLS",
-          "description": "BIG-IP AS3 pointer to client TLS Profile",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Pointer_TLS_Client"
-            }
-          ]
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_HTTP"
-        }
-      ]
-    },
-    "Monitor_HTTP2": {
-      "description": "Additional Monitor class properties available when monitorType = http2. Requires TMOS version 15.1 or newer.",
-      "type": "object",
-      "properties": {
-        "clientTLS": {
-          "title": "Client TLS",
-          "description": "BIG-IP AS3 pointer to client TLS Profile",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Pointer_TLS_Client"
-            }
-          ]
-        },
-        "receive": {
-          "title": "Receive = up",
-          "description": "Mark node up upon receipt of this (backquote-expanded) string",
-          "type": "string",
-          "default": "HTTP/2.",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "send": {
-          "title": "Send",
-          "description": "Send this (backquote-expanded) string to query node",
-          "type": "string",
-          "default": "GET /\\r\\n\\r\\n",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_HTTP"
-        }
-      ]
-    },
-    "Monitor_ICMP": {
-      "description": "Additional Monitor class properties available when monitorType = icmp",
-      "type": "object",
-      "properties": {
-        "transparent": {
-          "title": "Transparent",
-          "description": "If true, treat pool member address as gateway to server (node) (default false)",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_May_Adapt"
-        }
-      ]
-    },
-    "Monitor_MySQL": {
-      "description": "Additional Monitor class properties available when monitorType = mysql",
-      "type": "object",
-      "properties": {
-        "send": {
-          "title": "Send",
-          "description": "Send this (backquote-expanded) string to query node",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "receive": {
-          "title": "Receive = up",
-          "description": "Mark node up upon receipt of this (backquote-expanded) string",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "username": {
-          "title": "Username",
-          "description": "Username if any for query authentication",
-          "type": "string"
-        },
-        "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "count": {
-          "title": "Count",
-          "description": "Number of monitor probes after which the connection to the database will be terminated.  Count value of zero indicates that the connection will never be terminated.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 2147483647,
-          "default": 0
-        },
-        "database": {
-          "title": "Database",
-          "description": "The name of the database with which the monitor attempts to communicate.",
-          "type": "string"
-        },
-        "receiveColumn": {
-          "title": "Receive Column",
-          "description": "Specifies the column in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Receive properties.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4096
-        },
-        "receiveRow": {
-          "title": "Receive Row",
-          "description": "Specifies the row in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Recieve properties.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 65535
-        }
-      },
-      "dependencies": {
-        "receiveColumn": {
-          "required": [
-            "send",
-            "receive"
-          ]
-        },
-        "receiveRow": {
-          "required": [
-            "send",
-            "receive"
-          ]
-        }
-      }
-    },
-    "Monitor_PostgreSQL": {
-      "description": "Additional Monitor class properties available when monitorType = postgresql",
-      "type": "object",
-      "properties": {
-        "send": {
-          "title": "Send",
-          "description": "Send this (backquote-expanded) string to query node",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "receive": {
-          "title": "Receive = up",
-          "description": "Mark node up upon receipt of this (backquote-expanded) string",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "username": {
-          "title": "Username",
-          "description": "Username if any for query authentication",
-          "type": "string"
-        },
-        "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "count": {
-          "title": "Count",
-          "description": "Number of monitor probes after which the connection to the database will be terminated.  Count value of zero indicates that the connection will never be terminated.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 2147483647,
-          "default": 0
-        },
-        "database": {
-          "title": "Database",
-          "description": "The name of the database with which the monitor attempts to communicate.",
-          "type": "string"
-        },
-        "receiveColumn": {
-          "title": "Receive Column",
-          "description": "Specifies the column in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Receive properties.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1600
-        },
-        "receiveRow": {
-          "title": "Receive Row",
-          "description": "Specifies the row in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Recieve properties.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967294
-        }
-      },
-      "dependencies": {
-        "receiveColumn": {
-          "required": [
-            "send",
-            "receive"
-          ]
-        },
-        "receiveRow": {
-          "required": [
-            "send",
-            "receive"
-          ]
-        }
-      }
-    },
-    "Monitor_SIP": {
-      "description": "Additional Monitor class properties available when monitorType = sip",
-      "type": "object",
-      "properties": {
-        "protocol": {
-          "title": "Protocol",
-          "description": "SIP transport protocol",
-          "type": "string",
-          "enum": [
-            "sips",
-            "tcp",
-            "tls",
-            "udp"
-          ],
-          "default": "udp"
-        },
-        "request": {
-          "title": "Request",
-          "description": "SIP request to send in probes (default empty)",
-          "type": "string",
-          "default": ""
-        },
-        "headers": {
-          "title": "Headers",
-          "description": "SIP headers to send in probes (if any)--separate by newlines (backquote-expanded)",
-          "type": "string",
-          "default": "",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "codesUp": {
-          "title": "Codes = up",
-          "description": "List of additional (to all 1/2/3xx) status codes meaning service is up (0 matches any code)",
-          "type": "array",
-          "items": {
-            "title": "Code = up",
-            "type": "integer",
-            "minimum": 0
-          },
-          "uniqueItems": true
-        },
-        "codesDown": {
-          "title": "Codes = down",
-          "description": "List of status codes meaning service is down (0 matches any code)",
-          "type": "array",
-          "items": {
-            "title": "Code = down",
-            "type": "integer",
-            "minimum": 0
-          },
-          "uniqueItems": true
-        },
-        "ciphers": {
-          "title": "Ciphers",
-          "description": "Ciphersuite selection string",
-          "type": "string",
-          "default": "DEFAULT"
-        },
-        "clientCertificate": {
-          "title": "Client certificate",
-          "description": "BIG-IP AS3 pointer to client Certificate declaration, for TLS authentication (optional)",
-          "type": "string",
-          "minLength": 1,
-          "f5PostProcess": {
-            "tag": "pointer",
-            "data": {
-              "properties": {
-                "class": {
-                  "const": "Certificate"
-                }
-              },
-              "required": [
-                "class"
-              ]
-            }
-          }
-        }
-      },
-      "dependencies": {
-        "clientCertificate": {
-          "properties": {
-            "protocol": {
-              "enum": [
-                "sips",
-                "tls"
-              ]
-            }
-          }
-        }
-      }
-    },
-    "Monitor_SMTP": {
-      "description": "Additional Monitor class properties available when monitorType = smtp",
-      "type": "object",
-      "properties": {
-        "domain": {
-          "title": "Domain",
-          "description": "Mail domain to check, if any (backquote-expanded)",
-          "type": "string",
-          "format": "hostname",
-          "default": "",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        }
-      }
-    },
-    "Monitor_TCP": {
-      "description": "Additional Monitor class properties available when monitorType = tcp",
-      "type": "object",
-      "properties": {
-        "send": {
-          "title": "Send",
-          "description": "Send this (backquote-expanded) string to node",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          },
-          "default": "none"
-        },
-        "receive": {
-          "title": "Receive = up",
-          "description": "Mark node up upon receipt of this (backquote-expanded) string",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          },
-          "default": "none"
-        },
-        "receiveDown": {
-          "title": "Receive = down",
-          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
-          "type": "string",
-          "default": "",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "reverse": {
-          "title": "Reverse",
-          "description": "If true, mark node down upon receipt of 'receive' string",
-          "type": "boolean",
-          "default": false
-        },
-        "transparent": {
-          "title": "Transparent",
-          "description": "If true, treat pool member address as gateway to server (node) (default false)",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_May_Adapt"
-        }
-      ],
-      "dependencies": {
-        "reverse": {
-          "if": {
-            "properties": {
-              "reverse": {
-                "const": true
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "receiveDown": {
-                "const": ""
-              }
-            }
-          }
-        }
-      }
-    },
-    "Monitor_UDP": {
-      "description": "Additional Monitor class properties available when monitorType = udp",
-      "type": "object",
-      "properties": {
-        "send": {
-          "title": "Send",
-          "description": "Send this (backquote-expanded) string to node",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          },
-          "default": "default send string"
-        },
-        "receive": {
-          "title": "Receive = up",
-          "description": "Mark node up upon receipt of this (backquote-expanded) string",
-          "type": "string",
-          "f5PostProcess": {
-            "tag": "expand"
-          },
-          "default": "none"
-        },
-        "receiveDown": {
-          "title": "Receive = down",
-          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
-          "type": "string",
-          "default": "",
-          "f5PostProcess": {
-            "tag": "expand"
-          }
-        },
-        "reverse": {
-          "title": "Reverse",
-          "description": "If true, mark node down upon receipt of 'receive' string",
-          "type": "boolean",
-          "default": false
-        },
-        "transparent": {
-          "title": "Transparent",
-          "description": "If true, treat pool member address as gateway to server (node) (default false)",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_May_Adapt"
-        }
-      ],
-      "dependencies": {
-        "reverse": {
-          "if": {
-            "properties": {
-              "reverse": {
-                "const": true
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "receiveDown": {
-                "const": ""
-              }
-            }
-          }
-        }
-      }
-    },
-    "Monitor_TCP_Half_Open": {
-      "description": "Additional Monitor class properties available when monitorType = tcp-half-open",
-      "type": "object",
-      "properties": {
-        "transparent": {
-          "title": "Transparent",
-          "description": "If true, treat pool member address as gateway to server (node) (default false)",
-          "type": "boolean",
-          "default": false
-        }
-      }
-    },
-    "Monitor_Inband": {
-      "description": "Additional Monitor class properties available when monitorType = inband",
-      "type": "object",
-      "properties": {
-        "failureInterval": {
-          "title": "Failure Interval",
-          "description": "Specifies an interval, in seconds. If the number of failures specified in the failures option occurs within this interval, the system marks the pool member as being unavailable.",
-          "type": "integer",
-          "maximum": 1000,
-          "minimum": 2,
-          "default": 30
-        },
-        "failures": {
-          "title": "Failures",
-          "description": "Specifies the number of failures that the system allows to occur, within the time period specified in the failureInterval property, before marking a pool member unavailable. The multiple tmm processes use a per-process number to calculate failures, depending on the specified load. For example, for the Round Robin load balancing method, if there are N tmm processes and M pool members, and the Failures property is set to L, then up to N*M*L+1 failures can occur before the system marks the node as down. Specifying a value of 0 disables this option. A failure can be either a failure to connect or a failure of the pool member to respond within the time specified in the responseTime property.",
-          "type": "integer",
-          "default": 3,
-          "maximum": 1000,
-          "minimum": 0
-        },
-        "responseTime": {
-          "title": "Response Time",
-          "description": "Specifies an amount of time, in seconds. If the pool member does not respond with data after the specified amount of time has passed, the number of failures in this interval increments by 1. Specifying a value of 0 disables this option.",
-          "type": "integer",
-          "default": 10,
-          "maximum": 5000,
-          "minimum": 0
-        },
-        "retryTime": {
-          "title": "Retry Time",
-          "description": "Specifies the amount of time in seconds after the pool member has been marked unavailable before the system retries to connect to the pool member. Specifying a value of 0 disables this option.",
-          "type": "integer",
-          "default": 300,
-          "maximum": 5000,
-          "minimum": 0
-        }
-      }
-    },
-    "Monitor_LDAP": {
-      "description": "Additional Monitor class properties available when monitorType = smtp",
-      "type": "object",
-      "properties": {
-        "username": {
-          "title": "Username",
-          "description": "Username if any for query authentication",
-          "type": "string"
-        },
-        "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "base": {
-          "title": "Base",
-          "description": "Specifies the location in the LDAP tree from which the monitor starts the health check",
-          "type": "string"
-        },
-        "filter": {
-          "title": "Filter",
-          "description": "Specifies an LDAP key which the monitor searches",
-          "type": "string"
-        },
-        "security": {
-          "title": "Security",
-          "description": "Specifies the secure protocol type for communications with the target",
-          "type": "string",
-          "enum": [
-            "none",
-            "ssl",
-            "tls"
-          ],
-          "default": "none"
-        },
-        "mandatoryAttributes": {
-          "title": "Mandatory Attributes",
-          "description": "Specifies whether the target must include attributes in its response to be considered up",
-          "type": "boolean",
-          "default": false
-        },
-        "chaseReferrals": {
-          "title": "Chase Referrals",
-          "description": "Specifies, whether, upon receipt of an LDAP referral entry, the referral is followed",
-          "type": "boolean",
-          "default": true
-        }
-      }
-    },
-    "Monitor_DNS": {
-      "description": "Additional Monitor class properties available when monitorType = dns",
-      "type": "object",
-      "properties": {
-        "acceptRCODE": {
-          "title": "Accept RCODE",
-          "description": "Specifies the RCODE required in the response for an up status",
-          "type": "string",
-          "enum": [
-            "anything",
-            "no-error"
-          ],
-          "default": "no-error"
-        },
-        "answerContains": {
-          "title": "Answer Section Contains",
-          "description": "Specifies the type of DNS query that the monitor sends",
-          "type": "string",
-          "enum": [
-            "any-type",
-            "anything",
-            "query-type"
-          ],
-          "default": "query-type"
-        },
-        "queryName": {
-          "title": "Query Name",
-          "description": "Specifies a query name for the monitor to use in a DNS query",
-          "type": "string",
-          "minLength": 1
-        },
-        "queryType": {
-          "title": "Query Type",
-          "description": "Specifies the type of DNS query that the monitor sends.",
-          "type": "string",
-          "enum": [
-            "a",
-            "aaaa"
-          ],
-          "default": "a"
-        },
-        "receive": {
-          "title": "Receive String",
-          "description": "IP address that the monitor uses from the resource records sections of the DNS response",
-          "type": "string"
-        },
-        "reverse": {
-          "title": "Reverse",
-          "description": "If true, mark node down upon receipt of 'receive' string",
-          "type": "boolean",
-          "default": false
-        },
-        "transparent": {
-          "title": "Transparent",
-          "description": "If true, treat pool member address as gateway to server (node) (default false)",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Monitor_May_Adapt"
-        },
-        {
-          "if": {
-            "properties": {
-              "transparent": {
-                "const": true
-              }
-            },
-            "required": [
-              "transparent"
-            ]
-          },
-          "then": {
-            "allOf": [
-              {
-                "required": [
-                  "targetAddress",
-                  "targetPort"
-                ]
-              },
-              {
-                "properties": {
-                  "targetAddress": {
-                    "not": {
-                      "const": ""
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "reverse": {
-                "const": true
-              }
-            },
-            "required": [
-              "reverse"
-            ]
-          },
-          "then": {
-            "allOf": [
-              {
-                "required": [
-                  "receive"
-                ]
-              },
-              {
-                "properties": {
-                  "receive": {
-                    "not": {
-                      "const": ""
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "answerContains": {
-                "const": "query-type"
-              },
-              "acceptRCODE": {
-                "const": "no-error"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "receive": {
-                "default": ""
-              }
-            }
-          }
-        }
-      ],
-      "required": [
-        "queryName"
-      ]
-    },
-    "Monitor_RADIUS": {
-      "description": "Additional Monitor class properties available when monitorType = radius",
-      "type": "object",
-      "properties": {
-        "username": {
-          "title": "Username",
-          "description": "Specifies the user name, if the monitor target requires authentication",
-          "type": "string"
-        },
-        "passphrase": {
-          "title": "Passphrase",
-          "description": "Specifies the password, if the monitored target requires authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "secret": {
-          "title": "Secret",
-          "description": "Specifies the secret the monitor needs to access the resource",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "allOf": [
-            {
-              "$ref": "#/definitions/Secret"
-            },
-            {
-              "f5PostProcess": {
-                "tag": "fetch",
-                "data": "object"
-              }
-            },
-            {
-              "f5PostProcess": {
-                "tag": "secret"
-              }
-            }
-          ]
-        },
-        "nasIpAddress": {
-          "title": "IP Address",
-          "description": "Specifies the networks access server's IP address (NAS IP address) for a RADIUS monitor",
-          "type": "string",
-          "format": "f5ip"
-        }
-      }
     },
     "TLS_Server": {
       "title": "TLS_Server",
@@ -12567,7 +11016,9 @@
                       "azure",
                       "consul"
                     ],
-                    "f5serviceDiscovery": true
+                    "f5PostProcess": {
+                      "tag": "serviceDiscovery"
+                    }
                   },
                   "updateInterval": {
                     "title": "Update interval",
@@ -23838,6 +22289,7 @@
             "httpHeader",
             "httpHost",
             "httpMethod",
+            "httpStatus",
             "httpUri",
             "sslExtension",
             "tcp"
@@ -23891,6 +22343,18 @@
           },
           "then": {
             "$ref": "#/definitions/Policy_Condition_HTTP_Method"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "httpStatus"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Policy_Condition_HTTP_Status"
           }
         },
         {
@@ -24318,6 +22782,78 @@
         }
       ]
     },
+    "Policy_Condition_HTTP_Status": {
+      "description": "Match against an HTTP response's status",
+      "type": "object",
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "event": {
+              "description": "When to evaluate this condition in the request-response cycle",
+              "type": "string",
+              "enum": [
+                "proxy-response",
+                "response"
+              ],
+              "default": "proxy-response"
+            }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "all": {
+                  "description": "Match against full HTTP status response includeing both code and text",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_String"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "description": "Match against the numeric HTTP response status code",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_Number"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "code"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "Match against HTTP response status string, e.g. 'Authentication Required'",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_String"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "text"
+              ]
+            }
+          ]
+        }
+      ]
+    },
     "Policy_Condition_HTTP_Method": {
       "description": "Match against any HTTP method",
       "type": "object",
@@ -24728,7 +23264,11 @@
         },
         "datagroup": {
           "description": "Reference to a data-group containing the values",
-          "$ref": "#/definitions/Datagroup_Value"
+          "allOf": [
+            {
+              "$ref": "#/definitions/Datagroup_Value"
+            }
+          ]
         },
         "caseSensitive": {
           "description": "Specifies if the comparison the system should perform with case sensitivity",
@@ -24802,10 +23342,30 @@
             "type": "integer"
           },
           "minItems": 1
+        },
+        "datagroup": {
+          "description": "Reference to a data-group containing the values",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Datagroup_Value"
+            }
+          ]
         }
       },
+      "oneOf": [
+        {
+          "required": [
+            "values"
+          ]
+        },
+        {
+          "required": [
+            "datagroup"
+          ]
+        }
+      ],
       "required": [
-        "values"
+        "operand"
       ],
       "additionalProperties": false
     },
@@ -24832,7 +23392,11 @@
         },
         "datagroup": {
           "description": "Reference to a data-group containing the values",
-          "$ref": "#/definitions/Datagroup_Value"
+          "allOf": [
+            {
+              "$ref": "#/definitions/Datagroup_Value"
+            }
+          ]
         }
       },
       "oneOf": [
@@ -31928,6 +30492,54 @@
       ],
       "additionalProperties": false
     },
+    "Basic_Monitor": {
+      "title": "Monitor",
+      "description": "Monitor definition",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "http",
+            "https",
+            "http2",
+            "icmp",
+            "tcp-half-open",
+            "tcp"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bigip": {
+              "title": "BIG-IP monitor",
+              "description": "Pathname of existing BIG-IP monitor",
+              "type": "string",
+              "format": "f5bigip"
+            },
+            "use": {
+              "title": "Use",
+              "description": "BIG-IP AS3 pointer to monitor declaration",
+              "type": "string",
+              "minLength": 1,
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "properties": {
+                    "class": {
+                      "const": "Monitor"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "Bearer_Token": {
       "title": "Bearer Token Authorization",
       "description": "Describes using a bearer token to access a resource",
@@ -34696,6 +33308,2830 @@
         "class",
         "destinations"
       ]
+    },
+    "Monitor": {
+      "title": "Monitor",
+      "description": "Declares a (possibly complex) monitor",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string",
+          "enum": [
+            "dns",
+            "external",
+            "ftp",
+            "http",
+            "https",
+            "http2",
+            "icmp",
+            "inband",
+            "ldap",
+            "mysql",
+            "postgresql",
+            "radius",
+            "sip",
+            "smtp",
+            "tcp",
+            "tcp-half-open",
+            "udp"
+          ]
+        }
+      },
+      "required": [
+        "class",
+        "monitorType"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "dns"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_DNS"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "external"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_External"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "ftp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_FTP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "http"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_HTTP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "https"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_HTTPS"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "http2"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_HTTP2"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "icmp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_ICMP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "inband"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_Inband"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "ldap"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_LDAP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "mysql"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_MySQL"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "postgresql"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_PostgreSQL"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "radius"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_RADIUS"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "sip"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_SIP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "smtp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_SMTP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "tcp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_TCP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "tcp-half-open"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_TCP_Half_Open"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "udp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_UDP"
+          }
+        }
+      ]
+    },
+    "Monitor_DNS": {
+      "title": "Monitor DNS",
+      "description": "Additional Monitor class properties available when monitorType = dns",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "acceptRCODE": {
+          "title": "Accept RCODE",
+          "description": "Specifies the RCODE required in the response for an up status",
+          "type": "string",
+          "enum": [
+            "anything",
+            "no-error"
+          ],
+          "default": "no-error"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 1800,
+          "default": 180
+        },
+        "answerContains": {
+          "title": "Answer Section Contains",
+          "description": "Specifies the type of DNS query that the monitor sends",
+          "type": "string",
+          "enum": [
+            "any-type",
+            "anything",
+            "query-type"
+          ],
+          "default": "query-type"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "queryName": {
+          "title": "Query Name",
+          "description": "Specifies a query name for the monitor to use in a DNS query",
+          "type": "string",
+          "minLength": 1
+        },
+        "queryType": {
+          "title": "Query Type",
+          "description": "Specifies the type of DNS query that the monitor sends.",
+          "type": "string",
+          "enum": [
+            "a",
+            "aaaa"
+          ],
+          "default": "a"
+        },
+        "receive": {
+          "title": "Receive String",
+          "description": "IP address that the monitor uses from the resource records sections of the DNS response",
+          "type": "string"
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "transparent": {
+                "const": true
+              }
+            },
+            "required": [
+              "transparent"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "required": [
+                  "targetAddress",
+                  "targetPort"
+                ]
+              },
+              {
+                "properties": {
+                  "targetAddress": {
+                    "not": {
+                      "const": ""
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reverse": {
+                "const": true
+              }
+            },
+            "required": [
+              "reverse"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "required": [
+                  "receive"
+                ]
+              },
+              {
+                "properties": {
+                  "receive": {
+                    "not": {
+                      "const": ""
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "answerContains": {
+                "const": "query-type"
+              },
+              "acceptRCODE": {
+                "const": "no-error"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "receive": {
+                "default": ""
+              }
+            }
+          }
+        }
+      ],
+      "required": [
+        "queryName"
+      ]
+    },
+    "Monitor_External": {
+      "title": "Monitor External",
+      "description": "Monitor External definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "arguments": {
+          "title": "Arguments",
+          "description": "Arguments to specified external monitor (will be backquote-expanded)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "environmentVariables": {
+          "description": "Specifies user defined command line parameters that the external program requires.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "expand": {
+          "title": "Expand",
+          "description": "If true (default), expand backquoted variables in script",
+          "type": "boolean",
+          "default": true
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "pathname": {
+          "title": "pathname",
+          "description": "Tmsh object path name of an imported existing external monitor (e.g. /Common/arg_example)",
+          "type": "string",
+          "minLength": 2,
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "script": {
+          "title": "External monitor script",
+          "description": "Bash(1) script which implements external monitor",
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5_String"
+            },
+            {
+              "f5PostProcess": {
+                "tag": "expand",
+                "data": {
+                  "when": "1/expand"
+                }
+              }
+            },
+            {
+              "f5PostProcess": {
+                "tag": "fetch",
+                "data": "string"
+              }
+            }
+          ]
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "pathname"
+          ]
+        },
+        {
+          "required": [
+            "script"
+          ]
+        }
+      ],
+      "if": {
+        "required": [
+          "pathname"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "script"
+          ]
+        },
+        "errorMessage": "can only have either 'pathname' or 'script', not both. Also check property types along with minimum and maximum property values"
+      }
+    },
+    "Monitor_FTP": {
+      "title": "Monitor FTP",
+      "description": "Monitor FTP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "filename": {
+          "title": "Filename",
+          "description": "Specifies the full path and file name of the file that the system attempts to download. The health check is successful if the system can download the file.",
+          "type": "string"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "mode": {
+          "title": "Mode",
+          "description": "Specifies the data transfer process (DTP) mode. The default value is passive.",
+          "type": "string",
+          "default": "passive",
+          "enum": [
+            "passive",
+            "port"
+          ]
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_HTTP": {
+      "title": "Monitor HTTP",
+      "description": "Monitor HTTP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1800,
+          "default": 180
+        },
+        "dscp": {
+          "title": "IP DSCP",
+          "description": "Value for IP DSCP (ex-TOS) field (default 0)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63,
+          "default": 0
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            },
+            {
+              "title": "Passphrase",
+              "description": "Passphrase if any for query authentication",
+              "type": "object",
+              "properties": {
+                "allowReuse": {
+                  "description": "If true, other declaration objects may reuse this value",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "f5PostProcess": {
+                "tag": "fetch",
+                "data": "object"
+              }
+            }
+          ]
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "default": "HTTP/1.",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "receiveDown": {
+          "title": "Receive = down",
+          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "default": "HEAD / HTTP/1.0\\r\\n\\r\\n",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "dependencies": {
+        "reverse": {
+          "if": {
+            "properties": {
+              "reverse": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "receiveDown": {
+                "const": ""
+              }
+            }
+          }
+        }
+      }
+    },
+    "Monitor_HTTP2": {
+      "title": "Monitor HTTP2",
+      "description": "Monitor HTTP2 definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1800,
+          "default": 180
+        },
+        "clientTLS": {
+          "title": "Client TLS",
+          "description": "BIG-IP AS3 pointer to client TLS Profile",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_TLS_Client"
+            }
+          ]
+        },
+        "dscp": {
+          "title": "IP DSCP",
+          "description": "Value for IP DSCP (ex-TOS) field (default 0)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63,
+          "default": 0
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "default": "HTTP/2.",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "receiveDown": {
+          "title": "Receive = down",
+          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "default": "GET /\\r\\n\\r\\n",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_HTTPS": {
+      "title": "Monitor HTTPS",
+      "description": "Monitor HTTPS definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1800,
+          "default": 180
+        },
+        "ciphers": {
+          "title": "Ciphers",
+          "description": "Ciphersuite selection string",
+          "type": "string",
+          "default": "DEFAULT"
+        },
+        "clientCertificate": {
+          "title": "Client certificate",
+          "description": "BIG-IP AS3 pointer to client Certificate declaration, for TLS authentication (optional)",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "const": "Certificate"
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "clientTLS": {
+          "title": "Client TLS",
+          "description": "BIG-IP AS3 pointer to client TLS Profile",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_TLS_Client"
+            }
+          ]
+        },
+        "dscp": {
+          "title": "IP DSCP",
+          "description": "Value for IP DSCP (ex-TOS) field (default 0)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63,
+          "default": 0
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "default": "HTTP/1.",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "receiveDown": {
+          "title": "Receive = down",
+          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "default": "HEAD / HTTP/1.0\\r\\n\\r\\n",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_ICMP": {
+      "title": "Monitor ICMP",
+      "description": "Monitor ICMP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 1800,
+          "default": 180
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_Inband": {
+      "title": "Monitor Inband",
+      "description": "Monitor Inband definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "failureInterval": {
+          "title": "Failure Interval",
+          "description": "Specifies an interval, in seconds. If the number of failures specified in the failures option occurs within this interval, the system marks the pool member as being unavailable.",
+          "type": "integer",
+          "default": 30,
+          "maximum": 1000,
+          "minimum": 2
+        },
+        "failures": {
+          "title": "Failures",
+          "description": "Specifies the number of failures that the system allows to occur, within the time period specified in the failureInterval property, before marking a pool member unavailable. The multiple tmm processes use a per-process number to calculate failures, depending on the specified load. For example, for the Round Robin load balancing method, if there are N tmm processes and M pool members, and the Failures property is set to L, then up to N*M*L+1 failures can occur before the system marks the node as down. Specifying a value of 0 disables this option. A failure can be either a failure to connect or a failure of the pool member to respond within the time specified in the responseTime property.",
+          "type": "integer",
+          "default": 3,
+          "maximum": 1000,
+          "minimum": 0
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "responseTime": {
+          "title": "Response Time",
+          "description": "Specifies an amount of time, in seconds. If the pool member does not respond with data after the specified amount of time has passed, the number of failures in this interval increments by 1. Specifying a value of 0 disables this option.",
+          "type": "integer",
+          "default": 10,
+          "maximum": 5000,
+          "minimum": 0
+        },
+        "retryTime": {
+          "title": "Retry Time",
+          "description": "Specifies the amount of time in seconds after the pool member has been marked unavailable before the system retries to connect to the pool member. Specifying a value of 0 disables this option.",
+          "type": "integer",
+          "default": 300,
+          "maximum": 5000,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_LDAP": {
+      "title": "Monitor LDAP",
+      "description": "Monitor LDAP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "base": {
+          "title": "Base",
+          "description": "Specifies the location in the LDAP tree from which the monitor starts the health check",
+          "type": "string"
+        },
+        "chaseReferrals": {
+          "title": "Chase Referrals",
+          "description": "Specifies, whether, upon receipt of an LDAP referral entry, the referral is followed",
+          "type": "boolean",
+          "default": true
+        },
+        "filter": {
+          "title": "Filter",
+          "description": "Specifies an LDAP key which the monitor searches",
+          "type": "string"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "mandatoryAttributes": {
+          "title": "Mandatory Attributes",
+          "description": "Specifies whether the target must include attributes in its response to be considered up",
+          "type": "boolean",
+          "default": false
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "security": {
+          "title": "Security",
+          "description": "Specifies the secure protocol type for communications with the target",
+          "type": "string",
+          "enum": [
+            "none",
+            "ssl",
+            "tls"
+          ],
+          "default": "none"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_MySQL": {
+      "title": "Monitor MySQL",
+      "description": "Monitor MySQL definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "count": {
+          "title": "Count",
+          "description": "Number of monitor probes after which the connection to the database will be terminated.  Count value of zero indicates that the connection will never be terminated.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 0
+        },
+        "database": {
+          "title": "Database",
+          "description": "The name of the database with which the monitor attempts to communicate.",
+          "type": "string"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "receiveColumn": {
+          "title": "Receive Column",
+          "description": "Specifies the column in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Receive properties.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "receiveRow": {
+          "title": "Receive Row",
+          "description": "Specifies the row in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Recieve properties.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "dependencies": {
+        "receiveColumn": {
+          "required": [
+            "send",
+            "receive"
+          ]
+        },
+        "receiveRow": {
+          "required": [
+            "send",
+            "receive"
+          ]
+        }
+      }
+    },
+    "Monitor_PostgreSQL": {
+      "title": "Monitor PostgreSQL",
+      "description": "Monitor PostgreSQL definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "count": {
+          "title": "Count",
+          "description": "Number of monitor probes after which the connection to the database will be terminated.  Count value of zero indicates that the connection will never be terminated.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 0
+        },
+        "database": {
+          "title": "Database",
+          "description": "The name of the database with which the monitor attempts to communicate.",
+          "type": "string"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "receiveColumn": {
+          "title": "Receive Column",
+          "description": "Specifies the column in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Receive properties.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1600
+        },
+        "receiveRow": {
+          "title": "Receive Row",
+          "description": "Specifies the row in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Recieve properties.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967294
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "dependencies": {
+        "receiveColumn": {
+          "required": [
+            "send",
+            "receive"
+          ]
+        },
+        "receiveRow": {
+          "required": [
+            "send",
+            "receive"
+          ]
+        }
+      }
+    },
+    "Monitor_RADIUS": {
+      "title": "Monitor RADIUS",
+      "description": "Monitor RADIUS definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "nasIpAddress": {
+          "title": "IP Address",
+          "description": "Specifies the networks access server's IP address (NAS IP address) for a RADIUS monitor",
+          "type": "string",
+          "format": "f5ip"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "secret": {
+          "title": "Secret",
+          "description": "Specifies the secret the monitor needs to access the resource",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            },
+            {
+              "f5PostProcess": {
+                "tag": "fetch",
+                "data": "object"
+              }
+            },
+            {
+              "f5PostProcess": {
+                "tag": "secret"
+              }
+            }
+          ]
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Specifies the user name, if the monitor target requires authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_SIP": {
+      "title": "Monitor SIP",
+      "description": "Monitor SIP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "ciphers": {
+          "title": "Ciphers",
+          "description": "Ciphersuite selection string",
+          "type": "string",
+          "default": "DEFAULT"
+        },
+        "clientCertificate": {
+          "title": "Client certificate",
+          "description": "BIG-IP AS3 pointer to client Certificate declaration, for TLS authentication (optional)",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "const": "Certificate"
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "codesDown": {
+          "title": "Codes = down",
+          "description": "List of status codes meaning service is down (0 matches any code)",
+          "type": "array",
+          "items": {
+            "title": "Code = down",
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "codesUp": {
+          "title": "Codes = up",
+          "description": "List of additional (to all 1/2/3xx) status codes meaning service is up (0 matches any code)",
+          "type": "array",
+          "items": {
+            "title": "Code = up",
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "headers": {
+          "title": "Headers",
+          "description": "SIP headers to send in probes (if any)--separate by newlines (backquote-expanded)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "description": "SIP transport protocol",
+          "type": "string",
+          "enum": [
+            "sips",
+            "tcp",
+            "tls",
+            "udp"
+          ],
+          "default": "udp"
+        },
+        "request": {
+          "title": "Request",
+          "description": "SIP request to send in probes (default empty)",
+          "type": "string",
+          "default": ""
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "dependencies": {
+        "clientCertificate": {
+          "properties": {
+            "protocol": {
+              "enum": [
+                "sips",
+                "tls"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "Monitor_SMTP": {
+      "title": "Monitor SMTP",
+      "description": "Monitor SMTP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "domain": {
+          "title": "Domain",
+          "description": "Mail domain to check, if any (backquote-expanded)",
+          "type": "string",
+          "format": "hostname",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_TCP": {
+      "title": "Monitor TCP",
+      "description": "Monitor TCP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 1800,
+          "default": 180
+        },
+        "dscp": {
+          "title": "IP DSCP",
+          "description": "Value for IP DSCP (ex-TOS) field (default 0)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63,
+          "default": 0
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "default": "none",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "receiveDown": {
+          "title": "Receive = down",
+          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "default": "none",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "dependencies": {
+        "reverse": {
+          "if": {
+            "properties": {
+              "reverse": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "receiveDown": {
+                "const": ""
+              }
+            },
+            "errorMessage": "if reverse is true, receiveDown must be empty"
+          }
+        }
+      }
+    },
+    "Monitor_TCP_Half_Open": {
+      "title": "Monitor TCP Half Open",
+      "description": "Monitor properties available when monitorType = tcp-half-open",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Monitor_UDP": {
+      "title": "Monitor UDP",
+      "description": "Monitor UDP definition",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Monitor"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "adaptive": {
+          "title": "Adaptive",
+          "description": "If true, use adaptive probe timing",
+          "type": "boolean",
+          "default": false
+        },
+        "adaptiveDivergenceMilliseconds": {
+          "title": "Adaptive divergence msec",
+          "description": "Probe fails if response latency exceeds mean by this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 500
+        },
+        "adaptiveDivergencePercentage": {
+          "title": "Adaptive divergence percent",
+          "description": "Probe fails if response latency exceeds mean by this percentage",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "adaptiveDivergenceType": {
+          "title": "Adaptive divergence type",
+          "description": "Adaptive divergence, 'absolute' selects milliseconds, 'relative' (default) selects percentage",
+          "type": "string",
+          "enum": [
+            "absolute",
+            "relative"
+          ],
+          "default": "relative"
+        },
+        "adaptiveLimitMilliseconds": {
+          "title": "Adaptive limit msec",
+          "description": "Probe fails if response latency exceeds this number of milliseconds",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptiveWindow": {
+          "title": "Adaptive window",
+          "description": "Time window over which the system samples latency (seconds)",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 1800,
+          "default": 180
+        },
+        "interval": {
+          "title": "Interval",
+          "description": "Poll interval (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 5
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand"
+          },
+          "default": "none"
+        },
+        "receiveDown": {
+          "title": "Receive = down",
+          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand"
+          }
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to node",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand"
+          },
+          "default": "default send string"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeout": {
+          "title": "Timeout",
+          "description": "Time limit for node to respond (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 16
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "dependencies": {
+        "reverse": {
+          "if": {
+            "properties": {
+              "reverse": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "receiveDown": {
+                "const": ""
+              }
+            },
+            "errorMessage": "if reverse is true, receiveDown must be empty"
+          }
+        }
+      }
     },
     "Pointer_BIGIP": {
       "title": "Pointer BIG-IP",

@@ -18,7 +18,7 @@ Added Functionality
     * Support for AS3 GTM agent with separate GTM server
     * Support for /ready endpoint to check the CIS health
     * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode.See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_
-    * Add support for AS3 3.47.0
+    * Add support for AS3 3.48.0
 Bug Fixes
 ````````````
 * `Issue 3057 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3057>`_: Support for pool settings for reslect with policy CR.
@@ -26,7 +26,7 @@ Bug Fixes
 * `Issue 3079 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
 * `Issue 3073 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3073>`_: Fix AS3 config map multi port service issue
 * `Issue 2985 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2985>`_: Improve CIS primary and secondary coordination
-* `Issue 2985 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3066>`_: Support for a/b deployment custom persistence in CRD, nextGen routes with cluster mode
+* `Issue 3066 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3066>`_: Support for a/b deployment custom persistence in CRD, nextGen routes with cluster mode
 
 Upgrade notes
 ``````````````
@@ -35,6 +35,7 @@ Upgrade notes
 Known Issues
 `````````````
 *  [Multi-Cluster] Route status is not updated in other HA cluster.
+*  `Issue 775 <https://github.com/F5Networks/f5-appsvcs-extension/issues/775>`_: If customer is using referenced monitor then they should not use AS3 3.48. Its recommended to use AS3 3.47 or lower on BIGIP
 
 2.14.0
 -------------

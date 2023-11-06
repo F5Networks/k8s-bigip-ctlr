@@ -528,6 +528,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				svcNamespace = SvcBackend.SvcNamespace
 			}
 			targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, SvcBackend.Cluster)
+			if (intstr.IntOrString{}) == targetPort {
+				targetPort = pl.ServicePort
+			}
 			pool := Pool{
 				Name:              poolName,
 				Partition:         rsCfg.Virtual.Partition,
@@ -1946,7 +1949,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		svcNamespace = vs.Spec.Pool.ServiceNamespace
 	}
 	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort, "")
-
+	if (intstr.IntOrString{}) == targetPort {
+		targetPort = vs.Spec.Pool.ServicePort
+	}
 	pool := Pool{
 		Name:              poolName,
 		Partition:         rsCfg.Virtual.Partition,

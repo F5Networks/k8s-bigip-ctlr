@@ -1113,8 +1113,6 @@ func (ctlr *Controller) processVirtualServers(
 			}
 		}
 	}
-	// Updating the virtual server IP Address status
-	virtual.Status.VSAddress = ip
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := ctlr.virtualPorts(virtual)
 
@@ -1201,6 +1199,8 @@ func (ctlr *Controller) processVirtualServers(
 		}
 
 		for _, vrt := range virtuals {
+			// Updating the virtual server IP Address status for all associated virtuals
+			vrt.Status.VSAddress = ip
 			passthroughVS := false
 			var tlsProf *cisapiv1.TLSProfile
 			var tlsTermination string

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.48.0/as3-schema-3.48.0-9.json",
+  "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.48.0/as3-schema-3.48.0-10.json",
   "class": "AS3",
   "declaration": {
     "class": "ADC",

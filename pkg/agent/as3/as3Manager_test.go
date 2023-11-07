@@ -49,7 +49,7 @@ var _ = Describe("AS3Manager Tests", func() {
 	BeforeEach(func() {
 		mockMgr = newMockAS3Manager(&Params{
 			As3Version:       "3.48.0",
-			As3Release:       "3.48.0-9",
+			As3Release:       "3.48.0-10",
 			As3SchemaVersion: "3.48.0",
 		})
 		mockMgr.Resources = &AgentResources{}

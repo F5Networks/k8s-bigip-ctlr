@@ -127,7 +127,7 @@ const (
 	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
 	as3Version        = 3.48
 	defaultAS3Version = "3.48.0"
-	defaultAS3Build   = "9"
+	defaultAS3Build   = "10"
 	clusterHealthPath = "/readyz"
 )
 

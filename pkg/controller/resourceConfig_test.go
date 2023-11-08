@@ -3,12 +3,12 @@ package controller
 import (
 	"sort"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"

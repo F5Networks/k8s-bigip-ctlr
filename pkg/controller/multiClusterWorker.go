@@ -2,9 +2,9 @@ package controller
 
 import (
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 

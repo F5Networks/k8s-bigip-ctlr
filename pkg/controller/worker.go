@@ -22,8 +22,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -36,8 +36,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -3568,11 +3568,11 @@ func (ctlr *Controller) recordLBServiceIngressEvent(
 	reason string,
 	message string,
 ) {
-	namespace := svc.ObjectMeta.Namespace
-	// Create the event
-	evNotifier := ctlr.eventNotifier.CreateNotifierForNamespace(
-		namespace, ctlr.kubeClient.CoreV1())
-	evNotifier.RecordEvent(svc, eventType, reason, message)
+	//namespace := svc.ObjectMeta.Namespace
+	//// Create the event
+	//evNotifier := ctlr.eventNotifier.CreateNotifierForNamespace(
+	//	namespace, ctlr.kubeClient.CoreV1())
+	//evNotifier.RecordEvent(svc, eventType, reason, message)
 }
 
 // sort services by timestamp

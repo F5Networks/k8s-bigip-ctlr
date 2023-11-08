@@ -25,7 +25,7 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 )
 
 type Writer interface {

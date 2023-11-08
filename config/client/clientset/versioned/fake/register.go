@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

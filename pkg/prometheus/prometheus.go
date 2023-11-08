@@ -1,7 +1,7 @@
 package prometheus
 
 import (
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

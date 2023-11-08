@@ -2,7 +2,7 @@ FROM golang:1.17
 
 ENV GO111MODULE on
 
-ENV PKGPATH /go/src/github.com/F5Networks/k8s-bigip-ctlr/v2
+ENV PKGPATH /go/src/github.com/F5Networks/k8s-bigip-ctlr/v3
 
 RUN mkdir -p ${GOPATH}/src/github.com/F5Networks \
 	&& mkdir -p ${GOPATH}/src/k8s.io \
@@ -22,4 +22,4 @@ RUN mkdir -p ${GOPATH}/src/github.com/F5Networks \
 
 WORKDIR ${PKGPATH}
 
-ENTRYPOINT $GOPATH/src/k8s.io/code-generator/generate-groups-extra.sh allcustom "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client" "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis" cis:v1
+ENTRYPOINT $GOPATH/src/k8s.io/code-generator/generate-groups-extra.sh allcustom "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client" "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis" cis:v1

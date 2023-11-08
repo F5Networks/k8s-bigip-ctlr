@@ -3,8 +3,8 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

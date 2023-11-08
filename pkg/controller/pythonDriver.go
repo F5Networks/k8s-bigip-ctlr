@@ -26,13 +26,13 @@ import (
 	"syscall"
 	"time"
 
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/health"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 )
 
 func initializeDriverConfig(

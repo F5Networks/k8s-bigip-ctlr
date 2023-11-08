@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"

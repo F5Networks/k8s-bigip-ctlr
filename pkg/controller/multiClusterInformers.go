@@ -24,7 +24,7 @@ import (
 	"sort"
 	"time"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"

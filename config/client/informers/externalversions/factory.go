@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	cis "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis"
-	internalinterfaces "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
+	cis "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis"
+	internalinterfaces "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

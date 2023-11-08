@@ -31,8 +31,8 @@ import (
 
 	netv1 "k8s.io/api/networking/v1"
 
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 
 	routeapi "github.com/openshift/api/route/v1"
 	"github.com/xeipuuv/gojsonschema"

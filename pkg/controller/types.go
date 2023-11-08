@@ -18,8 +18,8 @@ package controller
 
 import (
 	"container/list"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
 	"net/http"
 	"sync"
 
@@ -31,14 +31,14 @@ import (
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
+	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -52,12 +52,12 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode                   ControllerMode
-		resources              *ResourceStore
-		kubeCRClient           versioned.Interface
-		kubeClient             kubernetes.Interface
-		kubeAPIClient          *extClient.Clientset
-		eventNotifier          *apm.EventNotifier
+		mode          ControllerMode
+		resources     *ResourceStore
+		kubeCRClient  versioned.Interface
+		kubeClient    kubernetes.Interface
+		kubeAPIClient *extClient.Clientset
+		//eventNotifier          *apm.EventNotifier
 		nativeResourceSelector labels.Selector
 		customResourceSelector labels.Selector
 		namespacesMutex        sync.Mutex

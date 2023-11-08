@@ -26,7 +26,7 @@ import (
 	"sort"
 
 	"encoding/json"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 

@@ -21,8 +21,8 @@ import (
 	"time"
 
 	// appManager is only used because we need the Member type (can't mock it)
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 

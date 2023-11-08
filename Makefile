@@ -151,5 +151,5 @@ else
 endif
 
 crd-code-gen:
-	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr/v2 quay.io/f5networks/ciscrdcodegen:latest
+	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr/v3 quay.io/f5networks/ciscrdcodegen:v1
 	docker rm crdcodegen

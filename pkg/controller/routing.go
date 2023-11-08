@@ -29,10 +29,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 )
 
 // prepareVirtualServerRules prepares LTM Policy rules for VirtualServer

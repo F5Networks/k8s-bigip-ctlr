@@ -15,6 +15,7 @@ Added Functionality
     * CRD
        * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR
        * `Issue 2963 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2963>`_: Support MinimumMonitors in virtualserver CR
+       * `Issue 3126 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3126>`_: VirtualServer with hostGroup and ipamLabel set returns the wrong vsAddress status
     * Support for AS3 GTM agent with separate GTM server
     * Support for /ready endpoint to check the CIS health
     * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode.See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_

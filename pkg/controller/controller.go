@@ -83,6 +83,8 @@ const (
 	NodePort = "nodeport"
 	Cluster  = "cluster"
 
+	Local = "local"
+
 	StandAloneCIS = "standalone"
 	SecondaryCIS  = "secondary"
 	PrimaryCIS    = "primary"

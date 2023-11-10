@@ -581,7 +581,7 @@ func verifyArgs() error {
 	if *multiClusterMode != "standalone" && *multiClusterMode != "primary" && *multiClusterMode != "secondary" && *multiClusterMode != "" {
 		return fmt.Errorf("'%v' is not a valid multi cluster mode, allowed values are: standalone/primary/secondary", *multiClusterMode)
 	} else if *multiClusterMode != "" {
-		log.Debugf("[MultiCluster] CIS running with multi-cluster-mode: %s", *multiClusterMode)
+		log.Infof("[MultiCluster] CIS running with multi-cluster-mode: %s", *multiClusterMode)
 	}
 
 	if (len(*routeSpecConfigmap) == 0 && len(*extendedSpecConfigmap) == 0) && *multiClusterMode != "" {

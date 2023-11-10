@@ -114,8 +114,13 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 					log.Error(scanOut.Text())
 				} else if strings.Contains(scanOut.Text(), "CRITICAL]") {
 					log.Critical(scanOut.Text())
-				} else {
+				} else if strings.Contains(scanOut.Text(), "INFO]") && (strings.Contains(scanOut.Text(), "Creating") ||
+					strings.Contains(scanOut.Text(), "Updating") ||
+					strings.Contains(scanOut.Text(), "Deleting")) {
 					log.Info(scanOut.Text())
+				} else {
+					// moving cccl info level logs to debug
+					log.Debug(scanOut.Text())
 				}
 			} else {
 				break

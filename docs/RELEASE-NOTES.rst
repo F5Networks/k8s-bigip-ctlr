@@ -36,7 +36,7 @@ Upgrade notes
 Known Issues
 `````````````
 *  [Multi-Cluster] Route status is not updated in other HA cluster.
-*  `Issue 775 <https://github.com/F5Networks/f5-appsvcs-extension/issues/775>`_: If customer is using referenced monitor then they should not use AS3 3.48. Its recommended to use AS3 3.47 or lower on BIGIP
+*  `Issue 777 <https://github.com/F5Networks/f5-appsvcs-extension/issues/777>`_: Cluster adminState in multiCluster mode doesn't work properly with AS3 (v3.47 and v3.48) as updating pool member adminState from enable to offline fails with 422 error with AS3 (v3.47 and v3.48). If customer needs this feature, we recommend to use AS3 v3.46 or lower on BIGIP.
 
 2.14.0
 -------------

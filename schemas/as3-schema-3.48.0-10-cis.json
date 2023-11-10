@@ -30509,6 +30509,7 @@
         },
         {
           "type": "object",
+          "description": "Name or path to monitor",
           "properties": {
             "bigip": {
               "title": "BIG-IP monitor",
@@ -34805,14 +34806,6 @@
           "format": "f5ip",
           "default": ""
         },
-        "targetPort": {
-          "title": "Port",
-          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 65535,
-          "default": 0
-        },
         "timeout": {
           "title": "Timeout",
           "description": "Time limit for node to respond (seconds)",
@@ -35827,6 +35820,21 @@
             "tag": "expand"
           }
         },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
         "timeout": {
           "title": "Timeout",
           "description": "Time limit for node to respond (seconds)",
@@ -36140,7 +36148,8 @@
       "properties": {
         "bigip": {
           "description": "Path to BIG-IP object",
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [

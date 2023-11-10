@@ -39,7 +39,7 @@ const (
 	// While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
 	as3Version           = 3.48
 	defaultAS3Version    = "3.48.0"
-	defaultAS3Build      = "9"
+	defaultAS3Build      = "10"
 	as3tenant            = "Tenant"
 	as3class             = "class"
 	as3SharedApplication = "Shared"
@@ -48,7 +48,7 @@ const (
 	as3template          = "template"
 	// as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
 	as3defaultRouteDomain = "defaultRouteDomain"
-	as3SchemaFileName     = "as3-schema-3.48.0-9-cis.json"
+	as3SchemaFileName     = "as3-schema-3.48.0-10-cis.json"
 )
 
 var baseAS3Config = `{

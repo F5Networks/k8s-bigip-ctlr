@@ -66,7 +66,7 @@ func (rs *ResourceStore) Init() {
 	rs.invertedNamespaceLabelMap = make(map[string]string)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
-	rs.externalClustersConfig = make(map[string]ExternalClusterConfig)
+	rs.externalClustersConfig = make(map[string]cisapiv1.ExternalClusterConfig)
 }
 
 const (
@@ -131,7 +131,7 @@ func NewCustomProfile(
 	peerCertMode,
 	caFile string,
 	chainCA string,
-	tlsCipher TLSCipher,
+	tlsCipher cisapiv1.TLSCipher,
 ) CustomProfile {
 	cp := CustomProfile{
 		Name:         profile.Name,
@@ -2326,7 +2326,7 @@ func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }
 
-func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRouteGroupSpec, string) {
+func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*cisapiv1.ExtendedRouteGroupSpec, string) {
 	extdSpec, ok := rs.extdSpecMap[routeGroup]
 
 	if !ok {
@@ -2339,7 +2339,7 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 	}
 
 	if extdSpec.override && extdSpec.local != nil {
-		ergc := &ExtendedRouteGroupSpec{
+		ergc := &cisapiv1.ExtendedRouteGroupSpec{
 			VServerName:   extdSpec.global.VServerName,
 			VServerAddr:   extdSpec.global.VServerAddr,
 			AllowOverride: extdSpec.global.AllowOverride,
@@ -2426,17 +2426,17 @@ func (ctlr *Controller) handleRouteTLS(
 			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
 		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
-		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+		if ctlr.resources.baseRouteConfig != (cisapiv1.BaseRouteConfig{}) {
 			//set for default routegroup
-			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (cisapiv1.DefaultRouteGroupConfig{}) {
 				//Flag to track the route groups which are using TLS profiles.
 				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
-					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = cisapiv1.Meta{
 						DependsOnTLS: true,
 					}
 				}
 			} else {
-				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = cisapiv1.Meta{
 					DependsOnTLS: true,
 				}
 			}
@@ -2457,17 +2457,17 @@ func (ctlr *Controller) handleRouteTLS(
 			bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
 		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
-		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+		if ctlr.resources.baseRouteConfig != (cisapiv1.BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
-			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (cisapiv1.DefaultRouteGroupConfig{}) {
 				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
-					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = cisapiv1.Meta{
 						DependsOnTLS: true,
 					}
 				}
 			} else {
 				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global != nil {
-					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = cisapiv1.Meta{
 						DependsOnTLS: true,
 					}
 				}
@@ -2550,8 +2550,8 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 		sslProfileOption = AnnotationSSLOption
 	} else if route.Spec.TLS != nil && route.Spec.TLS.Key != "" && route.Spec.TLS.Certificate != "" {
 		sslProfileOption = RouteCertificateSSLOption
-	} else if ctlr.resources != nil && ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) &&
-		ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
+	} else if ctlr.resources != nil && ctlr.resources.baseRouteConfig != (cisapiv1.BaseRouteConfig{}) &&
+		ctlr.resources.baseRouteConfig.DefaultTLS != (cisapiv1.DefaultSSLProfile{}) &&
 		ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP {
 		sslProfileOption = DefaultSSLOption
 	} else {
@@ -2658,7 +2658,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	for i, svc := range pool.MultiClusterServices {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
-		// cluster credentials must be specified in the extended configmap
+		// cluster credentials must be specified in the DeployConfig CR
 		if !ctlr.checkValidExtendedService(svc) {
 			continue
 		}
@@ -2668,7 +2668,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 				totalClusterRatio += float64(*r)
 			} else {
 				// Service is from unknown cluster. This case should not arise, but if it does then consider weight to
-				// be 0 as most probably the cluster config may not have been provided in the extended configmap, in
+				// be 0 as most probably the cluster config may not have been provided in the DeployConfig CR, in
 				// such a case no traffic should be distributed to this cluster
 				zero := 0
 				pool.MultiClusterServices[i].Weight = &zero
@@ -2808,7 +2808,7 @@ func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, clu
 		// If cluster is not specified then it means that  the monitor is for a pool belonging to the local cluster,
 		// where CIS is running. In this scenario append the local cluster name to the monitor name.
 		// For standalone mode as local cluster name is not specified, append "_local_cluster" to the monitor name.
-		// For all other modes the local cluster name is provided in the extended configmap as Primary/Secondary cluster
+		// For all other modes the local cluster name is provided in the DeployConfig CR as Primary/Secondary cluster
 		// details, which is stored in LocalClusterName based on whether the CIS is running in primary or secondary mode.
 		if ctlr.multiClusterMode != StandAloneCIS {
 			monitorName += "_" + ctlr.multiClusterConfigs.LocalClusterName

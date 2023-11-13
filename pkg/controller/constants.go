@@ -1,14 +1,6 @@
 package controller
 
-type (
-	ControllerMode string
-)
-
 const (
-	KubernetesMode     ControllerMode = "kubernetes"
-	OpenShiftMode      ControllerMode = "openshift"
-	CustomResourceMode ControllerMode = "customresource"
-
 	Create = "Create"
 	Update = "Update"
 	Delete = "Delete"

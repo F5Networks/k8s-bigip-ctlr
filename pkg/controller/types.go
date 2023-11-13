@@ -52,7 +52,6 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode          ControllerMode
 		resources     *ResourceStore
 		kubeCRClient  versioned.Interface
 		kubeClient    kubernetes.Interface
@@ -62,7 +61,6 @@ type (
 		customResourceSelector labels.Selector
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
-		nodeLabelSelector      string
 		ciliumTunnelName       string
 		vxlanMgr               *vxlan.VxlanMgr
 		initialResourceCount   int
@@ -82,7 +80,6 @@ type (
 		defaultRouteDomain     int
 		TeemData               *teem.TeemsData
 		requestQueue           *requestQueue
-		namespaceLabel         string
 		ipamHostSpecEmpty      bool
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
@@ -91,10 +88,20 @@ type (
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		multiClusterResources  *MultiClusterResourceStore
 		multiClusterMode       string
-		haModeType             HAModeType
+		haModeType             cisapiv1.HAModeType
 		clusterRatio           map[string]*int
-		clusterAdminState      map[string]clustermanager.AdminState
+		clusterAdminState      map[string]cisapiv1.AdminState
+		managedResources       ManagedResources
+		baseConfig             BaseConfig
 		resourceContext
+	}
+	ManagedResources struct {
+		ManageRoutes          bool
+		ManageCustomResources bool
+	}
+	BaseConfig struct {
+		NamespaceLabel string
+		NodeLabel      string
 	}
 	resourceContext struct {
 		resourceQueue             workqueue.RateLimitingInterface
@@ -106,7 +113,7 @@ type (
 		nodeInformer              *NodeInformer
 		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
 		multiClusterNodeInformers map[string]*NodeInformer
-		globalExtendedCMKey       string
+		CISConfigCRKey            string
 		routeLabel                string
 		namespaceLabelMode        bool
 		processedHostPath         *ProcessedHostPath
@@ -114,28 +121,25 @@ type (
 
 	// Params defines parameters
 	Params struct {
-		Config                      *rest.Config
-		Namespaces                  []string
-		NamespaceLabel              string
-		Partition                   string
-		Agent                       *Agent
-		PoolMemberType              string
-		VXLANName                   string
-		VXLANMode                   string
-		CiliumTunnelName            string
-		UseNodeInternal             bool
-		NodePollInterval            int
-		NodeLabelSelector           string
-		ShareNodes                  bool
-		IPAM                        bool
-		DefaultRouteDomain          int
-		Mode                        ControllerMode
-		GlobalExtendedSpecConfigmap string
-		RouteLabel                  string
-		StaticRoutingMode           bool
-		OrchestrationCNI            string
-		StaticRouteNodeCIDR         string
-		MultiClusterMode            string
+		Config              *rest.Config
+		Namespaces          []string
+		Partition           string
+		Agent               *Agent
+		PoolMemberType      string
+		VXLANName           string
+		VXLANMode           string
+		CiliumTunnelName    string
+		UseNodeInternal     bool
+		NodePollInterval    int
+		ShareNodes          bool
+		IPAM                bool
+		DefaultRouteDomain  int
+		CISConfigCRKey      string
+		RouteLabel          string
+		StaticRoutingMode   bool
+		OrchestrationCNI    string
+		StaticRouteNodeCIDR string
+		MultiClusterMode    string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -149,15 +153,15 @@ type (
 	}
 
 	CommonInformer struct {
-		namespace       string
-		stopCh          chan struct{}
-		svcInformer     cache.SharedIndexInformer
-		epsInformer     cache.SharedIndexInformer
-		ednsInformer    cache.SharedIndexInformer
-		plcInformer     cache.SharedIndexInformer
-		podInformer     cache.SharedIndexInformer
-		secretsInformer cache.SharedIndexInformer
-		cmInformer      cache.SharedIndexInformer
+		namespace        string
+		stopCh           chan struct{}
+		svcInformer      cache.SharedIndexInformer
+		epsInformer      cache.SharedIndexInformer
+		ednsInformer     cache.SharedIndexInformer
+		plcInformer      cache.SharedIndexInformer
+		podInformer      cache.SharedIndexInformer
+		secretsInformer  cache.SharedIndexInformer
+		configCRInformer cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
@@ -477,7 +481,7 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
-		baseRouteConfig           BaseRouteConfig
+		baseRouteConfig           cisapiv1.BaseRouteConfig
 		poolMemCache              PoolMemberCache
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
@@ -486,7 +490,7 @@ type (
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
 		// stores valid externalClustersConfig from extendendCM
-		externalClustersConfig map[string]ExternalClusterConfig
+		externalClustersConfig map[string]cisapiv1.ExternalClusterConfig
 	}
 
 	// key is group identifier
@@ -495,9 +499,9 @@ type (
 	// Extended Spec for each group of Routes/Ingress
 	extendedParsedSpec struct {
 		override   bool
-		local      *ExtendedRouteGroupSpec
-		global     *ExtendedRouteGroupSpec
-		defaultrg  *ExtendedRouteGroupSpec
+		local      *cisapiv1.ExtendedRouteGroupSpec
+		global     *cisapiv1.ExtendedRouteGroupSpec
+		defaultrg  *cisapiv1.ExtendedRouteGroupSpec
 		namespaces []string
 		partition  string
 	}
@@ -1205,7 +1209,7 @@ type (
 		certificate              string
 		caCertificate            string
 		destinationCACertificate string
-		tlsCipher                TLSCipher
+		tlsCipher                cisapiv1.TLSCipher
 	}
 
 	rgPlcSSLProfiles struct {
@@ -1237,65 +1241,10 @@ type (
 	}
 )
 
-type (
-	extendedSpec struct {
-		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
-		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
-		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType                `yaml:"mode"`
-		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
-		LocalClusterAdminState    clustermanager.AdminState `yaml:"localClusterAdminState"`
-	}
-
-	ExtendedRouteGroupConfig struct {
-		Namespace              string `yaml:"namespace"`      // Group Identifier
-		NamespaceLabel         string `yaml:"namespaceLabel"` // Group Identifier
-		BigIpPartition         string `yaml:"bigIpPartition"` // bigip Partition
-		ExtendedRouteGroupSpec `yaml:",inline"`
-	}
-
-	ExtendedRouteGroupSpec struct {
-		VServerName        string `yaml:"vserverName"`
-		VServerAddr        string `yaml:"vserverAddr"`
-		AllowOverride      string `yaml:"allowOverride"`
-		Policy             string `yaml:"policyCR,omitempty"`
-		HTTPServerPolicyCR string `yaml:"httpServerPolicyCR,omitempty"`
-		Meta               Meta
-	}
-
-	Meta struct {
-		DependsOnTLS bool
-	}
-
-	DefaultRouteGroupConfig struct {
-		BigIpPartition        string                 `yaml:"bigIpPartition"` // bigip Partition
-		DefaultRouteGroupSpec ExtendedRouteGroupSpec `yaml:",inline"`
-	}
-
-	BaseRouteConfig struct {
-		TLSCipher               TLSCipher               `yaml:"tlsCipher"`
-		DefaultTLS              DefaultSSLProfile       `yaml:"defaultTLS,omitempty"`
-		DefaultRouteGroupConfig DefaultRouteGroupConfig `yaml:"defaultRouteGroup,omitempty"`
-		AutoMonitor             AutoMonitorType         `yaml:"autoMonitor,omitempty"`
-		AutoMonitorTimeout      int                     `yaml:"autoMonitorTimeout,omitempty"`
-	}
-
-	TLSCipher struct {
-		TLSVersion  string `yaml:"tlsVersion,omitempty"`
-		Ciphers     string `yaml:"ciphers,omitempty"`
-		CipherGroup string `yaml:"cipherGroup,omitempty"` // by default this is bigip reference
-	}
-	DefaultSSLProfile struct {
-		ClientSSL string `yaml:"clientSSL,omitempty"`
-		ServerSSL string `yaml:"serverSSL,omitempty"`
-		Reference string `yaml:"reference,omitempty"`
-	}
-	AnnotationsUsed struct {
-		WAF              bool
-		AllowSourceRange bool
-	}
-)
+type AnnotationsUsed struct {
+	WAF              bool
+	AllowSourceRange bool
+}
 
 type TLSVersion string
 
@@ -1303,47 +1252,16 @@ const (
 	TLSVerion1_3 TLSVersion = "1.3"
 )
 
-type HAModeType string
-type AutoMonitorType string
-
 const (
-	Active          HAModeType      = "active-active"
-	StandBy         HAModeType      = "active-standby"
-	Ratio           HAModeType      = "ratio"
-	None            AutoMonitorType = "none"
-	ReadinessProbe  AutoMonitorType = "readiness-probe"
-	ServiceEndpoint AutoMonitorType = "service-endpoint"
+	Active          cisapiv1.HAModeType      = "active-active"
+	StandBy         cisapiv1.HAModeType      = "active-standby"
+	Ratio           cisapiv1.HAModeType      = "ratio"
+	None            cisapiv1.AutoMonitorType = "none"
+	ReadinessProbe  cisapiv1.AutoMonitorType = "readiness-probe"
+	ServiceEndpoint cisapiv1.AutoMonitorType = "service-endpoint"
 )
 
 type (
-	ExternalClusterConfig struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
-	}
-
-	HAClusterConfig struct {
-		//HAMode                 HAMode         `yaml:"mode"`
-		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`
-		ProbeInterval          int            `yaml:"probeInterval"`
-		RetryInterval          int            `yaml:"retryInterval"`
-		PrimaryCluster         ClusterDetails `yaml:"primaryCluster"`
-		SecondaryCluster       ClusterDetails `yaml:"secondaryCluster"`
-	}
-
-	HAMode struct {
-		// type can be active-active, active-standby, ratio
-		Type HAModeType `yaml:"type"`
-	}
-
-	ClusterDetails struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
-	}
-
 	PoolIdentifier struct {
 		poolName  string
 		partition string

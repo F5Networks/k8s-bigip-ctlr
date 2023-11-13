@@ -85,8 +85,8 @@ var (
 
 	trustedCertsCfgmap *string
 
-	orchestrationCNI           *string
-	extendedControllerParamsCR *string
+	orchestrationCNI *string
+	CISConfigCR      *string
 
 	// package variables
 	kubeClient    kubernetes.Interface
@@ -120,7 +120,7 @@ func _init() {
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
-	extendedControllerParamsCR = globalFlags.String("cis-config-cr", "",
+	CISConfigCR = globalFlags.String("cis-config-cr", "",
 		"Required, specify a CRD that holds additional spec for controller.")
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -197,10 +197,10 @@ func verifyArgs() error {
 		len(*cmPassword) == 0) && len(*credsDir) == 0 {
 		return fmt.Errorf("Missing CM credentials info")
 	}
-	if len(*extendedControllerParamsCR) == 0 {
+	if len(*CISConfigCR) == 0 {
 		return fmt.Errorf("Missing required argument --cis-config-cr")
 	} else {
-		if len(strings.Split(*extendedControllerParamsCR, "/")) != 2 {
+		if len(strings.Split(*CISConfigCR, "/")) != 2 {
 			return fmt.Errorf("invalid value provided for --cis-config-cr" +
 				"Usage: --cis-config-cr=<namespace>/<CR-name>")
 		}

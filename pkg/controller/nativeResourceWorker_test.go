@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
@@ -26,8 +27,8 @@ var _ = Describe("Routes", func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = OpenShiftMode
-		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.managedResources.ManageRoutes = true
+		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -85,7 +86,7 @@ var _ = Describe("Routes", func() {
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "samplevs",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "false",
@@ -100,7 +101,7 @@ var _ = Describe("Routes", func() {
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "samplevs",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
@@ -201,32 +202,42 @@ var _ = Describe("Routes", func() {
 			Expect(len(route.Status.Ingress)).To(BeEquivalentTo(0), "Incorrect route admit status")
 		})
 		It("Check Valid Route", func() {
-			var cm *v1.ConfigMap
-			var data map[string]string
-			cmName := "escm"
-			cmNamespace := "system"
-			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+			var configCR *cisapiv1.DeployConfig
+			configSpec := cisapiv1.DeployConfigSpec{}
+			crName := "escm"
+			crNamespace := "system"
+			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
 
-			data = make(map[string]string)
-			cm = test.NewConfigMap(
-				cmName,
-				"v1",
-				cmNamespace,
-				data)
-			data["extendedSpec"] = `
-		baseRouteSpec:
-		   tlsCipher:
-		     tlsVersion : 1.2
-		extendedRouteSpec:
-		   - namespace: default
-		     vserverAddr: 10.8.3.11
-		     vserverName: nextgenroutes
-		     allowOverride: true
-		   - namespace: new
-		     vserverAddr: 10.8.3.12
-		     allowOverride: true
+			extConfig := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 		`
-			_, _ = mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configSpec.ExtendedSpec = es
+			configCR = test.NewConfigCR(
+				crName,
+				crNamespace,
+				configSpec)
+			_, _ = mockCtlr.processConfigCR(configCR, false)
 
 			spec1 := routeapi.RouteSpec{
 				Host: "foo.com",
@@ -282,7 +293,7 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addRoute(route2)
 			mockCtlr.addRoute(route3)
 			mockCtlr.addRoute(route4)
-			_, _ = mockCtlr.processConfigMap(cm, false)
+			_, _ = mockCtlr.processConfigCR(configCR, false)
 			mockCtlr.addRoute(route5)
 			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
 			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
@@ -296,11 +307,11 @@ var _ = Describe("Routes", func() {
 			Expect(mockCtlr.checkValidRoute(route2, rgPlcSSLProfiles{})).To(BeFalse())
 			Expect(mockCtlr.checkValidRoute(route3, rgPlcSSLProfiles{})).To(BeFalse())
 			Expect(mockCtlr.checkValidRoute(route4, rgPlcSSLProfiles{})).To(BeFalse())
-			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{Reference: BIGIP}
+			mockCtlr.resources.baseRouteConfig.DefaultTLS = cisapiv1.DefaultSSLProfile{Reference: BIGIP}
 			Expect(mockCtlr.checkValidRoute(route5, rgPlcSSLProfiles{})).To(BeFalse())
-			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{Reference: BIGIP, ClientSSL: "/Common/clientSSL"}
+			mockCtlr.resources.baseRouteConfig.DefaultTLS = cisapiv1.DefaultSSLProfile{Reference: BIGIP, ClientSSL: "/Common/clientSSL"}
 			Expect(mockCtlr.checkValidRoute(route5, rgPlcSSLProfiles{})).To(BeFalse())
-			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
+			mockCtlr.resources.baseRouteConfig.DefaultTLS = cisapiv1.DefaultSSLProfile{}
 			Expect(mockCtlr.checkValidRoute(route5, rgPlcSSLProfiles{})).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
@@ -393,34 +404,45 @@ var _ = Describe("Routes", func() {
 
 		})
 		It("Check GSLB Support for Routes", func() {
-			var cm *v1.ConfigMap
-			var data map[string]string
-			cmName := "escm"
-			cmNamespace := "kube-system"
-			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-
-			data = make(map[string]string)
+			var configCR *cisapiv1.DeployConfig
+			configSpec := cisapiv1.DeployConfigSpec{}
+			crName := "escm"
+			crNamespace := "kube-system"
+			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
 			mockCtlr.Partition = "default"
-			cm = test.NewConfigMap(
-				cmName,
-				"v1",
-				cmNamespace,
-				data)
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: test
-      vserverAddr: 10.8.3.12
-      allowOverride: true
-      bigIpPartition: dev
+
+			extConfig := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "test",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true,
+            "bigIpPartition": "dev"
+        }
+    ]
+}
 `
-			err, isProcessed := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			//log.Debugf("GCM: %v", cm.Data)
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configSpec.ExtendedSpec = es
+			configCR = test.NewConfigCR(
+				crName,
+				crNamespace,
+				configSpec)
+			err, isProcessed := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(isProcessed).To(BeTrue())
 
@@ -593,16 +615,26 @@ extendedRouteSpec:
 			Expect(len(gtmConfig)).To(Equal(1))
 
 			//Remove route group
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-extendedRouteSpec:
-    - namespace: test
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig = `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "test",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, isProcessed = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, isProcessed = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(isProcessed).To(BeTrue())
 
@@ -791,7 +823,7 @@ extendedRouteSpec:
 
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: true,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "nextgenroutes",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
@@ -892,21 +924,21 @@ extendedRouteSpec:
 			serverSSLAnnotation := make(map[string]string)
 			serverSSLAnnotation[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
 
-			extdSpec := &ExtendedRouteGroupSpec{
+			extdSpec := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
 				AllowOverride: "0",
 			}
 
 			//with no tls defined
-			extdSpec1 := &ExtendedRouteGroupSpec{
+			extdSpec1 := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
 				AllowOverride: "0",
 			}
 
 			// with only client tls defined
-			extdSpec2 := &ExtendedRouteGroupSpec{
+			extdSpec2 := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
 				AllowOverride: "0",
@@ -1066,14 +1098,14 @@ extendedRouteSpec:
 		It("Verify NextGenRoutes K8S Secret as TLS certs", func() {
 			mockCtlr.resources = &ResourceStore{
 				supplementContextCache: supplementContextCache{
-					baseRouteConfig: BaseRouteConfig{
-						TLSCipher{
+					baseRouteConfig: cisapiv1.BaseRouteConfig{
+						cisapiv1.TLSCipher{
 							"1.2",
 							"DEFAULT",
 							"/Common/f5-default",
 						},
-						DefaultSSLProfile{},
-						DefaultRouteGroupConfig{},
+						cisapiv1.DefaultSSLProfile{},
+						cisapiv1.DefaultRouteGroupConfig{},
 						"",
 						0,
 					},
@@ -1107,21 +1139,21 @@ extendedRouteSpec:
 			serverSSLAnnotation := make(map[string]string)
 			serverSSLAnnotation[resource.F5ServerSslProfileAnnotation] = "serverssl"
 
-			extdSpec := &ExtendedRouteGroupSpec{
+			extdSpec := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
 				AllowOverride: "0",
 			}
 
 			//with no tls defined
-			extdSpec1 := &ExtendedRouteGroupSpec{
+			extdSpec1 := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
 				AllowOverride: "0",
 			}
 
 			// with only client tls defined
-			extdSpec2 := &ExtendedRouteGroupSpec{
+			extdSpec2 := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
 				AllowOverride: "0",
@@ -1206,13 +1238,13 @@ extendedRouteSpec:
 			// Prepare extdSpecMap that holds all the
 			mockCtlr.resources.extdSpecMap = make(map[string]*extendedParsedSpec)
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
-				global: &ExtendedRouteGroupSpec{VServerName: "default"},
+				global: &cisapiv1.ExtendedRouteGroupSpec{VServerName: "default"},
 			}
 			mockCtlr.resources.extdSpecMap["test1"] = &extendedParsedSpec{
-				global: &ExtendedRouteGroupSpec{VServerName: "test1"},
+				global: &cisapiv1.ExtendedRouteGroupSpec{VServerName: "test1"},
 			}
 			mockCtlr.resources.extdSpecMap["test2"] = &extendedParsedSpec{
-				global: &ExtendedRouteGroupSpec{VServerName: "test2"},
+				global: &cisapiv1.ExtendedRouteGroupSpec{VServerName: "test2"},
 			}
 			// Prepare invertedNamespaceLabelMap that maps namespaces to routeGroup
 			mockCtlr.resources.invertedNamespaceLabelMap = make(map[string]string)
@@ -1280,7 +1312,7 @@ extendedRouteSpec:
 			var override = false
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "samplevs",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
@@ -1360,241 +1392,358 @@ extendedRouteSpec:
 
 	})
 
-	Describe("Extended Spec ConfigMap", func() {
-		var cm *v1.ConfigMap
-		var data map[string]string
+	Describe("Extended Spec ConfigCR", func() {
+		var configCR *cisapiv1.DeployConfig
+		configSpec := cisapiv1.DeployConfigSpec{}
 		BeforeEach(func() {
-			cmName := "escm"
-			cmNamespace := "system"
-			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-
-			data = make(map[string]string)
-			cm = test.NewConfigMap(
-				cmName,
-				"v1",
-				cmNamespace,
-				data)
+			crName := "escm"
+			crNamespace := "system"
+			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
+			configCR = test.NewConfigCR(
+				crName,
+				crNamespace,
+				configSpec)
 		})
 
 		It("Extended Route Spec Global", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: invalid
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig = `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": "invalid"
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).ToNot(BeNil(), "invalid allowOverride value")
 			Expect(ok).To(BeFalse())
 
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
-      vserverName: newroutes
+			extConfig = `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true,
+            "vserverName": "newroutes"
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
 
 		It("Extended Route Spec Allow local", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			localData := make(map[string]string)
-			localCm := test.NewConfigMap(
-				"localESCM",
-				"v1",
-				"default",
-				localData)
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: nextgenroutes
+			var localConfigCR *cisapiv1.DeployConfig
+			var localConfigSpec cisapiv1.DeployConfigSpec
+			localExtConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "nextgenroutes"
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(localCm, false)
+			localEs := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigSpec.ExtendedSpec = localEs
+			localConfigCR = test.NewConfigCR(
+				"localESCR",
+				"default",
+				localConfigSpec)
+			err, ok = mockCtlr.processConfigCR(localConfigCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
 
 		It("Extended Route Spec Do not Allow local", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: false
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: false
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": false
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": false
+        }
+    ]
+}
 `
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
-
-			localData := make(map[string]string)
-			localCm := test.NewConfigMap(
-				"localESCM",
-				"v1",
-				"default",
-				localData)
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: nextgenroutes
+			var localConfigCR *cisapiv1.DeployConfig
+			var localConfigSpec cisapiv1.DeployConfigSpec
+			localExtConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "nextgenroutes"
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(localCm, false)
+			localEs := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigSpec.ExtendedSpec = localEs
+			localConfigCR = test.NewConfigCR(
+				"localESCR",
+				"default",
+				localConfigSpec)
+			err, ok = mockCtlr.processConfigCR(localConfigCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
 
 		It("Extended Route Spec Allow local Update with out spec change", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
-
-			localData := make(map[string]string)
-			localCm := test.NewConfigMap(
-				"localESCM",
-				"v1",
+			var localConfigCR *cisapiv1.DeployConfig
+			var localConfigSpec cisapiv1.DeployConfigSpec
+			localExtConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "nextgenroutes"
+        }
+    ]
+}
+`
+			localEs := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigSpec.ExtendedSpec = localEs
+			localConfigCR = test.NewConfigCR(
+				"localESCR",
 				"default",
-				localData)
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: nextgenroutes
-`
-			err, ok = mockCtlr.processConfigMap(localCm, false)
+				localConfigSpec)
+
+			err, ok = mockCtlr.processConfigCR(localConfigCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverName: nextgenroutes
-      vserverAddr: 10.8.3.110
+			localExtConfig = `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverName": "nextgenroutes",
+            "vserverAddr": "10.8.3.110"
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(localCm, false)
+			localEs = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigCR.Spec.ExtendedSpec = localEs
+			err, ok = mockCtlr.processConfigCR(localConfigCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
 
-		It("Extended local Route Spec pickup alternate configmap when latest gets deleted", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      allowOverride: true
+		It("Extended local Route Spec pickup alternate DeployConfig CR when latest gets deleted", func() {
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "allowOverride": true
+        }
+    ]
+}
 `
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
 			namespace := "default"
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			localData := make(map[string]string)
-			localCm1 := test.NewConfigMap(
-				"localESCM1",
-				"v1",
-				namespace,
-				localData)
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: nextgenroutes
+			var localConfigCR1 *cisapiv1.DeployConfig
+			var localConfigSpec cisapiv1.DeployConfigSpec
+			localExtConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "nextgenroutes"
+        }
+    ]
+}
 `
-			localCm2 := test.NewConfigMap(
-				"localESCM2",
-				"v1",
-				namespace,
-				localData)
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: newvs
+			localEs := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigSpec.ExtendedSpec = localEs
+			localConfigCR1 = test.NewConfigCR(
+				"localESCR",
+				"default",
+				localConfigSpec)
+			localExtConfig = `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "newvs"
+        }
+    ]
+}
 `
-			localCm3 := test.NewConfigMap(
-				"localESCM3",
-				"v1",
-				namespace,
-				localData)
-			localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: latestserver
+			localEs = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigSpec.ExtendedSpec = localEs
+			localConfigCR2 := test.NewConfigCR(
+				"localESCR2",
+				"default",
+				localConfigSpec)
+			localExtConfig = `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "newlatest"
+        }
+    ]
+}
 `
+			localEs = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+			localConfigSpec.ExtendedSpec = localEs
+			localConfigCR3 := test.NewConfigCR(
+				"localESCR3",
+				"default",
+				localConfigSpec)
 
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
-			err, ok = mockCtlr.processConfigMap(localCm3, false)
+			_ = mockCtlr.comInformers[namespace].configCRInformer.GetIndexer().Add(localConfigCR1)
+			_ = mockCtlr.comInformers[namespace].configCRInformer.GetIndexer().Add(localConfigCR2)
+			_ = mockCtlr.comInformers[namespace].configCRInformer.GetIndexer().Add(localConfigCR3)
+			err, ok = mockCtlr.processConfigCR(localConfigCR3, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
+			Expect(mockCtlr.resources.extdSpecMap[namespace].local.VServerName).To(Equal("newlatest"), "Spec from wrong DeployConfig CR")
 
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
-			err, ok = mockCtlr.processConfigMap(localCm3, true)
+			_ = mockCtlr.comInformers[namespace].configCRInformer.GetIndexer().Delete(localConfigCR3)
+			err, ok = mockCtlr.processConfigCR(localConfigCR3, true)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
-			Expect(mockCtlr.resources.extdSpecMap[namespace].local.VServerName).To(Equal("latestserver"), "Spec from wrong configmap")
 		})
 
-		It("Operational Specs on configmap Create/Update/Delete events", func() {
+		It("Operational Specs on DeployConfig CR Create/Update/Delete events", func() {
 			cachedExtdSpecMap := make(map[string]*extendedParsedSpec)
 			newExtdSpecMap := make(map[string]*extendedParsedSpec)
 
 			newExtdSpecMap["default"] = &extendedParsedSpec{
 				override: false,
 				local:    nil,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
 					AllowOverride: "0",
@@ -1603,13 +1752,13 @@ extendedRouteSpec:
 			newExtdSpecMap["new"] = &extendedParsedSpec{
 				override: false,
 				local:    nil,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "newServer",
 					VServerAddr:   "10.8.3.12",
 					AllowOverride: "f",
 				},
 			}
-			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigCRSpecs(
 				cachedExtdSpecMap, newExtdSpecMap, false,
 			)
 			Expect(len(deletedSpecs)).To(BeZero())
@@ -1620,7 +1769,7 @@ extendedRouteSpec:
 			cachedExtdSpecMap["default"] = &extendedParsedSpec{
 				override: false,
 				local:    nil,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
 					AllowOverride: "false",
@@ -1629,7 +1778,7 @@ extendedRouteSpec:
 			cachedExtdSpecMap["new"] = &extendedParsedSpec{
 				override: false,
 				local:    nil,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "newServer",
 					VServerAddr:   "10.8.3.12",
 					AllowOverride: "FALSE",
@@ -1639,7 +1788,7 @@ extendedRouteSpec:
 			newExtdSpecMap["default"].global.Policy = "test/policy1"
 			newExtdSpecMap["new"].global.Policy = "test/policy1"
 
-			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigCRSpecs(
 				cachedExtdSpecMap, newExtdSpecMap, false,
 			)
 			Expect(len(deletedSpecs)).To(BeZero())
@@ -1650,7 +1799,7 @@ extendedRouteSpec:
 			newExtdSpecMap["default"].global.VServerName = "defaultServer1"
 			newExtdSpecMap["new"].global.VServerName = "newServer1"
 
-			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigCRSpecs(
 				cachedExtdSpecMap, newExtdSpecMap, false,
 			)
 			Expect(len(deletedSpecs)).To(BeZero())
@@ -1658,7 +1807,7 @@ extendedRouteSpec:
 			Expect(len(updatedSpecs)).To(BeZero())
 			Expect(len(createdSpecs)).To(BeZero())
 
-			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigCRSpecs(
 				cachedExtdSpecMap, newExtdSpecMap, true,
 			)
 			Expect(len(deletedSpecs)).To(Equal(2))
@@ -1670,13 +1819,13 @@ extendedRouteSpec:
 			newExtdSpecMap["default"] = &extendedParsedSpec{
 				override: false,
 				local:    nil,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
 					AllowOverride: "false",
 				},
 			}
-			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigCRSpecs(
 				cachedExtdSpecMap, newExtdSpecMap, false,
 			)
 			Expect(len(deletedSpecs)).To(Equal(1))
@@ -1685,35 +1834,57 @@ extendedRouteSpec:
 			Expect(len(createdSpecs)).To(BeZero())
 		})
 
-		It("Global ConfigMap with base route config", func() {
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+		It("Global ConfigCR with base route config", func() {
+			extConfig := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.3
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
+			extConfig = `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.3
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
@@ -1721,7 +1892,7 @@ extendedRouteSpec:
 
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: false,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "nextgenroutes",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
@@ -1763,14 +1934,22 @@ extendedRouteSpec:
 			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].Balance == "least-connections-node").To(BeTrue())
 			Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Policies[0].Rules) == 3).To(BeTrue())
 
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
+			extConfig = `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
@@ -1778,31 +1957,49 @@ extendedRouteSpec:
 		It("Verify autoMonitor Options", func() {
 			mockCtlr.Partition = "test"
 			// Verify autoMonitor defaults to readiness-probe when invalid value is provided
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    autoMonitor: invalid-automonitor
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
+			extConfig := `
+{
+    "baseRouteSpec": {
+        "autoMonitor": "invalid-automonitor"
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 			Expect(mockCtlr.resources.baseRouteConfig.AutoMonitor).To(Equal(None))
 
 			// Verify autoMonitor is set to service-endpoint
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    autoMonitor: service-endpoint
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
+			extConfig = `
+{
+    "baseRouteSpec": {
+        "autoMonitor": "service-endpoint"
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
@@ -1810,7 +2007,7 @@ extendedRouteSpec:
 
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: false,
-				global: &ExtendedRouteGroupSpec{
+				global: &cisapiv1.ExtendedRouteGroupSpec{
 					VServerName:   "nextgenroutes",
 					VServerAddr:   "10.8.3.11",
 					AllowOverride: "True",
@@ -1857,17 +2054,26 @@ extendedRouteSpec:
 			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
 
 			// Verify autoMonitorTimeout
-			data["extendedSpec"] = `
-baseRouteSpec: 
-    autoMonitor: service-endpoint
-    autoMonitorTimeout: 50
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
+			extConfig = `
+{
+    "baseRouteSpec": {
+        "autoMonitor": "service-endpoint",
+        "autoMonitorTimeout": 50
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err, ok = mockCtlr.processConfigMap(cm, false)
+			es = cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
@@ -1893,7 +2099,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = OpenShiftMode
+		mockCtlr.managedResources.ManageRoutes = true
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -1907,7 +2113,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
 		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
-		mockCtlr.namespaceLabel = "environment=dev"
+		mockCtlr.baseConfig.NamespaceLabel = "environment=dev"
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -1918,13 +2124,13 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			},
 		}
 	})
-	Describe("Extended Spec ConfigMap", func() {
-		var cm *v1.ConfigMap
-		var data map[string]string
+	Describe("Extended Spec ConfigCR", func() {
+		var configCR *cisapiv1.DeployConfig
+		configSpec := cisapiv1.DeployConfigSpec{}
 		BeforeEach(func() {
-			cmName := "escm"
-			cmNamespace := "system"
-			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+			crName := "escm"
+			crNamespace := "system"
+			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
@@ -1932,44 +2138,61 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 					},
 				},
 			}
-
-			data = make(map[string]string)
-			cm = test.NewConfigMap(
-				cmName,
-				"v1",
-				cmNamespace,
-				data)
+			configCR = test.NewConfigCR(
+				crName,
+				crNamespace,
+				configSpec)
 		})
 
 		It("namespace and namespaceLabel combination", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      bigIpPartition: foo
-    - namespaceLabel: bar=true
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "bigIpPartition": "foo"
+        },
+        {
+            "namespaceLabel": "bar=true",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err := mockCtlr.setNamespaceLabelMode(cm)
-			Expect(err).To(MatchError(fmt.Sprintf("can not specify both namespace and namespace-label in extended configmap %v/%v", cm.Namespace, cm.Name)))
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err := mockCtlr.setNamespaceLabelMode(configCR)
+			Expect(err).To(MatchError(fmt.Sprintf("can not specify both namespace and namespace-label in DeployConfig CR %v/%v", configCR.Namespace, configCR.Name)))
 		})
 		It("with namespaceLabel only", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespaceLabel: foo=true
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      bigIpPartition: foo
-    - namespaceLabel: bar=true
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespaceLabel": "foo=true",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "bigIpPartition": "foo"
+        },
+        {
+            "namespaceLabel": "bar=true",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
 			mockCtlr.namespaceLabelMode = true
-			err, ok := mockCtlr.processConfigMap(cm, false)
+			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
@@ -1982,37 +2205,45 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = OpenShiftMode
+		mockCtlr.managedResources.ManageRoutes = true
 	})
-	Describe("Extended Spec ConfigMap", func() {
-		var cm *v1.ConfigMap
-		var data map[string]string
+	Describe("Extended Spec ConfigCR", func() {
+		var configCR *cisapiv1.DeployConfig
+		configSpec := cisapiv1.DeployConfigSpec{}
 		BeforeEach(func() {
-			cmName := "escm"
-			cmNamespace := "system"
-			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+			crName := "escm"
+			crNamespace := "system"
+			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
+			configCR = test.NewConfigCR(
+				crName,
 
-			data = make(map[string]string)
-			cm = test.NewConfigMap(
-				cmName,
-				"v1",
-				cmNamespace,
-				data)
+				crNamespace,
+				configSpec)
 		})
 		It("namespaceLabel only without namespace-label deployment parameter", func() {
-			data["extendedSpec"] = `
-extendedRouteSpec:
-    - namespaceLabel: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      bigIpPartition: foo
-    - namespaceLabel: bar=true
-      vserverAddr: 10.8.3.12
-      allowOverride: true
+			extConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespaceLabel": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "bigIpPartition": "foo"
+        },
+        {
+            "namespaceLabel": "bar=true",
+            "vserverAddr": "10.8.3.12",
+            "allowOverride": true
+        }
+    ]
+}
 `
-			err := mockCtlr.setNamespaceLabelMode(cm)
-			Expect(err).To(MatchError("--namespace-label deployment parameter is required with namespace-label in extended configmap"))
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			err := mockCtlr.setNamespaceLabelMode(configCR)
+			Expect(err).To(MatchError("--namespace-label deployment parameter is required with namespace-label in DeployConfig CR"))
 		})
 	})
 })
@@ -2020,15 +2251,15 @@ extendedRouteSpec:
 var _ = Describe("Multi Cluster with Routes", func() {
 	var mockCtlr *mockController
 	var sct1, sct2, sct3, sct4 *v1.Secret
-	var cm *v1.ConfigMap
-	var data map[string]string
+	var configCR *cisapiv1.DeployConfig
+	configSpec := cisapiv1.DeployConfigSpec{}
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = OpenShiftMode
-		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.managedResources.ManageRoutes = true
+		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -2046,7 +2277,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
-		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
+		mockCtlr.clusterAdminState = make(map[string]cisapiv1.AdminState)
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -2065,40 +2296,53 @@ var _ = Describe("Multi Cluster with Routes", func() {
 			},
 		}
 
-		cmName := "ecm"
-		cmNamespace := "kube-system"
-		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+		crName := "ecm"
+		crNamespace := "kube-system"
+		mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
 		mockCtlr.resources = NewResourceStore()
-		data := make(map[string]string)
-		cm = test.NewConfigMap(
-			cmName,
-			"v1",
-			cmNamespace,
-			data)
-
-		data["extendedSpec"] = `
-highAvailabilityCIS:
-      primaryEndPoint: http://10.145.72.114:8001
-      probeInterval: 30
-      retryInterval: 3
-      primaryCluster:
-        clusterName: cluster1
-        secret: default/kubeconfig1
-      secondaryCluster:
-        clusterName: cluster2
-        secret: default/kubeconfig2
-externalClustersConfig:
-    - clusterName: cluster3
-      secret: default/kubeconfig3
-    - clusterName: cluster4
-      secret: default/kubeconfig4
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      policyCR : default/policy
+		extConfig := `
+{
+    "highAvailabilityCIS": {
+        "primaryEndPoint": "http://10.145.72.114:8001",
+        "probeInterval": 30,
+        "retryInterval": 3,
+        "primaryCluster": {
+            "clusterName": "cluster1",
+            "secret": "default/kubeconfig1"
+        },
+        "secondaryCluster": {
+            "clusterName": "cluster2",
+            "secret": "default/kubeconfig2"
+        }
+    },
+    "externalClustersConfig": [
+        {
+            "clusterName": "cluster3",
+            "secret": "default/kubeconfig3"
+        },
+        {
+            "clusterName": "cluster4",
+            "secret": "default/kubeconfig4"
+        }
+    ],
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "policyCR": "default/policy"
+        }
+    ]
+}
 `
+		es := cisapiv1.ExtendedSpec{}
+		_ = json.Unmarshal([]byte(extConfig), &es)
+		configSpec.ExtendedSpec = es
+		configCR = test.NewConfigCR(
+			crName,
+			crNamespace,
+			configSpec)
 		sct1 = &v1.Secret{
 			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
 			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: "default"},
@@ -2131,7 +2375,7 @@ extendedRouteSpec:
 		mockCtlr.addSecret(sct2)
 		mockCtlr.addSecret(sct3)
 		mockCtlr.addSecret(sct4)
-		mockCtlr.addConfigMap(cm)
+		mockCtlr.addConfigCR(configCR)
 		mockCtlr.initState = false
 		mockCtlr.clusterRatio = make(map[string]*int)
 
@@ -2185,7 +2429,7 @@ extendedRouteSpec:
 
 		It("Process Route with multi cluster annotation with multicluster config", func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
-			mockCtlr.processGlobalExtendedConfigMap()
+			mockCtlr.processGlobalDeployConfigCR()
 			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
 			clusterName := "cluster3"
 			// Setup informers with namespaces which are watched by CIS
@@ -2245,36 +2489,50 @@ extendedRouteSpec:
 
 		It("Process Route with multi cluster annotation and cluster AdminState in multicluster config", func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
-			data = make(map[string]string)
-			data["extendedSpec"] = `
-highAvailabilityCIS:
-      primaryEndPoint: http://10.145.72.114:8001
-      probeInterval: 30
-      retryInterval: 3
-      primaryCluster:
-        clusterName: cluster1
-        secret: default/kubeconfig1
-      secondaryCluster:
-        clusterName: cluster2
-        secret: default/kubeconfig2
-        adminState: disable
-externalClustersConfig:
-    - clusterName: cluster3
-      secret: default/kubeconfig3
-      adminState: offline
-    - clusterName: cluster4
-      secret: default/kubeconfig4
-      adminState: enable
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      policyCR : default/policy
+			extConfig := `
+{
+    "highAvailabilityCIS": {
+        "primaryEndPoint": "http://10.145.72.114:8001",
+        "probeInterval": 30,
+        "retryInterval": 3,
+        "primaryCluster": {
+            "clusterName": "cluster1",
+            "secret": "default/kubeconfig1"
+        },
+        "secondaryCluster": {
+            "clusterName": "cluster2",
+            "secret": "default/kubeconfig2",
+            "adminState": "disable"
+        }
+    },
+    "externalClustersConfig": [
+        {
+            "clusterName": "cluster3",
+            "secret": "default/kubeconfig3",
+            "adminState": "offline"
+        },
+        {
+            "clusterName": "cluster4",
+            "secret": "default/kubeconfig4",
+            "adminState": "enable"
+        }
+    ],
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "policyCR": "default/policy"
+        }
+    ]
+}
 `
-			cm.Data = data
-			mockCtlr.updateConfigMap(cm)
-			mockCtlr.processGlobalExtendedConfigMap()
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			mockCtlr.updateConfigCR(configCR)
+			mockCtlr.processGlobalDeployConfigCR()
 			Expect(len(mockCtlr.clusterAdminState)).To(Equal(3))
 			Expect(mockCtlr.clusterAdminState[""]).To(Equal(clustermanager.Enable))
 			Expect(mockCtlr.clusterAdminState["cluster2"]).To(Equal(clustermanager.Disable))
@@ -2287,14 +2545,15 @@ extendedRouteSpec:
 var _ = Describe("Multi Cluster with CRD", func() {
 	var mockCtlr *mockController
 	var sct1, sct2, sct3, sct4 *v1.Secret
-	var cm *v1.ConfigMap
+	var configCR *cisapiv1.DeployConfig
+	configSpec := cisapiv1.DeployConfigSpec{}
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = CustomResourceMode
-		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.managedResources.ManageCustomResources = true
+		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -2330,34 +2589,46 @@ var _ = Describe("Multi Cluster with CRD", func() {
 			},
 		}
 
-		cmName := "ecm"
-		cmNamespace := "kube-system"
-		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+		crName := "ecm"
+		crNamespace := "kube-system"
+		mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
 		mockCtlr.resources = NewResourceStore()
-		data := make(map[string]string)
-		cm = test.NewConfigMap(
-			cmName,
-			"v1",
-			cmNamespace,
-			data)
 
-		data["extendedSpec"] = `
-highAvailabilityCIS:
-      primaryEndPoint: http://10.145.72.114:8001
-      probeInterval: 30
-      retryInterval: 3
-      primaryCluster:
-        clusterName: cluster1
-        secret: default/kubeconfig1
-      secondaryCluster:
-        clusterName: cluster2
-        secret: default/kubeconfig2
-externalClustersConfig:
-    - clusterName: cluster3
-      secret: default/kubeconfig3
-    - clusterName: cluster4
-      secret: default/kubeconfig4
+		extConfig := `
+{
+    "highAvailabilityCIS": {
+        "primaryEndPoint": "http://10.145.72.114:8001",
+        "probeInterval": 30,
+        "retryInterval": 3,
+        "primaryCluster": {
+            "clusterName": "cluster1",
+            "secret": "default/kubeconfig1"
+        },
+        "secondaryCluster": {
+            "clusterName": "cluster2",
+            "secret": "default/kubeconfig2"
+        }
+    },
+    "externalClustersConfig": [
+        {
+            "clusterName": "cluster3",
+            "secret": "default/kubeconfig3"
+        },
+        {
+            "clusterName": "cluster4",
+            "secret": "default/kubeconfig4"
+        }
+    ]
+}
 `
+		es := cisapiv1.ExtendedSpec{}
+		_ = json.Unmarshal([]byte(extConfig), &es)
+		configSpec.ExtendedSpec = es
+		configCR = test.NewConfigCR(
+			crName,
+			crNamespace,
+			configSpec)
+
 		sct1 = &v1.Secret{
 			TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
 			ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: "default"},
@@ -2390,17 +2661,17 @@ externalClustersConfig:
 		mockCtlr.addSecret(sct2)
 		mockCtlr.addSecret(sct3)
 		mockCtlr.addSecret(sct4)
-		mockCtlr.addConfigMap(cm)
+		mockCtlr.addConfigCR(configCR)
 		mockCtlr.initState = false
 		mockCtlr.clusterRatio = make(map[string]*int)
-		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
+		mockCtlr.clusterAdminState = make(map[string]cisapiv1.AdminState)
 	})
 
 	Describe("Process CRD with multi cluster config", func() {
 		var rsCfg *ResourceConfig
 		BeforeEach(func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
-			mockCtlr.processGlobalExtendedConfigMap()
+			mockCtlr.processGlobalDeployConfigCR()
 		})
 		It("Process VS with multi cluster config", func() {
 			one := 1

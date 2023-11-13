@@ -7,7 +7,6 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
-	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
@@ -33,7 +32,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		log.Debugf("Finished syncing RouteGroup/Namespace %v (%v)",
 			routeGroup, endTime.Sub(startTime))
 	}()
-	var extdSpec *ExtendedRouteGroupSpec
+	var extdSpec *cisapiv1.ExtendedRouteGroupSpec
 	var partition string
 	if routeGroup == defaultRouteGroupName {
 		defaultrgspec := ctlr.resources.extdSpecMap[routeGroup]
@@ -291,7 +290,7 @@ func (ctlr *Controller) handleInsecureABRoute(rsCfg *ResourceConfig, route *rout
 }
 
 func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
-	au *AnnotationsUsed, extdSpec *ExtendedRouteGroupSpec) error {
+	au *AnnotationsUsed, extdSpec *cisapiv1.ExtendedRouteGroupSpec) error {
 	policy, err := ctlr.getPolicyForRoute(rsCfg, plc, extdSpec)
 	if err != nil {
 		return err
@@ -317,7 +316,7 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, plc 
 	return nil
 }
 
-func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
+func (ctlr *Controller) getRouteGroupPolicy(extdSpec *cisapiv1.ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
 	policy := extdSpec.Policy
 	if policy != "" {
 		splits := strings.Split(policy, "/")
@@ -330,7 +329,7 @@ func (ctlr *Controller) getRouteGroupPolicy(extdSpec *ExtendedRouteGroupSpec) (*
 }
 
 func (ctlr *Controller) getPolicyForRoute(rsCfg *ResourceConfig, plc *cisapiv1.Policy,
-	extdSpec *ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
+	extdSpec *cisapiv1.ExtendedRouteGroupSpec) (*cisapiv1.Policy, error) {
 	var policy *cisapiv1.Policy
 	if extdSpec.HTTPServerPolicyCR != "" && rsCfg.MetaData.Protocol == HTTP {
 		// GetPolicy
@@ -884,55 +883,49 @@ func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(svcKey MultiClust
 	return nil
 }
 
-func (ctlr *Controller) processGlobalExtendedConfigMap() {
-	splits := strings.Split(ctlr.globalExtendedCMKey, "/")
-	ns, cmName := splits[0], splits[1]
-	var cm *v1.ConfigMap
+func (ctlr *Controller) processGlobalDeployConfigCR() {
+	splits := strings.Split(ctlr.CISConfigCRKey, "/")
+	ns, configCRName := splits[0], splits[1]
+	var configCR *cisapiv1.DeployConfig
 	var err error
 	var obj interface{}
 	var exist bool
 	cnInf, found := ctlr.getNamespacedCommonInformer(ns)
 	if found {
-		obj, exist, err = cnInf.cmInformer.GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ns, cmName))
-		cm, _ = obj.(*v1.ConfigMap)
+		obj, exist, err = cnInf.configCRInformer.GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ns, configCRName))
+		configCR, _ = obj.(*cisapiv1.DeployConfig)
 	}
-	if !exist || cm == nil || err != nil {
-		log.Warningf("Ensure Global Extended Configmap is created in CIS monitored namespace")
-		// If informer fails to fetch configmap which may occur if cis just started which means informers may not have
+	if !exist || configCR == nil || err != nil {
+		log.Warningf("Ensure DeployConfig CR is created in CIS monitored namespace")
+		// If informer fails to fetch config CR which may occur if cis just started which means informers may not have
 		// synced properly then try to fetch using kubeClient
-		cm, err = ctlr.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
+		configCR, err = ctlr.kubeCRClient.CisV1().DeployConfigs(ns).Get(context.TODO(), configCRName, metaV1.GetOptions{})
 	}
-	// Exit gracefully if Extended configmap is not found
-	if err != nil || cm == nil {
-		log.Errorf("%v Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.globalExtendedCMKey, err)
+	// Exit gracefully if Extended config CR is not found
+	if err != nil || configCR == nil {
+		log.Errorf("%v Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
 		os.Exit(1)
 	}
-	if ctlr.mode == OpenShiftMode {
-		err = ctlr.setNamespaceLabelMode(cm)
+	if ctlr.managedResources.ManageRoutes {
+		err = ctlr.setNamespaceLabelMode(configCR)
 		if err != nil {
-			log.Errorf("%v invalid configuration: %v", ctlr.getMultiClusterLog(), ctlr.globalExtendedCMKey, err)
+			log.Errorf("%v invalid configuration: %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
 			os.Exit(1)
 		}
 	}
-	err, _ = ctlr.processConfigMap(cm, false)
+	err, _ = ctlr.processConfigCR(configCR, false)
 	if err != nil {
-		log.Errorf("%v Unable to Process Extended Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.globalExtendedCMKey, err)
+		log.Errorf("%v Unable to Process Extended Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
 		os.Exit(1)
 	}
 }
 
-func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
-	ersData := cm.Data
-	es := extendedSpec{}
-	//log.Debugf("GCM: %v", cm.Data)
-	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
-	if err != nil {
-		return fmt.Errorf("%v invalid extended route spec in configmap: %v/%v error: %v", ctlr.getMultiClusterLog(), cm.Namespace, cm.Name, err)
-	}
+func (ctlr *Controller) setNamespaceLabelMode(configCR *cisapiv1.DeployConfig) error {
+	es := configCR.Spec.ExtendedSpec
 	namespace, namespaceLabel := false, false
 	//Either defaultRouteGroup or ExtendedRouteGroupConfigs are allowed
-	if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) && len(es.ExtendedRouteGroupConfigs) > 0 {
-		return fmt.Errorf("can not specify both defaultRouteGroup and ExtendedRouteGroupConfigs in extended configmap %v/%v", cm.Namespace, cm.Name)
+	if es.BaseRouteConfig.DefaultRouteGroupConfig != (cisapiv1.DefaultRouteGroupConfig{}) && len(es.ExtendedRouteGroupConfigs) > 0 {
+		return fmt.Errorf("can not specify both defaultRouteGroup and ExtendedRouteGroupConfigs in DeployConfig CR %v/%v", configCR.Namespace, configCR.Name)
 	}
 	for rg := range es.ExtendedRouteGroupConfigs {
 		// ergc needs to be created at every iteration, as we are using address inside this container
@@ -949,10 +942,10 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 		}
 	}
 	if namespace && namespaceLabel {
-		return fmt.Errorf("can not specify both namespace and namespace-label in extended configmap %v/%v", cm.Namespace, cm.Name)
+		return fmt.Errorf("can not specify both namespace and namespace-label in DeployConfig CR %v/%v", configCR.Namespace, configCR.Name)
 	}
-	if ctlr.namespaceLabel == "" && namespaceLabel {
-		return fmt.Errorf("--namespace-label deployment parameter is required with namespace-label in extended configmap")
+	if ctlr.baseConfig.NamespaceLabel == "" && namespaceLabel {
+		return fmt.Errorf("--namespace-label deployment parameter is required with namespace-label in DeployConfig CR")
 	}
 	// set namespaceLabel informers
 	if ctlr.namespaceLabelMode {
@@ -964,7 +957,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 			ergc := es.ExtendedRouteGroupConfigs[rg]
 
 			// setting up the namespace nsLabel informer
-			nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, ergc.NamespaceLabel)
+			nsLabel := fmt.Sprintf("%v,%v", ctlr.baseConfig.NamespaceLabel, ergc.NamespaceLabel)
 			if _, ok := ctlr.nsInformers[nsLabel]; !ok {
 				err := ctlr.createNamespaceLabeledInformer(nsLabel)
 				if err != nil {
@@ -985,12 +978,12 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 	return nil
 }
 
-// process the routeConfigFromGlobalConfigMap
-func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete bool, clusterConfigUpdate bool) (error, bool) {
+// process the routeConfigFromGlobalConfigCR
+func (ctlr *Controller) processRouteConfigFromGlobalCM(es cisapiv1.ExtendedSpec, isDelete bool, clusterConfigUpdate bool) (error, bool) {
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 	routeGroupsToBeProcessed := make(map[string]struct{})
-	// Get the base route config from the Global ConfigMap
+	// Get the base route config from the Global ConfigCR
 	oldBaseRouteConfig := ctlr.resources.baseRouteConfig
 	ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
 	baseRouteConfigUpdated := !reflect.DeepEqual(oldBaseRouteConfig, ctlr.resources.baseRouteConfig)
@@ -1001,7 +994,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		partition = ctlr.Partition
 	}
 
-	if es.BaseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+	if es.BaseRouteConfig.DefaultRouteGroupConfig != (cisapiv1.DefaultRouteGroupConfig{}) {
 		newExtdSpecMap[defaultRouteGroupName] = &extendedParsedSpec{
 			override:   false,
 			local:      nil,
@@ -1024,7 +1017,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 			// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
 			allowOverride = false
 		} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
-			return fmt.Errorf("invalid allowOverride value in configmap: %v error: %v", ctlr.globalExtendedCMKey, err), false
+			return fmt.Errorf("invalid allowOverride value in DeployConfig CR: %v error: %v", ctlr.CISConfigCRKey, err), false
 		}
 
 		var routeGroup string
@@ -1054,18 +1047,18 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		}
 	}
 
-	// Global configmap once gets processed even before processing other native resources
+	// Global config cr once gets processed even before processing other native resources
 	if ctlr.initState {
 		ctlr.resources.extdSpecMap = newExtdSpecMap
 		for rg, _ := range newExtdSpecMap {
 			if !ctlr.namespaceLabelMode {
-				// check for alternative local configmaps (pick latest)
+				// check for alternative local configcrs (pick latest)
 				// process if one is available
-				localCM := ctlr.getLatestLocalConfigMap(rg)
-				if localCM != nil {
-					err, _ := ctlr.processConfigMap(localCM, false)
+				localCR := ctlr.getLatestLocalConfigCR(rg)
+				if localCR != nil {
+					err, _ := ctlr.processConfigCR(localCR, false)
 					if err != nil {
-						log.Errorf("%v Could not process local configmap for routeGroup : %v error: %v", ctlr.getMultiClusterLog(), rg, err)
+						log.Errorf("%v Could not process local  DeployConfig CR for routeGroup : %v error: %v", ctlr.getMultiClusterLog(), rg, err)
 					}
 				}
 
@@ -1073,7 +1066,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		}
 		return nil, true
 	}
-	deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
+	deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigCRSpecs(
 		ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
 	)
 	for _, routeGroupKey := range deletedSpecs {
@@ -1083,7 +1076,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 			delete(ctlr.resources.extdSpecMap, routeGroupKey)
 			if ctlr.namespaceLabelMode {
 				// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
-				nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
+				nsLabel := fmt.Sprintf("%v,%v", ctlr.baseConfig.NamespaceLabel, routeGroupKey)
 				if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
 					log.Debugf("%v Removed namespace label informer: %v", ctlr.getMultiClusterLog(), nsLabel)
 					nsInf.stop()
@@ -1163,11 +1156,11 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 	return nil, true
 }
 
-func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete bool, namespace string) (error, bool) {
-	//local configmap processing.
+func (ctlr *Controller) processRouteConfigFromLocalConfigCR(es cisapiv1.ExtendedSpec, isDelete bool, namespace string) (error, bool) {
+	//local config CR processing.
 	ergc := es.ExtendedRouteGroupConfigs[0]
 	if ergc.Namespace != namespace {
-		return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v", ctlr.globalExtendedCMKey), true
+		return fmt.Errorf("Invalid Extended Route Spec Block in DeployConfig CR: Mismatching namespace found at index 0 in %v", ctlr.CISConfigCRKey), true
 	}
 	routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace]
 	if !ok {
@@ -1180,11 +1173,11 @@ func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete 
 				return nil, true
 			}
 
-			// check for alternative local configmaps (pick latest)
+			// check for alternative local config crs (pick latest)
 			// process if one is available
-			localCM := ctlr.getLatestLocalConfigMap(ergc.Namespace)
+			localCM := ctlr.getLatestLocalConfigCR(ergc.Namespace)
 			if localCM != nil {
-				err, _ := ctlr.processConfigMap(localCM, false)
+				err, _ := ctlr.processConfigCR(localCM, false)
 				if err == nil {
 					return nil, true
 				}
@@ -1251,17 +1244,17 @@ func (ctlr *Controller) processRouteConfigFromLocalCM(es extendedSpec, isDelete 
 	return nil, true
 }
 
-func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRouteConfig) {
+func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig cisapiv1.BaseRouteConfig) {
 
 	//declare default configuration for TLS Ciphers
-	ctlr.resources.baseRouteConfig.TLSCipher = TLSCipher{
+	ctlr.resources.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
 		"1.2",
 		"DEFAULT",
 		"/Common/f5-default",
 	}
-	ctlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
-	ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig = DefaultRouteGroupConfig{}
-	if (baseRouteConfig != BaseRouteConfig{}) {
+	ctlr.resources.baseRouteConfig.DefaultTLS = cisapiv1.DefaultSSLProfile{}
+	ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig = cisapiv1.DefaultRouteGroupConfig{}
+	if (baseRouteConfig != cisapiv1.BaseRouteConfig{}) {
 		if baseRouteConfig.TLSCipher.TLSVersion != "" {
 			ctlr.resources.baseRouteConfig.TLSCipher.TLSVersion = baseRouteConfig.TLSCipher.TLSVersion
 		}
@@ -1273,12 +1266,12 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 			ctlr.resources.baseRouteConfig.TLSCipher.CipherGroup = baseRouteConfig.TLSCipher.CipherGroup
 		}
 	}
-	if baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) {
+	if baseRouteConfig.DefaultTLS != (cisapiv1.DefaultSSLProfile{}) {
 		ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL = baseRouteConfig.DefaultTLS.ClientSSL
 		ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL = baseRouteConfig.DefaultTLS.ServerSSL
 		ctlr.resources.baseRouteConfig.DefaultTLS.Reference = baseRouteConfig.DefaultTLS.Reference
 	}
-	if baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+	if baseRouteConfig.DefaultRouteGroupConfig != (cisapiv1.DefaultRouteGroupConfig{}) {
 		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerName = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerName
 		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerAddr = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.VServerAddr
 		ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.Policy = baseRouteConfig.DefaultRouteGroupConfig.DefaultRouteGroupSpec.Policy
@@ -1303,24 +1296,24 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 
 }
 
-func (ctlr *Controller) isGlobalExtendedCM(cm *v1.ConfigMap) bool {
-	cmKey := cm.Namespace + "/" + cm.Name
+func (ctlr *Controller) isGlobalExtendedCM(configCR *cisapiv1.DeployConfig) bool {
+	configCRKey := configCR.Namespace + "/" + configCR.Name
 
-	if cmKey == ctlr.globalExtendedCMKey {
+	if configCRKey == ctlr.CISConfigCRKey {
 		return true
 	}
 
 	return false
 }
 
-func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
+func (ctlr *Controller) getLatestLocalConfigCR(ns string) *cisapiv1.DeployConfig {
 	inf, ok := ctlr.getNamespacedCommonInformer(ns)
 
 	if !ok {
 		return nil
 	}
 
-	objList, err := inf.cmInformer.GetIndexer().ByIndex("namespace", ns)
+	objList, err := inf.configCRInformer.GetIndexer().ByIndex("namespace", ns)
 
 	if err != nil {
 		log.Errorf("Unable to fetch local config map from namespace: %v ", ns)
@@ -1331,21 +1324,21 @@ func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
 		return nil
 	}
 
-	cm := objList[0].(*v1.ConfigMap)
+	configCR := objList[0].(*cisapiv1.DeployConfig)
 	for _, obj := range objList {
-		c := obj.(*v1.ConfigMap)
-		if cm.CreationTimestamp.Before(&c.CreationTimestamp) {
-			cm = c
+		c := obj.(*cisapiv1.DeployConfig)
+		if configCR.CreationTimestamp.Before(&c.CreationTimestamp) {
+			configCR = c
 		}
 	}
-	return cm
+	return configCR
 }
 
-// deletedSpecs: the spec blocks are deleted from the configmap
+// deletedSpecs: the spec blocks are deleted from the config CR
 // modifiedSpecs: specific params of spec entry are changed because of which virutals need to be deleted and framed again
 // updatedSpecs: parameters are updated, so just reprocess the resources
-// createSpecs: new spec blocks are added to the configmap
-func getOperationalExtendedConfigMapSpecs(
+// createSpecs: new spec blocks are added to the config CR
+func getOperationalExtendedConfigCRSpecs(
 	cachedMap, newMap extendedSpecMap, isDelete bool,
 ) (
 	deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs []string,
@@ -1725,12 +1718,12 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		}
 	case DefaultSSLOption:
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
-			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
+			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigCR - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
+			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigCR - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
@@ -1798,7 +1791,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 						// In case of invalid extendedServiceReference, just log the error and proceed
 						log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
 							"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
-							"config for the cluster in which it's running is not provided in extended configmap.", svc, route.Name)
+							"config for the cluster in which it's running is not provided in DeployConfig CR.", svc, route.Name)
 						continue
 					}
 				}
@@ -1874,7 +1867,7 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 			namespaces = append(namespaces, namespaceGroup)
 			ctlr.resources.invertedNamespaceLabelMap[namespaceGroup] = namespaceGroup
 		} else {
-			nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, namespaceGroup)
+			nsLabel := fmt.Sprintf("%v,%v", ctlr.baseConfig.NamespaceLabel, namespaceGroup)
 			nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
 			if err != nil {
 				log.Errorf("%v Unable to Fetch Namespaces: %v", ctlr.getMultiClusterLog(), err)
@@ -1928,7 +1921,7 @@ func (ctlr *Controller) getRouteGroupForCustomPolicy(policy string) []string {
 // fetch routeGroup for given secret.
 func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
 	for rg, extdSpec := range ctlr.resources.extdSpecMap {
-		// Skip local extended configmaps for TLS secret update processing
+		// Skip local extended config CRs for TLS secret update processing
 		if extdSpec == nil || extdSpec.global == nil {
 			continue
 		}
@@ -1941,10 +1934,10 @@ func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
 }
 
 // fetch cluster name for given secret if it holds kubeconfig of the cluster.
-func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) ExternalClusterConfig {
+func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) cisapiv1.ExternalClusterConfig {
 	for _, mcc := range ctlr.resources.externalClustersConfig {
 		// Skip empty/nil configs processing
-		if mcc == (ExternalClusterConfig{}) {
+		if mcc == (cisapiv1.ExternalClusterConfig{}) {
 			continue
 		}
 		// Check if the secret holds the kubeconfig for a cluster by checking if it's referred in the multicluster config
@@ -1953,20 +1946,20 @@ func (ctlr *Controller) getClusterForSecret(secret *v1.Secret) ExternalClusterCo
 			return mcc
 		}
 	}
-	return ExternalClusterConfig{}
+	return cisapiv1.ExternalClusterConfig{}
 }
 
 // readMultiClusterConfigFromGlobalCM reads the configuration for multiple kubernetes clusters
-func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, externalClusterConfigs []ExternalClusterConfig) error {
+func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig cisapiv1.HAClusterConfig, externalClusterConfigs []cisapiv1.ExternalClusterConfig) error {
 	primaryClusterName := ""
 	secondaryClusterName := ""
-	if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && haClusterConfig != (HAClusterConfig{}) {
+	if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && haClusterConfig != (cisapiv1.HAClusterConfig{}) {
 		// If HA mode not set use active-standby mode as defualt
 		if ctlr.haModeType == "" {
 			ctlr.haModeType = StandBy
 		}
 		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
-		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+		if haClusterConfig.PrimaryCluster != (cisapiv1.ClusterDetails{}) {
 			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
 			if ctlr.haModeType == Ratio {
 				if haClusterConfig.PrimaryCluster.Ratio != nil {
@@ -1978,7 +1971,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 			ctlr.readAndUpdateClusterAdminState(haClusterConfig.PrimaryCluster, ctlr.multiClusterMode == PrimaryCIS)
 		}
-		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+		if haClusterConfig.SecondaryCluster != (cisapiv1.ClusterDetails{}) {
 			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
 			if ctlr.haModeType == Ratio {
 				if haClusterConfig.SecondaryCluster.Ratio != nil {
@@ -2004,7 +1997,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 
 		// Set up the informers for the HA clusters
-		if ctlr.multiClusterMode == PrimaryCIS && haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
+		if ctlr.multiClusterMode == PrimaryCIS && haClusterConfig.SecondaryCluster != (cisapiv1.ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.SecondaryCluster.ClusterName == "" || haClusterConfig.SecondaryCluster.Secret == "" {
 				log.Errorf("[MultiCluster] Secondary clusterName or secret not provided in highAvailabilityCIS section: %v",
@@ -2018,7 +2011,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
-				ExternalClusterConfig{
+				cisapiv1.ExternalClusterConfig{
 					ClusterName: haClusterConfig.SecondaryCluster.ClusterName,
 					Secret:      haClusterConfig.SecondaryCluster.Secret},
 				false)
@@ -2037,7 +2030,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			ctlr.multiClusterConfigs.HAPairClusterName = haClusterConfig.SecondaryCluster.ClusterName
 			ctlr.multiClusterConfigs.LocalClusterName = primaryClusterName
 		}
-		if ctlr.multiClusterMode == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
+		if ctlr.multiClusterMode == SecondaryCIS && haClusterConfig.PrimaryCluster != (cisapiv1.ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
 			if haClusterConfig.PrimaryCluster.ClusterName == "" || haClusterConfig.PrimaryCluster.Secret == "" {
 				log.Errorf("[MultiCluster] Primary clusterName or secret not provided in highAvailabilityCIS section: %v",
@@ -2051,7 +2044,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 			err = ctlr.updateClusterConfigStore(kubeConfigSecret,
-				ExternalClusterConfig{
+				cisapiv1.ExternalClusterConfig{
 					ClusterName: haClusterConfig.PrimaryCluster.ClusterName,
 					Secret:      haClusterConfig.PrimaryCluster.Secret},
 				false)
@@ -2181,15 +2174,15 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			delete(ctlr.resources.externalClustersConfig, clusterName)
 			// Delegate the deletion of cluster from the clusterConfig store to updateClusterConfigStore so that any
 			// additional operations (if any) can be performed
-			_ = ctlr.updateClusterConfigStore(nil, ExternalClusterConfig{ClusterName: clusterName}, true)
+			_ = ctlr.updateClusterConfigStore(nil, cisapiv1.ExternalClusterConfig{ClusterName: clusterName}, true)
 		}
 	}
 	return nil
 }
 
 // updateClusterConfigStore updates the clusterKubeConfigs store with the latest config and updated kubeclient for the cluster
-func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc ExternalClusterConfig, deleted bool) error {
-	if !deleted && (kubeConfigSecret == nil || mcc == (ExternalClusterConfig{})) {
+func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mcc cisapiv1.ExternalClusterConfig, deleted bool) error {
+	if !deleted && (kubeConfigSecret == nil || mcc == (cisapiv1.ExternalClusterConfig{})) {
 		return fmt.Errorf("[MultiCluster] no secret or externalClustersConfig specified")
 	}
 	// if secret associated with a cluster kubeconfig is deleted then remove it from clusterKubeConfig store
@@ -2277,7 +2270,7 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 }
 
 // updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
-func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig) {
+func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig cisapiv1.HAClusterConfig) {
 	// Initialize PrimaryClusterHealthProbeParams if it's the first time
 	if ctlr.Agent.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
 		ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
@@ -2427,9 +2420,9 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 		return
 	}
 	switch cluster.(type) {
-	case ExternalClusterConfig:
+	case cisapiv1.ExternalClusterConfig:
 		// For external cluster config
-		mcc := cluster.(ExternalClusterConfig)
+		mcc := cluster.(cisapiv1.ExternalClusterConfig)
 		if mcc.AdminState != "" {
 			if mcc.AdminState == clustermanager.Enable || mcc.AdminState == clustermanager.Disable ||
 				mcc.AdminState == clustermanager.Offline {
@@ -2442,9 +2435,9 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 		} else {
 			ctlr.clusterAdminState[mcc.ClusterName] = clustermanager.Enable
 		}
-	case ClusterDetails:
+	case cisapiv1.ClusterDetails:
 		// For HA cluster config
-		clusterData := cluster.(ClusterDetails)
+		clusterData := cluster.(cisapiv1.ClusterDetails)
 		clusterNameKey := ""
 		// For local cluster use "" as the clusterNameKey
 		if !localCluster {

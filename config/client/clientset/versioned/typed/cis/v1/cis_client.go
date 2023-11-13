@@ -26,6 +26,7 @@ import (
 
 type CisV1Interface interface {
 	RESTClient() rest.Interface
+	DeployConfigsGetter
 	ExternalDNSesGetter
 	IngressLinksGetter
 	PoliciesGetter
@@ -37,6 +38,10 @@ type CisV1Interface interface {
 // CisV1Client is used to interact with features provided by the cis.f5.com group.
 type CisV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *CisV1Client) DeployConfigs(namespace string) DeployConfigInterface {
+	return newDeployConfigs(c, namespace)
 }
 
 func (c *CisV1Client) ExternalDNSes(namespace string) ExternalDNSInterface {

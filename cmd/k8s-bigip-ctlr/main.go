@@ -1,19 +1,375 @@
 /*
-* Copyright (c) 2017-2021 F5 Networks, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
+ * Copyright (c) 2017-2023 F5 Networks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package main
 
-func main() {}
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+
+	"github.com/spf13/pflag"
+	"golang.org/x/crypto/ssh/terminal"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+)
+
+// OCP4 Version for TEEM
+type (
+	Ocp4Version struct {
+		Status ClusterVersionStatus `json:"status"`
+	}
+	ClusterVersionStatus struct {
+		History []UpdateHistory `json:"history,omitempty"`
+	}
+	UpdateHistory struct {
+		Version string `json:"version"`
+	}
+)
+
+const (
+	versionPathOpenshiftv3 = "/version/openshift"
+	versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
+	versionPathk8s         = "/version"
+	poolMemberMode         = "nodeport"
+)
+
+var (
+	// To be set by build
+	version   string
+	buildInfo string
+
+	// Flag sets and supported flags
+	flags       *pflag.FlagSet
+	globalFlags *pflag.FlagSet
+	cmIPFlags   *pflag.FlagSet
+	kubeFlags   *pflag.FlagSet
+
+	logLevel     *string
+	logFile      *string
+	printVersion *bool
+	disableTeems *bool
+
+	poolMemberType *string
+	inCluster      *bool
+	kubeConfig     *string
+
+	cmURL       *string
+	cmUsername  *string
+	cmPassword  *string
+	credsDir    *string
+	sslInsecure *bool
+
+	trustedCertsCfgmap *string
+
+	orchestrationCNI           *string
+	extendedControllerParamsCR *string
+
+	// package variables
+	kubeClient    kubernetes.Interface
+	userAgentInfo string
+)
+
+func _init() {
+	flags = pflag.NewFlagSet("main", pflag.PanicOnError)
+	globalFlags = pflag.NewFlagSet("Global", pflag.PanicOnError)
+	cmIPFlags = pflag.NewFlagSet("CentralManager", pflag.PanicOnError)
+	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.PanicOnError)
+
+	// Flag wrapping
+	var err error
+	var width int
+	fd := int(os.Stdout.Fd())
+	if terminal.IsTerminal(fd) {
+		width, _, err = terminal.GetSize(fd)
+		if nil != err {
+			width = 0
+		}
+	}
+
+	// Global flags
+	logLevel = globalFlags.String("log-level", "INFO",
+		"Optional, logging level")
+	logFile = globalFlags.String("log-file", "",
+		"Optional, filepath to store the CIS logs")
+	printVersion = globalFlags.Bool("version", false,
+		"Optional, print version and exit.")
+	disableTeems = globalFlags.Bool("disable-teems", false,
+		"Optional, flag to disable sending telemetry data to TEEM")
+	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
+	extendedControllerParamsCR = globalFlags.String("cis-config-cr", "",
+		"Required, specify a CRD that holds additional spec for controller.")
+	globalFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
+	}
+
+	// CentralManager flags
+	cmURL = cmIPFlags.String("cm-url", "",
+		"Required, URL for the CentralManager")
+	cmUsername = cmIPFlags.String("cm-username", "",
+		"Required, user name for the CentralManager user account.")
+	cmPassword = cmIPFlags.String("cm-password", "",
+		"Required, password for the CentralManager user account.")
+	credsDir = cmIPFlags.String("credentials-directory", "",
+		"Optional, directory that contains the CentralManager username, password, and/or "+
+			"url files. To be used instead of username, password, and/or url arguments.")
+	sslInsecure = cmIPFlags.Bool("insecure", false,
+		"Optional, when set to true, enable insecure SSL communication to CentralManager.")
+	trustedCertsCfgmap = cmIPFlags.String("trusted-certs-cfgmap", "",
+		"Optional, when certificates are provided, adds them to controller trusted certificate store.")
+	cmIPFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  CentralManager:\n%s\n", cmIPFlags.FlagUsagesWrapped(width))
+	}
+
+	// Kubernetes flags
+	kubeConfig = kubeFlags.String("kubeconfig", "./config",
+		"Optional, absolute path to the kubeconfig file")
+	kubeFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsagesWrapped(width))
+	}
+
+	flags.AddFlagSet(globalFlags)
+	flags.AddFlagSet(cmIPFlags)
+	flags.AddFlagSet(kubeFlags)
+
+	flags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
+		cmIPFlags.Usage()
+		kubeFlags.Usage()
+		globalFlags.Usage()
+	}
+}
+
+func initLogger(logLevel, logFile string) error {
+	var logger log.Logger
+	if len(logFile) > 0 {
+		logger = log.NewFileLogger(logFile)
+	} else {
+		logger = log.NewConsoleLogger()
+	}
+	log.RegisterLogger(
+		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, logger)
+
+	if ll := log.NewLogLevel(logLevel); nil != ll {
+		log.SetLogLevel(*ll)
+	} else {
+		return fmt.Errorf("Unknown log level requested: %s\n"+
+			"    Valid log levels are: AS3DEBUG, DEBUG, INFO, WARNING, ERROR, CRITICAL", logLevel)
+	}
+	return nil
+}
+
+// this is to allow for unit testing
+func init() {
+	_init()
+}
+
+func verifyArgs() error {
+	*logLevel = strings.ToUpper(*logLevel)
+	logErr := initLogger(*logLevel, *logFile)
+	if nil != logErr {
+		return logErr
+	}
+	if (len(*cmURL) == 0 || len(*cmUsername) == 0 ||
+		len(*cmPassword) == 0) && len(*credsDir) == 0 {
+		return fmt.Errorf("Missing CM credentials info")
+	}
+	if len(*extendedControllerParamsCR) == 0 {
+		return fmt.Errorf("Missing required argument --cis-config-cr")
+	} else {
+		if len(strings.Split(*extendedControllerParamsCR, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --cis-config-cr" +
+				"Usage: --cis-config-cr=<namespace>/<CR-name>")
+		}
+	}
+
+	return nil
+}
+
+func getCredentials() error {
+	if len(*credsDir) > 0 {
+		var usr, pass, cmCredURL string
+		var err error
+		if strings.HasSuffix(*credsDir, "/") {
+			usr = *credsDir + "username"
+			pass = *credsDir + "password"
+			cmCredURL = *credsDir + "url"
+		} else {
+			usr = *credsDir + "/username"
+			pass = *credsDir + "/password"
+			cmCredURL = *credsDir + "/url"
+		}
+
+		setField := func(field *string, filename, fieldType string) error {
+			fileBytes, readErr := os.ReadFile(filename)
+			if readErr != nil {
+				log.Debug(fmt.Sprintf(
+					"No %s in credentials directory, falling back to CLI argument", fieldType))
+				if len(*field) == 0 {
+					return fmt.Errorf(fmt.Sprintf("CentralManager %s not specified", fieldType))
+				}
+			} else {
+				*field = strings.TrimSpace(string(fileBytes))
+			}
+			return nil
+		}
+
+		err = setField(cmUsername, usr, "username")
+		if err != nil {
+			return err
+		}
+		err = setField(cmPassword, pass, "password")
+		if err != nil {
+			return err
+		}
+		err = setField(cmURL, cmCredURL, "url")
+		if err != nil {
+			return err
+		}
+	}
+	// Verify URL is valid
+	if !strings.HasPrefix(*cmURL, "https://") {
+		*cmURL = "https://" + *cmURL
+	}
+	u, err := url.Parse(*cmURL)
+	if nil != err {
+		return fmt.Errorf("Error parsing url: %s", err)
+	}
+	if len(u.Path) > 0 && u.Path != "/" {
+		return fmt.Errorf("CM-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
+			u.Path)
+	}
+	return nil
+}
+
+func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			return
+		}
+	}()
+	err := flags.Parse(os.Args)
+	if nil != err {
+		os.Exit(1)
+	}
+
+	if *printVersion {
+		fmt.Printf("Version: %s\nBuild: %s\n", version, buildInfo)
+		os.Exit(0)
+	}
+
+	err = verifyArgs()
+	if nil != err {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		flags.Usage()
+		os.Exit(1)
+	}
+	err = getCredentials()
+	if nil != err {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		flags.Usage()
+		os.Exit(1)
+	}
+
+	log.Infof("[INIT] Starting: Container Ingress Services - Version: %s, BuildInfo: %s", version, buildInfo)
+
+	config, err := getKubeConfig()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	kubeClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("[INIT] error connecting to the client: %v", err)
+		os.Exit(1)
+	}
+	userAgentInfo = getUserAgentInfo()
+	td := &teem.TeemsData{
+		CisVersion:      version,
+		PoolMemberType:  poolMemberMode,
+		PlatformInfo:    userAgentInfo,
+		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
+		AccessEnabled:   true,
+		ResourceType: teem.ResourceTypes{
+			TransportServer: make(map[string]int),
+			IPAMTS:          make(map[string]int),
+		},
+	}
+	if !(*disableTeems) {
+		td.SDNType = *orchestrationCNI
+	} else {
+		td.AccessEnabled = false
+		log.Debug("Telemetry data reporting to TEEM server is disabled")
+	}
+
+}
+
+func getKubeConfig() (*rest.Config, error) {
+	var config *rest.Config
+	var err error
+	if *inCluster {
+		config, err = rest.InClusterConfig()
+	} else {
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
+	}
+	if err != nil {
+		log.Fatalf("[INIT] error creating configuration: %v", err)
+		return nil, err
+	}
+
+	// creates the clientset
+	return config, nil
+}
+
+// Get platform info for TEEM
+func getUserAgentInfo() string {
+	var versionInfo map[string]string
+	var err error
+	var vInfo []byte
+	rc := kubeClient.Discovery().RESTClient()
+	// support for ocp < 3.11
+	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(context.TODO()); err == nil {
+		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
+			return fmt.Sprintf("CIS/v%v OCP/%v", version, versionInfo["gitVersion"])
+		}
+	} else if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv4).DoRaw(context.TODO()); err == nil {
+		// support ocp > 4.0
+		var ocp4 Ocp4Version
+		if er := json.Unmarshal(vInfo, &ocp4); er == nil {
+			if len(ocp4.Status.History) > 0 {
+				return fmt.Sprintf("CIS/v%v OCP/v%v", version, ocp4.Status.History[0].Version)
+			}
+			return fmt.Sprintf("CIS/v%v OCP/v4.0.0", version)
+		}
+	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(context.TODO()); err == nil {
+		// support k8s
+		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
+			return fmt.Sprintf("CIS/v%v K8S/%v", version, versionInfo["gitVersion"])
+		}
+	}
+	log.Warningf("Unable to fetch user agent details. %v", err)
+	return fmt.Sprintf("CIS/v%v", version)
+}

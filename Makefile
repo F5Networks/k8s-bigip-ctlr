@@ -75,13 +75,13 @@ pre-build:
 prod-build: pre-build
 	@echo "Building with running tests..."
 
-	docker build --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
+	docker build --platform linux/amd64 --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
 	@echo "Quick build without running tests..."
-	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
+	docker build --platform linux/amd64 --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 dev-license: pre-build
 	@echo "Running with tests and licenses generated will be in all_attributions.txt..."
@@ -93,7 +93,7 @@ dev-license: pre-build
 
 debug: pre-build
 	@echo "Building with debug support..."
-	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-dbg:latest -f build-tools/Dockerfile.debug .
+	docker build --platform linux/amd64 --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-dbg:latest -f build-tools/Dockerfile.debug .
 
 
 fmt:
@@ -105,7 +105,7 @@ vet:
 	$(CURDIR)/build-tools/vet.sh
 
 devel-image:
-	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-devel:latest -f build-tools/Dockerfile.$(BASE_OS) .
+	docker build --platform linux/amd64 --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-devel:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 # Enable certain funtionalities only on a developer build
 dev-patch:

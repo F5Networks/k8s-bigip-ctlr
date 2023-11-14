@@ -19,18 +19,17 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
-
-	routeapi "github.com/openshift/api/route/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+	routeapi "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -332,28 +331,36 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 		stopCh:    make(chan struct{}),
 	}
 
-	crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-		ctlr.kubeCRClient,
-		namespace,
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		everything,
-	)
+	if ctlr.managedResources.ManageIL {
+		crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
+			ctlr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			everything,
+		)
+	}
 
-	crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-		ctlr.kubeCRClient,
-		namespace,
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		crOptions,
-	)
-	crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
-		ctlr.kubeCRClient,
-		namespace,
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		crOptions,
-	)
+	if ctlr.managedResources.ManageVirtualServer {
+		crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
+			ctlr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
+	}
+
+	if ctlr.managedResources.ManageTLSProfile {
+		crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
+			ctlr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
+	}
+
 	crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
 		ctlr.kubeCRClient,
 		namespace,

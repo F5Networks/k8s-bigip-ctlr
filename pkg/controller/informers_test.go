@@ -376,7 +376,7 @@ var _ = Describe("Informers Tests", func() {
 				PostManager: &PostManager{
 					postChan: make(chan ResourceConfigRequest, 1),
 					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
+						CMURL: "10.10.10.1",
 					},
 				},
 			}

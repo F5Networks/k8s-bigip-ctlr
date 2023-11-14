@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"time"
 )
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
@@ -314,20 +313,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 		}
 		routes.Entries = append(routes.Entries, route)
 	}
-	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
 
-	if nil != err {
-		log.Warningf("Failed to write static routes config section: %v", err)
-	} else {
-		select {
-		case <-doneCh:
-			log.Debugf("Wrote static route config section: %v", routes)
-		case e := <-errCh:
-			log.Warningf("Failed to write static route config section: %v", e)
-		case <-time.After(time.Second):
-			log.Warningf("Did not receive write response in 1s")
-		}
-	}
 }
 
 func parseNodeSubnet(ann, nodeName string) (string, error) {

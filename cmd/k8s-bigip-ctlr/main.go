@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/controller"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 
@@ -34,7 +36,6 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 // OCP4 Version for TEEM
@@ -74,7 +75,6 @@ var (
 	disableTeems *bool
 
 	poolMemberType *string
-	inCluster      *bool
 	kubeConfig     *string
 
 	cmURL       *string
@@ -307,6 +307,57 @@ func main() {
 		os.Exit(1)
 	}
 	userAgentInfo = getUserAgentInfo()
+	ctlr := initController(config)
+	initTeems(ctlr)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigs
+	ctlr.Stop()
+	log.Infof("Exiting - signal %v\n", sig)
+}
+
+func initController(
+	config *rest.Config,
+) *controller.Controller {
+
+	agentParams := getAgentParams()
+	agent := controller.NewAgent(agentParams)
+	ctlr := controller.NewController(
+		controller.Params{
+			Config:           config,
+			Agent:            agent,
+			PoolMemberType:   poolMemberMode,
+			OrchestrationCNI: *orchestrationCNI,
+		},
+	)
+
+	return ctlr
+}
+
+func getAgentParams() controller.AgentParams {
+	postMgrParams := controller.PostParams{
+		CMUsername:   *cmUsername,
+		CMPassword:   *cmPassword,
+		CMURL:        *cmURL,
+		TrustedCerts: "",
+		SSLInsecure:  true,
+	}
+
+	agentParams := controller.AgentParams{
+		PostParams: postMgrParams,
+		LogLevel:   *logLevel,
+		UserAgent:  userAgentInfo,
+	}
+
+	// When CIS is configured in OCP cluster mode disable ARP in globalSection
+	// ARP not required for nodeport mode
+	if *poolMemberType == "nodeport" || *poolMemberType == "nodeportlocal" {
+		agentParams.DisableARP = true
+	}
+	return agentParams
+}
+
+func initTeems(ctlr *controller.Controller) {
 	td := &teem.TeemsData{
 		CisVersion:      version,
 		PoolMemberType:  poolMemberMode,
@@ -314,8 +365,18 @@ func main() {
 		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
 		AccessEnabled:   true,
 		ResourceType: teem.ResourceTypes{
+			Ingresses:       make(map[string]int),
+			Routes:          make(map[string]int),
+			Configmaps:      make(map[string]int),
+			VirtualServer:   make(map[string]int),
 			TransportServer: make(map[string]int),
+			ExternalDNS:     make(map[string]int),
+			IngressLink:     make(map[string]int),
+			IPAMVS:          make(map[string]int),
 			IPAMTS:          make(map[string]int),
+			IPAMSvcLB:       make(map[string]int),
+			NativeRoutes:    make(map[string]int),
+			RouteGroups:     make(map[string]int),
 		},
 	}
 	if !(*disableTeems) {
@@ -324,17 +385,22 @@ func main() {
 		td.AccessEnabled = false
 		log.Debug("Telemetry data reporting to TEEM server is disabled")
 	}
-
+	ctlr.TeemData = td
+	if !(*disableTeems) {
+		key, err := ctlr.Agent.GetBigipRegKey()
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+		ctlr.TeemData.Lock()
+		ctlr.TeemData.RegistrationKey = key
+		ctlr.TeemData.Unlock()
+	}
 }
 
 func getKubeConfig() (*rest.Config, error) {
 	var config *rest.Config
 	var err error
-	if *inCluster {
-		config, err = rest.InClusterConfig()
-	} else {
-		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
-	}
+	config, err = rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("[INIT] error creating configuration: %v", err)
 		return nil, err

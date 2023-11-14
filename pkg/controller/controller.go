@@ -21,13 +21,12 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 	"unicode"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
@@ -160,6 +159,8 @@ func NewController(params Params) *Controller {
 			Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password}),
 	}
 
+	ctlr.managedResources.ManageTransportServer = true
+
 	log.Debug("Controller Created")
 	// Sync CM token
 	ctlr.CMTokenManager.SyncToken(make(chan struct{}))
@@ -223,6 +224,26 @@ func NewController(params Params) *Controller {
 		log.Error("Failed to Setup Informers")
 	}
 
+	ctlr.setupIPAM(params)
+
+	//ctlr.setupVXLANManager(params)
+
+	go ctlr.responseHandler(ctlr.Agent.respChan)
+
+	go ctlr.Start()
+
+	go ctlr.setOtherSDNType()
+
+	// enable metrics
+	go ctlr.Agent.enableMetrics()
+
+	// Start the CIS health check
+	go ctlr.CISHealthCheck()
+
+	return ctlr
+}
+
+func (ctlr *Controller) setupIPAM(params Params) {
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
@@ -237,6 +258,9 @@ func NewController(params Params) *Controller {
 		time.Sleep(3 * time.Second)
 		_ = ctlr.createIPAMResource()
 	}
+}
+
+func (ctlr *Controller) setupVXLANManager(params Params) {
 	// setup vxlan manager
 	if len(params.VXLANName) > 0 && len(params.VXLANMode) > 0 {
 		tunnelName := params.VXLANName
@@ -258,16 +282,6 @@ func NewController(params Params) *Controller {
 		}
 		ctlr.vxlanMgr = vxlanMgr
 	}
-
-	go ctlr.responseHandler(ctlr.Agent.respChan)
-
-	go ctlr.Start()
-
-	go ctlr.setOtherSDNType()
-	// Start the CIS health check
-	go ctlr.CISHealthCheck()
-
-	return ctlr
 }
 
 // Set Other SDNType
@@ -502,7 +516,6 @@ func (ctlr *Controller) Stop() {
 		}
 	}
 
-	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
 	}

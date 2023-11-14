@@ -28,7 +28,6 @@ import (
 
 	rsc "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -61,29 +60,16 @@ func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
 	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
 	postMgr := NewPostManager(params, false)
-	configWriter, err := writer.NewConfigWriter()
-	if nil != err {
-		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
-	}
 	agent := &Agent{
-		PostManager:  postMgr,
-		Partition:    params.Partition,
-		ConfigWriter: configWriter,
-		EventChan:    make(chan interface{}),
-		respChan:     make(chan resourceStatusMeta, 1),
-		userAgent:    params.UserAgent,
-		HttpAddress:  params.HttpAddress,
-		ccclGTMAgent: params.CCCLGTMAgent,
-		disableARP:   params.DisableARP,
+		PostManager: postMgr,
+		Partition:   params.Partition,
+		EventChan:   make(chan interface{}),
+		respChan:    make(chan resourceStatusMeta, 1),
+		userAgent:   params.UserAgent,
+		HttpAddress: params.HttpAddress,
+		disableARP:  params.DisableARP,
 	}
-	// if agent is running in as3 gtm mode and bipip gtm is different from bigip ltm create the gtm agent
-	if isGTMOnSeparateServer(params) {
-		agent.GTMPostManager = NewGTMPostManager(params)
-		go agent.gtmWorker()
-		// retryGTMWorker runs as a separate go routine
-		// blocks on retryChan ; retries failed declarations and polls for accepted tenant statuses
-		go agent.retryGTMWorker()
-	}
+
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
 	go agent.agentWorker()
@@ -92,82 +78,10 @@ func NewAgent(params AgentParams) *Agent {
 	// blocks on retryChan ; retries failed declarations and polls for accepted tenant statuses
 	go agent.retryWorker()
 
-	// If running in VXLAN mode, extract the partition name from the tunnel
-	// to be used in configuring a net instance of CCCL for that partition
-	var vxlanPartition string
-	if len(params.VXLANName) > 0 {
-		cleanPath := strings.TrimLeft(params.VXLANName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos == -1 {
-			// No partition
-			vxlanPartition = "Common"
-		} else {
-			// Partition and name
-			vxlanPartition = cleanPath[:slashPos]
-		}
-	}
-	if params.StaticRoutingMode == true {
-		vxlanPartition = params.Partition
-		if params.SharedStaticRoutes == true {
-			vxlanPartition = "Common"
-		}
-	}
-	gs := globalSection{
-		LogLevel:          params.LogLevel,
-		VerifyInterval:    params.VerifyInterval,
-		VXLANPartition:    vxlanPartition,
-		DisableLTM:        true,
-		GTM:               params.CCCLGTMAgent,
-		DisableARP:        params.DisableARP,
-		StaticRoutingMode: params.StaticRoutingMode,
-		MultiClusterMode:  params.MultiClusterMode,
-	}
-
-	// If AS3DEBUG is set, set log level to DEBUG
-	if gs.LogLevel == "AS3DEBUG" {
-		gs.LogLevel = "DEBUG"
-	}
-
-	bs := bigIPSection{
-		BigIPUsername:   params.PostParams.BIGIPUsername,
-		BigIPPassword:   params.PostParams.BIGIPPassword,
-		BigIPURL:        params.PostParams.BIGIPURL,
-		BigIPPartitions: []string{params.Partition},
-	}
-
-	var gtm gtmBigIPSection
-	if len(params.GTMParams.BIGIPURL) == 0 || len(params.GTMParams.BIGIPUsername) == 0 || len(params.GTMParams.BIGIPPassword) == 0 {
-		// gs.GTM = false
-		gtm = gtmBigIPSection{
-			GtmBigIPUsername: params.PostParams.BIGIPUsername,
-			GtmBigIPPassword: params.PostParams.BIGIPPassword,
-			GtmBigIPURL:      params.PostParams.BIGIPURL,
-		}
-		log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-	} else {
-		gtm = gtmBigIPSection{
-			GtmBigIPUsername: params.GTMParams.BIGIPUsername,
-			GtmBigIPPassword: params.GTMParams.BIGIPPassword,
-			GtmBigIPURL:      params.GTMParams.BIGIPURL,
-		}
-	}
-	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
-	if !(params.EnableIPV6) {
-		agent.startPythonDriver(
-			gs,
-			bs,
-			gtm,
-			params.PythonBaseDir,
-		)
-	} else {
-		// we only enable metrics as pythondriver is not initialized for ipv6
-		go agent.enableMetrics()
-	}
 	// Set the AS3 version for the LTM Postmanager
-	err = agent.IsBigIPAppServicesAvailable()
+	err := agent.IsBigIPAppServicesAvailable()
 	if err != nil {
 		log.Errorf("%v", err)
-		agent.Stop()
 		os.Exit(1)
 	}
 	// Set the AS3 version on the GTM Postmanager
@@ -175,18 +89,10 @@ func NewAgent(params AgentParams) *Agent {
 		err = agent.GTMPostManager.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
-			agent.Stop()
 			os.Exit(1)
 		}
 	}
 	return agent
-}
-
-func (agent *Agent) Stop() {
-	agent.ConfigWriter.Stop()
-	if !(agent.EnableIPV6) {
-		agent.stopPythonDriver()
-	}
 }
 
 func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
@@ -245,9 +151,6 @@ func (agent *Agent) agentWorker() {
 		case <-time.After(1 * time.Microsecond):
 		}
 
-		if !(agent.EnableIPV6) && agent.ccclGTMAgent {
-			agent.PostGTMConfig(rsConfig)
-		}
 		// put GMT config in the post channel if gtm agent is running
 		if agent.GTMPostManager != nil {
 			agent.GTMPostManager.PostGTMConfig(rsConfig)
@@ -451,34 +354,6 @@ func (agent *Agent) retryWorker() {
 	}
 }
 
-func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
-
-	dnsConfig := make(map[string]interface{})
-	wideIPs := WideIPs{}
-
-	for _, gtmPartitionConfig := range config.gtmConfig {
-		for _, v := range gtmPartitionConfig.WideIPs {
-			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
-		}
-	}
-
-	dnsConfig["Common"] = wideIPs
-	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
-
-	if nil != err {
-		log.Warningf("Failed to write gtm config section: %v", err)
-	} else {
-		select {
-		case <-doneCh:
-			log.Debugf("Wrote gtm config section: %v", config.gtmConfig)
-		case e := <-errCh:
-			log.Warningf("Failed to write gtm config section: %v", e)
-		case <-time.After(time.Second):
-			log.Warningf("Did not receive write response in 1s")
-		}
-	}
-}
-
 // Creates AS3 adc only for tenants with updated configuration
 func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
 	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
@@ -515,7 +390,7 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 
 func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := agent.createAS3LTMConfigADC(config)
-	if !agent.ccclGTMAgent && agent.GTMPostManager == nil {
+	if agent.GTMPostManager == nil {
 		adc = agent.createAS3GTMConfigADC(config, adc)
 	}
 	return adc

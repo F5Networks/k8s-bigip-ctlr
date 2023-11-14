@@ -356,7 +356,7 @@ Added Functionality
     * CRD:
         * allowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * Added support for TCP Health Monitor support in VS CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/HealthMonitor>`_
-        * Added support for multiple monitors in VS and TS CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/`_
+        * Added support for multiple monitors in VS and TS CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * SCTP support for Transport Server Custom Resource. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer>`_
         * :issues:`2201` Support for linking existing health monitor on bigip with virtualSever and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
@@ -432,7 +432,7 @@ Added Functionality
         * Custom pool name support in VirtualServer and TransportServer CRs. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/customPoolName>`_
         * GTM global-availability LB method and order precedence support with EDNS CRs. See `Examples <https://github.com/sravyap135/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
     * Service Type LoadBalancer:
-        * SCTP protocol support in Services of type LoadBalancer. See `official documentation <https://kubernetes.io/docs/concepts/services-networking/network-policies/#sctp-support>`_
+        * SCTP protocol support in Services of type LoadBalancer. See `official documentation <https://kubernetes.io/docs/reference/networking/service-protocols/#protocol-sctp>`_
         * Added support for attaching Policy CRD as an annotation
             * SNAT pool name support in policy CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
     * ConfigMap:

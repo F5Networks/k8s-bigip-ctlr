@@ -11,7 +11,7 @@ var _ = Describe("PostManager Tests", func() {
 	var mockPM *mockPostManager
 	BeforeEach(func() {
 		mockPM = newMockPostManger()
-		mockPM.tenantResponseMap = make(map[string]tenantResponse)
+		mockPM.tenantResponseMap = make(map[string]map[string]tenantResponse)
 		mockPM.LogAS3Response = true
 		mockPM.AS3PostDelay = 2
 	})
@@ -22,16 +22,18 @@ var _ = Describe("PostManager Tests", func() {
 
 	Describe("Post Config and Handle Response", func() {
 		var agentCfg agentConfig
+		bigip := "bigip1"
 		BeforeEach(func() {
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			agentCfg = agentConfig{
+			agentCfg = agentConfig{as3Config: as3Config{
 				data:      "{}",
 				as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
 				id:        0,
+			},
 			}
-			mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			mockPM.tenantResponseMap = make(map[string]map[string]tenantResponse)
 		})
 
 		It("Handle First Post", func() {
@@ -42,8 +44,8 @@ var _ = Describe("PostManager Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			mockPM.firstPost = false
-			mockPM.publishConfig(agentCfg)
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
+			mockPM.publishConfig(agentCfg.as3Config)
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})
 
 		It("Handle HTTP StatusOK", func() {
@@ -53,8 +55,8 @@ var _ = Describe("PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   "",
 			}}, http.MethodPost)
-			mockPM.publishConfig(agentCfg)
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
+			mockPM.publishConfig(agentCfg.as3Config)
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})
 
 		It("Handle HTTP Status Accepted", func() {
@@ -70,9 +72,9 @@ var _ = Describe("PostManager Tests", func() {
 					status: http.StatusAccepted,
 					body:   `{"id": "100", "code": 400}`,
 				}}, http.MethodPost)
-			mockPM.publishConfig(agentCfg)
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
+			mockPM.publishConfig(agentCfg.as3Config)
 		})
 
 		It("Handle Expected HTTP Response Errors", func() {
@@ -89,9 +91,9 @@ var _ = Describe("PostManager Tests", func() {
 					body:   "",
 				},
 			}, http.MethodPost)
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
 			Expect(len(mockPM.tenantResponseMap)).To(BeZero(), "Posting Failed")
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
 			Expect(len(mockPM.tenantResponseMap)).To(BeZero(), "Posting Failed")
 		})
 
@@ -115,17 +117,17 @@ var _ = Describe("PostManager Tests", func() {
 				},
 			}, http.MethodPost)
 
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
 
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
 
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusAlreadyReported))
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(Equal(http.StatusAlreadyReported))
 		})
 
 		It("Handle Multiple HTTP Responses", func() {
@@ -136,12 +138,13 @@ var _ = Describe("PostManager Tests", func() {
 				body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"success", "tenant": "%s"}],"declaration": {"%s": {"Shared": {"class": "application"}}}}`, http.StatusOK, tnt, tnt),
 			},
 			}, http.MethodPost)
-			mockPM.publishConfig(agentCfg)
+			mockPM.publishConfig(agentCfg.as3Config)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
 		})
 	})
 
 	Describe("BIGIP Queries", func() {
+		bigip := "bigip1"
 		It("Get Tenant Configuration Status", func() {
 			tnt := "test"
 			mockPM.setResponses([]responceCtx{
@@ -161,14 +164,14 @@ var _ = Describe("PostManager Tests", func() {
 					body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}]}`, http.StatusUnprocessableEntity, tnt),
 				},
 			}, http.MethodGet)
-			mockPM.getTenantConfigStatus("100")
+			mockPM.getTenantConfigStatus("100", bigip)
 			Expect(len(mockPM.tenantResponseMap)).To(BeZero(), "Posting Failed")
-			mockPM.getTenantConfigStatus("100")
+			mockPM.getTenantConfigStatus("100", bigip)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusOK))
-			mockPM.getTenantConfigStatus("100")
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(Equal(http.StatusOK))
+			mockPM.getTenantConfigStatus("100", bigip)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
-			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusUnprocessableEntity))
+			Expect(mockPM.tenantResponseMap[bigip][tnt].agentResponseCode).To(Equal(http.StatusUnprocessableEntity))
 		})
 	})
 

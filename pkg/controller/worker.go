@@ -662,13 +662,11 @@ func (ctlr *Controller) processResources() bool {
 
 	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
 		(ctlr.multiClusterMode == SecondaryCIS && rKey.kind == HACIS) {
+		//TODO: to fetch bigip config from cis cr and resources from resourcestore
 		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
-			shareNodes:         ctlr.shareNodes,
-			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
-			defaultRouteDomain: ctlr.defaultRouteDomain,
+			bigIpConfigs: BigIpConfigMap{},
 		}
-
+		BigIpConfig := BigIpConfig{}
 		if ctlr.multiClusterMode != "" {
 			// only standalone CIS & Primary CIS should post the teems data
 			if ctlr.multiClusterMode != SecondaryCIS {
@@ -681,8 +679,9 @@ func (ctlr *Controller) processResources() bool {
 			// In non multi-cluster mode, we should post the teems data
 			go ctlr.TeemData.PostTeemsData()
 		}
-		config.reqId = ctlr.enqueueReq(config)
-		ctlr.Agent.PostConfig(config)
+		config.reqId = ctlr.enqueueReq(BigIpConfig)
+		//Add config to request channel
+		ctlr.Agent.enqueueRequestConfig(config)
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
 	}
@@ -2715,7 +2714,6 @@ func (ctlr *Controller) processService(
 }
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
-
 	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
 		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
 			if processedWIP.UID != string(edns.UID) {
@@ -2889,6 +2887,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
 	return
+
 }
 
 func (ctlr *Controller) getAllExternalDNS(namespace string) []*cisapiv1.ExternalDNS {

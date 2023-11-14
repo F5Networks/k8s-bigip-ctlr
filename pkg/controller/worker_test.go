@@ -84,10 +84,10 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.Partition = "test"
 		mockCtlr.Agent = &Agent{
 			respChan: make(chan resourceStatusMeta, 1),
+			reqChan:  make(chan ResourceConfigRequest, 1),
 			PostManager: &PostManager{
-				postChan:            make(chan ResourceConfigRequest, 1),
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				retryTenantDeclMap:  make(map[string]*tenantParams),
+				cachedBIGIPTenantDeclMap: make(map[string]map[string]as3Tenant),
+				retryTenantDeclMap:       make(map[string]map[string]*tenantParams),
 				PostParams: PostParams{
 					BIGIPURL: "10.10.10.1",
 				},
@@ -1474,7 +1474,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			mockPM.tenantResponseMap = make(map[string]map[string]tenantResponse)
 			mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
@@ -1872,7 +1872,7 @@ var _ = Describe("Worker Tests", func() {
 			//})
 
 			It("Virtual Server with IPAM", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
@@ -2007,12 +2007,13 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 				time.Sleep(10 * time.Millisecond)
 
-				config := ResourceConfigRequest{
+				resourceConfig := BigIpConfig{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				config := ResourceConfigRequest{bigIpConfigs: BigIpConfigMap{BigIP{}: resourceConfig}}
+				config.reqId = mockCtlr.Controller.enqueueReq(resourceConfig)
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
 				rscUpdateMeta.failedTenants["test"] = struct{}{}
@@ -2159,7 +2160,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server Validation", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 				_ = mockCtlr.Agent.respChan
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
@@ -2202,19 +2203,20 @@ var _ = Describe("Worker Tests", func() {
 
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
-				config := ResourceConfigRequest{
+				config := BigIpConfig{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				resourceconfig := ResourceConfigRequest{bigIpConfigs: BigIpConfigMap{BigIP{}: config}}
+				resourceconfig.reqId = mockCtlr.Controller.enqueueReq(config)
+				resourceconfig.reqId = mockCtlr.Controller.enqueueReq(config)
 				rscUpdateMeta.id = 3
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
 				rscUpdateMeta.failedTenants["test"] = struct{}{}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				resourceconfig.reqId = mockCtlr.Controller.enqueueReq(config)
+				resourceconfig.reqId = mockCtlr.Controller.enqueueReq(config)
 				rscUpdateMeta.id = 3
 
 				delete(rscUpdateMeta.failedTenants, "test")
@@ -2225,7 +2227,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server with IPAM", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
 				//Add Service
@@ -2336,7 +2338,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server with Partition", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 				mockCtlr.Partition = "test"
 				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
@@ -2576,7 +2578,7 @@ var _ = Describe("Worker Tests", func() {
 
 		Describe("Processing Ingress Link", func() {
 			It("Ingress Link", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 				fooPorts := []v1.ServicePort{
 					{
@@ -2679,7 +2681,7 @@ var _ = Describe("Worker Tests", func() {
 
 			})
 			It("Ingress Link with partition", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 				mockCtlr.Partition = "test"
 				fooPorts := []v1.ServicePort{
@@ -2823,7 +2825,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			mockPM.tenantResponseMap = make(map[string]map[string]tenantResponse)
 			mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
@@ -3198,7 +3200,7 @@ var _ = Describe("Worker Tests", func() {
 					Sections:  make(map[string]interface{}),
 				}
 				mockCtlr.Agent.ConfigWriter = writer
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 
 				routeGroup := "default"
@@ -3650,7 +3652,7 @@ var _ = Describe("Worker Tests", func() {
 				//time.Sleep(1 * time.Microsecond)
 			})
 			It("Process Edge Route", func() {
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
@@ -3692,7 +3694,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 			It("Process Pass-through Route", func() {
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
-				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.requestHandler()
 				go mockCtlr.Agent.retryWorker()
 				mockCtlr.initState = true
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
@@ -3753,12 +3755,15 @@ var _ = Describe("Worker Tests", func() {
 				time.Sleep(10 * time.Millisecond)
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
-				config := ResourceConfigRequest{
+				config := BigIpConfig{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				resourceconfig := ResourceConfigRequest{
+					bigIpConfigs: BigIpConfigMap{BigIP{}: config},
+				}
+				resourceconfig.reqId = mockCtlr.Controller.enqueueReq(config)
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
 				mockCtlr.Agent.respChan <- rscUpdateMeta
@@ -3775,10 +3780,10 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.Partition = "test"
 			mockCtlr.Agent = &Agent{
 				respChan: make(chan resourceStatusMeta, 1),
+				reqChan:  make(chan ResourceConfigRequest, 1),
 				PostManager: &PostManager{
-					retryTenantDeclMap:  make(map[string]*tenantParams),
-					postChan:            make(chan ResourceConfigRequest, 1),
-					cachedTenantDeclMap: make(map[string]as3Tenant),
+					retryTenantDeclMap:       make(map[string]map[string]*tenantParams),
+					cachedBIGIPTenantDeclMap: make(map[string]map[string]as3Tenant),
 					PostParams: PostParams{
 						BIGIPURL: "10.10.10.1",
 					},

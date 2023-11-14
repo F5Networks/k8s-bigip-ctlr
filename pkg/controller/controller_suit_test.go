@@ -58,14 +58,13 @@ func (m *mockController) shutdown() error {
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &PostManager{
-			postChan:            make(chan ResourceConfigRequest, 1),
-			cachedTenantDeclMap: make(map[string]as3Tenant),
-			retryTenantDeclMap:  make(map[string]*tenantParams),
+			cachedBIGIPTenantDeclMap: make(map[string]map[string]as3Tenant),
+			retryTenantDeclMap:       make(map[string]map[string]*tenantParams),
 		},
 		Responses: []int{},
 		RespIndex: 0,
 	}
-	mockPM.tenantResponseMap = make(map[string]tenantResponse)
+	mockPM.tenantResponseMap = make(map[string]map[string]tenantResponse)
 	mockPM.firstPost = true
 	return mockPM
 }
@@ -105,10 +104,11 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
-		PostManager:     &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
+		PostManager:     &PostManager{},
 		Partition:       "test",
 		ConfigWriter:    writer,
 		EventChan:       make(chan interface{}),
+		reqChan:         make(chan ResourceConfigRequest, 1),
 		PythonDriverPID: 0,
 		//cachedTenantDeclMap:   make(map[string]interface{}),
 		//incomingTenantDeclMap: make(map[string]interface{}),

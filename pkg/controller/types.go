@@ -318,7 +318,26 @@ type (
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
+	//
+	ResourceConfigRequest struct {
+		bigIpConfigs BigIpConfigMap
+		reqId        int
+	}
+	// Where key the BigIP structure and value is the bigip-next config
+	BigIpConfigMap map[BigIP]BigIpConfig
 
+	BigIP struct {
+		bigIPddress   string
+		haBigIPddress string
+		bigIPLabel    string
+	}
+
+	BigIpConfig struct {
+		ltmConfig          LTMConfig
+		gtmConfig          GTMConfig
+		shareNodes         bool
+		defaultRouteDomain int
+	}
 	// ResourceStore contain processed LTM and GTM resource data
 	ResourceStore struct {
 		ltmConfig      LTMConfig
@@ -399,14 +418,6 @@ type (
 		Members        []string  `json:"members"`
 		Monitors       []Monitor `json:"monitors,omitempty"`
 		DataServer     string
-	}
-
-	ResourceConfigRequest struct {
-		ltmConfig          LTMConfig
-		shareNodes         bool
-		gtmConfig          GTMConfig
-		defaultRouteDomain int
-		reqId              int
 	}
 
 	resourceStatusMeta struct {
@@ -736,6 +747,7 @@ type (
 		ConfigWriter    writer.Writer
 		EventChan       chan interface{}
 		respChan        chan resourceStatusMeta
+		reqChan         chan ResourceConfigRequest
 		PythonDriverPID int
 		userAgent       string
 		HttpAddress     string
@@ -769,7 +781,7 @@ type (
 
 	PostManager struct {
 		httpClient        *http.Client
-		tenantResponseMap map[string]tenantResponse
+		tenantResponseMap map[string]map[string]tenantResponse
 		PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		firstPost                       bool
@@ -777,14 +789,14 @@ type (
 		bigIPAS3Version                 float64
 		postManagerPrefix               string
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
-		cachedTenantDeclMap   map[string]as3Tenant
-		incomingTenantDeclMap map[string]as3Tenant
+		cachedBIGIPTenantDeclMap   map[string]map[string]as3Tenant
+		incomingBIGIPTenantDeclMap map[string]map[string]as3Tenant
 		// this map stores the tenant priority map
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
-		retryTenantDeclMap map[string]*tenantParams
-		postChan           chan ResourceConfigRequest
+		retryTenantDeclMap map[string]map[string]*tenantParams
 		retryChan          chan struct{}
+		postChan           chan agentConfig
 	}
 
 	PrimaryClusterHealthProbeParams struct {
@@ -826,13 +838,21 @@ type (
 		as3Decl interface{} // to update cachedTenantDeclMap on success
 		tenantResponse
 	}
-
+	//agentConfig holds as3config and l3config to put onto post channel
 	agentConfig struct {
-		data      string
-		as3APIURL string
-		id        int
+		as3Config as3Config
+		l3Config  l3Config
 	}
-
+	//as3Config to put into post channel
+	as3Config struct {
+		data               string
+		as3APIURL          string
+		id                 int
+		bigipTargetAddress string
+	}
+	//TODO L3Config to put into post channel. Handle with L3Postmanager implementation
+	l3Config struct {
+	}
 	globalSection struct {
 		LogLevel           string `json:"log-level,omitempty"`
 		VerifyInterval     int    `json:"verify-interval,omitempty"`

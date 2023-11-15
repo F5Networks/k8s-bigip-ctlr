@@ -41,6 +41,9 @@ spec:
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                connectionMirroring:
+                  type: string
+                  enum: [ none, L4 ]
                 tlsProfileName:
                   type: string
                   pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
@@ -283,6 +286,11 @@ spec:
                             reference:
                               type: string
                               enum: [bigip]
+                      minimumMonitors:
+                        x-kubernetes-int-or-string: true
+                        anyOf:
+                          - type: integer
+                          - type: string
                       reselectTries:
                         type: integer
                         minimum: 0
@@ -372,7 +380,7 @@ spec:
           jsonPath: .metadata.creationTimestamp
       subresources:
         status: {}
-          
+
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -480,7 +488,7 @@ spec:
                 policyName:
                   type: string
                   pattern: '^([A-z0-9-_+])*([A-z0-9])$'
-                mode: 
+                mode:
                   type: string
                   enum: [standard, performance]
                 type:
@@ -489,6 +497,9 @@ spec:
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                connectionMirroring:
+                  type: string
+                  enum: [ none, L4 ]
                 profiles:
                   type: object
                   properties:
@@ -592,25 +603,25 @@ spec:
                       items:
                         type: object
                         properties:
-                            type:
-                              type: string
-                              enum: [ tcp, udp, http, https ]
-                            interval:
-                              type: integer
-                            timeout:
-                              type: integer
-                            targetPort:
-                              type: integer
-                            name:
-                              type: string
-                              pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-                            reference:
-                              type: string
-                              enum: [bigip]
-                            send:
-                              type: string
-                            recv:
-                              type: string
+                          type:
+                            type: string
+                            enum: [ tcp, udp, http, https ]
+                          interval:
+                            type: integer
+                          timeout:
+                            type: integer
+                          targetPort:
+                            type: integer
+                          name:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          reference:
+                            type: string
+                            enum: [bigip]
+                          send:
+                            type: string
+                          recv:
+                            type: string
                     reselectTries:
                       type: integer
                       minimum: 0
@@ -635,8 +646,8 @@ spec:
                               - type: integer
                               - type: string
                   required:
-                      - service
-                      - servicePort
+                    - service
+                    - servicePort
               required:
                 - virtualServerPort
                 - pool
@@ -651,37 +662,37 @@ spec:
                   type: string
                   default: Pending
       additionalPrinterColumns:
-      - name: virtualServerAddress
-        type: string
-        description: IP address of virtualServer
-        jsonPath: .spec.virtualServerAddress
-      - name: virtualServerPort
-        type: integer
-        description: Port of virtualServer
-        jsonPath: .spec.virtualServerPort
-      - name: pool
-        type: string
-        description: Name of service
-        jsonPath: .spec.pool.service
-      - name: poolPort
-        type: string
-        description: Port of service
-        jsonPath: .spec.pool.servicePort
-      - name: ipamLabel
-        type: string
-        description: ipamLabel for transport server
-        jsonPath: .spec.ipamLabel
-      - name: IPAMVSAddress
-        type: string
-        description: IP address of transport server
-        jsonPath: .status.vsAddress
-      - name: STATUS
-        type: string
-        description: status of TransportServer
-        jsonPath: .status.status
-      - name: Age
-        type: date
-        jsonPath: .metadata.creationTimestamp
+        - name: virtualServerAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .spec.virtualServerAddress
+        - name: virtualServerPort
+          type: integer
+          description: Port of virtualServer
+          jsonPath: .spec.virtualServerPort
+        - name: pool
+          type: string
+          description: Name of service
+          jsonPath: .spec.pool.service
+        - name: poolPort
+          type: string
+          description: Port of service
+          jsonPath: .spec.pool.servicePort
+        - name: ipamLabel
+          type: string
+          description: ipamLabel for transport server
+          jsonPath: .spec.ipamLabel
+        - name: IPAMVSAddress
+          type: string
+          description: IP address of transport server
+          jsonPath: .status.vsAddress
+        - name: STATUS
+          type: string
+          description: status of TransportServer
+          jsonPath: .status.status
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
       subresources:
         status: { }
 ---
@@ -1032,3 +1043,26 @@ spec:
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                poolSettings:
+                  type: object
+                  properties:
+                    reselectTries:
+                      type: integer
+                      minimum: 0
+                      maximum: 65535
+                    serviceDownAction:
+                      type: string
+                    slowRampTime:
+                      type: integer
+                      minimum: 0
+                      maximum: 900
+                    multiPoolPersistence:
+                      type: object
+                      properties:
+                        method:
+                          type: string
+                          enum: [ uieSourceAddress, hashSourceAddress ]
+                        timeOut:
+                          type: integer
+                          minimum: 1
+                          default: 180

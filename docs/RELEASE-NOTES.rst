@@ -8,7 +8,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
-        * Support for a/b deployment custom persistence in ratio mode with cluster mode. 
+        * Support for a/b deployment custom persistence in ratio mode with cluster mode. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/multicluster/Policy/policy-with-ab-persistence.yaml>`_
         * Add support for cluster AdminState. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/multicluster/extendedConfigmap/global-spec-config-for-multicluster-with-cluster-admin-state.yaml>`_
     * Next Generation Routes
         * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/deployment/deployment-pod-with-readinessprobe.yaml>`_

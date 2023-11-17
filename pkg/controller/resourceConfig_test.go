@@ -1132,7 +1132,6 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
 				TLSVersion: "1.2"}
-
 			ip = "1.2.3.4"
 
 			vs = test.NewVirtualServer(

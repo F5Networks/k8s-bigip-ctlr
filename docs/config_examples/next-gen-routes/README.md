@@ -26,7 +26,7 @@ NextGen Controller uses extendedConfigMap for extending the native resources (ro
 
 ###RouteGroup
 All the routes are grouped by namespaces or namespace-labels into RouteGroups.
-Each RouteGroup shares the same vsAddress, vsName, bigIpPartition and policy CR which is specified in extendedConfigMap
+Each RouteGroup shares the same vserverAddr, vserverName, bigIpPartition and policy CR which is specified in extendedConfigMap
 
 All the routes in the namespace/namespaceLabel are treated as part of one routegroup in this implementation
 
@@ -215,8 +215,8 @@ Note:- Switching from autoMonitor: readiness-probe to autoMonitor: service-endpo
 | policyCR           | Optional | Name of Policy CR to attach profiles/policies defined in it.            | -                                                      | Local and Global ConfigMap |
 | httpServerPolicyCR | Optional | Name of Policy CR to attach profiles/policies defined in it to HTTP VS. | -                                                      | Local and Global ConfigMap |
 | namespace          | Mandatory | namespace to group the routes                                           | -                                                      | Local and Global ConfigMap |
-| vsAddress          | Mandatory | BigIP Virtual Server IP Address                                         | -                                                      | Local and Global ConfigMap |
-| vsName             | Optional | Name of BigIP Virtual Server                                            | auto                                                   | Local and Global ConfigMap |
+| vserverAddr          | Mandatory | BigIP Virtual Server IP Address                                         | -                                                      | Local and Global ConfigMap |
+| vserverName             | Optional | Name of BigIP Virtual Server                                            | auto                                                   | Local and Global ConfigMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter.
             2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended ConfigMap.

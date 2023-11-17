@@ -24,7 +24,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			vs = test.NewVirtualServer(
 				"SampleVS",
 				namespace,
@@ -95,7 +95,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 		})
 		It("Replace Unwanted Characters", func() {
 			inputName := "a.b:c/d%e-f=g"
@@ -255,7 +255,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
@@ -967,7 +967,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
@@ -1130,7 +1130,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
-			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
+			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
 				"1.2",
 				"",
 				""}
@@ -1499,7 +1499,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 			rsCfg = &ResourceConfig{}

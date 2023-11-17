@@ -28,6 +28,10 @@ type FakeCisV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeCisV1) DeployConfigs(namespace string) v1.DeployConfigInterface {
+	return &FakeDeployConfigs{c, namespace}
+}
+
 func (c *FakeCisV1) ExternalDNSes(namespace string) v1.ExternalDNSInterface {
 	return &FakeExternalDNSes{c, namespace}
 }

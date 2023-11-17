@@ -1,15 +1,14 @@
 package clustermanager
 
 import (
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-type AdminState string
-
 const (
-	Disable AdminState = "disable"
-	Enable  AdminState = "enable"
-	Offline AdminState = "offline"
+	Disable cisapiv1.AdminState = "disable"
+	Enable  cisapiv1.AdminState = "enable"
+	Offline cisapiv1.AdminState = "offline"
 )
 
 type (

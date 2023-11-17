@@ -1066,3 +1066,182 @@ spec:
                           type: integer
                           minimum: 1
                           default: 180
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: deployconfigs.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: DeployConfig
+    listKind: DeployConfigList
+    plural: deployconfigs
+    singular: deployconfig
+    shortNames:
+      - dc
+  scope: Namespaced
+  versions:
+    - name: v1
+      schema:
+        openAPIV3Schema:
+          description: DeployConfig defines the DeployConfig
+            resource.
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                as3Config:
+                  properties:
+                    debugAS3:
+                      type: boolean
+                    postDelayAS3:
+                      type: integer
+                  type: object
+                baseConfig:
+                  properties:
+                    namespaceLabel:
+                      type: string
+                    nodeLabel:
+                      type: string
+                  type: object
+                bigIpConfig:
+                  items:
+                    properties:
+                      bigIpAddress:
+                        type: string
+                      bigIpLabel:
+                        type: string
+                      haBigIpAddress:
+                        type: string
+                    type: object
+                  type: array
+                extendedSpec:
+                  properties:
+                    baseRouteSpec:
+                      properties:
+                        autoMonitor:
+                          type: string
+                        autoMonitorTimeout:
+                          type: integer
+                        defaultRouteGroup:
+                          properties:
+                            allowOverride:
+                              type: string
+                            bigIpPartition:
+                              type: string
+                            httpServerPolicyCR:
+                              type: string
+                            policyCR:
+                              type: string
+                            vserverAddr:
+                              type: string
+                            vserverName:
+                              type: string
+                          type: object
+                        defaultTLS:
+                          properties:
+                            clientSSL:
+                              type: string
+                            reference:
+                              type: string
+                            serverSSL:
+                              type: string
+                          type: object
+                        tlsCipher:
+                          properties:
+                            cipherGroup:
+                              type: string
+                            ciphers:
+                              type: string
+                            tlsVersion:
+                              type: string
+                          type: object
+                      type: object
+                    extendedRouteSpec:
+                      items:
+                        properties:
+                          allowOverride:
+                            type: string
+                          bigIpPartition:
+                            type: string
+                          httpServerPolicyCR:
+                            type: string
+                          namespace:
+                            type: string
+                          namespaceLabel:
+                            type: string
+                          policyCR:
+                            type: string
+                          vserverAddr:
+                            type: string
+                          vserverName:
+                            type: string
+                        type: object
+                      type: array
+                    externalClustersConfig:
+                      items:
+                        properties:
+                          adminState:
+                            type: string
+                          clusterName:
+                            type: string
+                          ratio:
+                            type: integer
+                          secret:
+                            type: string
+                        type: object
+                      type: array
+                    highAvailabilityCIS:
+                      properties:
+                        primaryCluster:
+                          properties:
+                            adminState:
+                              type: string
+                            clusterName:
+                              type: string
+                            ratio:
+                              type: integer
+                            secret:
+                              type: string
+                          type: object
+                        primaryEndPoint:
+                          description: HAMode                 HAMode         `json:"mode"`
+                          type: string
+                        probeInterval:
+                          type: integer
+                        retryInterval:
+                          type: integer
+                        secondaryCluster:
+                          properties:
+                            adminState:
+                              type: string
+                            clusterName:
+                              type: string
+                            ratio:
+                              type: integer
+                            secret:
+                              type: string
+                          type: object
+                      type: object
+                    localClusterAdminState:
+                      type: string
+                    localClusterRatio:
+                      type: integer
+                    mode:
+                      type: string
+                  type: object
+              type: object
+          type: object

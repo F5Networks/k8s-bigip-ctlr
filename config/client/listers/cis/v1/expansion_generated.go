@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1
 
+// DeployConfigListerExpansion allows custom methods to be added to
+// DeployConfigLister.
+type DeployConfigListerExpansion interface{}
+
+// DeployConfigNamespaceListerExpansion allows custom methods to be added to
+// DeployConfigNamespaceLister.
+type DeployConfigNamespaceListerExpansion interface{}
+
 // ExternalDNSListerExpansion allows custom methods to be added to
 // ExternalDNSLister.
 type ExternalDNSListerExpansion interface{}

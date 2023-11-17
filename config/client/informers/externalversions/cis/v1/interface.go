@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// DeployConfigs returns a DeployConfigInformer.
+	DeployConfigs() DeployConfigInformer
 	// ExternalDNSes returns a ExternalDNSInformer.
 	ExternalDNSes() ExternalDNSInformer
 	// IngressLinks returns a IngressLinkInformer.
@@ -47,6 +49,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// DeployConfigs returns a DeployConfigInformer.
+func (v *version) DeployConfigs() DeployConfigInformer {
+	return &deployConfigInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ExternalDNSes returns a ExternalDNSInformer.

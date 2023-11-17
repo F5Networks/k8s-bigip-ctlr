@@ -203,9 +203,9 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 	}
 }
 
-// whenever global configmap is modified check for removed cluster configs
+// whenever global configCR is modified check for removed cluster configs
 // if any of the cluster config is removed from global CM. stop the respective cluster informers
-func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
+func (ctlr *Controller) stopDeletedGlobalCRMultiClusterInformers() error {
 
 	if ctlr.multiClusterConfigs == nil {
 		return nil

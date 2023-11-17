@@ -52,7 +52,7 @@ var _ = Describe("Main Tests", func() {
 			Expect(*cmUsername).To(Equal("admin"))
 			Expect(*cmPassword).To(Equal("admin"))
 			Expect(*logLevel).To(Equal("INFO"))
-			Expect(*extendedControllerParamsCR).To(Equal("default/testcr"))
+			Expect(*CISConfigCR).To(Equal("default/testcr"))
 			Expect(*disableTeems).To(Equal(true))
 			Expect(*sslInsecure).To(Equal(true))
 			Expect(*trustedCertsCfgmap).To(Equal("default/foomap"))
@@ -68,7 +68,7 @@ var _ = Describe("Main Tests", func() {
 				"cmUsername":  cmUsername,
 				"cmPassword":  cmPassword,
 				"logLevel":    logLevel,
-				"cisConfigCR": extendedControllerParamsCR,
+				"cisConfigCR": CISConfigCR,
 			}
 
 			for argName, arg := range allArgs {

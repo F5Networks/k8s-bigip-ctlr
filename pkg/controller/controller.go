@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"net/http"
 	"os"
 	"strings"
@@ -72,8 +73,8 @@ const (
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
 	Namespace = "Namespace"
-	// ConfigMap is k8s native ConfigMap resource
-	ConfigMap = "ConfigMap"
+	// ConfigCR is k8s native ConfigCR resource
+	ConfigCR = "ConfigCR"
 	// Route is OpenShift Route
 	Route = "Route"
 	// Node update
@@ -145,9 +146,6 @@ func NewController(params Params) *Controller {
 		shareNodes:      params.ShareNodes,
 		//eventNotifier:         apm.NewEventNotifier(nil),
 		defaultRouteDomain:    params.DefaultRouteDomain,
-		mode:                  params.Mode,
-		namespaceLabel:        params.NamespaceLabel,
-		nodeLabelSelector:     params.NodeLabelSelector,
 		ciliumTunnelName:      params.CiliumTunnelName,
 		StaticRoutingMode:     params.StaticRoutingMode,
 		OrchestrationCNI:      params.OrchestrationCNI,
@@ -156,7 +154,7 @@ func NewController(params Params) *Controller {
 		multiClusterResources: newMultiClusterResourceStore(),
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
-		clusterAdminState:     make(map[string]clustermanager.AdminState),
+		clusterAdminState:     make(map[string]cisapiv1.AdminState),
 	}
 
 	log.Debug("Controller Created")
@@ -171,17 +169,9 @@ func NewController(params Params) *Controller {
 	ctlr.nsInformers = make(map[string]*NSInformer)
 	ctlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		ctlr.routeLabel = params.RouteLabel
-		var processedHostPath ProcessedHostPath
-		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
-		ctlr.processedHostPath = &processedHostPath
-	default:
-		ctlr.mode = CustomResourceMode
-	}
-	// set extended spec configmap for all
-	ctlr.globalExtendedCMKey = params.GlobalExtendedSpecConfigmap
+
+	// set extended spec configCR for all
+	ctlr.CISConfigCRKey = params.CISConfigCRKey
 
 	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
 	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
@@ -192,17 +182,28 @@ func NewController(params Params) *Controller {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 
-	if ctlr.namespaceLabel == "" {
-		if len(params.Namespaces) == 0 {
-			ctlr.namespaces[""] = true
-			log.Debug("No namespaces provided. Watching all namespaces")
-		} else {
-			for _, ns := range params.Namespaces {
-				ctlr.namespaces[ns] = true
-			}
-		}
+	// Initialize the controller with base resources in CIS config CR
+	key := strings.Split(ctlr.CISConfigCRKey, "")
+	configCR, err := ctlr.kubeCRClient.CisV1().DeployConfigs(key[0]).Get(context.TODO(), key[1], metaV1.GetOptions{})
+	if err != nil {
+		log.Errorf("%v", err)
+		os.Exit(1)
+	}
+	ctlr.baseConfig = BaseConfig{
+		NodeLabel:      configCR.Spec.BaseConfig.NamespaceLabel,
+		NamespaceLabel: configCR.Spec.BaseConfig.NamespaceLabel,
+	}
+	if ctlr.managedResources.ManageRoutes {
+		ctlr.routeLabel = params.RouteLabel
+		var processedHostPath ProcessedHostPath
+		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
+		ctlr.processedHostPath = &processedHostPath
+	}
+	if ctlr.baseConfig.NamespaceLabel == "" {
+		ctlr.namespaces[""] = true
+		log.Debug("No namespaces provided. Watching all namespaces")
 	} else {
-		err2 := ctlr.createNamespaceLabeledInformer(ctlr.namespaceLabel)
+		err2 := ctlr.createNamespaceLabeledInformer(ctlr.baseConfig.NamespaceLabel)
 		if err2 != nil {
 			log.Errorf("%v", err2)
 			for _, nsInf := range ctlr.nsInformers {
@@ -393,7 +394,7 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 	}
 
 	var rclient *routeclient.RouteV1Client
-	if ctlr.mode == OpenShiftMode {
+	if ctlr.managedResources.ManageRoutes {
 		rclient, err = routeclient.NewForConfig(config)
 		if nil != err {
 			return fmt.Errorf("Failed to create Route Client: %v", err)
@@ -439,14 +440,12 @@ func (ctlr *Controller) Start() {
 	for _, inf := range ctlr.comInformers {
 		inf.start()
 	}
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		// nrInformers only with openShiftMode
+	if ctlr.managedResources.ManageRoutes { // nrInformers only with openShiftMode
 		for _, inf := range ctlr.nrInformers {
 			inf.start()
 		}
-	default:
-		// start customer resource informers in custom resource mode only
+	}
+	if ctlr.managedResources.ManageCustomResources { // start customer resource informers in custom resource mode only
 		for _, inf := range ctlr.crInformers {
 			inf.start()
 		}
@@ -470,14 +469,13 @@ func (ctlr *Controller) Start() {
 
 // Stop the Controller
 func (ctlr *Controller) Stop() {
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		// stop native resource informers
+
+	if ctlr.managedResources.ManageRoutes { // stop native resource informers
 		for _, inf := range ctlr.nrInformers {
 			inf.stop()
 		}
-	default:
-		// stop custom resource informers
+	}
+	if ctlr.managedResources.ManageCustomResources { // stop custom resource informers
 		for _, inf := range ctlr.crInformers {
 			inf.stop()
 		}

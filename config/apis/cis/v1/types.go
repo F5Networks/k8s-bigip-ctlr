@@ -409,3 +409,132 @@ type PolicyList struct {
 
 	Items []Policy `json:"items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// DeployConfig defines the DeployConfig resource.
+type DeployConfig struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              DeployConfigSpec `json:"spec"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// DeployConfigList is a list of the DeployConfig resources.
+type DeployConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []DeployConfig `json:"items"`
+}
+
+type DeployConfigSpec struct {
+	BaseConfig   BaseConfig    `json:"baseConfig"`
+	AS3Config    AS3Config     `json:"as3Config,omitempty"`
+	BigIpConfig  []BigIpConfig `json:"bigIpConfig,omitempty"`
+	ExtendedSpec ExtendedSpec  `json:"extendedSpec,omitempty"`
+}
+
+type BaseConfig struct {
+	NamespaceLabel string `json:"namespaceLabel,omitempty"`
+	NodeLabel      string `json:"nodeLabel,omitempty"`
+}
+
+type AS3Config struct {
+	DebugAS3     bool `json:"debugAS3,omitempty"`
+	PostDelayAS3 int  `json:"postDelayAS3,omitempty"`
+}
+
+type BigIpConfig struct {
+	BigIpAddress   string `json:"bigIpAddress,omitempty"`
+	HaBigIpAddress string `json:"haBigIpAddress,omitempty"`
+	BigIpLabel     string `json:"bigIpLabel,omitempty"`
+}
+
+type ExtendedSpec struct {
+	ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `json:"extendedRouteSpec"`
+	BaseRouteConfig           `json:"baseRouteSpec"`
+	ExternalClustersConfig    []ExternalClusterConfig `json:"externalClustersConfig"`
+	HAClusterConfig           HAClusterConfig         `json:"highAvailabilityCIS"`
+	HAMode                    HAModeType              `json:"mode"`
+	LocalClusterRatio         *int                    `json:"localClusterRatio"`
+	LocalClusterAdminState    AdminState              `json:"localClusterAdminState"`
+}
+
+type ExtendedRouteGroupConfig struct {
+	Namespace              string `json:"namespace"`      // Group Identifier
+	NamespaceLabel         string `json:"namespaceLabel"` // Group Identifier
+	BigIpPartition         string `json:"bigIpPartition"` // bigip Partition
+	ExtendedRouteGroupSpec `json:",inline"`
+}
+
+type ExtendedRouteGroupSpec struct {
+	VServerName        string `json:"vserverName"`
+	VServerAddr        string `json:"vserverAddr"`
+	AllowOverride      string `json:"allowOverride"`
+	Policy             string `json:"policyCR,omitempty"`
+	HTTPServerPolicyCR string `json:"httpServerPolicyCR,omitempty"`
+	Meta               Meta   `json:",inline"`
+}
+
+type Meta struct {
+	DependsOnTLS bool `json:",inline"`
+}
+
+type DefaultRouteGroupConfig struct {
+	BigIpPartition        string                 `json:"bigIpPartition"` // bigip Partition
+	DefaultRouteGroupSpec ExtendedRouteGroupSpec `json:",inline"`
+}
+
+type BaseRouteConfig struct {
+	TLSCipher               TLSCipher               `json:"tlsCipher"`
+	DefaultTLS              DefaultSSLProfile       `json:"defaultTLS,omitempty"`
+	DefaultRouteGroupConfig DefaultRouteGroupConfig `json:"defaultRouteGroup,omitempty"`
+	AutoMonitor             AutoMonitorType         `json:"autoMonitor,omitempty"`
+	AutoMonitorTimeout      int                     `json:"autoMonitorTimeout,omitempty"`
+}
+
+type TLSCipher struct {
+	TLSVersion  string `json:"tlsVersion,omitempty"`
+	Ciphers     string `json:"ciphers,omitempty"`
+	CipherGroup string `json:"cipherGroup,omitempty"` // by default this is bigip reference
+}
+type DefaultSSLProfile struct {
+	ClientSSL string `json:"clientSSL,omitempty"`
+	ServerSSL string `json:"serverSSL,omitempty"`
+	Reference string `json:"reference,omitempty"`
+}
+
+type ExternalClusterConfig struct {
+	ClusterName string     `json:"clusterName"`
+	Secret      string     `json:"secret"`
+	Ratio       *int       `json:"ratio"`
+	AdminState  AdminState `json:"adminState"`
+}
+
+type HAClusterConfig struct {
+	// HAMode                 HAMode         `json:"mode"`
+	PrimaryClusterEndPoint string         `json:"primaryEndPoint"`
+	ProbeInterval          int            `json:"probeInterval"`
+	RetryInterval          int            `json:"retryInterval"`
+	PrimaryCluster         ClusterDetails `json:"primaryCluster"`
+	SecondaryCluster       ClusterDetails `json:"secondaryCluster"`
+}
+
+type HAMode struct {
+	// type can be active-active, active-standby, ratio
+	Type HAModeType `json:"type"`
+}
+
+type HAModeType string
+type AutoMonitorType string
+type AdminState string
+
+type ClusterDetails struct {
+	ClusterName string     `json:"clusterName"`
+	Secret      string     `json:"secret"`
+	Ratio       *int       `json:"ratio"`
+	AdminState  AdminState `json:"adminState"`
+}

@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1
 
+type DeployConfigExpansion interface{}
+
 type ExternalDNSExpansion interface{}
 
 type IngressLinkExpansion interface{}

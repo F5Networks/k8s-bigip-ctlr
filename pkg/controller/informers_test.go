@@ -29,7 +29,7 @@ var _ = Describe("Informers Tests", func() {
 
 	Describe("Custom Resource Informers", func() {
 		BeforeEach(func() {
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
@@ -59,7 +59,7 @@ var _ = Describe("Informers Tests", func() {
 
 	Describe("Custom Resource Queueing", func() {
 		BeforeEach(func() {
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
@@ -636,7 +636,7 @@ var _ = Describe("Informers Tests", func() {
 
 	Describe("Common Resource Informers", func() {
 		BeforeEach(func() {
-			mockCtlr.mode = OpenShiftMode
+			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
@@ -670,7 +670,7 @@ var _ = Describe("Informers Tests", func() {
 
 	Describe("Native Resource Queueing", func() {
 		BeforeEach(func() {
-			mockCtlr.mode = OpenShiftMode
+			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
@@ -720,63 +720,42 @@ var _ = Describe("Informers Tests", func() {
 			//Expect(quit).To(BeFalse(), "Enqueue Route  Failed")
 		})
 
-		// we are not validating this while enqueuing
-		//It("Invalid ConfigMap", func() {
-		//	cm := test.NewConfigMap(
-		//		"samplecfgmap",
-		//		"v1",
-		//		namespace,
-		//		map[string]string{
-		//			"extendedSpec": "extendedRouteSpec",
-		//		},
-		//	)
-		//	mockCtlr.enqueueConfigmap(cm)
-		//	len := mockCtlr.resourceQueue.Len()
-		//	Expect(len).To(BeZero(), "Invalid ConfigMap enqueued")
-		//})
-
-		It("Global ConfigMap", func() {
-			cmName := "samplecfgmap"
-			mockCtlr.globalExtendedCMKey = namespace + "/" + cmName
-			cm := test.NewConfigMap(
-				cmName,
-				"v1",
+		It("Global ConfigCR", func() {
+			configCRName := "samplecfgmap"
+			mockCtlr.CISConfigCRKey = namespace + "/" + configCRName
+			configCR := test.NewConfigCR(
+				configCRName,
 				namespace,
-				map[string]string{
-					"extendedSpec": "extendedRouteSpec",
-				},
+				cisapiv1.DeployConfigSpec{},
 			)
-			mockCtlr.enqueueConfigmap(cm, Create)
+			mockCtlr.enqueueConfigCR(configCR, Create)
 			key, quit := mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigMap Failed")
-			Expect(quit).To(BeFalse(), "Enqueue Global ConfigMap  Failed")
+			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigCR Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Global ConfigCR  Failed")
 
-			mockCtlr.enqueueConfigmap(cm, Delete)
+			mockCtlr.enqueueConfigCR(configCR, Delete)
 			key, quit = mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigMap Failed")
-			Expect(quit).To(BeFalse(), "Enqueue Delete Global ConfigMap  Failed")
+			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigCR Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Delete Global ConfigCR  Failed")
 
-			mockCtlr.enqueueDeletedConfigmap(cm)
+			mockCtlr.enqueueDeletedConfigCR(configCR)
 			key, quit = mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigMap Failed")
+			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigCR Failed")
 		})
 
-		It("Local ConfigMap", func() {
-			cm := test.NewConfigMap(
+		It("Local ConfigCR", func() {
+			configCR := test.NewConfigCR(
 				"samplecfgmap",
-				"v1",
 				namespace,
-				map[string]string{
-					"extendedSpec": "extendedRouteSpec",
-				},
+				cisapiv1.DeployConfigSpec{},
 			)
-			cm.SetLabels(map[string]string{
+			configCR.SetLabels(map[string]string{
 				"f5nr": "true",
 			})
-			mockCtlr.enqueueConfigmap(cm, Update)
+			mockCtlr.enqueueConfigCR(configCR, Update)
 			key, quit := mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue Local ConfigMap Failed")
-			Expect(quit).To(BeFalse(), "Enqueue Local ConfigMap  Failed")
+			Expect(key).ToNot(BeNil(), "Enqueue Local ConfigCR Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Local ConfigCR  Failed")
 		})
 
 	})

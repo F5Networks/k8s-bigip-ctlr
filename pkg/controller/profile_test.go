@@ -1,6 +1,7 @@
 package controller
 
 import (
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -12,8 +13,8 @@ var _ = Describe("Profile", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = CustomResourceMode
-		mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
+		mockCtlr.managedResources.ManageCustomResources = true
+		mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
 			"1.2",
 			"",
 			"",

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
-	"gopkg.in/yaml.v2"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"os"
@@ -60,9 +59,9 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
 	ctlr.setInitialResourceCount()
 	ctlr.migrateIPAM()
-	// process the extended configmap if present
-	if ctlr.globalExtendedCMKey != "" {
-		ctlr.processGlobalExtendedConfigMap()
+	// process the DeployConfig CR if present
+	if ctlr.CISConfigCRKey != "" {
+		ctlr.processGlobalDeployConfigCR()
 	}
 
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster
@@ -71,7 +70,7 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
 
-	// process static routes after extended configMap is processed, so as to support external cluster static routes during cis init
+	// process static routes after DeployConfig CR if present is processed, so as to support external cluster static routes during cis init
 	if ctlr.StaticRoutingMode {
 		clusterNodes := ctlr.getNodesFromAllClusters()
 		ctlr.processStaticRouteUpdate(clusterNodes)
@@ -112,8 +111,7 @@ func (ctlr *Controller) nextGenResourceWorker() {
 func (ctlr *Controller) setInitialResourceCount() {
 	var rscCount int
 	for _, ns := range ctlr.getWatchingNamespaces() {
-		switch ctlr.mode {
-		case OpenShiftMode:
+		if ctlr.managedResources.ManageRoutes {
 			nrInf, found := ctlr.getNamespacedNativeInformer(ns)
 			if !found {
 				continue
@@ -123,7 +121,8 @@ func (ctlr *Controller) setInitialResourceCount() {
 				continue
 			}
 			rscCount += len(routes)
-		default:
+		}
+		if ctlr.managedResources.ManageCustomResources {
 			crInf, found := ctlr.getNamespacedCRInformer(ns)
 			if !found {
 				continue
@@ -164,7 +163,7 @@ func (ctlr *Controller) setInitialResourceCount() {
 			if _, ok := K8SCoreServices[svc.Name]; ok {
 				continue
 			}
-			if ctlr.mode == OpenShiftMode {
+			if ctlr.managedResources.ManageRoutes {
 				if _, ok := OSCPCoreServices[svc.Name]; ok {
 					continue
 				}
@@ -230,7 +229,7 @@ func (ctlr *Controller) processResources() bool {
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case Route:
-		if ctlr.mode != OpenShiftMode {
+		if !ctlr.managedResources.ManageRoutes {
 			break
 		}
 		route := rKey.rsc.(*routeapi.Route)
@@ -268,9 +267,9 @@ func (ctlr *Controller) processResources() bool {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 
-	case ConfigMap:
-		cm := rKey.rsc.(*v1.ConfigMap)
-		err, ok := ctlr.processConfigMap(cm, rscDelete)
+	case ConfigCR:
+		cm := rKey.rsc.(*cisapiv1.DeployConfig)
+		err, ok := ctlr.processConfigCR(cm, rscDelete)
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 			break
@@ -280,7 +279,7 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case VirtualServer:
-		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+		if !ctlr.managedResources.ManageCustomResources {
 			break
 		}
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
@@ -313,7 +312,7 @@ func (ctlr *Controller) processResources() bool {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 	case TLSProfile:
-		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+		if !ctlr.managedResources.ManageCustomResources {
 			break
 		}
 		tlsProfile := rKey.rsc.(*cisapiv1.TLSProfile)
@@ -334,20 +333,20 @@ func (ctlr *Controller) processResources() bool {
 		secret := rKey.rsc.(*v1.Secret)
 		mcc := ctlr.getClusterForSecret(secret)
 		// TODO: Process all the resources again that refer to any resource running in the affected cluster?
-		if mcc != (ExternalClusterConfig{}) {
+		if mcc != (cisapiv1.ExternalClusterConfig{}) {
 			err := ctlr.updateClusterConfigStore(secret, mcc, rscDelete)
 			if err != nil {
 				log.Warningf(err.Error())
 			}
 			break
 		}
-		switch ctlr.mode {
-		case OpenShiftMode:
+		if ctlr.managedResources.ManageRoutes {
 			routeGroup := ctlr.getRouteGroupForSecret(secret)
 			if routeGroup != "" {
 				_ = ctlr.processRoutes(routeGroup, false)
 			}
-		default:
+		}
+		if ctlr.managedResources.ManageCustomResources {
 			tlsProfiles := ctlr.getTLSProfilesForSecret(secret)
 			for _, tlsProfile := range tlsProfiles {
 				virtuals := ctlr.getVirtualsForTLSProfile(tlsProfile)
@@ -367,7 +366,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 
 	case TransportServer:
-		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+		if !ctlr.managedResources.ManageCustomResources {
 			break
 		}
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
@@ -400,7 +399,7 @@ func (ctlr *Controller) processResources() bool {
 			ctlr.deleteUnrefereedMultiClusterInformers()
 		}
 	case IngressLink:
-		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+		if !ctlr.managedResources.ManageCustomResources {
 			break
 		}
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
@@ -422,7 +421,7 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case ExternalDNS:
-		if ctlr.mode == KubernetesMode {
+		if !ctlr.managedResources.ManageRoutes && !ctlr.managedResources.ManageCustomResources {
 			break
 		}
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
@@ -433,13 +432,13 @@ func (ctlr *Controller) processResources() bool {
 
 	case CustomPolicy:
 		cp := rKey.rsc.(*cisapiv1.Policy)
-		switch ctlr.mode {
-		case OpenShiftMode:
+		if ctlr.managedResources.ManageRoutes {
 			routeGroups := ctlr.getRouteGroupForCustomPolicy(cp.Namespace + "/" + cp.Name)
 			for _, routeGroup := range routeGroups {
 				_ = ctlr.processRoutes(routeGroup, false)
 			}
-		default:
+		}
+		if ctlr.managedResources.ManageCustomResources {
 			virtuals := ctlr.getVirtualsForCustomPolicy(cp)
 			//Sync Custompolicy for Virtual Servers
 			for _, virtual := range virtuals {
@@ -568,16 +567,14 @@ func (ctlr *Controller) processResources() bool {
 		// Update the poolMembers for affected resources
 		ctlr.updatePoolMembersForService(svcKey, false)
 
-		if ctlr.mode == OpenShiftMode && rscDelete == false && ctlr.resources.baseRouteConfig.AutoMonitor != None {
+		if ctlr.managedResources.ManageRoutes && rscDelete == false && ctlr.resources.baseRouteConfig.AutoMonitor != None {
 			ctlr.UpdatePoolHealthMonitors(svcKey)
 		}
 
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
-		switch ctlr.mode {
-
-		case OpenShiftMode:
+		if ctlr.managedResources.ManageRoutes {
 			var triggerDelete bool
 			if rscDelete {
 				// TODO: Delete all the resource configs from the store
@@ -602,14 +599,15 @@ func (ctlr *Controller) processResources() bool {
 				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
 			}
 			if ctlr.namespaceLabelMode {
-				ctlr.processGlobalExtendedConfigMap()
+				ctlr.processGlobalDeployConfigCR()
 			} else {
 				if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
 					_ = ctlr.processRoutes(routeGroup, triggerDelete)
 				}
 			}
+		}
 
-		default:
+		if ctlr.managedResources.ManageCustomResources {
 			if rscDelete {
 				for _, vrt := range ctlr.getAllVirtualServers(nsName) {
 					err := ctlr.processVirtualServers(vrt, true)
@@ -3804,41 +3802,35 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 	return nil
 }
 
-func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error, bool) {
+func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelete bool) (error, bool) {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
-		key := cm.Namespace + string('/') + cm.Name
-		if ctlr.globalExtendedCMKey == key {
-			log.Debugf("Finished syncing extended global spec configmap: %v/%v (%v)",
-				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		key := configCR.Namespace + string('/') + configCR.Name
+		if ctlr.CISConfigCRKey == key {
+			log.Debugf("Finished syncing global DeployConfig CR: %v/%v (%v)",
+				configCR.Namespace, configCR.Name, endTime.Sub(startTime))
 		} else {
-			log.Debugf("Finished syncing extended local spec configmap: %v/%v (%v)",
-				cm.Namespace, cm.Name, endTime.Sub(startTime))
+			log.Debugf("Finished syncing local DeployConfig CR: %v/%v (%v)",
+				configCR.Namespace, configCR.Name, endTime.Sub(startTime))
 		}
 
 	}()
-	ersData := cm.Data
-	es := extendedSpec{}
-	//log.Debugf("GCM: %v", cm.Data)
-	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
-	if err != nil {
-		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
-	}
+	es := configCR.Spec.ExtendedSpec
 	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
 	clusterConfigUpdated := false
 	oldClusterRatio := make(map[string]int)
-	oldClusterAdminState := make(map[string]clustermanager.AdminState)
-	if ctlr.isGlobalExtendedCM(cm) && ctlr.multiClusterMode != "" {
+	oldClusterAdminState := make(map[string]cisapiv1.AdminState)
+	if ctlr.isGlobalExtendedCM(configCR) && ctlr.multiClusterMode != "" {
 		// Get Multicluster kube-config
 		if isDelete {
-			// Handle configmap deletion
-			es.HAClusterConfig = HAClusterConfig{}
+			// Handle config CR deletion
+			es.HAClusterConfig = cisapiv1.HAClusterConfig{}
 		}
 		// Check if HA configurations are specified properly
 		if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" {
-			if es.HAClusterConfig == (HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (ClusterDetails{}) ||
-				es.HAClusterConfig.SecondaryCluster == (ClusterDetails{}) {
+			if es.HAClusterConfig == (cisapiv1.HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (cisapiv1.ClusterDetails{}) ||
+				es.HAClusterConfig.SecondaryCluster == (cisapiv1.ClusterDetails{}) {
 				log.Errorf("[MultiCluster] CIS High availability cluster config not provided properly.")
 				os.Exit(1)
 			}
@@ -3892,7 +3884,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		// Read multi-cluster config from extended CM
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
 		ctlr.checkSecondaryCISConfig()
-		ctlr.stopDeletedGlobalCMMultiClusterInformers()
+		ctlr.stopDeletedGlobalCRMultiClusterInformers()
 		if err != nil {
 			return err, false
 		}
@@ -3933,14 +3925,15 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 	}
-	// Process the routeSpec defined in extended configMap
-	if ctlr.mode == OpenShiftMode {
-		if ctlr.isGlobalExtendedCM(cm) {
+	// Process the routeSpec defined in DeployConfig CR
+	if ctlr.managedResources.ManageRoutes {
+		if ctlr.isGlobalExtendedCM(configCR) {
 			return ctlr.processRouteConfigFromGlobalCM(es, isDelete, clusterConfigUpdated)
 		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
-			return ctlr.processRouteConfigFromLocalCM(es, isDelete, cm.Namespace)
+			return ctlr.processRouteConfigFromLocalConfigCR(es, isDelete, configCR.Namespace)
 		}
-	} else {
+	}
+	if ctlr.managedResources.ManageCustomResources {
 		// Re-process all the VS and TS resources
 		for resRef, _ := range ctlr.resources.processedNativeResources {
 			var rs interface{}
@@ -4150,7 +4143,7 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 	if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 		for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
 			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
-				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.nodeLabelSelector})
+				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.baseConfig.NodeLabel})
 				if err != nil {
 					log.Debugf("[MultiCluster] Unable to fetch nodes for cluster %v with err %v", clusterName, err)
 				} else {

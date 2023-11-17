@@ -43,7 +43,10 @@ type (
 
 func newMockController() *mockController {
 	return &mockController{
-		Controller:    &Controller{},
+		Controller: &Controller{
+			baseConfig:       BaseConfig{},
+			managedResources: ManagedResources{},
+		},
 		mockResources: make(map[string][]interface{}),
 	}
 }
@@ -345,30 +348,30 @@ func (m *mockController) deletePod(pod v1.Pod) {
 	}
 }
 
-func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
-	cusInf.cmInformer.GetStore().Add(cm)
+func (m *mockController) addConfigCR(configCR *cisapiv1.DeployConfig) {
+	cusInf, _ := m.getNamespacedCommonInformer(configCR.ObjectMeta.Namespace)
+	cusInf.configCRInformer.GetStore().Add(configCR)
 
 	if m.resourceQueue != nil {
-		m.enqueueConfigmap(cm, Create)
+		m.enqueueConfigCR(configCR, Create)
 	}
 }
 
-func (m *mockController) updateConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
-	cusInf.cmInformer.GetStore().Update(cm)
+func (m *mockController) updateConfigCR(configCR *cisapiv1.DeployConfig) {
+	cusInf, _ := m.getNamespacedCommonInformer(configCR.ObjectMeta.Namespace)
+	cusInf.configCRInformer.GetStore().Update(configCR)
 
 	if m.resourceQueue != nil {
-		m.enqueueConfigmap(cm, Update)
+		m.enqueueConfigCR(configCR, Update)
 	}
 }
 
-func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
-	cusInf.cmInformer.GetStore().Delete(cm)
+func (m *mockController) deleteConfigCR(configCR *cisapiv1.DeployConfig) {
+	cusInf, _ := m.getNamespacedCommonInformer(configCR.ObjectMeta.Namespace)
+	cusInf.configCRInformer.GetStore().Delete(configCR)
 
 	if m.resourceQueue != nil {
-		m.enqueueDeletedConfigmap(cm)
+		m.enqueueDeletedConfigCR(configCR)
 	}
 }
 

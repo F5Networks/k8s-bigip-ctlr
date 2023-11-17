@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"os"
 	"strings"
@@ -155,10 +156,13 @@ func NewController(params Params) *Controller {
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 		clusterAdminState:     make(map[string]cisapiv1.AdminState),
+		cmTokenManager: tokenmanager.NewTokenManager(params.CMConfigDetails.URL, tokenmanager.Credentials{
+			Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password}),
 	}
 
 	log.Debug("Controller Created")
-
+	// Sync CM token
+	ctlr.cmTokenManager.SyncToken(make(chan struct{}))
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
 	ctlr.comInformers = make(map[string]*CommonInformer)

@@ -19,6 +19,7 @@ package controller
 import (
 	"container/list"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
 	"net/http"
 	"sync"
@@ -93,6 +94,7 @@ type (
 		clusterAdminState      map[string]cisapiv1.AdminState
 		managedResources       ManagedResources
 		baseConfig             BaseConfig
+		CMTokenManager         *tokenmanager.TokenManager
 		resourceContext
 	}
 	ManagedResources struct {
@@ -140,6 +142,14 @@ type (
 		OrchestrationCNI    string
 		StaticRouteNodeCIDR string
 		MultiClusterMode    string
+		CMConfigDetails     *CMConfig
+	}
+
+	// CMConfig defines the Central Manager config
+	CMConfig struct {
+		URL      string
+		UserName string
+		Password string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer

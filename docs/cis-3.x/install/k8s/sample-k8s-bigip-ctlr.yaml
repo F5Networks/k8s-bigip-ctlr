@@ -59,14 +59,14 @@ spec:
             # https://clouddocs.f5.com/containers/latest/
             "--cm-url=<ip_address-or-hostname>",
             "--orchestration-cni=nodeport",
-            "--deploy-config=cis-config",
+            "--deploy-config=kube-system/cis-config",
             "--manage-custom-resources=true",
             "--credentials-directory=/tmp/creds",
             "--kubeconfig=/tmp/kubeconfig",
             "--log-file=/tmp/k8s-bigip-ctlr.log",
             "--log-level=INFO",
             "--http-client-metrics=true",
-            "--no-verify-ssl=true",
+            "--no-verify-ssl=false",
             "--trusted-certs-cfgmap=default/foomap"
           ]
       serviceAccountName: bigip-ctlr

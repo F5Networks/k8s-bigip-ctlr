@@ -17,41 +17,56 @@ spec:
     spec:
       # Name of the Service Account bound to a Cluster Role with the required
       # permissions
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      volumes:
+        - name: cm-creds
+          secret:
+            secretName: f5-bigip-ctlr-login
       containers:
         - name: k8s-bigip-ctlr
           image: "f5networks/k8s-bigip-ctlr:latest"
-          env:
-            - name: CM_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  # Replace with the name of the Secret containing your login
-                  # credentials
-                  name: cm-login
-                  key: username
-            - name: CM_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  # Replace with the name of the Secret containing your login
-                  # credentials
-                  name: cm-login
-                  key: password
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 15
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 15
+          volumeMounts:
+            - name: cm-creds
+              mountPath: "/tmp/creds"
+              readOnly: true
           command: ["/app/bin/k8s-bigip-ctlr"]
           args: [
             # See the k8s-bigip-ctlr documentation for information about
             # all config options
             # https://clouddocs.f5.com/containers/latest/
-            "--cm-username=$(CM_USERNAME)",                                    # required
-            "--cm-password=$(CM_PASSWORD)",                                    # required
-            "--cm-url=<ip_address-or-hostname>",                               # required
-            "--orchestration-cni=<ovn-k8s/flannel/antrea/cilium-k8s>",         # required
-            "--deploy-config=cis-config",                                      # required
-            "--manage-custom-resources=true",                                  # optional
-            "--credentials-directory=/tmp/k8s-test-creds",                     # optional
-            "--kubeconfig=/tmp/kubeconfig",                                    # optional
-            "--log-file=/tmp/k8s-bigip-ctlr.log",                              # optional
-            "--log-level=INFO",                                                # optional
-            "--http-client-metrics=true",                                      # optional
-            "--no-verify-ssl=true",                                            # optional
-            "--trusted-certs-cfgmap=default/foomap"                            # optional
+            "--cm-url=<ip_address-or-hostname>",
+            "--orchestration-cni=nodeport",
+            "--deploy-config=cis-config",
+            "--manage-custom-resources=true",
+            "--credentials-directory=/tmp/creds",
+            "--kubeconfig=/tmp/kubeconfig",
+            "--log-file=/tmp/k8s-bigip-ctlr.log",
+            "--log-level=INFO",
+            "--http-client-metrics=true",
+            "--no-verify-ssl=true",
+            "--trusted-certs-cfgmap=default/foomap"
           ]
       serviceAccountName: bigip-ctlr

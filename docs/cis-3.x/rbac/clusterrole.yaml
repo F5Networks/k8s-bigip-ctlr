@@ -1,0 +1,43 @@
+# for reference only
+# Should be changed as per your cluster requirements
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: bigip-ctlr-clusterrole
+rules:
+  - apiGroups: ["", "extensions"]
+    resources: ["nodes", "services", "endpoints", "namespaces", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["", "extensions"]
+    resources: ["configmaps", "events", "services/status"]
+    verbs: ["get", "list", "watch", "update", "create", "patch"]
+  - apiGroups: ["cis.f5.com"]
+    resources: ["transportservers", "transportservers/status", "deployconfigs", "policies"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["", "extensions"]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["config.openshift.io/v1"]
+    resources: ["network"]
+    verbs: ["list"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: bigip-ctlr-clusterrole-binding
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bigip-ctlr-clusterrole
+subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: bigip-ctlr
+    namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bigip-ctlr
+  namespace: kube-system

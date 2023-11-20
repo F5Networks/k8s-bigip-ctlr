@@ -1,0 +1,57 @@
+# for reference only
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-bigip-ctlr-deployment
+  namespace: kube-system
+spec:
+  # DO NOT INCREASE REPLICA COUNT
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-bigip-ctlr-deployment
+  template:
+    metadata:
+      labels:
+        app: k8s-bigip-ctlr-deployment
+    spec:
+      # Name of the Service Account bound to a Cluster Role with the required
+      # permissions
+      containers:
+        - name: k8s-bigip-ctlr
+          image: "f5networks/k8s-bigip-ctlr:latest"
+          env:
+            - name: CM_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  # Replace with the name of the Secret containing your login
+                  # credentials
+                  name: cm-login
+                  key: username
+            - name: CM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  # Replace with the name of the Secret containing your login
+                  # credentials
+                  name: cm-login
+                  key: password
+          command: ["/app/bin/k8s-bigip-ctlr"]
+          args: [
+            # See the k8s-bigip-ctlr documentation for information about
+            # all config options
+            # https://clouddocs.f5.com/containers/latest/
+            "--cm-username=$(CM_USERNAME)",                                    # required
+            "--cm-password=$(CM_PASSWORD)",                                    # required
+            "--cm-url=<ip_address-or-hostname>",                               # required
+            "--orchestration-cni=<ovn-k8s/flannel/antrea/cilium-k8s>",         # required
+            "--deploy-config=cis-config",                                      # required
+            "--manage-custom-resources=true",                                  # optional
+            "--credentials-directory=/tmp/k8s-test-creds",                     # optional
+            "--kubeconfig=/tmp/kubeconfig",                                    # optional
+            "--log-file=/tmp/k8s-bigip-ctlr.log",                              # optional
+            "--log-level=INFO",                                                # optional
+            "--http-client-metrics=true",                                      # optional
+            "--no-verify-ssl=true",                                            # optional
+            "--trusted-certs-cfgmap=default/foomap"                            # optional
+          ]
+      serviceAccountName: bigip-ctlr

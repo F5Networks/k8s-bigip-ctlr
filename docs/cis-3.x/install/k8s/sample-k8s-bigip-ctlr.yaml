@@ -66,7 +66,6 @@ spec:
             "--log-file=/tmp/k8s-bigip-ctlr.log",
             "--log-level=INFO",
             "--http-client-metrics=true",
-            "--no-verify-ssl=false",
-            "--trusted-certs-cfgmap=default/foomap"
+            "--no-verify-ssl=true"
           ]
       serviceAccountName: bigip-ctlr

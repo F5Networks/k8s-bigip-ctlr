@@ -22,8 +22,8 @@ import (
 	"context"
 	"time"
 
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	scheme "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/scheme"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	scheme "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

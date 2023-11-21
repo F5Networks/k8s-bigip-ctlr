@@ -29,10 +29,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 )
 
 // prepareVirtualServerRules prepares LTM Policy rules for VirtualServer
@@ -1335,11 +1335,11 @@ func isVsPathBasedABDeployment(pool *cisapiv1.Pool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
 
-func isVsPathBasedRatioDeployment(pool *cisapiv1.Pool, mode HAModeType) bool {
+func isVsPathBasedRatioDeployment(pool *cisapiv1.Pool, mode cisapiv1.HAModeType) bool {
 	return mode == Ratio && (pool.Path != "" && pool.Path != "/")
 }
 
-func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode HAModeType) bool {
+func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode cisapiv1.HAModeType) bool {
 	return mode == Ratio && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 
@@ -1437,7 +1437,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	for i, svc := range clusterSvcs {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
-		// cluster credentials must be specified in the extended configmap
+		// cluster credentials must be specified in the DeployConfig CR
 		if !ctlr.checkValidExtendedService(svc) {
 			continue
 		}
@@ -1447,10 +1447,10 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 				totalClusterRatio += float64(*r)
 			} else {
 				// Service is from unknown cluster. This case should not arise, but if it does then consider weight to
-				// be 0 as most probably the cluster config may not have been provided in the extended configmap, in
+				// be 0 as most probably the cluster config may not have been provided in the DeployConfig CR, in
 				// such a case no traffic should be distributed to this cluster
 				log.Warningf("%v weight for service %s of cluster %s could not be processed for route %s. Provide the "+
-					"cluster config in extendedConfigMap", ctlr.getMultiClusterLog(), svc.SvcName, svc.ClusterName, route.Name)
+					"cluster config in DeployConfig CR", ctlr.getMultiClusterLog(), svc.SvcName, svc.ClusterName, route.Name)
 				zero := 0
 				clusterSvcs[i].Weight = &zero
 			}

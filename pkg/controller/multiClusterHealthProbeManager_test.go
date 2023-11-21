@@ -1,13 +1,14 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"encoding/json"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
-	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"net/http"
@@ -15,14 +16,14 @@ import (
 
 var _ = Describe("Multi Cluster Health Probe", func() {
 	var mockCtlr *mockController
-	es := extendedSpec{}
+	es := cisapiv1.ExtendedSpec{}
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.mode = OpenShiftMode
-		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.managedResources.ManageRoutes = true
+		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
@@ -59,45 +60,59 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 
 		cmName := "ecm"
 		cmNamespace := "kube-system"
-		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
+		mockCtlr.CISConfigCRKey = cmNamespace + "/" + cmName
 		mockCtlr.comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace)
 		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
 		mockCtlr.resources = NewResourceStore()
-		data := make(map[string]string)
-
-		data["extendedSpec"] = `
-baseRouteSpec:
-   tlsCipher:
-     tlsVersion : 1.2
-     ciphers: DEFAULT
-     cipherGroup: /Common/f5-default
-   defaultTLS:
-      clientSSL: /Common/clientssl
-      serverSSL: /Common/serverssl
-      reference: bigip
-highAvailabilityCIS:
-     primaryEndPoint: http://10.145.72.114:8001
-     probeInterval: 5
-     retryInterval: 1
-     primaryCluster:
-       clusterName: cluster1
-       secret: default/kubeconfig1
-     secondaryCluster:
-       clusterName: cluster2
-       secret: default/kubeconfig2
-externalClustersConfig:
-   - clusterName: cluster3
-     secret: default/kubeconfig3
-   - clusterName: cluster4
-     secret: default/kubeconfig4
-extendedRouteSpec:
-   - namespace: default
-     vserverAddr: 10.8.3.11
-     vserverName: nextgenroutes
-     allowOverride: true
-     policyCR : default/policy
+		extConfig := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2,
+            "ciphers": "DEFAULT",
+            "cipherGroup": "/Common/f5-default"
+        },
+        "defaultTLS": {
+            "clientSSL": "/Common/clientssl",
+            "serverSSL": "/Common/serverssl",
+            "reference": "bigip"
+        }
+    },
+    "highAvailabilityCIS": {
+        "primaryEndPoint": "http://10.145.72.114:8001",
+        "probeInterval": 5,
+        "retryInterval": 1,
+        "primaryCluster": {
+            "clusterName": "cluster1",
+            "secret": "default/kubeconfig1"
+        },
+        "secondaryCluster": {
+            "clusterName": "cluster2",
+            "secret": "default/kubeconfig2"
+        }
+    },
+    "externalClustersConfig": [
+        {
+            "clusterName": "cluster3",
+            "secret": "default/kubeconfig3"
+        },
+        {
+            "clusterName": "cluster4",
+            "secret": "default/kubeconfig4"
+        }
+    ],
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "policyCR": "default/policy"
+        }
+    ]
+}
 `
-		yaml.UnmarshalStrict([]byte(data["extendedSpec"]), &es)
+		json.Unmarshal([]byte(extConfig), &es)
 	})
 
 	It("Check Primary Cluster HealthProbe config", func() {

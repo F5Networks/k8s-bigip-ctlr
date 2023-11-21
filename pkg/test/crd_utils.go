@@ -2,7 +2,7 @@ package test
 
 import (
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -17,6 +17,8 @@ const (
 	TransportServer = "TransportServer"
 	// ExternalDNS is a F5 Customr Resource Kind
 	ExternalDNS = "ExternalDNS"
+	// DeployConfig is a F5 Customr Resource Kind
+	DeployConfig = "DeployConfig"
 	// IPAM is a F5 Customr Resource Kind
 	IPAM = "IPAM"
 )
@@ -118,5 +120,19 @@ func NewIPAM(name, namespace string, spec ficV1.IPAMSpec, status ficV1.IPAMStatu
 		},
 		Spec:   spec,
 		Status: status,
+	}
+}
+
+func NewConfigCR(name, namespace string, spec cisapiv1.DeployConfigSpec) *cisapiv1.DeployConfig {
+	return &cisapiv1.DeployConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       DeployConfig,
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: spec,
 	}
 }

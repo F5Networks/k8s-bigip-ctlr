@@ -21,7 +21,7 @@ package versioned
 import (
 	"fmt"
 
-	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/typed/cis/v1"
+	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/typed/cis/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

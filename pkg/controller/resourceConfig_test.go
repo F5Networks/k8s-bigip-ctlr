@@ -3,12 +3,12 @@ package controller
 import (
 	"sort"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -24,7 +24,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			vs = test.NewVirtualServer(
 				"SampleVS",
 				namespace,
@@ -95,7 +95,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 		})
 		It("Replace Unwanted Characters", func() {
 			inputName := "a.b:c/d%e-f=g"
@@ -255,7 +255,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
@@ -967,7 +967,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
@@ -1130,10 +1130,8 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
-			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
-				"1.2",
-				"",
-				""}
+			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
+				TLSVersion: "1.2"}
 
 			ip = "1.2.3.4"
 
@@ -1499,7 +1497,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 			rsCfg = &ResourceConfig{}

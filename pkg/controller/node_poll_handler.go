@@ -3,8 +3,8 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	"net"
 	"reflect"
@@ -31,7 +31,7 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	sort.Sort(NodeList(nodesList))
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
 	// adding the bigip_monitored_nodes	metrics
-	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.baseConfig.NodeLabel).Set(float64(len(ctlr.oldNodes)))
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}

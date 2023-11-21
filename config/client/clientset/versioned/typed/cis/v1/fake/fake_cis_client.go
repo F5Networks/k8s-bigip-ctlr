@@ -19,13 +19,17 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/typed/cis/v1"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/typed/cis/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
 type FakeCisV1 struct {
 	*testing.Fake
+}
+
+func (c *FakeCisV1) DeployConfigs(namespace string) v1.DeployConfigInterface {
+	return &FakeDeployConfigs{c, namespace}
 }
 
 func (c *FakeCisV1) ExternalDNSes(namespace string) v1.ExternalDNSInterface {

@@ -21,7 +21,7 @@ package internalinterfaces
 import (
 	time "time"
 
-	versioned "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	versioned "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	cache "k8s.io/client-go/tools/cache"

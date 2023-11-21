@@ -48,6 +48,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ExternalDNSList{},
 		&Policy{},
 		&PolicyList{},
+		&DeployConfig{},
+		&DeployConfigList{},
 	)
 
 	scheme.AddKnownTypes(

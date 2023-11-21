@@ -4,9 +4,9 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -20,14 +20,14 @@ import (
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
-	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
+	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -95,8 +95,8 @@ var _ = Describe("Worker Tests", func() {
 		}
 		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
-		mockCtlr.mode = CustomResourceMode
-		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+		mockCtlr.managedResources.ManageCustomResources = true
+		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
@@ -858,7 +858,7 @@ var _ = Describe("Worker Tests", func() {
 			}
 			mockCtlr.Partition = "default"
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+			//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
 
@@ -1139,7 +1139,7 @@ var _ = Describe("Worker Tests", func() {
 				}
 				mockCtlr.Partition = namespace
 				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-				mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+				//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 				svc1.Spec.Type = v1.ServiceTypeLoadBalancer
 
@@ -1436,7 +1436,7 @@ var _ = Describe("Worker Tests", func() {
 		var mockPM *mockPostManager
 		var policy *cisapiv1.Policy
 		BeforeEach(func() {
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
@@ -2776,9 +2776,9 @@ var _ = Describe("Worker Tests", func() {
 	Describe("Processing Native Resources", func() {
 		var mockPM *mockPostManager
 		BeforeEach(func() {
-			mockCtlr.mode = OpenShiftMode
+			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
-			mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+			mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
@@ -2844,17 +2844,18 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.shutdown()
 		})
 
-		Describe("Process ConfigMap", func() {
-			var cm *v1.ConfigMap
-			var localCM *v1.ConfigMap
-			data := make(map[string]string)
+		Describe("Process ConfigCR", func() {
+			var configCR *cisapiv1.DeployConfig
+			var localConfigCR *cisapiv1.DeployConfig
+			configSpec := cisapiv1.DeployConfigSpec{}
+			localConfigSpec := cisapiv1.DeployConfigSpec{}
 			BeforeEach(func() {
-				cmName := "samplecfgmap"
-				mockCtlr.globalExtendedCMKey = namespace + "/" + cmName
+				crName := "samplecfgmap"
+				mockCtlr.CISConfigCRKey = namespace + "/" + crName
 				routeGroup := "default"
 				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 					override: true,
-					global: &ExtendedRouteGroupSpec{
+					global: &cisapiv1.ExtendedRouteGroupSpec{
 						VServerName:   "nextgenroutes",
 						VServerAddr:   "10.10.10.10",
 						AllowOverride: "False",
@@ -2863,89 +2864,123 @@ var _ = Describe("Worker Tests", func() {
 					partition:  "test",
 				}
 
-				cm = test.NewConfigMap(
-					cmName,
-					"v1",
-					"default",
-					data)
-
-				data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-      ciphers: DEFAULT
-      cipherGroup: /Common/f5-default
-    defaultTLS:
-       clientSSL: /Common/clientssl
-       serverSSL: /Common/serverssl
-       reference: bigip
-    defaultRouteGroup: 
-       bigIpPartition: test
-       vserverAddr: 10.1.1.1
-       allowOverride: false
-
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: test
-      vserverAddr: 10.8.3.12
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.13
-      vserverName: nextgenroutes
-      allowOverride: true
+				extConfig := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2,
+            "ciphers": "DEFAULT",
+            "cipherGroup": "/Common/f5-default"
+        },
+        "defaultTLS": {
+            "clientSSL": "/Common/clientssl",
+            "serverSSL": "/Common/serverssl",
+            "reference": "bigip"
+        },
+        "defaultRouteGroup": {
+            "bigIpPartition": "test",
+            "vserverAddr": "10.1.1.1",
+            "allowOverride": false
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "test",
+            "vserverAddr": "10.8.3.12",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "new",
+            "vserverAddr": "10.8.3.13",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        }
+    ]
+}
 `
-				localData := make(map[string]string)
-				localCM = test.NewConfigMap(
+				es := cisapiv1.ExtendedSpec{}
+				//log.Debugf("GCM: %v", cm.Data)
+				_ = json.Unmarshal([]byte(extConfig), &es)
+				configSpec.ExtendedSpec = es
+				configCR = test.NewConfigCR(
+					crName,
+					"default",
+					configSpec)
+				localExtConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "nextgenroutes",
+            "policyCR": "default/policy"
+        }
+    ]
+}
+`
+				localEs := cisapiv1.ExtendedSpec{}
+				_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+				localConfigSpec.ExtendedSpec = localEs
+				localConfigCR = test.NewConfigCR(
 					"localESCM",
-					"v1",
 					"default",
-					localData)
-				localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: nextgenroutes
-      policyCR : default/policy
-`
+					localConfigSpec)
 			})
 
-			It("Process Global ConfigMap", func() {
+			It("Process Global ConfigCR", func() {
 				mockCtlr.initState = true
-				mockCtlr.processConfigMap(cm, false)
-				mockCtlr.processConfigMap(localCM, false)
+				mockCtlr.processConfigCR(configCR, false)
+				mockCtlr.processConfigCR(localConfigCR, false)
 				mockCtlr.initState = false
-				mockCtlr.processConfigMap(cm, false)
-				mockCtlr.processConfigMap(localCM, false)
+				mockCtlr.processConfigCR(configCR, false)
+				mockCtlr.processConfigCR(localConfigCR, false)
 
-				data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-      ciphers: DEFAULT
-      cipherGroup: /Common/f5-default
-    defaultTLS:
-       clientSSL: /Common/clientssl
-       serverSSL: /Common/serverssl
-       reference: bigip
-    defaultRouteGroup: 
-       bigIpPartition: test
-       vserverAddr: 10.1.1.1
-       allowOverride: false
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.17
-      vserverName: nextgenroutes
-      allowOverride: true 
- 	- namespace: app
-      vserverAddr: 10.8.3.15
-      allowOverride: true
+				new_spec := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2,
+            "ciphers": "DEFAULT",
+            "cipherGroup": "/Common/f5-default"
+        }
+    },
+    "defaultTLS": {
+        "clientSSL": "/Common/clientssl",
+        "serverSSL": "/Common/serverssl",
+        "reference": "bigip"
+    },
+    "defaultRouteGroup": {
+        "bigIpPartition": "test",
+        "vserverAddr": "10.1.1.1",
+        "allowOverride": false
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.17",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true
+        },
+        {
+            "namespace": "app",
+            "vserverAddr": "10.8.3.15",
+            "allowOverride": true
+        }
+    ]
+}
 `
-				mockCtlr.processConfigMap(cm, false)
-				mockCtlr.processConfigMap(localCM, false)
+				newEs := cisapiv1.ExtendedSpec{}
+				_ = json.Unmarshal([]byte(new_spec), &newEs)
+				configSpec.ExtendedSpec = newEs
+				mockCtlr.processConfigCR(configCR, false)
+				mockCtlr.processConfigCR(localConfigCR, false)
 			})
 		})
 		Describe("Process Route", func() {
@@ -2960,8 +2995,10 @@ extendedRouteSpec:
 			var svc *v1.Service
 			var policy *cisapiv1.Policy
 			var insecureVSPolicy *cisapiv1.Policy
-			var cm *v1.ConfigMap
-			var localCM *v1.ConfigMap
+			var configCR *cisapiv1.DeployConfig
+			var localConfigCR *cisapiv1.DeployConfig
+			configSpec := cisapiv1.DeployConfigSpec{}
+			localConfigSpec := cisapiv1.DeployConfigSpec{}
 			var annotation1 map[string]string
 
 			BeforeEach(func() {
@@ -2978,7 +3015,7 @@ extendedRouteSpec:
 				mockCtlr.resources = NewResourceStore()
 				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 					override: true,
-					global: &ExtendedRouteGroupSpec{
+					global: &cisapiv1.ExtendedRouteGroupSpec{
 						VServerName:   "nextgenroutes",
 						VServerAddr:   "10.10.10.10",
 						AllowOverride: "False",
@@ -2991,7 +3028,7 @@ extendedRouteSpec:
 
 				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 					override: true,
-					global: &ExtendedRouteGroupSpec{
+					global: &cisapiv1.ExtendedRouteGroupSpec{
 						VServerName:   "nextgenroutes",
 						VServerAddr:   "10.10.10.10",
 						AllowOverride: "False",
@@ -3072,56 +3109,74 @@ extendedRouteSpec:
 					Spec: cisapiv1.PolicySpec{},
 				}
 
-				// ConfigMap
-				cmName := "escm"
-				cmNamespace := "system"
-				mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-				mockCtlr.comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace)
+				// ConfigCR
+				crName := "escm"
+				crNamespace := "system"
+				mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
+				mockCtlr.comInformers[crNamespace] = mockCtlr.newNamespacedCommonResourceInformer(crNamespace)
 				mockCtlr.resources = NewResourceStore()
-				data := make(map[string]string)
-				cm = test.NewConfigMap(
-					cmName,
-					"v1",
-					cmNamespace,
-					data)
 
-				data["extendedSpec"] = `
-baseRouteSpec:
-    autoMonitor: readiness-probe
-    autoMonitorTimeout: 30
-    tlsCipher:
-      tlsVersion : 1.2
-      ciphers: DEFAULT
-      cipherGroup: /Common/f5-default
-    defaultTLS:
-       clientSSL: /Common/clientssl
-       serverSSL: /Common/serverssl
-       reference: bigip
-    defaultRouteGroup: 
-       bigIpPartition: test
-       vserverAddr: vs
-       allowOverride: false
-
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      policyCR : default/policy
+				extConfig := `
+{
+    "baseRouteSpec": {
+        "autoMonitor": "readiness-probe",
+        "autoMonitorTimeout": 30,
+        "tlsCipher": {
+            "tlsVersion": 1.2,
+            "ciphers": "DEFAULT",
+            "cipherGroup": "/Common/f5-default"
+        },
+        "defaultTLS": {
+            "clientSSL": "/Common/clientssl",
+            "serverSSL": "/Common/serverssl",
+            "reference": "bigip"
+        },
+        "defaultRouteGroup": {
+            "bigIpPartition": "test",
+            "vserverAddr": "vs",
+            "allowOverride": false
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "policyCR": "default/policy"
+        }
+    ]
+}
 `
-				localData := make(map[string]string)
-				localCM = test.NewConfigMap(
+				es := cisapiv1.ExtendedSpec{}
+				_ = json.Unmarshal([]byte(extConfig), &es)
+				configSpec.ExtendedSpec = es
+				configCR = test.NewConfigCR(
+					crName,
+					crNamespace,
+					configSpec)
+
+				localExtConfig := `
+{
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.110",
+            "vserverName": "nextgenroutes",
+            "policyCR": "default/policy"
+        }
+    ]
+}
+`
+				localEs := cisapiv1.ExtendedSpec{}
+				//log.Debugf("GCM: %v", cm.Data)
+				_ = json.Unmarshal([]byte(localExtConfig), &localEs)
+				localConfigSpec.ExtendedSpec = localEs
+
+				localConfigCR = test.NewConfigCR(
 					"localESCM",
-					"v1",
 					"default",
-					localData)
-				localData["extendedSpec"] = `
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.110
-      vserverName: nextgenroutes
-      policyCR : default/policy
-`
+					localConfigSpec)
 
 				//Annotations
 				annotation1 = make(map[string]string)
@@ -3135,7 +3190,7 @@ extendedRouteSpec:
 
 			It("Test Readiness Probe", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
 				mockCtlr.Agent.ccclGTMAgent = true
 				writer := &test.MockWriter{
@@ -3249,7 +3304,7 @@ extendedRouteSpec:
 			It("Test http profile analytics with routes", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
 				mockCtlr.Agent.ccclGTMAgent = false
 
@@ -3328,30 +3383,42 @@ extendedRouteSpec:
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 
 				// only secured vs should have http analytics profile
-				cm.Data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-      ciphers: DEFAULT
-      cipherGroup: /Common/f5-default
-    defaultTLS:
-       clientSSL: /Common/clientssl
-       serverSSL: /Common/serverssl
-       reference: bigip
-    defaultRouteGroup: 
-       bigIpPartition: test
-       vserverAddr: vs
-       allowOverride: false
-
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      policyCR : default/policy
-      httpServerPolicyCR: default/policy2
+				extConfig := `
+{
+    "baseRouteSpec": {
+        "tlsCipher": {
+            "tlsVersion": 1.2,
+            "ciphers": "DEFAULT",
+            "cipherGroup": "/Common/f5-default"
+        },
+        "defaultTLS": {
+            "clientSSL": "/Common/clientssl",
+            "serverSSL": "/Common/serverssl",
+            "reference": "bigip"
+        },
+        "defaultRouteGroup": {
+            "bigIpPartition": "test",
+            "vserverAddr": "vs",
+            "allowOverride": false
+        }
+    },
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "policyCR": "default/policy",
+            "httpServerPolicyCR": "default/policy2"
+        }
+    ]
+}
 `
-				mockCtlr.updateConfigMap(cm)
+				es := cisapiv1.ExtendedSpec{}
+				_ = json.Unmarshal([]byte(extConfig), &es)
+				configSpec.ExtendedSpec = es
+				configCR.Spec = configSpec
+				mockCtlr.updateConfigCR(configCR)
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
@@ -3402,7 +3469,7 @@ extendedRouteSpec:
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
 				mockCtlr.Agent.ccclGTMAgent = true
 				writer := &test.MockWriter{
@@ -3500,7 +3567,7 @@ extendedRouteSpec:
 				mockCtlr.deleteRoute(route1)
 				mockCtlr.processResources()
 
-				mockCtlr.addConfigMap(localCM)
+				mockCtlr.addConfigCR(localConfigCR)
 				mockCtlr.processResources()
 
 				route1.Annotations[resource.F5ClientSslProfileAnnotation] = "common/client-ssl"
@@ -3587,7 +3654,7 @@ extendedRouteSpec:
 				go mockCtlr.Agent.retryWorker()
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
 				routeGroup := "default"
 
@@ -3629,22 +3696,19 @@ extendedRouteSpec:
 				go mockCtlr.Agent.retryWorker()
 				mockCtlr.initState = true
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
-				//mockCtlr.resourceQueue.Get()
 				routeGroup := "default"
 
 				mockCtlr.initState = false
-				//mockCtlr.DeleteConfigMap(cm)
-				//mockCtlr.processResources()
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
-				mockCtlr.mode = CustomResourceMode
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.managedResources.ManageCustomResources = true
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
 
-				mockCtlr.mode = OpenShiftMode
-				mockCtlr.addConfigMap(cm)
+				mockCtlr.managedResources.ManageRoutes = true
+				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
 
 				mockCtlr.addService(svc)
@@ -3663,12 +3727,12 @@ extendedRouteSpec:
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSPassthrough
 
-				mockCtlr.mode = CustomResourceMode
+				mockCtlr.managedResources.ManageCustomResources = true
 				mockCtlr.addRoute(route1)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Controller Mode")
 
-				mockCtlr.mode = OpenShiftMode
+				mockCtlr.managedResources.ManageRoutes = true
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
@@ -3722,7 +3786,7 @@ extendedRouteSpec:
 			}
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
-			mockCtlr.mode = CustomResourceMode
+			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)

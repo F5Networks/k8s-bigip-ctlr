@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"reflect"
 
 	v1 "k8s.io/api/core/v1"
@@ -11,7 +12,7 @@ import (
 func (ctlr *Controller) createSecretClientSSLProfile(
 	rsCfg *ResourceConfig,
 	secrets []*v1.Secret,
-	tlsCipher TLSCipher,
+	tlsCipher cisapiv1.TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -44,7 +45,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	certificates []certificate,
 	name string,
 	namespace string,
-	tlsCipher TLSCipher,
+	tlsCipher cisapiv1.TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -106,7 +107,7 @@ func (ctlr *Controller) createClientSSLProfile(
 func (ctlr *Controller) createSecretServerSSLProfile(
 	rsCfg *ResourceConfig,
 	secrets []*v1.Secret,
-	tlsCipher TLSCipher,
+	tlsCipher cisapiv1.TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -133,7 +134,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	certchain string,
 	name string,
 	namespace string,
-	tlsCipher TLSCipher,
+	tlsCipher cisapiv1.TLSCipher,
 	context string,
 ) (error, bool) {
 

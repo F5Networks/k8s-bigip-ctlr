@@ -19,7 +19,7 @@ package test
 import (
 	"bytes"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/pollers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"

@@ -28,9 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -131,7 +131,7 @@ func (crInfr *CRInformer) start() {
 		cacheSyncs = append(cacheSyncs, crInfr.ilInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
-		"F5 CIS CRD Controller",
+		"F5 CIS Ingress Controller",
 		crInfr.stopCh,
 		cacheSyncs...,
 	)
@@ -185,9 +185,9 @@ func (comInfr *CommonInformer) start() {
 		go comInfr.secretsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.secretsInformer.HasSynced)
 	}
-	if comInfr.cmInformer != nil {
-		go comInfr.cmInformer.Run(comInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, comInfr.cmInformer.HasSynced)
+	if comInfr.configCRInformer != nil {
+		go comInfr.configCRInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.configCRInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
@@ -201,14 +201,14 @@ func (comInfr *CommonInformer) stop() {
 }
 
 func (ctlr *Controller) watchingAllNamespaces() bool {
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
+	if ctlr.managedResources.ManageRoutes {
 		if len(ctlr.comInformers) == 0 || len(ctlr.nrInformers) == 0 {
 			return false
 		}
 		_, watchingAll := ctlr.comInformers[""]
 		return watchingAll
-	case CustomResourceMode:
+	}
+	if ctlr.managedResources.ManageCustomResources {
 		if len(ctlr.crInformers) == 0 {
 			// Not watching any namespaces.
 			return false
@@ -291,9 +291,7 @@ func (ctlr *Controller) addNamespacedInformers(
 		}
 	}
 
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		// Create native resource informers in openshift mode only
+	if ctlr.managedResources.ManageRoutes { // Create native resource informers in openshift mode only
 		if _, found := ctlr.nrInformers[namespace]; !found {
 			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
 			ctlr.addNativeResourceEventHandlers(nrInf)
@@ -302,8 +300,8 @@ func (ctlr *Controller) addNamespacedInformers(
 				nrInf.start()
 			}
 		}
-	default:
-		// create customer resource informers in custom resource mode
+	}
+	if ctlr.managedResources.ManageCustomResources { // create customer resource informers in custom resource mode
 		// Enabling CRInformers only for custom resource mode
 		if _, found := ctlr.crInformers[namespace]; !found {
 			crInf := ctlr.newNamespacedCustomResourceInformer(namespace)
@@ -375,9 +373,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 	}
-	switch ctlr.mode {
-	case OpenShiftMode:
-		// Ensure the default server cert is loaded
+	if ctlr.managedResources.ManageRoutes { // Ensure the default server cert is loaded
 		//appMgr.loadDefaultCert() why?
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
@@ -403,7 +399,7 @@ func (ctlr *Controller) getNodeInformer(clusterName string) NodeInformer {
 	resyncPeriod := 0 * time.Second
 	var restClientv1 rest.Interface
 	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.nodeLabelSelector
+		options.LabelSelector = ctlr.baseConfig.NodeLabel
 	}
 	if clusterName == "" {
 		restClientv1 = ctlr.kubeClient.CoreV1().RESTClient()
@@ -478,9 +474,9 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
-	// Skipping endpoint informer creation for namespace in non cluster mode when extended cm is not provided
+	// Skipping endpoint informer creation for namespace in non cluster mode when extended configCR is not provided
 	if ctlr.PoolMemberType != Cluster && ctlr.multiClusterMode != "" {
-		log.Debugf("[Multicluster] Skipping endpoint informer creation for namespace %v in %v mode", namespace, ctlr.mode)
+		log.Debugf("[Multicluster] Skipping endpoint informer creation for namespace %v", namespace)
 	} else {
 		comInf.epsInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -510,25 +506,17 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
-	// start the cm informer if it's specified in deployment
-	if ctlr.globalExtendedCMKey != "" {
-		nrOptions := func(options *metav1.ListOptions) {
-			options.LabelSelector = ctlr.nativeResourceSelector.String()
-		}
-		comInf.cmInformer = cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				restClientv1,
-				"configmaps",
-				namespace,
-				nrOptions,
-			),
-			&corev1.ConfigMap{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-	}
+
+	comInf.configCRInformer = cisinfv1.NewFilteredDeployConfigInformer(
+		ctlr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+
 	//enable pod informer for nodeport local mode and openshift mode
-	if ctlr.PoolMemberType == NodePortLocal || ctlr.mode == OpenShiftMode {
+	if ctlr.PoolMemberType == NodePortLocal || ctlr.managedResources.ManageRoutes {
 		comInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -646,12 +634,12 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 		)
 	}
 
-	if comInf.cmInformer != nil {
-		comInf.cmInformer.AddEventHandler(
+	if comInf.configCRInformer != nil {
+		comInf.configCRInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj, Create) },
-				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigCR(obj, Create) },
+				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigCR(obj, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigCR(obj) },
 			},
 		)
 	}
@@ -1064,7 +1052,7 @@ func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
-	if ctlr.mode == OpenShiftMode {
+	if ctlr.managedResources.ManageRoutes {
 		if _, ok := OSCPCoreServices[svc.Name]; ok {
 			return
 		}
@@ -1095,7 +1083,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
-	if ctlr.mode == OpenShiftMode {
+	if ctlr.managedResources.ManageRoutes {
 		if _, ok := OSCPCoreServices[svc.Name]; ok {
 			return
 		}
@@ -1138,7 +1126,7 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}, clusterName strin
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
-	if ctlr.mode == OpenShiftMode {
+	if ctlr.managedResources.ManageRoutes {
 		if _, ok := OSCPCoreServices[svc.Name]; ok {
 			return
 		}
@@ -1161,7 +1149,7 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string, clusterN
 	if _, ok := K8SCoreServices[eps.Name]; ok {
 		return
 	}
-	if ctlr.mode == OpenShiftMode {
+	if ctlr.managedResources.ManageRoutes {
 		if _, ok := OSCPCoreServices[eps.Name]; ok {
 			return
 		}
@@ -1223,35 +1211,35 @@ func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
-	cm := obj.(*corev1.ConfigMap)
+func (ctlr *Controller) enqueueConfigCR(obj interface{}, event string) {
+	configCR := obj.(*cisapiv1.DeployConfig)
 
-	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
-	//if !ctlr.nativeResourceSelector.Matches(labels.Set(cm.GetLabels())) &&
-	//	ctlr.globalExtendedCMKey != cm.Namespace+"/"+cm.Name {
+	// Filter out configCRs that are neither f5nr configCRs nor routeSpecConfigCR
+	//if !ctlr.nativeResourceSelector.Matches(labels.Set(configCR.GetLabels())) &&
+	//	ctlr.CISConfigCRKey != configCR.Namespace+"/"+configCR.Name {
 	//
 	//	return
 	//}
 
-	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	log.Debugf("Enqueueing ConfigCR: %v/%v", configCR.ObjectMeta.Namespace, configCR.ObjectMeta.Name)
 	key := &rqKey{
-		namespace: cm.ObjectMeta.Namespace,
-		kind:      ConfigMap,
-		rscName:   cm.ObjectMeta.Name,
+		namespace: configCR.ObjectMeta.Namespace,
+		kind:      ConfigCR,
+		rscName:   configCR.ObjectMeta.Name,
 		rsc:       obj,
 		event:     event,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
-	cm := obj.(*corev1.ConfigMap)
+func (ctlr *Controller) enqueueDeletedConfigCR(obj interface{}) {
+	configCR := obj.(*cisapiv1.DeployConfig)
 
-	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	log.Debugf("Enqueueing ConfigCR: %v/%v", configCR.ObjectMeta.Namespace, configCR.ObjectMeta.Name)
 	key := &rqKey{
-		namespace: cm.ObjectMeta.Namespace,
-		kind:      ConfigMap,
-		rscName:   cm.ObjectMeta.Name,
+		namespace: configCR.ObjectMeta.Namespace,
+		kind:      ConfigCR,
+		rscName:   configCR.ObjectMeta.Name,
 		rsc:       obj,
 		event:     Delete,
 	}
@@ -1420,7 +1408,7 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 		if _, ok := K8SCoreServices[v]; ok {
 			return true
 		}
-		if ctlr.mode == OpenShiftMode {
+		if ctlr.managedResources.ManageRoutes {
 			if _, ok := OSCPCoreServices[v]; ok {
 				return true
 			}

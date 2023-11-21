@@ -1,0 +1,71 @@
+# for reference only
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-bigip-ctlr-deployment
+  namespace: kube-system
+spec:
+  # DO NOT INCREASE REPLICA COUNT
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-bigip-ctlr-deployment
+  template:
+    metadata:
+      labels:
+        app: k8s-bigip-ctlr-deployment
+    spec:
+      # Name of the Service Account bound to a Cluster Role with the required
+      # permissions
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      volumes:
+        - name: cm-creds
+          secret:
+            secretName: f5-bigip-ctlr-login
+      containers:
+        - name: k8s-bigip-ctlr
+          image: "f5networks/k8s-bigip-ctlr:latest"
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 15
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 15
+          volumeMounts:
+            - name: cm-creds
+              mountPath: "/tmp/creds"
+              readOnly: true
+          command: ["/app/bin/k8s-bigip-ctlr"]
+          args: [
+            # See the k8s-bigip-ctlr documentation for information about
+            # all config options
+            # https://clouddocs.f5.com/containers/latest/
+            "--cm-url=<ip_address-or-hostname>",
+            "--orchestration-cni=nodeport",
+            "--deploy-config=kube-system/cis-config",
+            "--manage-custom-resources=true",
+            "--credentials-directory=/tmp/creds",
+            "--kubeconfig=/tmp/kubeconfig",
+            "--log-file=/tmp/k8s-bigip-ctlr.log",
+            "--log-level=INFO",
+            "--http-client-metrics=true",
+            "--no-verify-ssl=true"
+          ]
+      serviceAccountName: bigip-ctlr

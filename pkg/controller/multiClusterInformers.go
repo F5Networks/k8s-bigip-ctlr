@@ -24,7 +24,7 @@ import (
 	"sort"
 	"time"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -203,9 +203,9 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 	}
 }
 
-// whenever global configmap is modified check for removed cluster configs
+// whenever global configCR is modified check for removed cluster configs
 // if any of the cluster config is removed from global CM. stop the respective cluster informers
-func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
+func (ctlr *Controller) stopDeletedGlobalCRMultiClusterInformers() error {
 
 	if ctlr.multiClusterConfigs == nil {
 		return nil

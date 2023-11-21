@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/typed/cis/v1"
-	fakecisv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/typed/cis/v1/fake"
+	clientset "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
+	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/typed/cis/v1"
+	fakecisv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/typed/cis/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

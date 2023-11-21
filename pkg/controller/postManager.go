@@ -33,11 +33,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const (
-	timeoutMedium = 30 * time.Second
-	timeoutLarge  = 180 * time.Second
-)
-
 func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
 	pm := &PostManager{
 		firstPost:                       true,

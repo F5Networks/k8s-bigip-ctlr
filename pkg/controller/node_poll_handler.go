@@ -42,9 +42,6 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 			clusterNodes := ctlr.getNodesFromAllClusters()
 			ctlr.processStaticRouteUpdate(clusterNodes)
 		}
-	} else if ctlr.vxlanMgr != nil {
-		// Register vxMgr to watch for node updates to process fdb records
-		ctlr.vxlanMgr.ProcessNodeUpdate(nodesList)
 	}
 	return nil
 }

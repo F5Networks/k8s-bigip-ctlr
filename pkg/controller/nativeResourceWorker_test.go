@@ -6,7 +6,6 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
@@ -283,7 +282,7 @@ var _ = Describe("Routes", func() {
 				TLS: &routeapi.TLSConfig{Termination: TLSReencrypt},
 			}
 			annotations := make(map[string]string)
-			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotations[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", "default", spec1, annotations)
 			route2 := test.NewRoute("route2", "1", "test", spec1, nil)
 			route3 := test.NewRoute("route3", "1", "default", spec2, nil)
@@ -323,7 +322,7 @@ var _ = Describe("Routes", func() {
 			Expect(route1.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ExtendedValidationFailed"), "Incorrect route admit reason")
 			Expect(route2.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("HostAlreadyClaimed"), "incorrect the route admit reason")
 			// Check valid route with app root annotation
-			annotations[resource.F5VsAppRootAnnotation] = ""
+			annotations[F5VsAppRootAnnotation] = ""
 			spec6 := routeapi.RouteSpec{
 				Host: "test.com",
 				Path: "/",
@@ -341,7 +340,7 @@ var _ = Describe("Routes", func() {
 			Expect(route6.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route6.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route6.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
-			annotations[resource.F5VsAppRootAnnotation] = "/foo"
+			annotations[F5VsAppRootAnnotation] = "/foo"
 			spec7 := routeapi.RouteSpec{
 				Host: "test.com",
 				Path: "/test",
@@ -362,7 +361,7 @@ var _ = Describe("Routes", func() {
 
 			// Check valid route with WAF annotation
 			wafAnnotation := make(map[string]string)
-			wafAnnotation[resource.F5VsWAFPolicy] = ""
+			wafAnnotation[F5VsWAFPolicy] = ""
 			spec8 := routeapi.RouteSpec{
 				Host: "test.com",
 				Path: "/",
@@ -383,7 +382,7 @@ var _ = Describe("Routes", func() {
 
 			// Check valid route with AllowSourceRange annotation
 			sourceRangeAnnotation := make(map[string]string)
-			sourceRangeAnnotation[resource.F5VsAllowSourceRangeAnnotation] = ""
+			sourceRangeAnnotation[F5VsAllowSourceRangeAnnotation] = ""
 			spec9 := routeapi.RouteSpec{
 				Host: "test.com",
 				Path: "/",
@@ -477,8 +476,8 @@ var _ = Describe("Routes", func() {
 
 			//Add new Route
 			annotation1 := make(map[string]string)
-			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotation1[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation1[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", namespace1, spec1, annotation1)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[namespace1] = namespace1
@@ -494,8 +493,8 @@ var _ = Describe("Routes", func() {
 
 			//Add new Route
 			annotation2 := make(map[string]string)
-			annotation2[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotation2[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotation2[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation2[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route2 := test.NewRoute("route2", "1", namespace2, spec2, annotation2)
 			mockCtlr.addRoute(route2)
 			mockCtlr.resources.invertedNamespaceLabelMap[namespace2] = namespace2
@@ -855,8 +854,8 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addEndpoints(fooEndpts)
 			//Domain Based Route
 			annotation1 := make(map[string]string)
-			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotation1[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation1[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			annotation1[PodConcurrentConnectionsAnnotation] = "5"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 
@@ -915,14 +914,14 @@ var _ = Describe("Routes", func() {
 		It("Check Route TLS", func() {
 
 			annotation1 := make(map[string]string)
-			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotation1[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation1[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 
 			clientSSLAnnotation := make(map[string]string)
-			clientSSLAnnotation[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			clientSSLAnnotation[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 
 			serverSSLAnnotation := make(map[string]string)
-			serverSSLAnnotation[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			serverSSLAnnotation[F5ServerSslProfileAnnotation] = "/Common/serverssl"
 
 			extdSpec := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
@@ -1007,12 +1006,12 @@ var _ = Describe("Routes", func() {
 			// server client profile missing in policy and no profile annotations invalid route
 			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeFalse())
 			annotations := make(map[string]string)
-			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotations[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotations[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route3.Annotations = annotations
 			// with annotations added route should get processed
 			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeTrue())
-			delete(annotations, resource.F5ServerSslProfileAnnotation)
+			delete(annotations, F5ServerSslProfileAnnotation)
 			// invalid
 			Expect(mockCtlr.checkValidRoute(route3, sslProfiles)).To(BeFalse())
 			sslProfiles.clientSSLs = []string{"\\Common\\plc-clientssl"}
@@ -1046,8 +1045,8 @@ var _ = Describe("Routes", func() {
 			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\plc-serverssl", "serverside")).To(BeTrue())
 			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\plc-clientssl", "clientside")).To(BeTrue())
 
-			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotations[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotations[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route3.Annotations = annotations
 			rsCfg.Virtual.Profiles = ProfileRefs{}
 			Expect(mockCtlr.handleRouteTLS(
@@ -1128,14 +1127,14 @@ var _ = Describe("Routes", func() {
 			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(serverssl)
 
 			annotation1 := make(map[string]string)
-			annotation1[resource.F5ServerSslProfileAnnotation] = "serverssl"
-			annotation1[resource.F5ClientSslProfileAnnotation] = "clientssl"
+			annotation1[F5ServerSslProfileAnnotation] = "serverssl"
+			annotation1[F5ClientSslProfileAnnotation] = "clientssl"
 
 			clientSSLAnnotation := make(map[string]string)
-			clientSSLAnnotation[resource.F5ClientSslProfileAnnotation] = "clientssl"
+			clientSSLAnnotation[F5ClientSslProfileAnnotation] = "clientssl"
 
 			serverSSLAnnotation := make(map[string]string)
-			serverSSLAnnotation[resource.F5ServerSslProfileAnnotation] = "serverssl"
+			serverSSLAnnotation[F5ServerSslProfileAnnotation] = "serverssl"
 
 			extdSpec := &cisapiv1.ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
@@ -1321,8 +1320,8 @@ var _ = Describe("Routes", func() {
 			tlsConfig := &routeapi.TLSConfig{}
 			tlsConfig.Termination = TLSEdge
 			annotation1 := make(map[string]string)
-			annotation1[resource.F5VsWAFPolicy] = "/Common/WAF_Policy1"
-			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotation1[F5VsWAFPolicy] = "/Common/WAF_Policy1"
+			annotation1[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			spec1 := routeapi.RouteSpec{
 				Host: "foo.com",
 				Path: "/foo",
@@ -1920,9 +1919,9 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addEndpoints(fooEndpts)
 			annotations := make(map[string]string)
 			annotations["virtual-server.f5.com/balance"] = "least-connections-node"
-			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
-			annotations[resource.F5VsAppRootAnnotation] = "/foo"
+			annotations[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotations[F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotations[F5VsAppRootAnnotation] = "/foo"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
@@ -2033,7 +2032,7 @@ var _ = Describe("Routes", func() {
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
 			annotations := make(map[string]string)
-			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotations[F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup

@@ -12,7 +12,6 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.crInformers = make(map[string]*CRInformer)

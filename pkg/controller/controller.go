@@ -21,7 +21,6 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
 	"net/http"
 	"os"
 	"strings"
@@ -46,91 +45,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const (
-	// DefaultCustomResourceLabel is a label used for F5 Custom Resources.
-	DefaultCustomResourceLabel = "f5cr in (true)"
-	// VirtualServer is a F5 Custom Resource Kind.
-	VirtualServer = "VirtualServer"
-	// TLSProfile is a F5 Custom Resource Kind
-	TLSProfile = "TLSProfile"
-	// IngressLink is a Custom Resource used by both F5 and Nginx
-	IngressLink = "IngressLink"
-	// TransportServer is a F5 Custom Resource Kind
-	TransportServer = "TransportServer"
-	// ExternalDNS is a F5 Custom Resource Kind
-	ExternalDNS = "ExternalDNS"
-	// Policy is collection of BIG-IP profiles, LTM policies and iRules
-	CustomPolicy = "CustomPolicy"
-	// IPAM is a F5 Custom Resource Kind
-	IPAM = "IPAM"
-	// Service is a k8s native Service Resource.
-	Service = "Service"
-	//Pod  is a k8s native object
-	Pod = "Pod"
-	//Secret  is a k8s native object
-	K8sSecret = "Secret"
-	// Endpoints is a k8s native Endpoint Resource.
-	Endpoints = "Endpoints"
-	// Namespace is k8s namespace
-	Namespace = "Namespace"
-	// ConfigCR is k8s native ConfigCR resource
-	ConfigCR = "ConfigCR"
-	// Route is OpenShift Route
-	Route = "Route"
-	// Node update
-	NodeUpdate = "Node"
-
-	NodePort = "nodeport"
-	Cluster  = "cluster"
-
-	StandAloneCIS = "standalone"
-	SecondaryCIS  = "secondary"
-	PrimaryCIS    = "primary"
-	// Namespace is k8s namespace
-	HACIS = "HACIS"
-
-	// Primary cluster health probe
-	DefaultProbeInterval = 60
-	DefaultRetryInterval = 15
-
-	PolicyControlForward = "forwarding"
-	// Namespace for IPAM CRD
-	IPAMNamespace = "kube-system"
-	//Name for ipam CR
-	ipamCRName = "ipam"
-
-	// TLS Terminations
-	TLSEdge             = "edge"
-	AllowSourceRange    = "allowSourceRange"
-	DefaultPool         = "defaultPool"
-	TLSReencrypt        = "reencrypt"
-	TLSPassthrough      = "passthrough"
-	TLSRedirectInsecure = "redirect"
-	TLSAllowInsecure    = "allow"
-	TLSNoInsecure       = "none"
-
-	LBServiceIPAMLabelAnnotation       = "cis.f5.com/ipamLabel"
-	LBServiceHostAnnotation            = "cis.f5.com/host"
-	HealthMonitorAnnotation            = "cis.f5.com/health"
-	LBServicePolicyNameAnnotation      = "cis.f5.com/policyName"
-	LegacyHealthMonitorAnnotation      = "virtual-server.f5.com/health"
-	PodConcurrentConnectionsAnnotation = "virtual-server.f5.com/pod-concurrent-connections"
-
-	//Antrea NodePortLocal support
-	NPLPodAnnotation = "nodeportlocal.antrea.io"
-	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
-	NodePortLocal    = "nodeportlocal"
-
-	// AS3 Related constants
-	as3SupportedVersion = 3.18
-	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
-	as3Version        = 3.48
-	defaultAS3Version = "3.48.0"
-	defaultAS3Build   = "10"
-	clusterHealthPath = "/readyz"
-)
-
 // NewController creates a new Controller Instance.
 func NewController(params Params) *Controller {
 
@@ -146,7 +60,6 @@ func NewController(params Params) *Controller {
 		shareNodes:      params.ShareNodes,
 		//eventNotifier:         apm.NewEventNotifier(nil),
 		defaultRouteDomain:    params.DefaultRouteDomain,
-		ciliumTunnelName:      params.CiliumTunnelName,
 		StaticRoutingMode:     params.StaticRoutingMode,
 		OrchestrationCNI:      params.OrchestrationCNI,
 		StaticRouteNodeCIDR:   params.StaticRouteNodeCIDR,
@@ -257,30 +170,6 @@ func (ctlr *Controller) setupIPAM(params Params) {
 		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
 		_ = ctlr.createIPAMResource()
-	}
-}
-
-func (ctlr *Controller) setupVXLANManager(params Params) {
-	// setup vxlan manager
-	if len(params.VXLANName) > 0 && len(params.VXLANMode) > 0 {
-		tunnelName := params.VXLANName
-		cleanPath := strings.TrimLeft(params.VXLANName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos != -1 {
-			tunnelName = cleanPath[slashPos+1:]
-		}
-		vxlanMgr, err := vxlan.NewVxlanMgr(
-			params.VXLANMode,
-			tunnelName,
-			ctlr.ciliumTunnelName,
-			ctlr.UseNodeInternal,
-			ctlr.Agent.ConfigWriter,
-			ctlr.Agent.EventChan,
-		)
-		if nil != err {
-			log.Errorf("error creating vxlan manager: %v", err)
-		}
-		ctlr.vxlanMgr = vxlanMgr
 	}
 }
 
@@ -471,10 +360,6 @@ func (ctlr *Controller) Start() {
 
 	if ctlr.ipamCli != nil {
 		go ctlr.ipamCli.Start()
-	}
-
-	if ctlr.vxlanMgr != nil {
-		ctlr.vxlanMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
 	}
 
 	stopChan := make(chan struct{})

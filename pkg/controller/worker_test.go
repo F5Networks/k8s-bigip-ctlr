@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
@@ -3180,11 +3179,11 @@ var _ = Describe("Worker Tests", func() {
 
 				//Annotations
 				annotation1 = make(map[string]string)
-				annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
-				annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
-				annotation1[resource.F5VsBalanceAnnotation] = "least-connections-node"
-				annotation1[resource.F5VsURLRewriteAnnotation] = "/foo"
-				annotation1[resource.HealthMonitorAnnotation] = "[{\"path\": \"pytest-foo-1.com/\",\"send\": \"HTTP GET pytest-foo-1.com/\", \"recv\": \"\",\"interval\": 2,\"timeout\": 5,  \"type\": \"https\"}]"
+				annotation1[F5ClientSslProfileAnnotation] = "/Common/clientssl"
+				annotation1[F5ServerSslProfileAnnotation] = "/Common/serverssl"
+				annotation1[F5VsBalanceAnnotation] = "least-connections-node"
+				annotation1[F5VsURLRewriteAnnotation] = "/foo"
+				annotation1[F5HealthMonitorAnnotation] = "[{\"path\": \"pytest-foo-1.com/\",\"send\": \"HTTP GET pytest-foo-1.com/\", \"recv\": \"\",\"interval\": 2,\"timeout\": 5,  \"type\": \"https\"}]"
 
 			})
 
@@ -3192,12 +3191,6 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
-				mockCtlr.Agent.ccclGTMAgent = true
-				writer := &test.MockWriter{
-					FailStyle: test.Success,
-					Sections:  make(map[string]interface{}),
-				}
-				mockCtlr.Agent.ConfigWriter = writer
 				go mockCtlr.Agent.agentWorker()
 				go mockCtlr.Agent.retryWorker()
 
@@ -3263,9 +3256,9 @@ var _ = Describe("Worker Tests", func() {
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSReencrypt
 				route1.Spec.Host = "test.com"
-				_, ok := route1.Annotations[LegacyHealthMonitorAnnotation]
+				_, ok := route1.Annotations[F5HealthMonitorAnnotation]
 				if ok {
-					delete(route1.Annotations, LegacyHealthMonitorAnnotation)
+					delete(route1.Annotations, F5HealthMonitorAnnotation)
 				}
 				route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyRedirect
 				mockCtlr.addRoute(route1)
@@ -3306,7 +3299,6 @@ var _ = Describe("Worker Tests", func() {
 
 				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
-				mockCtlr.Agent.ccclGTMAgent = false
 
 				routeGroup := "default"
 				policy.Spec.Profiles.AnalyticsProfiles = cisapiv1.AnalyticsProfiles{
@@ -3368,9 +3360,9 @@ var _ = Describe("Worker Tests", func() {
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSReencrypt
 				route1.Spec.Host = "test.com"
-				_, ok := route1.Annotations[LegacyHealthMonitorAnnotation]
+				_, ok := route1.Annotations[F5HealthMonitorAnnotation]
 				if ok {
-					delete(route1.Annotations, LegacyHealthMonitorAnnotation)
+					delete(route1.Annotations, F5HealthMonitorAnnotation)
 				}
 				route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyRedirect
 				mockCtlr.addRoute(route1)
@@ -3471,12 +3463,6 @@ var _ = Describe("Worker Tests", func() {
 
 				mockCtlr.addConfigCR(configCR)
 				mockCtlr.processResources()
-				mockCtlr.Agent.ccclGTMAgent = true
-				writer := &test.MockWriter{
-					FailStyle: test.Success,
-					Sections:  make(map[string]interface{}),
-				}
-				mockCtlr.Agent.ConfigWriter = writer
 
 				routeGroup := "default"
 				mockCtlr.addPolicy(policy)
@@ -3551,7 +3537,7 @@ var _ = Describe("Worker Tests", func() {
 				//route1.Spec.TLS.Certificate = ""
 				//route1.Spec.TLS.Key = ""
 				route1.Spec.Host = "test.com"
-				delete(route1.Annotations, resource.F5ClientSslProfileAnnotation)
+				delete(route1.Annotations, F5ClientSslProfileAnnotation)
 
 				checkCertificateHost(route1.Spec.Host, []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
 
@@ -3570,7 +3556,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addConfigCR(localConfigCR)
 				mockCtlr.processResources()
 
-				route1.Annotations[resource.F5ClientSslProfileAnnotation] = "common/client-ssl"
+				route1.Annotations[F5ClientSslProfileAnnotation] = "common/client-ssl"
 				mockCtlr.addRoute(route1)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
@@ -3592,7 +3578,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				// Remove health Annotation - This won't work because current we are querying the pods from the kube client instead of informers
-				delete(route1.Annotations, resource.HealthMonitorAnnotation)
+				delete(route1.Annotations, HealthMonitorAnnotation)
 				mockCtlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 				mockCtlr.addRoute(route1)
@@ -3667,8 +3653,8 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				delete(annotation1, resource.F5ClientSslProfileAnnotation)
-				delete(annotation1, resource.F5ServerSslProfileAnnotation)
+				delete(annotation1, F5ClientSslProfileAnnotation)
+				delete(annotation1, F5ServerSslProfileAnnotation)
 				spec1.Host = "test.com"
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSEdge

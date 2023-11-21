@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -103,7 +102,7 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	mockPM.httpClient = client
 }
 
-func newMockAgent(writer writer.Writer) *Agent {
+func newMockAgent() *Agent {
 	return &Agent{
 		PostManager: &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
 		Partition:   "test",

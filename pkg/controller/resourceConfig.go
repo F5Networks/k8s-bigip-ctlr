@@ -20,8 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
-
 	"net"
 	"reflect"
 	"sort"
@@ -68,60 +66,6 @@ func (rs *ResourceStore) Init() {
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 	rs.externalClustersConfig = make(map[string]cisapiv1.ExternalClusterConfig)
 }
-
-const (
-	DEFAULT_MODE              string = "tcp"
-	DEFAULT_BALANCE           string = "round-robin"
-	DEFAULT_HTTP_PORT         int32  = 80
-	DEFAULT_HTTPS_PORT        int32  = 443
-	DEFAULT_SNAT              string = "auto"
-	urlRewriteRulePrefix             = "url-rewrite-rule-"
-	appRootForwardRulePrefix         = "app-root-forward-rule-"
-	appRootRedirectRulePrefix        = "app-root-redirect-rule-"
-
-	// Indicator to use an F5 schema
-	schemaIndicator string = "f5schemadb://"
-
-	// Constants for CustomProfile.Type as defined in CCCL
-	CustomProfileAll    string = "all"
-	CustomProfileClient string = "clientside"
-	CustomProfileServer string = "serverside"
-
-	// Constants for CustomProfile.PeerCertMode
-	PeerCertRequired = "require"
-	PeerCertIgnored  = "ignore"
-	PeerCertDefault  = PeerCertIgnored
-
-	// Constants
-	HttpRedirectIRuleName = "http_redirect_irule"
-	// Constants
-	HttpRedirectNoHostIRuleName = "http_redirect_irule_nohost"
-	// Internal data group for https redirect
-	HttpsRedirectDgName = "https_redirect_dg"
-	TLSIRuleName        = "tls_irule"
-	ABPathIRuleName     = "ab_deployment_path_irule"
-)
-
-// constants for TLS references
-const (
-	// reference for profiles stored in BIG-IP
-	BIGIP = "bigip"
-	// reference for profiles stores as secrets in k8s cluster
-	Secret = "secret"
-	// reference for routes
-	Certificate = "certificate"
-	// reference for service“
-	ServiceRef = "service"
-)
-
-// constants for SSL options
-const (
-	PolicySSLOption           = "policySSL"
-	AnnotationSSLOption       = "annotation"
-	RouteCertificateSSLOption = "routeCertificate"
-	DefaultSSLOption          = "defaultSSL"
-	InvalidSSLOption          = "invalid"
-)
 
 func NewCustomProfile(
 	profile ProfileRef,
@@ -1775,37 +1719,6 @@ func (cfg *ResourceConfig) GetName() string {
 	return cfg.Virtual.Name
 }
 
-// Internal data group for default pool of a virtual server.
-const DefaultPoolsDgName = "default_pool_servername_dg"
-
-// Internal data group for reencrypt termination.
-const ReencryptHostsDgName = "ssl_reencrypt_servername_dg"
-
-// Internal data group for edge termination.
-const EdgeHostsDgName = "ssl_edge_servername_dg"
-
-// Internal data group for passthrough termination.
-const PassthroughHostsDgName = "ssl_passthrough_servername_dg"
-
-// Internal data group for reencrypt termination that maps the host name to the
-// server ssl profile.
-const ReencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
-
-// Internal data group for edge termination that maps the host name to the
-// false. This will help Irule to understand ssl should be disabled
-// on serverside.
-const EdgeServerSslDgName = "ssl_edge_serverssl_dg"
-
-// Internal DataGroup Default Type
-const DataGroupType = "string"
-
-// Allow Source Range
-const DataGroupAllowSourceRangeType = "ip"
-const AllowSourceRangeDgName = "allowSourceRange"
-
-// Internal data group for ab deployment routes.
-const AbDeploymentDgName = "ab_deployment_dg"
-
 func (slice InternalDataGroupRecords) Less(i, j int) bool {
 	return slice[i].Name < slice[j].Name
 }
@@ -2396,14 +2309,14 @@ func (ctlr *Controller) handleRouteTLS(
 			bigIPSSLProfiles.serverSSLs = policySSLProfiles.serverSSLs
 		}
 	case AnnotationSSLOption:
-		if clientSSL, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+		if clientSSL, ok := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]; ok {
 			if len(strings.Split(clientSSL, "/")) > 1 {
 				tlsReferenceType = BIGIP
 			} else {
 				tlsReferenceType = Secret
 			}
 			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, clientSSL)
-			serverSSL, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]
+			serverSSL, ok := route.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]
 			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 				if !ok {
 					return false
@@ -2547,7 +2460,7 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 	}
 	if len(plcSSLProfiles.clientSSLs) > 0 {
 		sslProfileOption = PolicySSLOption
-	} else if _, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+	} else if _, ok := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]; ok {
 		sslProfileOption = AnnotationSSLOption
 	} else if route.Spec.TLS != nil && route.Spec.TLS.Key != "" && route.Spec.TLS.Certificate != "" {
 		sslProfileOption = RouteCertificateSSLOption
@@ -2818,4 +2731,38 @@ func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, clu
 		}
 	}
 	return monitorName
+}
+
+func ParseWhitelistSourceRangeAnnotations(annotation string) []string {
+	var annotationVals []string
+
+	numSeps := strings.Count(annotation, ",")
+	if numSeps > 0 {
+		splits := strings.Split(annotation, ",")
+		for _, val := range splits {
+			val = strings.TrimSpace(val)
+			_, _, err := net.ParseCIDR(val)
+			if err != nil {
+				log.Infof("[RESOURCE] Annotation: %s value: %s not properly formatted should be in CIDR format, skipping", annotation, val)
+			}
+			annotationVals = append(annotationVals, val)
+		}
+	} else if numSeps == 0 {
+		annotationVals = append(annotationVals, annotation)
+	} else {
+		log.Warningf("[RESOURCE] Annotation: %s improperly formatted should be single value or comma separated values, not processing", annotation)
+	}
+
+	return annotationVals
+}
+
+func ParseRewriteAction(targetUrlPath, valueUrlPath string) string {
+	var action string
+	if valueUrlPath == "/" {
+		action = fmt.Sprintf("tcl:[ expr {[string match [HTTP::uri] %s ] ? [regsub %s [HTTP::uri] / ] : [regsub %s [HTTP::uri] \"\" ] }]", targetUrlPath,
+			targetUrlPath, targetUrlPath)
+	} else {
+		action = fmt.Sprintf("tcl:[regsub %s [HTTP::uri] %s ]", targetUrlPath, valueUrlPath)
+	}
+	return action
 }

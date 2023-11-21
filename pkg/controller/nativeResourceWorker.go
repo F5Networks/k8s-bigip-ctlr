@@ -6,7 +6,6 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
@@ -259,10 +258,10 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string,
 				}
 				ctlr.updateHostPathMap(route.ObjectMeta.CreationTimestamp, key)
 				assocRoutes = append(assocRoutes, route)
-				if _, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
+				if _, ok := route.Annotations[F5VsWAFPolicy]; ok {
 					annotationsUsed.WAF = true
 				}
-				if _, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]; ok {
+				if _, ok := route.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
 					annotationsUsed.AllowSourceRange = true
 				}
 			}
@@ -368,13 +367,13 @@ func (ctlr *Controller) getServicePort(
 		if strVal == "" {
 			port = route.Spec.Port.TargetPort.IntVal
 		} else {
-			port, err = ctlr.getResourceServicePort(route.Namespace, svcName, svcIndexer, strVal, resource.ResourceTypeRoute)
+			port, err = ctlr.getResourceServicePort(route.Namespace, svcName, svcIndexer, strVal, Route)
 			if nil != err {
 				return fmt.Errorf("Error while processing port for route %s: %v", route.Name, err), port
 			}
 		}
 	} else {
-		port, err = ctlr.getResourceServicePort(route.Namespace, svcName, svcIndexer, "", resource.ResourceTypeRoute)
+		port, err = ctlr.getResourceServicePort(route.Namespace, svcName, svcIndexer, "", Route)
 		if nil != err {
 			return fmt.Errorf("Error while processing port for route %s: %v", route.Name, err), port
 		}
@@ -408,15 +407,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	// If not using WAF from policy CR, use WAF from route annotations
 	wafPolicy := ""
 	if rsCfg.Virtual.WAF == "" {
-		wafPolicy, _ = route.Annotations[resource.F5VsWAFPolicy]
+		wafPolicy, _ = route.Annotations[F5VsWAFPolicy]
 	}
 
 	// If not using AllowSourceRange from policy CR, use it from route annotations
 	var allowSourceRange []string
 	if rsCfg.Virtual.AllowSourceRange == nil {
-		sourceRange, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]
+		sourceRange, ok := route.Annotations[F5VsAllowSourceRangeAnnotation]
 		if ok {
-			allowSourceRange = resource.ParseWhitelistSourceRangeAnnotations(sourceRange)
+			allowSourceRange = ParseWhitelistSourceRangeAnnotations(sourceRange)
 		}
 	} else {
 		allowSourceRange = rsCfg.Virtual.AllowSourceRange
@@ -431,7 +430,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 
 	if ctlr.multiClusterMode != "" {
 		//check for external service reference annotation
-		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+		if annotation := route.Annotations[MultiClusterServicesAnnotation]; annotation != "" {
 			// only process if route key is not present. else skip the processing
 			// on route update we are clearing the resource service
 			// if event comes from route then we will read and populate data, else we will skip processing
@@ -470,7 +469,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			ServiceNamespace: svcNamespace,
 			ServicePort:      servicePort,
 			NodeMemberLabel:  "",
-			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
+			Balance:          route.ObjectMeta.Annotations[F5VsBalanceAnnotation],
 			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
 		}
 
@@ -522,7 +521,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 
 		// Handle Route health monitors
-		hmStr, exists := route.ObjectMeta.Annotations[LegacyHealthMonitorAnnotation]
+		hmStr, exists := route.ObjectMeta.Annotations[F5HealthMonitorAnnotation]
 		if exists {
 			var monitors Monitors
 			err := json.Unmarshal([]byte(hmStr), &monitors)
@@ -661,7 +660,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	path := route.Spec.Path
 	appRoot := "/"
 	// Handle app-root annotation
-	appRootPath, appRootOk := route.Annotations[resource.F5VsAppRootAnnotation]
+	appRootPath, appRootOk := route.Annotations[F5VsAppRootAnnotation]
 	if appRootOk {
 		ruleName := formatVirtualServerRuleName(route.Spec.Host, "", "redirectto", appRootPath)
 		rl, err := createRedirectRule(route.Spec.Host+appRoot, appRootPath, ruleName, allowSourceRange)
@@ -684,7 +683,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	}
 
 	// Handle url-rewrite annotation
-	if rewritePath, ok := route.Annotations[resource.F5VsURLRewriteAnnotation]; ok {
+	if rewritePath, ok := route.Annotations[F5VsURLRewriteAnnotation]; ok {
 		rewriteActions, err := getRewriteActions(
 			path,
 			rewritePath,
@@ -872,8 +871,8 @@ func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(svcKey MultiClust
 				}
 			}
 		}
-		_, exists := route.ObjectMeta.Annotations[LegacyHealthMonitorAnnotation]
-		//If LegacyHealthMonitorAnnotation annotation found, ignore route
+		_, exists := route.ObjectMeta.Annotations[F5HealthMonitorAnnotation]
+		//If F5HealthMonitorAnnotation annotation found, ignore route
 		if exists && routeMatched {
 			return nil
 		} else if routeMatched {
@@ -1702,7 +1701,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			return false
 		}
 	case AnnotationSSLOption:
-		if _, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+		if _, ok := route.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile in the annotation")
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
@@ -1734,15 +1733,15 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	}
 
 	// Validate appRoot Rewrite annotation
-	if appRootPath, ok := route.Annotations[resource.F5VsAppRootAnnotation]; ok {
+	if appRootPath, ok := route.Annotations[F5VsAppRootAnnotation]; ok {
 		if appRootPath == "" {
-			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsAppRootAnnotation)
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, F5VsAppRootAnnotation)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
 		if route.Spec.Path != "" && route.Spec.Path != "/" {
-			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", resource.F5VsAppRootAnnotation, appRootPath, route.Name)
+			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", F5VsAppRootAnnotation, appRootPath, route.Name)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
@@ -1750,9 +1749,9 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	}
 
 	// Validate WAF annotation
-	if wafPolicy, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
+	if wafPolicy, ok := route.Annotations[F5VsWAFPolicy]; ok {
 		if wafPolicy == "" {
-			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsWAFPolicy)
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, F5VsWAFPolicy)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
@@ -1760,19 +1759,19 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	}
 
 	// Validate AllowSourceRange annotation
-	if sourceRange, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]; ok {
+	if sourceRange, ok := route.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
 		invalidAllowSourceRange := false
 		if sourceRange == "" {
 			invalidAllowSourceRange = true
 		} else {
-			allowSourceRange := resource.ParseWhitelistSourceRangeAnnotations(sourceRange)
+			allowSourceRange := ParseWhitelistSourceRangeAnnotations(sourceRange)
 			if allowSourceRange == nil && len(allowSourceRange) == 0 {
 				invalidAllowSourceRange = true
 			}
 		}
 		if invalidAllowSourceRange {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name,
-				resource.F5VsAllowSourceRangeAnnotation)
+				F5VsAllowSourceRangeAnnotation)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
@@ -1780,7 +1779,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	}
 	// Validate multiCluster service annotation has valid cluster names
 	if ctlr.multiClusterMode != "" {
-		if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+		if annotation := route.Annotations[MultiClusterServicesAnnotation]; annotation != "" {
 			var clusterSvcs []cisapiv1.MultiClusterServiceReference
 			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 			if err == nil {
@@ -1796,7 +1795,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 					}
 				}
 			} else {
-				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", resource.MultiClusterServicesAnnotation, route.Name, route.Namespace)
+				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", MultiClusterServicesAnnotation, route.Name, route.Namespace)
 				log.Errorf(message)
 				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 				return false

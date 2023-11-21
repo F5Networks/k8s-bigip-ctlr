@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"os"
@@ -42,16 +41,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-)
-
-const nginxMonitorPort int32 = 8081
-
-const (
-	NotEnabled = iota
-	InvalidInput
-	NotRequested
-	Requested
-	Allocated
 )
 
 // nextGenResourceWorker starts the Custom Resource Worker.
@@ -4184,7 +4173,7 @@ func (ctlr *Controller) getResourceServicePort(ns string,
 			}
 			return 0,
 				fmt.Errorf("Could not find service port '%s' on service '%s'", portName, key)
-		} else if rscType == resource.ResourceTypeRoute {
+		} else if rscType == Route {
 			return svc.Spec.Ports[0].Port, nil
 		}
 	} else if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {

@@ -20,8 +20,6 @@ import (
 	"container/list"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 	"net/http"
 	"sync"
 
@@ -61,8 +59,6 @@ type (
 		customResourceSelector labels.Selector
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
-		ciliumTunnelName       string
-		vxlanMgr               *vxlan.VxlanMgr
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
@@ -132,9 +128,6 @@ type (
 		Partition           string
 		Agent               *Agent
 		PoolMemberType      string
-		VXLANName           string
-		VXLANMode           string
-		CiliumTunnelName    string
 		UseNodeInternal     bool
 		NodePollInterval    int
 		ShareNodes          bool
@@ -737,7 +730,6 @@ type (
 	Agent struct {
 		*PostManager
 		Partition       string
-		ConfigWriter    writer.Writer
 		EventChan       chan interface{}
 		respChan        chan resourceStatusMeta
 		PythonDriverPID int
@@ -745,8 +737,6 @@ type (
 		HttpAddress     string
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
-		ccclGTMAgent    bool
-		disableARP      bool
 		HAMode          bool
 		GTMPostManager  *GTMPostManager
 	}
@@ -764,8 +754,6 @@ type (
 		UserAgent          string
 		HttpAddress        string
 		EnableIPV6         bool
-		DisableARP         bool
-		CCCLGTMAgent       bool
 		StaticRoutingMode  bool
 		SharedStaticRoutes bool
 		MultiClusterMode   string
@@ -1261,19 +1249,6 @@ type AnnotationsUsed struct {
 }
 
 type TLSVersion string
-
-const (
-	TLSVerion1_3 TLSVersion = "1.3"
-)
-
-const (
-	Active          cisapiv1.HAModeType      = "active-active"
-	StandBy         cisapiv1.HAModeType      = "active-standby"
-	Ratio           cisapiv1.HAModeType      = "ratio"
-	None            cisapiv1.AutoMonitorType = "none"
-	ReadinessProbe  cisapiv1.AutoMonitorType = "readiness-probe"
-	ServiceEndpoint cisapiv1.AutoMonitorType = "service-endpoint"
-)
 
 type (
 	PoolIdentifier struct {

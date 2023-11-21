@@ -29,8 +29,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
-
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 )
@@ -357,7 +355,7 @@ func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, err
 				Path:    path,
 				Replace: true,
 				Request: true,
-				Value:   resource.ParseRewriteAction(path, rwPath),
+				Value:   ParseRewriteAction(path, rwPath),
 			})
 		} else {
 			actions = append(actions, &action{
@@ -1254,7 +1252,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 		return
 	}
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
-	if annotation := route.Annotations[resource.MultiClusterServicesAnnotation]; annotation != "" {
+	if annotation := route.Annotations[MultiClusterServicesAnnotation]; annotation != "" {
 		err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 		if err != nil {
 			log.Warningf("failed to read services from the annotation of route %s: Error: %v", route.Name, err)

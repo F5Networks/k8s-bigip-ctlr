@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
@@ -18,11 +17,7 @@ var _ = Describe("Backend Tests", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
 		var agent *Agent
 		BeforeEach(func() {
-			writer := &test.MockWriter{
-				FailStyle: test.Success,
-				Sections:  make(map[string]interface{}),
-			}
-			agent = newMockAgent(writer)
+			agent = newMockAgent()
 			agent.PostManager = &PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1"}}
 			agent.Partition = "test"
 			agent.userAgent = "as3"
@@ -343,11 +338,7 @@ var _ = Describe("Backend Tests", func() {
 		var agent *Agent
 		tnt := "test"
 		BeforeEach(func() {
-			writer := &test.MockWriter{
-				FailStyle: test.Success,
-				Sections:  make(map[string]interface{}),
-			}
-			agent = newMockAgent(writer)
+			agent = newMockAgent()
 			agent.HAMode = true
 			client, _ := getMockHttpClient([]responceCtx{{
 				tenant: tnt,
@@ -372,7 +363,7 @@ var _ = Describe("Backend Tests", func() {
 	Describe("GTM Config", func() {
 		var agent *Agent
 		BeforeEach(func() {
-			agent = newMockAgent(nil)
+			agent = newMockAgent()
 			DEFAULT_PARTITION = "default"
 		})
 		// Commenting this test case

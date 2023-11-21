@@ -26,14 +26,8 @@ import (
 	"strings"
 	"time"
 
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	"k8s.io/apimachinery/pkg/util/intstr"
-)
-
-const (
-	as3SharedApplication = "Shared"
-	gtmPartition         = "Common"
 )
 
 var baseAS3Config = `{
@@ -67,7 +61,6 @@ func NewAgent(params AgentParams) *Agent {
 		respChan:    make(chan resourceStatusMeta, 1),
 		userAgent:   params.UserAgent,
 		HttpAddress: params.HttpAddress,
-		disableARP:  params.DisableARP,
 	}
 
 	// agentWorker runs as a separate go routine
@@ -226,11 +219,6 @@ func (agent *Agent) postTenantsDeclaration(decl as3Declaration, rsConfig Resourc
 
 	agent.publishConfig(cfg)
 
-	// Don't update ARPs if disableARP is set to true
-	if !agent.disableARP {
-		go agent.updateARPsForPoolMembers(rsConfig)
-	}
-
 	agent.updateTenantResponseMap(true)
 
 	if len(agent.retryTenantDeclMap) > 0 {
@@ -281,12 +269,12 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
-	var allPoolMems []rsc.Member
+	var allPoolMems []PoolMember
 
 	for _, poolMem := range allPoolMembers {
 		allPoolMems = append(
 			allPoolMems,
-			rsc.Member(poolMem),
+			PoolMember(poolMem),
 		)
 	}
 	if agent.EventChan != nil {

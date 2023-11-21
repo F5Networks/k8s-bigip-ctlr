@@ -13,7 +13,7 @@ var _ = Describe("Backend Tests", func() {
 		var agent *Agent
 		BeforeEach(func() {
 			DEFAULT_GTM_PARTITION = "test_gtm"
-			agent = newMockAgent(nil)
+			agent = newMockAgent()
 			agent.GTMPostManager = NewGTMPostManager(AgentParams{GTMParams: PostParams{
 				CMURL: "192.168.1.1",
 			}})

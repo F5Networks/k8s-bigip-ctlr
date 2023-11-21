@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
@@ -144,7 +143,7 @@ func (ctlr *Controller) getSvcPortFromHACluster(svcNameSpace, svcName, portName,
 			}
 			return 0,
 				fmt.Errorf("Could not find service port '%s' on service '%s'", portName, svcNameSpace+"/"+svcName)
-		} else if rscType == resource.ResourceTypeRoute {
+		} else if rscType == Route {
 			return svc.Spec.Ports[0].Port, nil
 		}
 	} else if err != nil {

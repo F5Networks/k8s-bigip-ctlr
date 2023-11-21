@@ -74,8 +74,8 @@ var (
 	printVersion *bool
 	disableTeems *bool
 
-	poolMemberType *string
-	kubeConfig     *string
+	kubeConfig            *string
+	manageCustomResources *bool
 
 	cmURL       *string
 	cmUsername  *string
@@ -136,7 +136,7 @@ func _init() {
 	credsDir = cmIPFlags.String("credentials-directory", "",
 		"Optional, directory that contains the CentralManager username, password, and/or "+
 			"url files. To be used instead of username, password, and/or url arguments.")
-	sslInsecure = cmIPFlags.Bool("insecure", false,
+	sslInsecure = cmIPFlags.Bool("no-verify-ssl", false,
 		"Optional, when set to true, enable insecure SSL communication to CentralManager.")
 	trustedCertsCfgmap = cmIPFlags.String("trusted-certs-cfgmap", "",
 		"Optional, when certificates are provided, adds them to controller trusted certificate store.")
@@ -150,6 +150,8 @@ func _init() {
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsagesWrapped(width))
 	}
+	manageCustomResources = kubeFlags.Bool("manage-custom-resources", true,
+		"Optional, specify whether or not to manage custom resources i.e. transportserver")
 
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(cmIPFlags)
@@ -347,12 +349,6 @@ func getAgentParams() controller.AgentParams {
 		PostParams: postMgrParams,
 		LogLevel:   *logLevel,
 		UserAgent:  userAgentInfo,
-	}
-
-	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	// ARP not required for nodeport mode
-	if *poolMemberType == "nodeport" || *poolMemberType == "nodeportlocal" {
-		agentParams.DisableARP = true
 	}
 	return agentParams
 }

@@ -2044,6 +2044,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
 		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
 		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
 		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
@@ -2279,6 +2280,41 @@ extendedRouteSpec:
 			Expect(mockCtlr.clusterAdminState[""]).To(Equal(clustermanager.Enable))
 			Expect(mockCtlr.clusterAdminState["cluster2"]).To(Equal(clustermanager.Disable))
 			Expect(mockCtlr.clusterAdminState["cluster3"]).To(Equal(clustermanager.Offline))
+		})
+
+		It("Process Route in multiCluster active-active mode with correct pool name", func() {
+			mockCtlr.multiClusterMode = PrimaryCIS
+			data = make(map[string]string)
+			data["extendedSpec"] = `
+mode: active-active
+highAvailabilityCIS:
+      primaryEndPoint: http://10.145.72.114:8001
+      probeInterval: 30
+      retryInterval: 3
+      primaryCluster:
+        clusterName: cluster1
+        secret: default/kubeconfig1
+      secondaryCluster:
+        clusterName: cluster2
+        secret: default/kubeconfig2
+externalClustersConfig:
+    - clusterName: cluster3
+      secret: default/kubeconfig3
+    - clusterName: cluster4
+      secret: default/kubeconfig4
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      policyCR : default/policy
+`
+			cm.Data = data
+			mockCtlr.updateConfigMap(cm)
+			mockCtlr.processGlobalExtendedConfigMap()
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			Expect(len(rsCfg.Pools)).To(Equal(1))
+			Expect(rsCfg.Pools[0].Name).To(Equal("foo_80_default"), "Pool name in multiCluster active-active mode is incorrect")
 		})
 
 	})

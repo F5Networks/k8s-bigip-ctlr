@@ -8,17 +8,17 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
-        * Support for a/b deployment custom persistence in ratio mode with cluster mode. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy/policy-with-ab-persistence.yaml>`_
         * Add support for cluster AdminState. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/multicluster/extendedConfigmap/global-spec-config-for-multicluster-with-cluster-admin-state.yaml>`_
     * Next Generation Routes
-        * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/deployment/deployment-pod-with-readinessprobe.yaml>`_
-        * Support for new route annotation **virtual-server.f5.com/pod-concurrent-connections**, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes/sample-route-with-pod-concurrent-connections-annotation.yaml>`_
+        * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor. See `DeploymentPod Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/deployment/deployment-pod-with-readinessprobe.yaml>`_, `AutoMonitor Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_
+        * Support for new route annotation **virtual-server.f5.com/pod-concurrent-connections**. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes/sample-route-with-pod-concurrent-connections-annotation.yaml>`_
     * CRD
-       * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/ConnectionMirroring/vs-with-connection-mirroring.yaml>`_
+       * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR. See `VirtualServerCR Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/ConnectionMirroring/vs-with-connection-mirroring.yaml>`_, `TransportServerCR Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/TransportServer/ts-with-connection-mirroring.yaml>`_
        * `Issue 2963 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2963>`_: Support MinimumMonitors in virtualserver CR
+    * `Issue 3066 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3066>`_: Support for a/b deployment custom persistence in CRD, nextGen routes with cluster mode. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy/policy-with-ab-persistence.yaml>`_
     * Support for dedicated AS3 GTM agent for GTM Server
     * Support for new CIS health check endpoint /ready
-    * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode.See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_
+    * Support for configuring node network CIDR for ovn-k8s CNI with staticRoutingMode. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/StaticRoute>`_
     * CIS compatible with OpenShift 4.13, Kubernetes 1.28 and AS3 3.48
     * Improved Operator support for OpenShift 4.13
 
@@ -29,7 +29,6 @@ Bug Fixes
 * `Issue 3079 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3079>`_: Fix logic for node not ready check
 * `Issue 3073 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3073>`_: Fix AS3 config map multi port service issue
 * `Issue 2985 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2985>`_: Improve CIS primary and secondary coordination
-* `Issue 3066 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3066>`_: Support for a/b deployment custom persistence in CRD, nextGen routes with cluster mode. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy/policy-with-ab-persistence.yaml>`_
 * `Issue 3126 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3126>`_: VirtualServer with hostGroup and ipamLabel set returns the wrong vsAddress status
 
 Upgrade notes

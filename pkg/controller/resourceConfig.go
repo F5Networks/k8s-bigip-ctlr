@@ -345,7 +345,8 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 	}
 
-	if ctlr.multiClusterMode != "" {
+	// Attach cluster name to pool name only in case of multi-cluster ratio mode
+	if ctlr.multiClusterMode != "" && ctlr.haModeType == Ratio {
 		if cluster == "" {
 			cluster = ctlr.multiClusterConfigs.LocalClusterName
 		}

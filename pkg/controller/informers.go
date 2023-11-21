@@ -131,7 +131,7 @@ func (crInfr *CRInformer) start() {
 		cacheSyncs = append(cacheSyncs, crInfr.ilInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
-		"F5 CIS CRD Controller",
+		"F5 CIS Ingress Controller",
 		crInfr.stopCh,
 		cacheSyncs...,
 	)

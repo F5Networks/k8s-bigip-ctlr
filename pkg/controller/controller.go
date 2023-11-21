@@ -156,13 +156,13 @@ func NewController(params Params) *Controller {
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 		clusterAdminState:     make(map[string]cisapiv1.AdminState),
-		cmTokenManager: tokenmanager.NewTokenManager(params.CMConfigDetails.URL, tokenmanager.Credentials{
+		CMTokenManager: tokenmanager.NewTokenManager(params.CMConfigDetails.URL, tokenmanager.Credentials{
 			Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password}),
 	}
 
 	log.Debug("Controller Created")
 	// Sync CM token
-	ctlr.cmTokenManager.SyncToken(make(chan struct{}))
+	ctlr.CMTokenManager.SyncToken(make(chan struct{}))
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
 	ctlr.comInformers = make(map[string]*CommonInformer)

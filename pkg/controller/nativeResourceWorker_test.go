@@ -1099,15 +1099,13 @@ var _ = Describe("Routes", func() {
 			mockCtlr.resources = &ResourceStore{
 				supplementContextCache: supplementContextCache{
 					baseRouteConfig: cisapiv1.BaseRouteConfig{
-						cisapiv1.TLSCipher{
-							"1.2",
-							"DEFAULT",
-							"/Common/f5-default",
+						TLSCipher: cisapiv1.TLSCipher{
+							TLSVersion:  "1.2",
+							Ciphers:     "DEFAULT",
+							CipherGroup: "/Common/f5-default",
 						},
-						cisapiv1.DefaultSSLProfile{},
-						cisapiv1.DefaultRouteGroupConfig{},
-						"",
-						0,
+						DefaultTLS:              cisapiv1.DefaultSSLProfile{},
+						DefaultRouteGroupConfig: cisapiv1.DefaultRouteGroupConfig{},
 					},
 				},
 			}
@@ -2542,34 +2540,48 @@ var _ = Describe("Multi Cluster with Routes", func() {
 
 		It("Process Route in multiCluster active-active mode with correct pool name", func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
-			data = make(map[string]string)
-			data["extendedSpec"] = `
-mode: active-active
-highAvailabilityCIS:
-      primaryEndPoint: http://10.145.72.114:8001
-      probeInterval: 30
-      retryInterval: 3
-      primaryCluster:
-        clusterName: cluster1
-        secret: default/kubeconfig1
-      secondaryCluster:
-        clusterName: cluster2
-        secret: default/kubeconfig2
-externalClustersConfig:
-    - clusterName: cluster3
-      secret: default/kubeconfig3
-    - clusterName: cluster4
-      secret: default/kubeconfig4
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-      policyCR : default/policy
+			extConfig := `
+{
+    "mode": "active-active",
+    "highAvailabilityCIS": {
+        "primaryEndPoint": "http://10.145.72.114:8001",
+        "probeInterval": 30,
+        "retryInterval": 3,
+        "primaryCluster": {
+            "clusterName": "cluster1",
+            "secret": "default/kubeconfig1"
+        },
+        "secondaryCluster": {
+            "clusterName": "cluster2",
+            "secret": "default/kubeconfig2"
+        }
+    },
+    "externalClustersConfig": [
+        {
+            "clusterName": "cluster3",
+            "secret": "default/kubeconfig3"
+        },
+        {
+            "clusterName": "cluster4",
+            "secret": "default/kubeconfig4"
+        }
+    ],
+    "extendedRouteSpec": [
+        {
+            "namespace": "default",
+            "vserverAddr": "10.8.3.11",
+            "vserverName": "nextgenroutes",
+            "allowOverride": true,
+            "policyCR": "default/policy"
+        }
+    ]
+}
 `
-			cm.Data = data
-			mockCtlr.updateConfigMap(cm)
-			mockCtlr.processGlobalExtendedConfigMap()
+			es := cisapiv1.ExtendedSpec{}
+			_ = json.Unmarshal([]byte(extConfig), &es)
+			configCR.Spec.ExtendedSpec = es
+			mockCtlr.updateConfigCR(configCR)
+			mockCtlr.processGlobalDeployConfigCR()
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
 			Expect(len(rsCfg.Pools)).To(Equal(1))
 			Expect(rsCfg.Pools[0].Name).To(Equal("foo_80_default"), "Pool name in multiCluster active-active mode is incorrect")

@@ -6,7 +6,7 @@
 trigger:
   branches:
     include:
-      - cis-3.0
+      - master
   tags:
     include:
       - v*

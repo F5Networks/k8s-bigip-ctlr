@@ -15,9 +15,7 @@ var _ = Describe("Profile", func() {
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.managedResources.ManageCustomResources = true
 		mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
-			"1.2",
-			"",
-			"",
+			TLSVersion: "1.2",
 		}
 
 	})

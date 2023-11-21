@@ -1248,9 +1248,9 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig cisapiv1
 
 	//declare default configuration for TLS Ciphers
 	ctlr.resources.baseRouteConfig.TLSCipher = cisapiv1.TLSCipher{
-		"1.2",
-		"DEFAULT",
-		"/Common/f5-default",
+		TLSVersion:  "1.2",
+		Ciphers:     "DEFAULT",
+		CipherGroup: "/Common/f5-default",
 	}
 	ctlr.resources.baseRouteConfig.DefaultTLS = cisapiv1.DefaultSSLProfile{}
 	ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig = cisapiv1.DefaultRouteGroupConfig{}

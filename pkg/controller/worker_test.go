@@ -89,7 +89,7 @@ var _ = Describe("Worker Tests", func() {
 				cachedTenantDeclMap: make(map[string]as3Tenant),
 				retryTenantDeclMap:  make(map[string]*tenantParams),
 				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
+					CMURL: "10.10.10.1",
 				},
 			},
 		}
@@ -198,7 +198,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
+						CMURL: "10.10.10.1",
 					},
 				},
 			}
@@ -852,7 +852,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
+						CMURL: "10.10.10.1",
 					},
 				},
 			}
@@ -1133,7 +1133,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.Agent = &Agent{
 					PostManager: &PostManager{
 						PostParams: PostParams{
-							BIGIPURL: "10.10.10.1",
+							CMURL: "10.10.10.1",
 						},
 					},
 				}
@@ -1471,9 +1471,9 @@ var _ = Describe("Worker Tests", func() {
 			}
 
 			mockPM = newMockPostManger()
-			mockPM.BIGIPURL = "bigip.com"
-			mockPM.BIGIPUsername = "user"
-			mockPM.BIGIPPassword = "pswd"
+			mockPM.CMURL = "bigip.com"
+			mockPM.CMUsername = "user"
+			mockPM.CMPassword = "pswd"
 			mockPM.tenantResponseMap = make(map[string]tenantResponse)
 			mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
@@ -2820,9 +2820,9 @@ var _ = Describe("Worker Tests", func() {
 			}
 
 			mockPM = newMockPostManger()
-			mockPM.BIGIPURL = "bigip.com"
-			mockPM.BIGIPUsername = "user"
-			mockPM.BIGIPPassword = "pswd"
+			mockPM.CMURL = "bigip.com"
+			mockPM.CMUsername = "user"
+			mockPM.CMPassword = "pswd"
 			mockPM.tenantResponseMap = make(map[string]tenantResponse)
 			mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
@@ -3780,7 +3780,7 @@ var _ = Describe("Worker Tests", func() {
 					postChan:            make(chan ResourceConfigRequest, 1),
 					cachedTenantDeclMap: make(map[string]as3Tenant),
 					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
+						CMURL: "10.10.10.1",
 					},
 				},
 			}

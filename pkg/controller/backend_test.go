@@ -23,7 +23,7 @@ var _ = Describe("Backend Tests", func() {
 				Sections:  make(map[string]interface{}),
 			}
 			agent = newMockAgent(writer)
-			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"}}
+			agent.PostManager = &PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1"}}
 			agent.Partition = "test"
 			agent.userAgent = "as3"
 
@@ -302,7 +302,7 @@ var _ = Describe("Backend Tests", func() {
 
 			zero := 0
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			agent.BIGIPURL = "https://192.168.1.1"
+			agent.CMURL = "https://192.168.1.1"
 			as3decl := agent.createTenantAS3Declaration(config)
 			var as3Config map[string]interface{}
 			_ = json.Unmarshal([]byte(as3decl), &as3Config)
@@ -354,7 +354,7 @@ var _ = Describe("Backend Tests", func() {
 				status: http.StatusOK,
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
-			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"},
+			agent.PostManager = &PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1"},
 				httpClient: client, firstPost: true}
 		})
 		It("VirtualServer Declaration", func() {
@@ -530,11 +530,9 @@ var _ = Describe("Backend Tests", func() {
 			var agentParams AgentParams
 			agentParams.EnableIPV6 = true
 			agentParams.Partition = "test"
-			agentParams.VXLANName = "vxlan500"
-			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
+			agentParams.PostParams.CMURL = "http://" + server.Addr()
 			agent := NewAgent(agentParams)
 			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.48.0"))
-			agent.Stop()
 
 		})
 	})

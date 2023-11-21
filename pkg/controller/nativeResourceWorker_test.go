@@ -54,7 +54,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.Agent = &Agent{
 			PostManager: &PostManager{
 				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
+					CMURL: "10.10.10.1",
 				},
 			},
 		}
@@ -2132,7 +2132,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
+						CMURL: "10.10.10.1",
 					},
 				},
 			}
@@ -2290,7 +2290,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 		mockCtlr.Agent = &Agent{
 			PostManager: &PostManager{
 				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
+					CMURL: "10.10.10.1",
 				},
 			},
 		}
@@ -2632,7 +2632,7 @@ var _ = Describe("Multi Cluster with CRD", func() {
 		mockCtlr.Agent = &Agent{
 			PostManager: &PostManager{
 				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
+					CMURL: "10.10.10.1",
 				},
 			},
 		}

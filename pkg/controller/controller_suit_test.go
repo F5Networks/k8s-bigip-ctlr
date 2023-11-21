@@ -45,7 +45,7 @@ func newMockController() *mockController {
 	return &mockController{
 		Controller: &Controller{
 			baseConfig:       BaseConfig{},
-			managedResources: ManagedResources{},
+			managedResources: ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true},
 		},
 		mockResources: make(map[string][]interface{}),
 	}
@@ -105,14 +105,10 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
-		PostManager:     &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
-		Partition:       "test",
-		ConfigWriter:    writer,
-		EventChan:       make(chan interface{}),
-		PythonDriverPID: 0,
-		//cachedTenantDeclMap:   make(map[string]interface{}),
-		//incomingTenantDeclMap: make(map[string]interface{}),
-		userAgent: "",
+		PostManager: &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
+		Partition:   "test",
+		EventChan:   make(chan interface{}),
+		userAgent:   "",
 	}
 }
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {

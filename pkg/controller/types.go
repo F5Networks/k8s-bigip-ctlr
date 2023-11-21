@@ -21,6 +21,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
 	"net/http"
 	"sync"
 
@@ -39,8 +40,6 @@ import (
 	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/writer"
-
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
@@ -100,6 +99,11 @@ type (
 	ManagedResources struct {
 		ManageRoutes          bool
 		ManageCustomResources bool
+		ManageTransportServer bool
+		ManageVirtualServer   bool
+		ManageEDNS            bool
+		ManageIL              bool
+		ManageTLSProfile      bool
 	}
 	BaseConfig struct {
 		NamespaceLabel string
@@ -798,12 +802,12 @@ type (
 	}
 
 	PostParams struct {
-		BIGIPUsername string
-		BIGIPPassword string
-		BIGIPURL      string
-		TrustedCerts  string
-		SSLInsecure   bool
-		AS3PostDelay  int
+		CMUsername   string
+		CMPassword   string
+		CMURL        string
+		TrustedCerts string
+		SSLInsecure  bool
+		AS3PostDelay int
 		// Log the AS3 response body in Controller logs
 		LogAS3Response    bool
 		LogAS3Request     bool

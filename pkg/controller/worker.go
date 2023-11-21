@@ -79,35 +79,6 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	}
 }
 
-//func (ctlr *Controller) setInitialServiceCount() {
-//	var svcCount int
-//	for _, ns := range ctlr.getWatchingNamespaces() {
-//		comInf, found := ctlr.getNamespacedCommonInformer(ns)
-//		if !found {
-//			continue
-//		}
-//		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
-//		if err != nil {
-//			continue
-//		}
-//		for _, obj := range services {
-//			svc := obj.(*v1.Service)
-//			if _, ok := K8SCoreServices[svc.Name]; ok {
-//				continue
-//			}
-//			if ctlr.mode == OpenShiftMode {
-//				if _, ok := OSCPCoreServices[svc.Name]; ok {
-//					continue
-//				}
-//			}
-//			if svc.Spec.Type != v1.ServiceTypeExternalName {
-//				svcCount++
-//			}
-//		}
-//	}
-//	ctlr.initialResourceCount = svcCount
-//}
-
 func (ctlr *Controller) setInitialResourceCount() {
 	var rscCount int
 	for _, ns := range ctlr.getWatchingNamespaces() {
@@ -127,27 +98,38 @@ func (ctlr *Controller) setInitialResourceCount() {
 			if !found {
 				continue
 			}
-			vs, err := crInf.vsInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(vs)
-			ts, err := crInf.tsInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(ts)
-			il, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(il)
-			if comInf, ok := ctlr.comInformers[ns]; ok {
-				edns, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
+			if ctlr.managedResources.ManageVirtualServer {
+				vs, err := crInf.vsInformer.GetIndexer().ByIndex("namespace", ns)
 				if err != nil {
 					continue
 				}
-				rscCount += len(edns)
+				rscCount += len(vs)
+			}
+
+			if ctlr.managedResources.ManageTransportServer {
+				ts, err := crInf.tsInformer.GetIndexer().ByIndex("namespace", ns)
+				if err != nil {
+					continue
+				}
+				rscCount += len(ts)
+			}
+
+			if ctlr.managedResources.ManageIL {
+				il, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", ns)
+				if err != nil {
+					continue
+				}
+				rscCount += len(il)
+			}
+
+			if ctlr.managedResources.ManageEDNS {
+				if comInf, ok := ctlr.comInformers[ns]; ok {
+					edns, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
+					if err != nil {
+						continue
+					}
+					rscCount += len(edns)
+				}
 			}
 		}
 		comInf, found := ctlr.getNamespacedCommonInformer(ns)
@@ -168,9 +150,9 @@ func (ctlr *Controller) setInitialResourceCount() {
 					continue
 				}
 			}
-			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-				rscCount++
-			}
+			//if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			//	rscCount++
+			//}
 		}
 	}
 
@@ -202,14 +184,15 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service ||
 			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
 			if rKey.kind == Service {
-				if svc, ok := rKey.rsc.(*v1.Service); ok {
-					if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-						ctlr.initialResourceCount--
-					} else {
-						// return as we don't process other services at start up
-						return true
-					}
-				}
+				//if svc, ok := rKey.rsc.(*v1.Service); ok {
+				//	if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+				//		ctlr.initialResourceCount--
+				//	} else {
+				//		// return as we don't process other services at start up
+				//		return true
+				//	}
+				//}
+				return true
 			} else {
 				ctlr.initialResourceCount--
 			}
@@ -822,7 +805,6 @@ func (ctlr *Controller) getAllVirtualServers(namespace string) []*cisapiv1.Virtu
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-
 	var orderedVSs []interface{}
 	var err error
 	if namespace == "" {
@@ -2715,7 +2697,9 @@ func (ctlr *Controller) processService(
 }
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
-
+	if ctlr.managedResources.ManageEDNS == false {
+		return
+	}
 	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
 		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
 			if processedWIP.UID != string(edns.UID) {
@@ -2779,7 +2763,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -2818,9 +2802,6 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 						continue
 					}
 					preGTMServerName := ""
-					if ctlr.Agent.ccclGTMAgent {
-						preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
-					}
 					// add only one VS member to pool.
 					if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 						if strings.HasSuffix(vsName, "_443") {
@@ -2935,6 +2916,8 @@ func (ctlr *Controller) ProcessRouteEDNS(hosts []string) {
 }
 
 func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
+	if ctlr.managedResources.ManageEDNS == false {
+	}
 	var allEDNS []*cisapiv1.ExternalDNS
 	if ctlr.watchingAllNamespaces() {
 		allEDNS = ctlr.getAllExternalDNS("")

@@ -150,9 +150,9 @@ func (agent *Agent) retryGTMWorker() {
 
 func isGTMOnSeparateServer(params AgentParams) bool {
 	var isGTMOnSeparateServer bool
-	if !params.CCCLGTMAgent && len(params.GTMParams.BIGIPURL) != 0 && len(params.GTMParams.BIGIPUsername) != 0 && len(params.GTMParams.BIGIPPassword) != 0 {
+	if len(params.GTMParams.CMURL) != 0 && len(params.GTMParams.CMUsername) != 0 && len(params.GTMParams.CMPassword) != 0 {
 		// Check if GTM parameter is different then LTM parameter
-		if params.PostParams.BIGIPURL != params.GTMParams.BIGIPURL || params.PostParams.BIGIPUsername != params.GTMParams.BIGIPUsername || params.PostParams.BIGIPPassword != params.GTMParams.BIGIPPassword {
+		if params.PostParams.CMURL != params.GTMParams.CMURL || params.PostParams.CMUsername != params.GTMParams.CMUsername || params.PostParams.CMPassword != params.GTMParams.CMPassword {
 			isGTMOnSeparateServer = true
 		}
 	}

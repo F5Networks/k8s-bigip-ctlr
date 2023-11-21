@@ -102,12 +102,12 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 }
 
 func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
-	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/declare/" + strings.Join(tenants, ",")
+	apiURL := postMgr.CMURL + "/mgmt/shared/appsvcs/declare/" + strings.Join(tenants, ",")
 	return apiURL
 }
 
 func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
-	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/task/" + taskId
+	apiURL := postMgr.CMURL + "/mgmt/shared/appsvcs/task/" + taskId
 	return apiURL
 }
 
@@ -130,7 +130,7 @@ func (postMgr *PostManager) postConfig(cfg *agentConfig) {
 		return
 	}
 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
@@ -220,7 +220,7 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 		return
 	}
 	log.Debugf("[AS3]%v posting request with taskId to %v", postMgr.postManagerPrefix, postMgr.getAS3TaskIdURL(id))
-	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
@@ -323,7 +323,7 @@ func (postMgr *PostManager) GetBigipAS3Version() (string, string, string, error)
 	}
 
 	log.Debugf("[AS3]%v posting GET BIGIP AS3 Version request on %v", postMgr.postManagerPrefix, url)
-	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -360,7 +360,7 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 	}
 
 	log.Debugf("[AS3]%v Posting GET BIGIP Reg Key request on %v", postMgr.postManagerPrefix, url)
-	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -391,7 +391,7 @@ func (postMgr *PostManager) GetAS3DeclarationFromBigIP() (map[string]interface{}
 	}
 
 	log.Debugf("[AS3]%v posting GET BIGIP AS3 declaration request on %v", postMgr.postManagerPrefix, url)
-	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -437,12 +437,12 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 }
 
 func (postMgr *PostManager) getAS3VersionURL() string {
-	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/info"
+	apiURL := postMgr.CMURL + "/mgmt/shared/appsvcs/info"
 	return apiURL
 }
 
 func (postMgr *PostManager) getBigipRegKeyURL() string {
-	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"
+	apiURL := postMgr.CMURL + "/mgmt/tm/shared/licensing/registration"
 	return apiURL
 }
 

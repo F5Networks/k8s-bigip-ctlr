@@ -23,9 +23,9 @@ var _ = Describe("PostManager Tests", func() {
 	Describe("Post Config and Handle Response", func() {
 		var agentCfg agentConfig
 		BeforeEach(func() {
-			mockPM.BIGIPURL = "bigip.com"
-			mockPM.BIGIPUsername = "user"
-			mockPM.BIGIPPassword = "pswd"
+			mockPM.CMURL = "bigip.com"
+			mockPM.CMUsername = "user"
+			mockPM.CMPassword = "pswd"
 			agentCfg = agentConfig{
 				data:      "{}",
 				as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
@@ -174,9 +174,9 @@ var _ = Describe("PostManager Tests", func() {
 
 	Describe("BIGIP AS3 Version", func() {
 		BeforeEach(func() {
-			mockPM.BIGIPURL = "bigip.com"
-			mockPM.BIGIPUsername = "user"
-			mockPM.BIGIPPassword = "pswd"
+			mockPM.CMURL = "bigip.com"
+			mockPM.CMUsername = "user"
+			mockPM.CMPassword = "pswd"
 		})
 
 		It("Get BIG-IP AS3 Version", func() {

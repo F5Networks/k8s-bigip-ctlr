@@ -50,7 +50,7 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 		mockCtlr.Agent = &Agent{
 			PostManager: &PostManager{
 				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
+					CMURL: "10.10.10.1",
 				},
 				httpClient: &http.Client{
 					Timeout: 1,

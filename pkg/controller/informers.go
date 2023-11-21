@@ -19,6 +19,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"io"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
@@ -32,6 +34,7 @@ import (
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -131,7 +134,7 @@ func (crInfr *CRInformer) start() {
 		cacheSyncs = append(cacheSyncs, crInfr.ilInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
-		"F5 CIS CRD Controller",
+		"F5 CIS Ingress Controller",
 		crInfr.stopCh,
 		cacheSyncs...,
 	)
@@ -437,6 +440,7 @@ func (ctlr *Controller) addNodeEventUpdateHandler(nodeInformer *NodeInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
 			},
 		)
+		nodeInformer.nodeInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(NodeUpdate, nodeInformer.clusterName))
 	}
 }
 
@@ -553,6 +557,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedVirtualServer(obj) },
 			},
 		)
+		crInf.vsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(VirtualServer, Local))
 	}
 
 	if crInf.tlsInformer != nil {
@@ -563,6 +568,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				// DeleteFunc: func(obj interface{}) { ctlr.enqueueTLSProfile(obj) },
 			},
 		)
+		crInf.tlsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(TLSProfile, Local))
 	}
 
 	if crInf.tsInformer != nil {
@@ -573,6 +579,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedTransportServer(obj) },
 			},
 		)
+		crInf.tsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(TransportServer, Local))
 	}
 
 	if crInf.ilInformer != nil {
@@ -583,6 +590,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedIngressLink(obj) },
 			},
 		)
+		crInf.ilInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(IngressLink, Local))
 	}
 }
 
@@ -595,6 +603,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, "") },
 			},
 		)
+		comInf.svcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Service, Local))
 	}
 
 	if comInf.epsInformer != nil {
@@ -605,6 +614,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, "") },
 			},
 		)
+		comInf.epsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Endpoints, Local))
 	}
 
 	if comInf.ednsInformer != nil {
@@ -614,6 +624,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj) },
 			})
+		comInf.ednsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ExternalDNS, Local))
 	}
 
 	if comInf.plcInformer != nil {
@@ -624,6 +635,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
 			},
 		)
+		comInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, Local))
 	}
 
 	if comInf.podInformer != nil {
@@ -634,6 +646,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, "") },
 			},
 		)
+		comInf.podInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Pod, Local))
 	}
 
 	if comInf.secretsInformer != nil {
@@ -644,6 +657,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
 			},
 		)
+		comInf.secretsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Secret, Local))
 	}
 
 	if comInf.cmInformer != nil {
@@ -654,6 +668,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj) },
 			},
 		)
+		comInf.cmInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ConfigMap, Local))
 	}
 
 }
@@ -667,6 +682,7 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj, Delete) },
 			},
 		)
+		nrInf.routeInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Route, Local))
 	}
 }
 
@@ -685,7 +701,7 @@ func (ctlr *Controller) enqueueIPAM(obj interface{}) {
 		return
 	}
 
-	log.Infof("Enqueueing IPAM: %v", ipamObj)
+	log.Debugf("Enqueueing IPAM: %v", ipamObj)
 	key := &rqKey{
 		namespace: ipamObj.ObjectMeta.Namespace,
 		kind:      IPAM,
@@ -709,7 +725,7 @@ func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 		return
 	}
 
-	log.Infof("Enqueueing Updated IPAM: %v", curIpam)
+	log.Debugf("Enqueueing Updated IPAM: %v", curIpam)
 	key := &rqKey{
 		namespace: curIpam.ObjectMeta.Namespace,
 		kind:      IPAM,
@@ -728,7 +744,7 @@ func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 		return
 	}
 
-	log.Infof("Enqueueing IPAM: %v", ipamObj)
+	log.Debugf("Enqueueing IPAM: %v", ipamObj)
 	key := &rqKey{
 		namespace: ipamObj.ObjectMeta.Namespace,
 		kind:      IPAM,
@@ -820,7 +836,7 @@ func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 
 func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 	tls := obj.(*cisapiv1.TLSProfile)
-	log.Infof("Enqueueing TLSProfile: %v", tls)
+	log.Debugf("Enqueueing TLSProfile: %v", tls)
 	key := &rqKey{
 		namespace: tls.ObjectMeta.Namespace,
 		kind:      TLSProfile,
@@ -834,7 +850,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 	ts := obj.(*cisapiv1.TransportServer)
-	log.Infof("Enqueueing TransportServer: %v", ts)
+	log.Debugf("Enqueueing TransportServer: %v", ts)
 	key := &rqKey{
 		namespace: ts.ObjectMeta.Namespace,
 		kind:      TransportServer,
@@ -910,7 +926,7 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 
 func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
 	pol := obj.(*cisapiv1.Policy)
-	log.Infof("Enqueueing Policy: %v", pol)
+	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace: pol.ObjectMeta.Namespace,
 		kind:      CustomPolicy,
@@ -924,7 +940,7 @@ func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 	pol := obj.(*cisapiv1.Policy)
-	log.Infof("Enqueueing Policy: %v", pol)
+	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace: pol.ObjectMeta.Namespace,
 		kind:      CustomPolicy,
@@ -938,7 +954,7 @@ func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 
 func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
-	log.Infof("Enqueueing IngressLink: %v", ingLink)
+	log.Debugf("Enqueueing IngressLink: %v", ingLink)
 	key := &rqKey{
 		namespace: ingLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -952,7 +968,7 @@ func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
-	log.Infof("Enqueueing IngressLink: %v on Delete", ingLink)
+	log.Debugf("Enqueueing IngressLink: %v on Delete", ingLink)
 	key := &rqKey{
 		namespace: ingLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -990,7 +1006,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 		ctlr.resourceQueue.Add(key)
 	}
 
-	log.Infof("Enqueueing IngressLink: %v on Update", newIngLink)
+	log.Debugf("Enqueueing IngressLink: %v on Update", newIngLink)
 	key := &rqKey{
 		namespace: newIngLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -1004,7 +1020,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 
 func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
 	edns := obj.(*cisapiv1.ExternalDNS)
-	log.Infof("Enqueueing ExternalDNS: %v", edns)
+	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace: edns.ObjectMeta.Namespace,
 		kind:      ExternalDNS,
@@ -1032,7 +1048,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 		ctlr.resourceQueue.Add(key)
 	}
 
-	log.Infof("Enqueueing Updated ExternalDNS: %v", edns)
+	log.Debugf("Enqueueing Updated ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace: edns.ObjectMeta.Namespace,
 		kind:      ExternalDNS,
@@ -1046,7 +1062,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	edns := obj.(*cisapiv1.ExternalDNS)
-	log.Infof("Enqueueing ExternalDNS: %v", edns)
+	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace: edns.ObjectMeta.Namespace,
 		kind:      ExternalDNS,
@@ -1391,7 +1407,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 
 func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 	ns := obj.(*corev1.Namespace)
-	log.Infof("Enqueueing Namespace: %v", ns)
+	log.Debugf("Enqueueing Namespace: %v", ns)
 	key := &rqKey{
 		namespace: ns.ObjectMeta.Namespace,
 		kind:      Namespace,
@@ -1404,7 +1420,7 @@ func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 	ns := obj.(*corev1.Namespace)
-	log.Infof("Enqueueing Namespace: %v on Delete", ns)
+	log.Debugf("Enqueueing Namespace: %v on Delete", ns)
 	key := &rqKey{
 		namespace: ns.ObjectMeta.Namespace,
 		kind:      Namespace,
@@ -1435,4 +1451,22 @@ func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
 		kind: HACIS,
 	}
 	ctlr.resourceQueue.Add(key)
+}
+
+func (ctlr *Controller) getErrorHandlerFunc(rsType, clusterName string) func(r *cache.Reflector, err error) {
+	return func(r *cache.Reflector, err error) {
+		switch {
+		case apierrors.IsResourceExpired(err) || apierrors.IsGone(err):
+			// Don't set LastSyncResourceVersionUnavailable - LIST call with ResourceVersion=RV already
+			// has a semantic that it returns data at least as fresh as provided RV.
+			// So first try to LIST with setting RV to resource version of last observed object.
+			log.Errorf("Watch of %v in cluster %v closed with: %v", rsType, clusterName, err)
+		case err == io.EOF:
+			// watch closed normally
+		case err == io.ErrUnexpectedEOF:
+			log.Errorf("Watch for %v in cluster %v closed with unexpected EOF: %v", rsType, clusterName, err)
+		default:
+			utilruntime.HandleError(fmt.Errorf("[ERROR] Failed to watch %v in cluster %v: %v", rsType, clusterName, err))
+		}
+	}
 }

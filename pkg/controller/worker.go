@@ -260,7 +260,7 @@ func (ctlr *Controller) processResources() bool {
 			err := ctlr.processRoutes(routeGroup, false)
 			if err != nil {
 				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
 		}
@@ -306,7 +306,7 @@ func (ctlr *Controller) processResources() bool {
 		err := ctlr.processVirtualServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 			isRetryableError = true
 		}
 		if rKey.event != Create && ctlr.multiClusterMode != "" {
@@ -326,7 +326,7 @@ func (ctlr *Controller) processResources() bool {
 			err := ctlr.processVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
 		}
@@ -359,7 +359,7 @@ func (ctlr *Controller) processResources() bool {
 					err := ctlr.processVirtualServers(virtual, false)
 					if err != nil {
 						// TODO
-						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 						isRetryableError = true
 					}
 				}
@@ -393,7 +393,7 @@ func (ctlr *Controller) processResources() bool {
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 			isRetryableError = true
 		}
 		if rKey.event != Create && ctlr.multiClusterMode != "" {
@@ -418,7 +418,7 @@ func (ctlr *Controller) processResources() bool {
 		err := ctlr.processIngressLink(ingLink, rscDelete)
 		if err != nil {
 			// TODO
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 			isRetryableError = true
 		}
 	case ExternalDNS:
@@ -446,7 +446,7 @@ func (ctlr *Controller) processResources() bool {
 				err := ctlr.processVirtualServers(virtual, false)
 				if err != nil {
 					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 					isRetryableError = true
 				}
 			}
@@ -456,7 +456,7 @@ func (ctlr *Controller) processResources() bool {
 				err := ctlr.processTransportServers(virtual, false)
 				if err != nil {
 					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 					isRetryableError = true
 				}
 			}
@@ -466,7 +466,7 @@ func (ctlr *Controller) processResources() bool {
 				err := ctlr.processLBServices(lbService, false)
 				if err != nil {
 					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 					isRetryableError = true
 				}
 			}
@@ -492,7 +492,7 @@ func (ctlr *Controller) processResources() bool {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
 		}
@@ -531,7 +531,7 @@ func (ctlr *Controller) processResources() bool {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
 		}
@@ -560,7 +560,7 @@ func (ctlr *Controller) processResources() bool {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
 			break
@@ -592,14 +592,14 @@ func (ctlr *Controller) processResources() bool {
 				ctlr.namespacesMutex.Lock()
 				delete(ctlr.namespaces, nsName)
 				ctlr.namespacesMutex.Unlock()
-				log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+				log.Infof("Removed Namespace: '%v' from CIS scope", nsName)
 				triggerDelete = true
 			} else {
 				ctlr.namespacesMutex.Lock()
 				ctlr.namespaces[nsName] = true
 				ctlr.namespacesMutex.Unlock()
 				_ = ctlr.addNamespacedInformers(nsName, true)
-				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+				log.Infof("Added Namespace: '%v' to CIS scope", nsName)
 			}
 			if ctlr.namespaceLabelMode {
 				ctlr.processGlobalExtendedConfigMap()
@@ -615,7 +615,7 @@ func (ctlr *Controller) processResources() bool {
 					err := ctlr.processVirtualServers(vrt, true)
 					if err != nil {
 						// TODO
-						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 						isRetryableError = true
 					}
 				}
@@ -624,7 +624,7 @@ func (ctlr *Controller) processResources() bool {
 					err := ctlr.processTransportServers(ts, true)
 					if err != nil {
 						// TODO
-						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 						isRetryableError = true
 					}
 				}
@@ -634,24 +634,29 @@ func (ctlr *Controller) processResources() bool {
 				ctlr.namespacesMutex.Lock()
 				delete(ctlr.namespaces, nsName)
 				ctlr.namespacesMutex.Unlock()
-				log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+				log.Infof("Removed Namespace: '%v' from CIS scope", nsName)
 			} else {
 				ctlr.namespacesMutex.Lock()
 				ctlr.namespaces[nsName] = true
 				ctlr.namespacesMutex.Unlock()
 				_ = ctlr.addNamespacedInformers(nsName, true)
-				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+				log.Infof("Added Namespace: '%v' to CIS scope", nsName)
 			}
 		}
 	case HACIS:
-		log.Debugf("posting declaration on primary cluster down event")
+		log.Infof("posting declaration on primary cluster down event")
 	case NodeUpdate:
-		log.Debugf("posting declaration on node update")
+		log.Infof("posting declaration on node update")
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}
 
 	if isRetryableError {
+		if rKey.clusterName == "" {
+			log.Warningf("Request from cluster local resulted in retry for  %v in %v %v/%v", strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+		} else {
+			log.Warningf("Request from cluster %v resulted in retry for %v in %v %v/%v", rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+		}
 		ctlr.resourceQueue.AddRateLimited(key)
 	} else {
 		ctlr.resourceQueue.Forget(key)
@@ -684,6 +689,11 @@ func (ctlr *Controller) processResources() bool {
 			go ctlr.TeemData.PostTeemsData()
 		}
 		config.reqId = ctlr.enqueueReq(config)
+		if rKey.clusterName == "" {
+			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqId, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+		} else {
+			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqId, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+		}
 		ctlr.Agent.PostConfig(config)
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
@@ -2083,7 +2093,7 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	}
 	err, svc := ctlr.fetchService(svcKey)
 	if err != nil {
-		log.Errorf("%v %v", err, getClusterLog(clusterName))
+		log.Warningf("service '%v' %s not found", svcKey, getClusterLog(clusterName))
 	}
 	var poolMembers []PoolMember
 	if svc != nil {
@@ -3913,7 +3923,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				}
 				ratioKeyValues += fmt.Sprintf(" %s:%d", cluster, *ratio)
 			}
-			log.Debugf("[MultiCluster] Cluster ratios:%s", ratioKeyValues)
+			log.Infof("[MultiCluster] Cluster ratios:%s", ratioKeyValues)
 		}
 		// Check if cluster Admin state has been updated for any cluster
 		// Check only if CIS is running in multiCluster mode

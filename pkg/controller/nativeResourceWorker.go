@@ -976,7 +976,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 						}
 					}
 				} else {
-					log.Debugf("%v Added namespace label informer: %v", ctlr.getMultiClusterLog(), nsLabel)
+					log.Infof("%v Added namespace label informer: %v", ctlr.getMultiClusterLog(), nsLabel)
 					ctlr.nsInformers[nsLabel].start()
 				}
 			}

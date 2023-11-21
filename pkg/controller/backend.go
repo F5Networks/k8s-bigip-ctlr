@@ -242,6 +242,7 @@ func (agent *Agent) agentWorker() {
 		// Fetch the latest config from channel
 		select {
 		case rsConfig = <-agent.postChan:
+			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
 		case <-time.After(1 * time.Microsecond):
 		}
 
@@ -252,10 +253,11 @@ func (agent *Agent) agentWorker() {
 		if agent.GTMPostManager != nil {
 			agent.GTMPostManager.PostGTMConfig(rsConfig)
 		}
-
+		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(rsConfig.reqId))
 		decl := agent.createTenantAS3Declaration(rsConfig)
 
 		if len(agent.incomingTenantDeclMap) == 0 {
+			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(rsConfig.reqId))
 			agent.declUpdate.Unlock()
 			continue
 		}

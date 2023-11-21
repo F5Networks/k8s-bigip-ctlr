@@ -34,10 +34,12 @@ func (agent *Agent) gtmWorker() {
 		// Fetch the latest config from channel
 		select {
 		case rsConfig = <-agent.GTMPostManager.PostManager.postChan:
+			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
 		case <-time.After(1 * time.Microsecond):
 		}
 		adc := as3ADC{}
 		agent.GTMPostManager.incomingTenantDeclMap = make(map[string]as3Tenant)
+		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(rsConfig.reqId))
 		for tenant, cfg := range agent.createAS3GTMConfigADC(rsConfig, adc) {
 			if !reflect.DeepEqual(cfg, agent.GTMPostManager.cachedTenantDeclMap[tenant]) {
 				agent.GTMPostManager.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
@@ -50,6 +52,7 @@ func (agent *Agent) gtmWorker() {
 		}
 
 		if len(agent.GTMPostManager.incomingTenantDeclMap) == 0 {
+			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(rsConfig.reqId))
 			agent.declUpdate.Unlock()
 			continue
 		}

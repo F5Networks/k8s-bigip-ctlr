@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/controller"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/url"
 	"os"
 	"os/signal"
@@ -330,6 +332,13 @@ func initController(
 			Agent:            agent,
 			PoolMemberType:   poolMemberMode,
 			OrchestrationCNI: *orchestrationCNI,
+			CMConfigDetails: &controller.CMConfig{
+				URL:      *cmURL,
+				UserName: *cmUsername,
+				Password: *cmPassword,
+			},
+			CMTrustedCerts: getBIGIPTrustedCerts(),
+			CMSSLInsecure:  *sslInsecure,
 		},
 	)
 
@@ -434,4 +443,36 @@ func getUserAgentInfo() string {
 	}
 	log.Warningf("Unable to fetch user agent details. %v", err)
 	return fmt.Sprintf("CIS/v%v", version)
+}
+
+// Read certificate from configmap
+func getBIGIPTrustedCerts() string {
+	namespaceCfgmapSlice := strings.Split(*trustedCertsCfgmap, "/")
+	if len(namespaceCfgmapSlice) != 2 {
+		log.Debugf("[INIT] Invalid trusted-certs-cfgmap option provided.")
+		return ""
+	}
+
+	cm, err := getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
+	if err != nil {
+		log.Errorf("[INIT] ConfigMap with name %v not found in namespace: %v, error: %v",
+			namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
+		os.Exit(1)
+	}
+
+	var certs string
+	// Fetch all certificates from configmap
+	for _, v := range cm.Data {
+		certs += v + "\n"
+	}
+	return certs
+}
+
+// getConfigMapUsingNamespaceAndName fetches and returns the configMap
+func getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
+	cfgMap, err := kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(context.TODO(), cfgMapName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return cfgMap, err
 }

@@ -20,7 +20,7 @@ var _ = Describe("Token Manager Tests", func() {
 				tokenManager = NewTokenManager(server.URL(), Credentials{
 					Username: "admin",
 					Password: "admin",
-				})
+				}, "", true)
 			})
 			AfterEach(func() {
 				// Stop the mock token server

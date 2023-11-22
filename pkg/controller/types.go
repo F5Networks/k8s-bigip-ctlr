@@ -140,6 +140,8 @@ type (
 		StaticRouteNodeCIDR string
 		MultiClusterMode    string
 		CMConfigDetails     *CMConfig
+		CMTrustedCerts      string
+		CMSSLInsecure       bool
 	}
 
 	// CMConfig defines the Central Manager config

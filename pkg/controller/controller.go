@@ -68,8 +68,11 @@ func NewController(params Params) *Controller {
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 		clusterAdminState:     make(map[string]cisapiv1.AdminState),
-		CMTokenManager: tokenmanager.NewTokenManager(params.CMConfigDetails.URL, tokenmanager.Credentials{
-			Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password}),
+		CMTokenManager: tokenmanager.NewTokenManager(
+			params.CMConfigDetails.URL,
+			tokenmanager.Credentials{Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password},
+			params.CMTrustedCerts,
+			params.CMSSLInsecure),
 	}
 
 	ctlr.managedResources.ManageTransportServer = true

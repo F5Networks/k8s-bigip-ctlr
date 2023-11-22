@@ -814,37 +814,42 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 								set wc_host ".$domain_wc"
 								set passthru_class "/%[1]s/%[2]s_ssl_passthrough_servername_dg"
 								if { [class exists $passthru_class] } {
-									SSL::disable serverside
-									set dflt_pool_passthrough ""
-
-									# Disable Serverside SSL for Passthrough Class
-									set dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]
-									# If no match, try wildcard domain
-									if { $dflt_pool_passthrough == "" } {
-									    if { [class match $wc_host equals $passthru_class] } {
-            							        set dflt_pool_passthrough [class match -value $wc_host equals $passthru_class]
-									    }
-									}
-									if { not ($dflt_pool_passthrough equals "") } {
-										SSL::disable
-										HTTP::disable
-									}
-
-									set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
-									if { not [class exists $ab_class] } {
-										if { $dflt_pool_passthrough == "" } then {
-											log local0.debug "Failed to find pool for $servername_lower $"
-										} else {
-											pool $dflt_pool_passthrough
+                                    # check if the passthrough data group has a record with the servername
+                                    set passthru_dg_key [class match $servername_lower equals $passthru_class]
+								    set passthru_dg_wc_key [class match $wc_host equals $passthru_class]
+								    if { $passthru_dg_key != 0 || $passthru_dg_wc_key != 0 } {
+										SSL::disable serverside
+										set dflt_pool_passthrough ""
+	
+										# Disable Serverside SSL for Passthrough Class
+										set dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]
+										# If no match, try wildcard domain
+										if { $dflt_pool_passthrough == "" } {
+											if { [class match $wc_host equals $passthru_class] } {
+													set dflt_pool_passthrough [class match -value $wc_host equals $passthru_class]
+											}
 										}
-									} else {
-										set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough ""]
-										if { $selected_pool == "" } then {
-											log local0.debug "Failed to find pool for $servername_lower"
-										} else {
-											pool $selected_pool
+										if { not ($dflt_pool_passthrough equals "") } {
+											SSL::disable
+											HTTP::disable
 										}
-									}
+	
+										set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+										if { not [class exists $ab_class] } {
+											if { $dflt_pool_passthrough == "" } then {
+												log local0.debug "Failed to find pool for $servername_lower $"
+											} else {
+												pool $dflt_pool_passthrough
+											}
+										} else {
+											set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough ""]
+											if { $selected_pool == "" } then {
+												log local0.debug "Failed to find pool for $servername_lower"
+											} else {
+												pool $selected_pool
+											}
+										}
+                                    }
 								}
 							}
 						}
@@ -947,7 +952,9 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
                 if { not [info exists dflt_pool] } then {
                 	 # Allowing HTTP2 traffic to be handled by policies and closing the connection for HTTP/1.1 unknown hosts.
                 	 if { not ([SSL::payload] starts_with "PRI * HTTP/2.0") } {
-                	    reject ; event disable all; return;
+                	    reject ; event disable all;
+                        log local0.debug "Failed to find pool for $servername_lower"
+                        return;
                     }
                 } else {
                 	pool $dflt_pool

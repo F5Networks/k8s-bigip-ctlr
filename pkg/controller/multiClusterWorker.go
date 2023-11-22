@@ -187,3 +187,10 @@ func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (inter
 			ctlr.multiClusterConfigs.HAPairClusterName, svcNameSpace)
 	}
 }
+
+func getClusterLog(clusterName string) string {
+	if clusterName == "" {
+		clusterName = Local
+	}
+	return "from cluster: " + clusterName
+}

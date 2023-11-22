@@ -12,10 +12,12 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
+		mockCtlr.multiClusterNodeInformers[""] = &NodeInformer{}
 	})
 
 	AfterEach(func() {
@@ -24,8 +26,8 @@ var _ = Describe("Node Poller Handler", func() {
 
 	It("Nodes", func() {
 		nodeInf := mockCtlr.getNodeInformer("")
-		mockCtlr.nodeInformer = &nodeInf
-		mockCtlr.addNodeEventUpdateHandler(mockCtlr.nodeInformer)
+		mockCtlr.multiClusterNodeInformers[""] = &nodeInf
+		mockCtlr.addNodeEventUpdateHandler(&nodeInf)
 		mockCtlr.UseNodeInternal = true
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
@@ -52,7 +54,7 @@ var _ = Describe("Node Poller Handler", func() {
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
-		Expect(len(mockCtlr.nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
+		Expect(len(nodeInf.nodeInformer.GetIndexer().List())).To(Equal(3))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
 		//verify node with NotReady state not added to node list
 		Expect(len(nodes)).To(Equal(2))
@@ -67,8 +69,7 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 
-		mockCtlr.oldNodes = nodes
-
+		mockCtlr.multiClusterNodeInformers[""].oldNodes = nodes
 		// Negative case
 		nodes, err = mockCtlr.getNodes([]interface{}{nodeAddr1, nodeAddr2})
 		Expect(nodes).To(BeNil(), "Failed to Validate nodes")
@@ -281,8 +282,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//Describe("Processes CIS monitored resources on node update", func() {
 	//	BeforeEach(func() {
 	//		namespace := ""
-	//		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-	//		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+	//		mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+	//		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 	//		mockCtlr.mode = CustomResourceMode
 	//		mockCtlr.PoolMemberType = NodePort
 	//		mockCtlr.crInformers = make(map[string]*CRInformer)
@@ -290,12 +291,12 @@ var _ = Describe("Node Poller Handler", func() {
 	//		_ = mockCtlr.addNamespacedInformers("", false)
 	//		mockCtlr.resources = NewResourceStore()
 	//		mockCtlr.crInformers[""].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-	//			mockCtlr.kubeCRClient,
+	//			mockCtlr.clientsets.kubeCRClient,
 	//			namespace,
 	//			0,
 	//			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	//			func(options *metav1.ListOptions) {
-	//				options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+	//				options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 	//			},
 	//		)
 	//		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
@@ -455,12 +456,12 @@ var _ = Describe("Node Poller Handler", func() {
 	//		mockCtlr.crInformers = make(map[string]*CRInformer)
 	//		_ = mockCtlr.addNamespacedInformers("", false)
 	//		mockCtlr.crInformers[""].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-	//			mockCtlr.kubeCRClient,
+	//			mockCtlr.clientsets.kubeCRClient,
 	//			"",
 	//			0,
 	//			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	//			func(options *metav1.ListOptions) {
-	//				options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+	//				options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 	//			},
 	//		)
 	//		nodeObjs = tempNodeObjs

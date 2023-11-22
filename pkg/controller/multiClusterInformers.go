@@ -70,6 +70,7 @@ func (poolInfr *MultiClusterPoolInformer) start() {
 }
 
 func (poolInfr *MultiClusterPoolInformer) stop() {
+	log.Infof("[MultiCluster] Stopping service, pod and endpoint informers %v", getClusterLog(poolInfr.clusterName))
 	close(poolInfr.stopCh)
 }
 
@@ -181,6 +182,7 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, poolInf.clusterName) },
 			},
 		)
+		poolInf.svcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Service, poolInf.clusterName))
 	}
 
 	if poolInf.epsInformer != nil {
@@ -191,6 +193,7 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, poolInf.clusterName) },
 			},
 		)
+		poolInf.epsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Endpoints, poolInf.clusterName))
 	}
 	if poolInf.podInformer != nil {
 		poolInf.podInformer.AddEventHandler(
@@ -200,6 +203,7 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, poolInf.clusterName) },
 			},
 		)
+		poolInf.podInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Pod, poolInf.clusterName))
 	}
 }
 

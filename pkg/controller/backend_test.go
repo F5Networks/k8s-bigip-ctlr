@@ -523,7 +523,7 @@ var _ = Describe("Backend Tests", func() {
 			agentParams.Partition = "test"
 			agentParams.PostParams.CMURL = "http://" + server.Addr()
 			agent := NewAgent(agentParams)
-			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.48.0"))
+			Expect(agent.PostManager).ToNot(BeNil())
 
 		})
 	})

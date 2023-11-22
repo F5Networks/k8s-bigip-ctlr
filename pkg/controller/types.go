@@ -37,7 +37,6 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/pollers"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
@@ -50,13 +49,8 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		resources     *ResourceStore
-		kubeCRClient  versioned.Interface
-		kubeClient    kubernetes.Interface
-		kubeAPIClient *extClient.Clientset
-		//eventNotifier          *apm.EventNotifier
-		nativeResourceSelector labels.Selector
-		customResourceSelector labels.Selector
+		resources              *ResourceStore
+		clientsets             *ClientSets
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
 		initialResourceCount   int
@@ -64,12 +58,9 @@ type (
 		Partition              string
 		Agent                  *Agent
 		PoolMemberType         string
-		nodePoller             pollers.Poller
-		oldNodes               []Node
 		UseNodeInternal        bool
 		initState              bool
 		firstPostResponse      bool
-		dgPath                 string
 		shareNodes             bool
 		ipamCli                *ipammachinery.IPAMClient
 		ipamCR                 string
@@ -88,9 +79,15 @@ type (
 		clusterRatio           map[string]*int
 		clusterAdminState      map[string]cisapiv1.AdminState
 		managedResources       ManagedResources
-		baseConfig             BaseConfig
+		resourceSelectorConfig ResourceSelectorConfig
 		CMTokenManager         *tokenmanager.TokenManager
 		resourceContext
+	}
+	ClientSets struct {
+		kubeCRClient  versioned.Interface
+		kubeClient    kubernetes.Interface
+		kubeAPIClient *extClient.Clientset
+		routeClientV1 routeclient.RouteV1Interface
 	}
 	ManagedResources struct {
 		ManageRoutes          bool
@@ -100,48 +97,50 @@ type (
 		ManageEDNS            bool
 		ManageIL              bool
 		ManageTLSProfile      bool
+		ManageSecrets         bool
 	}
-	BaseConfig struct {
-		NamespaceLabel string
-		NodeLabel      string
+	ResourceSelectorConfig struct {
+		NamespaceLabel         string
+		NodeLabel              string
+		RouteLabel             string
+		nativeResourceSelector labels.Selector
+		customResourceSelector labels.Selector
 	}
 	resourceContext struct {
 		resourceQueue             workqueue.RateLimitingInterface
-		routeClientV1             routeclient.RouteV1Interface
 		comInformers              map[string]*CommonInformer
 		nrInformers               map[string]*NRInformer
 		crInformers               map[string]*CRInformer
 		nsInformers               map[string]*NSInformer
-		nodeInformer              *NodeInformer
 		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
 		multiClusterNodeInformers map[string]*NodeInformer
 		CISConfigCRKey            string
-		routeLabel                string
 		namespaceLabelMode        bool
 		processedHostPath         *ProcessedHostPath
 	}
 
 	// Params defines parameters
 	Params struct {
-		Config              *rest.Config
-		Namespaces          []string
-		Partition           string
-		Agent               *Agent
-		PoolMemberType      string
-		UseNodeInternal     bool
-		NodePollInterval    int
-		ShareNodes          bool
-		IPAM                bool
-		DefaultRouteDomain  int
-		CISConfigCRKey      string
-		RouteLabel          string
-		StaticRoutingMode   bool
-		OrchestrationCNI    string
-		StaticRouteNodeCIDR string
-		MultiClusterMode    string
-		CMConfigDetails     *CMConfig
-		CMTrustedCerts      string
-		CMSSLInsecure       bool
+		Config                *rest.Config
+		Namespaces            []string
+		Partition             string
+		Agent                 *Agent
+		PoolMemberType        string
+		UseNodeInternal       bool
+		NodePollInterval      int
+		ShareNodes            bool
+		IPAM                  bool
+		DefaultRouteDomain    int
+		CISConfigCRKey        string
+		StaticRoutingMode     bool
+		OrchestrationCNI      string
+		StaticRouteNodeCIDR   string
+		MultiClusterMode      string
+		CMConfigDetails       *CMConfig
+		CMTrustedCerts        string
+		CMSSLInsecure         bool
+		HttpAddress           string
+		ManageCustomResources bool
 	}
 
 	// CMConfig defines the Central Manager config
@@ -736,7 +735,6 @@ type (
 		respChan        chan resourceStatusMeta
 		PythonDriverPID int
 		userAgent       string
-		HttpAddress     string
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
 		HAMode          bool

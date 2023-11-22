@@ -92,13 +92,13 @@ var _ = Describe("Worker Tests", func() {
 				},
 			},
 		}
-		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
+		mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset(svc1)
 		mockCtlr.managedResources.ManageCustomResources = true
 		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default", false)
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -111,21 +111,21 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-			mockCtlr.kubeCRClient,
+			mockCtlr.clientsets.kubeCRClient,
 			namespace,
 			0,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			func(options *metav1.ListOptions) {
-				options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+				options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 			},
 		)
 		mockCtlr.crInformers["default"].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-			mockCtlr.kubeCRClient,
+			mockCtlr.clientsets.kubeCRClient,
 			namespace,
 			0,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			func(options *metav1.ListOptions) {
-				options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+				options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 			},
 		)
 	})
@@ -790,7 +790,9 @@ var _ = Describe("Worker Tests", func() {
 	})
 	Describe("Endpoints", func() {
 		BeforeEach(func() {
-			mockCtlr.oldNodes = []Node{
+			mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
+			mockCtlr.multiClusterNodeInformers[""] = &NodeInformer{}
+			mockCtlr.multiClusterNodeInformers[""].oldNodes = []Node{
 				{
 					Name: "worker1",
 					Addr: "10.10.10.1",
@@ -870,7 +872,7 @@ var _ = Describe("Worker Tests", func() {
 			svc1.Annotations = make(map[string]string)
 			svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
 
-			svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
+			svc1, _ = mockCtlr.clientsets.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
 
 			_ = mockCtlr.processLBServices(svc1, false)
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
@@ -1104,7 +1106,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
 			pod1.Labels = labels
 			mockCtlr.addPod(pod1)
-			mockCtlr.kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
+			mockCtlr.clientsets.kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
 			Expect(mockCtlr.GetPodsForService("default", "svc", true)).ToNot(BeNil())
 			Expect(mockCtlr.GetService("test", "svc")).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
@@ -1153,7 +1155,7 @@ var _ = Describe("Worker Tests", func() {
 				svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
 				svc1.Annotations[LBServicePolicyNameAnnotation] = "plc1"
 
-				svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(
+				svc1, _ = mockCtlr.clientsets.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(
 					context.TODO(), svc1, metav1.UpdateOptions{})
 
 				_ = mockCtlr.createIPAMResource()
@@ -1183,12 +1185,12 @@ var _ = Describe("Worker Tests", func() {
 					"Resource Config should be empty")
 
 				mockCtlr.comInformers[namespace].plcInformer = cisinfv1.NewFilteredPolicyInformer(
-					mockCtlr.kubeCRClient,
+					mockCtlr.clientsets.kubeCRClient,
 					namespace,
 					0,
 					cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 					func(options *metav1.ListOptions) {
-						options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+						options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 					},
 				)
 				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Add(plc)
@@ -1438,12 +1440,12 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -1664,7 +1666,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addService(svc)
 				mockCtlr.processResources()
 
-				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
 				mockCtlr.setInitialResourceCount()
 				mockCtlr.migrateIPAM()
 
@@ -1688,7 +1690,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addSecret(secret)
 				mockCtlr.processResources()
 
-				mockCtlr.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				// Should process VS now
@@ -1799,7 +1801,7 @@ var _ = Describe("Worker Tests", func() {
 			//	mockCtlr.addService(svc)
 			//	mockCtlr.processResources()
 			//
-			//	mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
+			//	mockCtlr.clientsets.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
 			//	mockCtlr.setInitialServiceCount()
 			//	mockCtlr.migrateIPAM()
 			//
@@ -1821,7 +1823,7 @@ var _ = Describe("Worker Tests", func() {
 			//	vs.Spec.HTTPTraffic = TLSRedirectInsecure
 			//	vs.Spec.VirtualServerHTTPPort = 80
 			//
-			//	mockCtlr.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+			//	mockCtlr.clientsets.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
 			//	mockCtlr.addVirtualServer(vs)
 			//	mockCtlr.processResources()
 			//	// Should process VS now
@@ -2593,7 +2595,7 @@ var _ = Describe("Worker Tests", func() {
 					}
 				)
 
-				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
 				mockCtlr.addService(foo)
 				mockCtlr.processResources()
 
@@ -2697,7 +2699,7 @@ var _ = Describe("Worker Tests", func() {
 					}
 				)
 
-				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
 				mockCtlr.addService(foo)
 				mockCtlr.processResources()
 
@@ -2779,12 +2781,12 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+			mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.PoolMemberType = NodePortLocal
 			mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
 			mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
@@ -3579,8 +3581,8 @@ var _ = Describe("Worker Tests", func() {
 
 				// Remove health Annotation - This won't work because current we are querying the pods from the kube client instead of informers
 				delete(route1.Annotations, HealthMonitorAnnotation)
-				mockCtlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
-				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
@@ -3589,7 +3591,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				pod.Spec.Containers[0].ReadinessProbe.TimeoutSeconds = 1
-				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
@@ -3607,7 +3609,7 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				}
-				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+				mockCtlr.clientsets.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
@@ -3733,7 +3735,7 @@ var _ = Describe("Worker Tests", func() {
 					make(map[string]struct{}),
 				}
 
-				mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+				mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
 
 				//	This will fail the TC because we are updating route status
 				time.Sleep(10 * time.Millisecond)
@@ -3770,12 +3772,12 @@ var _ = Describe("Worker Tests", func() {
 					},
 				},
 			}
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset(svc1)
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			_ = mockCtlr.addNamespacedInformers("default", false)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -3789,21 +3791,21 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-				mockCtlr.kubeCRClient,
+				mockCtlr.clientsets.kubeCRClient,
 				namespace,
 				0,
 				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 				func(options *metav1.ListOptions) {
-					options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+					options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 				},
 			)
 			mockCtlr.crInformers["default"].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-				mockCtlr.kubeCRClient,
+				mockCtlr.clientsets.kubeCRClient,
 				namespace,
 				0,
 				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 				func(options *metav1.ListOptions) {
-					options.LabelSelector = mockCtlr.nativeResourceSelector.String()
+					options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
 				},
 			)
 		})

@@ -45,7 +45,7 @@ import (
 
 // nextGenResourceWorker starts the Custom Resource Worker.
 func (ctlr *Controller) nextGenResourceWorker() {
-	log.Debugf("Starting Custom Resource Worker")
+	log.Debugf("Starting resource worker")
 	ctlr.setInitialResourceCount()
 	ctlr.migrateIPAM()
 	// process the DeployConfig CR if present
@@ -64,6 +64,7 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		clusterNodes := ctlr.getNodesFromAllClusters()
 		ctlr.processStaticRouteUpdate(clusterNodes)
 	}
+	log.Infof("Started Controller")
 	for ctlr.processResources() {
 	}
 }
@@ -555,20 +556,20 @@ func (ctlr *Controller) processResources() bool {
 					delete(ctlr.nrInformers, nsName)
 				}
 				if comInf, ok := ctlr.comInformers[nsName]; ok {
-					comInf.stop()
+					comInf.stop(nsName)
 					delete(ctlr.comInformers, nsName)
 				}
 				ctlr.namespacesMutex.Lock()
 				delete(ctlr.namespaces, nsName)
 				ctlr.namespacesMutex.Unlock()
-				log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+				log.Debugf("Removed namespace: '%v' from CIS scope", nsName)
 				triggerDelete = true
 			} else {
 				ctlr.namespacesMutex.Lock()
 				ctlr.namespaces[nsName] = true
 				ctlr.namespacesMutex.Unlock()
 				_ = ctlr.addNamespacedInformers(nsName, true)
-				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+				log.Debugf("Added namespace: '%v' to CIS scope", nsName)
 			}
 			if ctlr.namespaceLabelMode {
 				ctlr.processGlobalDeployConfigCR()
@@ -604,13 +605,13 @@ func (ctlr *Controller) processResources() bool {
 				ctlr.namespacesMutex.Lock()
 				delete(ctlr.namespaces, nsName)
 				ctlr.namespacesMutex.Unlock()
-				log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+				log.Debugf("Removed namespace: '%v' from CIS scope", nsName)
 			} else {
 				ctlr.namespacesMutex.Lock()
 				ctlr.namespaces[nsName] = true
 				ctlr.namespacesMutex.Unlock()
 				_ = ctlr.addNamespacedInformers(nsName, true)
-				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+				log.Debugf("Added namespace: '%v' to CIS scope", nsName)
 			}
 		}
 	case HACIS:
@@ -647,11 +648,13 @@ func (ctlr *Controller) processResources() bool {
 				// using node informers to count the clusters as it will be available in all CNIs
 				// adding 1 for the current cluster
 				ctlr.TeemData.ClusterCount = len(ctlr.multiClusterNodeInformers) + 1
-				go ctlr.TeemData.PostTeemsData()
+				//TODO add support for teems data
+				// go ctlr.TeemData.PostTeemsData()
 			}
 		} else {
 			// In non multi-cluster mode, we should post the teems data
-			go ctlr.TeemData.PostTeemsData()
+			//TODO add support for teems data
+			// go ctlr.TeemData.PostTeemsData()
 		}
 		config.reqId = ctlr.enqueueReq(config)
 		ctlr.Agent.PostConfig(config)
@@ -3446,7 +3449,7 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
 
-	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 	if nil != updateErr {
 		// Multi-service causes the controller to try to update the status multiple times
 		// at once. Ignore this error.
@@ -3488,7 +3491,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 			svc.Status.LoadBalancer.Ingress[index+1:]...)
 
-		_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+		_, updateErr := ctlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
 			context.TODO(), svc, metav1.UpdateOptions{})
 		if nil != updateErr {
 			// Multi-service causes the controller to try to update the status multiple times
@@ -3513,7 +3516,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 //) {
 //	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
 //
-//	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+//	_, updateErr := ctlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
 //		context.TODO(), svc, metav1.UpdateOptions{})
 //	if nil != updateErr {
 //		// Multi-service causes the controller to try to update the status multiple times
@@ -3541,7 +3544,7 @@ func (ctlr *Controller) recordLBServiceIngressEvent(
 	//namespace := svc.ObjectMeta.Namespace
 	//// Create the event
 	//evNotifier := ctlr.eventNotifier.CreateNotifierForNamespace(
-	//	namespace, ctlr.kubeClient.CoreV1())
+	//	namespace, ctlr.clientsets.kubeClient.CoreV1())
 	//evNotifier.RecordEvent(svc, eventType, reason, message)
 }
 
@@ -3590,7 +3593,7 @@ func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 	vs.Status = vsStatus
 	vs.Status.VSAddress = ip
 	vs.Status.StatusOk = statusOk
-	_, updateErr := ctlr.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
 		return
@@ -3605,7 +3608,7 @@ func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer
 	ts.Status = tsStatus
 	ts.Status.VSAddress = ip
 	ts.Status.StatusOk = statusOk
-	_, updateErr := ctlr.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating Transport server status:%v", updateErr)
 		return
@@ -3617,7 +3620,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	// Set the vs status to include the virtual IP address
 	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
 	il.Status = ilStatus
-	_, updateErr := ctlr.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating ingresslink status:%v", updateErr)
 		return
@@ -3793,7 +3796,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 	clusterConfigUpdated := false
 	oldClusterRatio := make(map[string]int)
 	oldClusterAdminState := make(map[string]cisapiv1.AdminState)
-	if ctlr.isGlobalExtendedCM(configCR) && ctlr.multiClusterMode != "" {
+	if ctlr.isGlobalExtendedCR(configCR) && ctlr.multiClusterMode != "" {
 		// Get Multicluster kube-config
 		if isDelete {
 			// Handle config CR deletion
@@ -3899,7 +3902,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 	}
 	// Process the routeSpec defined in DeployConfig CR
 	if ctlr.managedResources.ManageRoutes {
-		if ctlr.isGlobalExtendedCM(configCR) {
+		if ctlr.isGlobalExtendedCR(configCR) {
 			return ctlr.processRouteConfigFromGlobalCM(es, isDelete, clusterConfigUpdated)
 		} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
 			return ctlr.processRouteConfigFromLocalConfigCR(es, isDelete, configCR.Namespace)
@@ -4092,7 +4095,8 @@ func createLabel(label string) (labels.Selector, error) {
 func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 	var nodes []interface{}
 	//for local cluster
-	nodes = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
+	nodeInf, _ := ctlr.multiClusterNodeInformers[""]
+	nodes = nodeInf.nodeInformer.GetIndexer().List()
 	//fetch nodes from other clusters
 	if ctlr.multiClusterNodeInformers != nil && len(ctlr.multiClusterNodeInformers) > 0 {
 		for _, nodeInf := range ctlr.multiClusterNodeInformers {
@@ -4115,7 +4119,7 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 	if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 		for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
 			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
-				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.baseConfig.NodeLabel})
+				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.resourceSelectorConfig.NodeLabel})
 				if err != nil {
 					log.Debugf("[MultiCluster] Unable to fetch nodes for cluster %v with err %v", clusterName, err)
 				} else {

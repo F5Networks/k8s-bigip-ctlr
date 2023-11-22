@@ -32,12 +32,12 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		})
 		It("Resource Informers", func() {
 			err := mockCtlr.addNamespacedInformers(namespace, false)
@@ -62,12 +62,12 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -639,12 +639,12 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+			mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resources = NewResourceStore()
 		})
 		It("Resource Informers", func() {
@@ -658,7 +658,7 @@ var _ = Describe("Informers Tests", func() {
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 			nsObj := v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
-			mockCtlr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
+			mockCtlr.clientsets.kubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
 			ns := mockCtlr.getWatchingNamespaces()
 			Expect(ns).ToNot(BeNil())
 			mockCtlr.nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")
@@ -673,12 +673,12 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+			mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -721,7 +721,7 @@ var _ = Describe("Informers Tests", func() {
 		})
 
 		It("Global ConfigCR", func() {
-			configCRName := "samplecfgmap"
+			configCRName := "sampleConfigCR"
 			mockCtlr.CISConfigCRKey = namespace + "/" + configCRName
 			configCR := test.NewConfigCR(
 				configCRName,
@@ -730,6 +730,19 @@ var _ = Describe("Informers Tests", func() {
 			)
 			mockCtlr.enqueueConfigCR(configCR, Create)
 			key, quit := mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigCR Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Global ConfigCR  Failed")
+			updatedConfigCR := test.NewConfigCR(
+				configCRName,
+				namespace,
+				cisapiv1.DeployConfigSpec{
+					ExtendedSpec: cisapiv1.ExtendedSpec{
+						HAMode: StandAloneCIS,
+					},
+				},
+			)
+			mockCtlr.enqueueUpdatedConfigCR(configCR, updatedConfigCR)
+			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigCR Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Global ConfigCR  Failed")
 
@@ -745,7 +758,7 @@ var _ = Describe("Informers Tests", func() {
 
 		It("Local ConfigCR", func() {
 			configCR := test.NewConfigCR(
-				"samplecfgmap",
+				"sampleConfigCR",
 				namespace,
 				cisapiv1.DeployConfigSpec{},
 			)

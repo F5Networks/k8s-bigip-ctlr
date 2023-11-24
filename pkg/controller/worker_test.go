@@ -65,8 +65,8 @@ var _ = Describe("Worker Tests", func() {
 				VirtualServerName:      "",
 				VirtualServerHTTPPort:  0,
 				VirtualServerHTTPSPort: 0,
-				Pools: []cisapiv1.Pool{
-					cisapiv1.Pool{
+				Pools: []cisapiv1.VSPool{
+					cisapiv1.VSPool{
 						Path:    "/path",
 						Service: "svc1",
 					},
@@ -419,8 +419,8 @@ var _ = Describe("Worker Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
-						cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
+						cisapiv1.VSPool{
 							Path:    "/path",
 							Service: "svc1",
 						},
@@ -431,8 +431,8 @@ var _ = Describe("Worker Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
-						cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
+						cisapiv1.VSPool{
 							Path:    "/path2",
 							Service: "svc2",
 						},
@@ -490,8 +490,8 @@ var _ = Describe("Worker Tests", func() {
 					cisapiv1.VirtualServerSpec{
 						Host:                 "test2.com",
 						VirtualServerAddress: "1.2.3.5",
-						Pools: []cisapiv1.Pool{
-							cisapiv1.Pool{
+						Pools: []cisapiv1.VSPool{
+							cisapiv1.VSPool{
 								Path:    "/path",
 								Service: "svc",
 							},
@@ -503,8 +503,8 @@ var _ = Describe("Worker Tests", func() {
 					cisapiv1.VirtualServerSpec{
 						Host:                 "test2.com",
 						VirtualServerAddress: "1.2.3.5",
-						Pools: []cisapiv1.Pool{
-							cisapiv1.Pool{
+						Pools: []cisapiv1.VSPool{
+							cisapiv1.VSPool{
 								Path:    "/path3",
 								Service: "svc",
 							},
@@ -516,8 +516,8 @@ var _ = Describe("Worker Tests", func() {
 					cisapiv1.VirtualServerSpec{
 						Host:                 "test2.com",
 						VirtualServerAddress: "1.2.3.5",
-						Pools: []cisapiv1.Pool{
-							cisapiv1.Pool{
+						Pools: []cisapiv1.VSPool{
+							cisapiv1.VSPool{
 								Path:    "/path4",
 								Service: "svc",
 							},
@@ -576,8 +576,8 @@ var _ = Describe("Worker Tests", func() {
 					cisapiv1.VirtualServerSpec{
 						Host:                 "test2.com",
 						VirtualServerAddress: "1.2.3.5",
-						Pools: []cisapiv1.Pool{
-							cisapiv1.Pool{
+						Pools: []cisapiv1.VSPool{
+							cisapiv1.VSPool{
 								Path:    "/path",
 								Service: "svc",
 							},
@@ -1561,7 +1561,7 @@ var _ = Describe("Worker Tests", func() {
 						Host:           "test.com",
 						PolicyName:     "policy",
 						TLSProfileName: "sampleTLS",
-						Pools: []cisapiv1.Pool{
+						Pools: []cisapiv1.VSPool{
 							{
 								Path:    "/foo",
 								Service: "svc1",
@@ -1598,12 +1598,11 @@ var _ = Describe("Worker Tests", func() {
 						IRules:             []string{"/Common/SampleIRule"},
 						PersistenceProfile: "source-address",
 						AllowVLANs:         []string{"/Common/devtraffic"},
-						Profiles: cisapiv1.ProfileSpec{
+						Profiles: cisapiv1.ProfileVSSpec{
 							TCP: cisapiv1.ProfileTCP{
 								Client: "/Common/f5-tcp-lan",
 								Server: "/Common/f5-tcp-wan",
 							},
-							ProfileL4: "/Common/security-fastL4",
 						},
 					},
 				)
@@ -2132,7 +2131,7 @@ var _ = Describe("Worker Tests", func() {
 					cisapiv1.TransportServerSpec{
 						VirtualServerAddress: "10.1.1.1",
 						PolicyName:           "policy",
-						Pool: cisapiv1.Pool{
+						Pool: cisapiv1.TSPool{
 							Service:     "svc1",
 							ServicePort: intstr.IntOrString{StrVal: "port-80"},
 							Monitor: cisapiv1.Monitor{
@@ -2146,12 +2145,11 @@ var _ = Describe("Worker Tests", func() {
 						IRules:             []string{"/Common/SampleIRule"},
 						PersistenceProfile: "source-address",
 						AllowVLANs:         []string{"/Common/devtraffic"},
-						Profiles: cisapiv1.ProfileSpec{
+						Profiles: cisapiv1.ProfileTSSpec{
 							TCP: cisapiv1.ProfileTCP{
 								Client: "/Common/f5-tcp-lan",
 								Server: "/Common/f5-tcp-wan",
 							},
-							ProfileL4: "/Common/security-fastL4",
 						},
 					},
 				)
@@ -2481,7 +2479,7 @@ var _ = Describe("Worker Tests", func() {
 					namespace,
 					cisapiv1.TransportServerSpec{
 						VirtualServerAddress: "10.1.1.1",
-						Pool: cisapiv1.Pool{
+						Pool: cisapiv1.TSPool{
 							Service:     "svc1",
 							ServicePort: intstr.IntOrString{StrVal: "port-80"},
 							Monitor: cisapiv1.Monitor{
@@ -2495,12 +2493,11 @@ var _ = Describe("Worker Tests", func() {
 						IRules:             []string{"/Common/SampleIRule"},
 						PersistenceProfile: "source-address",
 						AllowVLANs:         []string{"/Common/devtraffic"},
-						Profiles: cisapiv1.ProfileSpec{
+						Profiles: cisapiv1.ProfileTSSpec{
 							TCP: cisapiv1.ProfileTCP{
 								Client: "/Common/f5-tcp-lan",
 								Server: "/Common/f5-tcp-wan",
 							},
-							ProfileL4: "/Common/security-fastL4",
 						},
 					},
 				)
@@ -3813,7 +3810,7 @@ extendedRouteSpec:
 				cisapiv1.VirtualServerSpec{
 					VirtualServerAddress: "10.1.1.1",
 					HostGroup:            "foo",
-					Pools: []cisapiv1.Pool{{
+					Pools: []cisapiv1.VSPool{{
 						Name:    "pool1",
 						Service: svc1,
 					}},
@@ -3834,7 +3831,7 @@ extendedRouteSpec:
 				cisapiv1.TransportServerSpec{
 					VirtualServerAddress: "10.1.1.1",
 					HostGroup:            "invalid",
-					Pool: cisapiv1.Pool{
+					Pool: cisapiv1.TSPool{
 						Name:    "pool1",
 						Service: svc1,
 					},

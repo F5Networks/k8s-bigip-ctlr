@@ -59,7 +59,7 @@ spec:
             # https://clouddocs.f5.com/containers/latest/
             "--cm-url=<ip_address-or-hostname>",
             "--orchestration-cni=nodeport",
-            "--deploy-config=kube-system/cis-config",
+            "--deploy-config-cr=kube-system/cis-config",
             "--manage-custom-resources=true",
             "--credentials-directory=/tmp/creds",
             "--kubeconfig=/tmp/kubeconfig",

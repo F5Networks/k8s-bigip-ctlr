@@ -1084,6 +1084,8 @@ spec:
   scope: Namespaced
   versions:
     - name: v1
+      served: true
+      storage: true
       schema:
         openAPIV3Schema:
           description: DeployConfig defines the DeployConfig

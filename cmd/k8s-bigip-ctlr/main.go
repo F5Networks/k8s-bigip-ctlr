@@ -122,7 +122,7 @@ func _init() {
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
-	CISConfigCR = globalFlags.String("cis-config-cr", "",
+	CISConfigCR = globalFlags.String("deploy-config-cr", "",
 		"Required, specify a CRD that holds additional spec for controller.")
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))

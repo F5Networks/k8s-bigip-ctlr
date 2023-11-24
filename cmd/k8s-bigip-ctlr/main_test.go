@@ -34,7 +34,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 				"--log-level=INFO",
 				"--disable-teems=true",
 				"--no-verify-ssl=true",
@@ -87,7 +87,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 			}
 
 			flags.Parse(os.Args)
@@ -102,7 +102,7 @@ var _ = Describe("Main Tests", func() {
 				"./bin/k8s-bigip-ctlr",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 			}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
@@ -117,7 +117,7 @@ var _ = Describe("Main Tests", func() {
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
 		})
-		It("verifies with missing --cis-config-cr required CLI parameters ", func() {
+		It("verifies with missing --deploy-config-cr required CLI parameters ", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
@@ -136,7 +136,7 @@ var _ = Describe("Main Tests", func() {
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-username=admin",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 			}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
@@ -148,7 +148,7 @@ var _ = Describe("Main Tests", func() {
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
-				"--cis-config-cr=default/testcr"}
+				"--deploy-config-cr=default/testcr"}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
@@ -160,7 +160,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--cis-config-cr=default/testcr"}
+				"--deploy-config-cr=default/testcr"}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).To(BeNil())
@@ -173,7 +173,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--cis-config-cr=default"}
+				"--deploy-config-cr=default"}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
@@ -187,7 +187,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 			}
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
@@ -201,7 +201,7 @@ var _ = Describe("Main Tests", func() {
 				"./bin/k8s-bigip-ctlr",
 				"--credentials-directory=/tmp/k8s-test-creds",
 				"--cm-url=cm.example.com",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 				"--disable-teems=true",
 			}
 			flags.Parse(os.Args)
@@ -239,7 +239,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-url=cm.example.com",
 				"--cm-username=cli-user",
 				"--cm-password=cli-pass",
-				"--cis-config-cr=default/testcr",
+				"--deploy-config-cr=default/testcr",
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)

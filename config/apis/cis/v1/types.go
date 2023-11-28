@@ -440,6 +440,7 @@ type DeployConfigSpec struct {
 type BaseConfig struct {
 	NamespaceLabel string `json:"namespaceLabel,omitempty"`
 	NodeLabel      string `json:"nodeLabel,omitempty"`
+	RouteLabel     string `json:"routeLabel,omitempty"`
 }
 
 type AS3Config struct {

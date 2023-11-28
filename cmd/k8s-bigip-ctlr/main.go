@@ -89,6 +89,7 @@ var (
 
 	orchestrationCNI *string
 	CISConfigCR      *string
+	httpAddress      *string
 
 	// package variables
 	kubeClient    kubernetes.Interface
@@ -124,6 +125,8 @@ func _init() {
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
 	CISConfigCR = globalFlags.String("deploy-config-cr", "",
 		"Required, specify a CRD that holds additional spec for controller.")
+	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
+		"Optional, address to serve http based informations (/metrics and /health).")
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
 	}
@@ -312,7 +315,9 @@ func main() {
 	}
 	userAgentInfo = getUserAgentInfo()
 	ctlr := initController(config)
-	initTeems(ctlr)
+
+	//TODO initialize and add support for teems data
+	// initTeems(ctlr)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
@@ -337,8 +342,11 @@ func initController(
 				UserName: *cmUsername,
 				Password: *cmPassword,
 			},
-			CMTrustedCerts: getBIGIPTrustedCerts(),
-			CMSSLInsecure:  *sslInsecure,
+			CMTrustedCerts:        getBIGIPTrustedCerts(),
+			CMSSLInsecure:         *sslInsecure,
+			CISConfigCRKey:        *CISConfigCR,
+			HttpAddress:           *httpAddress,
+			ManageCustomResources: *manageCustomResources,
 		},
 	)
 
@@ -449,7 +457,7 @@ func getUserAgentInfo() string {
 func getBIGIPTrustedCerts() string {
 	namespaceCfgmapSlice := strings.Split(*trustedCertsCfgmap, "/")
 	if len(namespaceCfgmapSlice) != 2 {
-		log.Debugf("[INIT] Invalid trusted-certs-cfgmap option provided.")
+		log.Debugf("[INIT] either trusted-certs-cfgmap is not provided or provided trusted-certs-cfgmap is invalid.")
 		return ""
 	}
 

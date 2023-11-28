@@ -24,7 +24,6 @@ var configPath = "../../test/configs/"
 type (
 	mockController struct {
 		*Controller
-		mockResources map[string][]interface{}
 	}
 
 	mockPostManager struct {
@@ -43,10 +42,10 @@ type (
 func newMockController() *mockController {
 	return &mockController{
 		Controller: &Controller{
-			baseConfig:       BaseConfig{},
-			managedResources: ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true},
+			resourceSelectorConfig: ResourceSelectorConfig{},
+			clientsets:             &ClientSets{},
+			managedResources:       ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
 		},
-		mockResources: make(map[string][]interface{}),
 	}
 }
 
@@ -371,21 +370,24 @@ func (m *mockController) deleteConfigCR(configCR *cisapiv1.DeployConfig) {
 }
 
 func (m *mockController) addNode(node *v1.Node) {
-	m.nodeInformer.nodeInformer.GetStore().Add(node)
+	nodeInf, _ := m.multiClusterNodeInformers[""]
+	nodeInf.nodeInformer.GetStore().Add(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateNode(node *v1.Node, ns string) {
-	m.nodeInformer.nodeInformer.GetStore().Update(node)
+	nodeInf, _ := m.multiClusterNodeInformers[""]
+	nodeInf.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
-	m.nodeInformer.nodeInformer.GetStore().Update(node)
+	nodeInf, _ := m.multiClusterNodeInformers[""]
+	nodeInf.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}

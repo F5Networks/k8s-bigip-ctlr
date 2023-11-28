@@ -19,7 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"io"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 	"reflect"
@@ -31,6 +33,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -110,22 +113,22 @@ func (crInfr *CRInformer) start() {
 	var cacheSyncs []cache.InformerSynced
 
 	if crInfr.vsInformer != nil {
-		log.Infof("Starting VirtualServer Informer")
+		log.Debugf("Starting virtualServer informer for namespace %v", crInfr.namespace)
 		go crInfr.vsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.vsInformer.HasSynced)
 	}
 	if crInfr.tlsInformer != nil {
-		log.Infof("Starting TLSProfile Informer")
+		log.Debugf("Starting tlsProfile informer for namespace %v", crInfr.namespace)
 		go crInfr.tlsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.tlsInformer.HasSynced)
 	}
 	if crInfr.tsInformer != nil {
-		log.Infof("Starting TransportServer Informer")
+		log.Debugf("Starting transportServer informer for namespace %v", crInfr.namespace)
 		go crInfr.tsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.tsInformer.HasSynced)
 	}
 	if crInfr.ilInformer != nil {
-		log.Infof("Starting IngressLink Informer")
+		log.Debugf("Starting ingressLink informer for namespace %v", crInfr.namespace)
 		go crInfr.ilInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.ilInformer.HasSynced)
 	}
@@ -137,6 +140,7 @@ func (crInfr *CRInformer) start() {
 }
 
 func (crInfr *CRInformer) stop() {
+	log.Debugf("Stopping  virtualServer, tlsProfile, transportServer and ingressLink informers for namespace %v", crInfr.namespace)
 	close(crInfr.stopCh)
 }
 
@@ -154,37 +158,44 @@ func (nrInfr *NRInformer) start() {
 }
 
 func (nrInfr *NRInformer) stop() {
+	log.Debugf("Stopping route informer for namespace %v", nrInfr.namespace)
 	close(nrInfr.stopCh)
 }
 
 func (comInfr *CommonInformer) start() {
 	var cacheSyncs []cache.InformerSynced
 	if comInfr.svcInformer != nil {
+		log.Debugf("Starting service informer for namespace %v", comInfr.namespace)
 		go comInfr.svcInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.svcInformer.HasSynced)
 	}
 	if comInfr.epsInformer != nil {
+		log.Debugf("Starting endpoint informer for namespace %v", comInfr.namespace)
 		go comInfr.epsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.epsInformer.HasSynced)
 	}
 	if comInfr.ednsInformer != nil {
-		log.Infof("Starting ExternalDNS Informer")
+		log.Debugf("Starting externalDNS informer for namespace %v", comInfr.namespace)
 		go comInfr.ednsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.ednsInformer.HasSynced)
 	}
 	if comInfr.plcInformer != nil {
+		log.Debugf("Starting policy informer for namespace %v", comInfr.namespace)
 		go comInfr.plcInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.plcInformer.HasSynced)
 	}
 	if comInfr.podInformer != nil {
+		log.Debugf("Starting pod informer for namespace %v", comInfr.namespace)
 		go comInfr.podInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.podInformer.HasSynced)
 	}
 	if comInfr.secretsInformer != nil {
+		log.Debugf("Starting secretes informer for namespace %v", comInfr.namespace)
 		go comInfr.secretsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.secretsInformer.HasSynced)
 	}
 	if comInfr.configCRInformer != nil {
+		log.Debugf("Starting deployConfig informer for namespace %v", comInfr.namespace)
 		go comInfr.configCRInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.configCRInformer.HasSynced)
 	}
@@ -195,7 +206,8 @@ func (comInfr *CommonInformer) start() {
 	)
 }
 
-func (comInfr *CommonInformer) stop() {
+func (comInfr *CommonInformer) stop(namespace string) {
+	log.Debugf("Stopping  service, endpoint, pod, secret, policy, deployConfig and externalDNS informers for namespace %v", namespace)
 	close(comInfr.stopCh)
 }
 
@@ -251,7 +263,7 @@ func (ctlr *Controller) getNamespacedNativeInformer(
 func (ctlr *Controller) getWatchingNamespaces() []string {
 	var namespaces []string
 	if ctlr.watchingAllNamespaces() {
-		nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+		nss, err := ctlr.clientsets.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Unable to Fetch Namespaces: %v", err)
 			return nil
@@ -317,9 +329,9 @@ func (ctlr *Controller) addNamespacedInformers(
 func (ctlr *Controller) newNamespacedCustomResourceInformer(
 	namespace string,
 ) *CRInformer {
-	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
+	log.Debugf("Creating custom resource informers for namespace %v", namespace)
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.customResourceSelector.String()
+		options.LabelSelector = ctlr.resourceSelectorConfig.customResourceSelector.String()
 	}
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
@@ -333,7 +345,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 
 	if ctlr.managedResources.ManageIL {
 		crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-			ctlr.kubeCRClient,
+			ctlr.clientsets.kubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -343,7 +355,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 
 	if ctlr.managedResources.ManageVirtualServer {
 		crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-			ctlr.kubeCRClient,
+			ctlr.clientsets.kubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -353,7 +365,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 
 	if ctlr.managedResources.ManageTLSProfile {
 		crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
-			ctlr.kubeCRClient,
+			ctlr.clientsets.kubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -362,7 +374,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 	}
 
 	crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
-		ctlr.kubeCRClient,
+		ctlr.clientsets.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -385,12 +397,12 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.LabelSelector = ctlr.routeLabel
-					return ctlr.routeClientV1.Routes(namespace).List(context.TODO(), options)
+					options.LabelSelector = ctlr.resourceSelectorConfig.RouteLabel
+					return ctlr.clientsets.routeClientV1.Routes(namespace).List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.LabelSelector = ctlr.routeLabel
-					return ctlr.routeClientV1.Routes(namespace).Watch(context.TODO(), options)
+					options.LabelSelector = ctlr.resourceSelectorConfig.RouteLabel
+					return ctlr.clientsets.routeClientV1.Routes(namespace).Watch(context.TODO(), options)
 				},
 			},
 			&routeapi.Route{},
@@ -406,10 +418,10 @@ func (ctlr *Controller) getNodeInformer(clusterName string) NodeInformer {
 	resyncPeriod := 0 * time.Second
 	var restClientv1 rest.Interface
 	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.baseConfig.NodeLabel
+		options.LabelSelector = ctlr.resourceSelectorConfig.NodeLabel
 	}
 	if clusterName == "" {
-		restClientv1 = ctlr.kubeClient.CoreV1().RESTClient()
+		restClientv1 = ctlr.clientsets.kubeClient.CoreV1().RESTClient()
 	} else {
 		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
 			restClientv1 = config.KubeClient.CoreV1().RESTClient()
@@ -440,20 +452,21 @@ func (ctlr *Controller) addNodeEventUpdateHandler(nodeInformer *NodeInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
 			},
 		)
+		nodeInformer.nodeInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(NodeUpdate, nodeInformer.clusterName))
 	}
 }
 
 func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	namespace string,
 ) *CommonInformer {
-	log.Debugf("Creating Common Resource Informers for Namespace: %v", namespace)
+	log.Debugf("Creating common resource informers for namespace %v", namespace)
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.clientsets.kubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.customResourceSelector.String()
+		options.LabelSelector = ctlr.resourceSelectorConfig.customResourceSelector.String()
 	}
 	comInf := &CommonInformer{
 		namespace: namespace,
@@ -469,7 +482,10 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
-		secretsInformer: cache.NewSharedIndexInformer(
+	}
+
+	if ctlr.managedResources.ManageSecrets {
+		comInf.secretsInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
 				"secrets",
@@ -479,8 +495,9 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			&corev1.Secret{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
+		)
 	}
+
 	// Skipping endpoint informer creation for namespace in non cluster mode when extended configCR is not provided
 	if ctlr.PoolMemberType != Cluster && ctlr.multiClusterMode != "" {
 		log.Debugf("[Multicluster] Skipping endpoint informer creation for namespace %v", namespace)
@@ -498,16 +515,18 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		)
 	}
 
-	comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
-		ctlr.kubeCRClient,
-		namespace,
-		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		crOptions,
-	)
+	if ctlr.managedResources.ManageEDNS {
+		comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
+			ctlr.clientsets.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
+	}
 
 	comInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
-		ctlr.kubeCRClient,
+		ctlr.clientsets.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -515,7 +534,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	)
 
 	comInf.configCRInformer = cisinfv1.NewFilteredDeployConfigInformer(
-		ctlr.kubeCRClient,
+		ctlr.clientsets.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -548,6 +567,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedVirtualServer(obj) },
 			},
 		)
+		crInf.vsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(VirtualServer, Local))
 	}
 
 	if crInf.tlsInformer != nil {
@@ -558,6 +578,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				// DeleteFunc: func(obj interface{}) { ctlr.enqueueTLSProfile(obj) },
 			},
 		)
+		crInf.tlsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(TLSProfile, Local))
 	}
 
 	if crInf.tsInformer != nil {
@@ -568,6 +589,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedTransportServer(obj) },
 			},
 		)
+		crInf.tsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(TransportServer, Local))
 	}
 
 	if crInf.ilInformer != nil {
@@ -578,6 +600,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedIngressLink(obj) },
 			},
 		)
+		crInf.ilInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(IngressLink, Local))
 	}
 }
 
@@ -590,6 +613,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, "") },
 			},
 		)
+		comInf.svcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Service, Local))
 	}
 
 	if comInf.epsInformer != nil {
@@ -600,6 +624,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, "") },
 			},
 		)
+		comInf.epsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Endpoints, Local))
 	}
 
 	if comInf.ednsInformer != nil {
@@ -609,6 +634,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj) },
 			})
+		comInf.ednsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ExternalDNS, Local))
 	}
 
 	if comInf.plcInformer != nil {
@@ -619,6 +645,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
 			},
 		)
+		comInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, Local))
 	}
 
 	if comInf.podInformer != nil {
@@ -629,6 +656,7 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, "") },
 			},
 		)
+		comInf.podInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Pod, Local))
 	}
 
 	if comInf.secretsInformer != nil {
@@ -639,16 +667,18 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
 			},
 		)
+		comInf.secretsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Secret, Local))
 	}
 
 	if comInf.configCRInformer != nil {
 		comInf.configCRInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigCR(obj, Create) },
-				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigCR(obj, Update) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueUpdatedConfigCR(old, cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigCR(obj) },
 			},
 		)
+		comInf.configCRInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ConfigCR, Local))
 	}
 
 }
@@ -662,6 +692,7 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj, Delete) },
 			},
 		)
+		nrInf.routeInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Route, Local))
 	}
 }
 
@@ -1076,13 +1107,6 @@ func (ctlr *Controller) enqueueService(obj interface{}, clusterName string) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func getClusterLog(clusterName string) string {
-	clusterNameLog := ""
-	if clusterName != "" {
-		clusterNameLog = "from cluster: " + clusterName
-	}
-	return clusterNameLog
-}
 func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
@@ -1222,7 +1246,7 @@ func (ctlr *Controller) enqueueConfigCR(obj interface{}, event string) {
 	configCR := obj.(*cisapiv1.DeployConfig)
 
 	// Filter out configCRs that are neither f5nr configCRs nor routeSpecConfigCR
-	//if !ctlr.nativeResourceSelector.Matches(labels.Set(configCR.GetLabels())) &&
+	//if !ctlr.resourceSelectorConfig.nativeResourceSelector.Matches(labels.Set(configCR.GetLabels())) &&
 	//	ctlr.CISConfigCRKey != configCR.Namespace+"/"+configCR.Name {
 	//
 	//	return
@@ -1237,6 +1261,34 @@ func (ctlr *Controller) enqueueConfigCR(obj interface{}, event string) {
 		event:     event,
 	}
 	ctlr.resourceQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueueUpdatedConfigCR(old, cur interface{}) {
+	oldConfigCR := old.(*cisapiv1.DeployConfig)
+	curConfigCR := cur.(*cisapiv1.DeployConfig)
+	if oldConfigCR.Spec.BaseConfig != curConfigCR.Spec.BaseConfig {
+		ctlr.updateResourceSelectorConfig(curConfigCR.Spec.BaseConfig)
+		if oldConfigCR.Spec.BaseConfig.NamespaceLabel != curConfigCR.Spec.BaseConfig.NamespaceLabel {
+			log.Debugf("Resetting the controller informers as namespace label changed to %v", curConfigCR.Spec.BaseConfig.NamespaceLabel)
+			ctlr.resetControllerForNamespaceLabel()
+		} else if ctlr.managedResources.ManageRoutes && oldConfigCR.Spec.BaseConfig.RouteLabel != curConfigCR.Spec.BaseConfig.RouteLabel {
+			log.Debugf("Resetting the controller's route informers as route label changed to %v", curConfigCR.Spec.BaseConfig.RouteLabel)
+			ctlr.resetControllerForRouteLabel()
+		} else if oldConfigCR.Spec.BaseConfig.NodeLabel != curConfigCR.Spec.BaseConfig.NodeLabel {
+			log.Debugf("Resetting the controller's node informers as node label changed to %v", curConfigCR.Spec.BaseConfig.NodeLabel)
+			ctlr.resetControllerForNodeLabel()
+		}
+	} else {
+		log.Debugf("Enqueueing ConfigCR: %v/%v", curConfigCR.ObjectMeta.Namespace, curConfigCR.ObjectMeta.Name)
+		key := &rqKey{
+			namespace: curConfigCR.ObjectMeta.Namespace,
+			kind:      ConfigCR,
+			rscName:   curConfigCR.ObjectMeta.Name,
+			rsc:       curConfigCR,
+			event:     Update,
+		}
+		ctlr.resourceQueue.Add(key)
+	}
 }
 
 func (ctlr *Controller) enqueueDeletedConfigCR(obj interface{}) {
@@ -1321,23 +1373,25 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 
 func (nsInfr *NSInformer) start() {
 	if nsInfr.nsInformer != nil {
-		log.Infof("Starting Namespace Informer")
+		log.Debugf("Starting namespace informer %v", getClusterLog(nsInfr.cluster))
 		go nsInfr.nsInformer.Run(nsInfr.stopCh)
 	}
 }
 
-func (nsInfr *NSInformer) stop() {
+func (nsInfr *NSInformer) stop(namespace string) {
+	log.Debugf("Stopping namespace informer for namespace %v", namespace)
 	close(nsInfr.stopCh)
 }
 
 func (nodeInfr *NodeInformer) start() {
 	if nodeInfr.nodeInformer != nil {
-		log.Infof("Starting %v Node Informer", nodeInfr.clusterName)
+		log.Debugf("Starting node informer %v", getClusterLog(nodeInfr.clusterName))
 		go nodeInfr.nodeInformer.Run(nodeInfr.stopCh)
 	}
 }
 
 func (nodeInfr *NodeInformer) stop() {
+	log.Debugf("Stopping node informer %v", getClusterLog(nodeInfr.clusterName))
 	close(nodeInfr.stopCh)
 }
 
@@ -1356,7 +1410,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 	}
 
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.clientsets.kubeClient.CoreV1().RESTClient()
 
 	ctlr.nsInformers[label] = &NSInformer{
 		stopCh: make(chan struct{}),
@@ -1380,6 +1434,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 		},
 		resyncPeriod,
 	)
+	ctlr.nsInformers[label].nsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Namespace, Local))
 
 	return nil
 }
@@ -1430,4 +1485,22 @@ func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
 		kind: HACIS,
 	}
 	ctlr.resourceQueue.Add(key)
+}
+
+func (ctlr *Controller) getErrorHandlerFunc(rsType, clusterName string) func(r *cache.Reflector, err error) {
+	return func(r *cache.Reflector, err error) {
+		switch {
+		case apierrors.IsResourceExpired(err) || apierrors.IsGone(err):
+			// Don't set LastSyncResourceVersionUnavailable - LIST call with ResourceVersion=RV already
+			// has a semantic that it returns data at least as fresh as provided RV.
+			// So first try to LIST with setting RV to resource version of last observed object.
+			log.Errorf("Watch of %v in cluster %v closed with: %v", rsType, clusterName, err)
+		case err == io.EOF:
+			// watch closed normally
+		case err == io.ErrUnexpectedEOF:
+			log.Errorf("Watch for %v in cluster %v closed with unexpected EOF: %v", rsType, clusterName, err)
+		default:
+			utilruntime.HandleError(fmt.Errorf("[ERROR] Failed to watch %v in cluster %v: %v", rsType, clusterName, err))
+		}
+	}
 }

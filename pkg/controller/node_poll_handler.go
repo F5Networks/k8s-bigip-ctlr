@@ -14,12 +14,9 @@ import (
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	var nodesIntfc []interface{}
-	if clusterName == "" {
-		nodesIntfc = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
-	} else {
-		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-			nodesIntfc = nodeInf.nodeInformer.GetIndexer().List()
-		}
+
+	if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
+		nodesIntfc = nodeInf.nodeInformer.GetIndexer().List()
 	}
 
 	var nodesList []v1.Node
@@ -30,7 +27,8 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	sort.Sort(NodeList(nodesList))
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
 	// adding the bigip_monitored_nodes	metrics
-	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.baseConfig.NodeLabel).Set(float64(len(ctlr.oldNodes)))
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.resourceSelectorConfig.NodeLabel).Set(float64(len(ctlr.multiClusterNodeInformers[""].oldNodes)))
+
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}
@@ -55,27 +53,15 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	}
 	// process the node and update the all pool members for the cluster
 	if !ctlr.initState {
-		if clusterName == "" {
+		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 			// Compare last set of nodes with new one
-			if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
-				log.Debugf("Processing Node Updates for local cluster")
+			if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
+				log.Debugf("%v Processing Node Updates ", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
 				// Update node cache
-				ctlr.oldNodes = newNodes
-				if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-					ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-				}
-			}
-		} else {
-			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-				// Compare last set of nodes with new one
-				if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
-					log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
-					// Update node cache
-					nodeInf.oldNodes = newNodes
-					if ctlr.multiClusterResources.clusterSvcMap != nil {
-						if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-							ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-						}
+				nodeInf.oldNodes = newNodes
+				if ctlr.multiClusterResources.clusterSvcMap != nil {
+					if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+						ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 					}
 				}
 			}
@@ -83,13 +69,9 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	} else {
 		// Initialize controller nodes on our first pass through
 		log.Debugf("%v Initialising controller monitored kubernetes nodes %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
-		if clusterName == "" {
-			ctlr.oldNodes = newNodes
-		} else {
-			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-				// Update node cache
-				nodeInf.oldNodes = newNodes
-			}
+		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
+			// Update node cache
+			nodeInf.oldNodes = newNodes
 		}
 	}
 }
@@ -109,14 +91,9 @@ func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 // Return a copy of the node cache
 func (ctlr *Controller) getNodesFromCache(clusterName string) []Node {
 	var nodes []Node
-	if clusterName == "" {
-		nodes = make([]Node, len(ctlr.oldNodes))
-		copy(nodes, ctlr.oldNodes)
-	} else {
-		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-			nodes = make([]Node, len(nodeInf.oldNodes))
-			copy(nodes, nodeInf.oldNodes)
-		}
+	if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
+		nodes = make([]Node, len(nodeInf.oldNodes))
+		copy(nodes, nodeInf.oldNodes)
 	}
 	return nodes
 }

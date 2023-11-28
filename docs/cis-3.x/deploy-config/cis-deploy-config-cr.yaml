@@ -3,6 +3,8 @@ kind: DeployConfig
 metadata:
   name: cis-config
   namespace: kube-system
+  labels:
+    f5cr: "true"
 spec:
   baseConfig:
     namespaceLabel: controller=cis

@@ -90,7 +90,7 @@ var ClientTrace = &promhttp.InstrumentTrace{
 // further metrics? todo think about
 // RegisterMetrics registers all Prometheus metrics defined above
 func RegisterMetrics(httpClientMetrics bool) {
-	log.Info("[CORE] Registered BigIP Metrics")
+	log.Info("Registered BigIP Metrics")
 	if httpClientMetrics {
 		prometheus.MustRegister(
 			MonitoredNodes,

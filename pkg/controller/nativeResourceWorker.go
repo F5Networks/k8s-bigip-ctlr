@@ -898,7 +898,7 @@ func (ctlr *Controller) processGlobalDeployConfigCR() {
 		log.Warningf("Ensure DeployConfig CR is created in CIS monitored namespace")
 		// If informer fails to fetch config CR which may occur if cis just started which means informers may not have
 		// synced properly then try to fetch using kubeClient
-		configCR, err = ctlr.kubeCRClient.CisV1().DeployConfigs(ns).Get(context.TODO(), configCRName, metaV1.GetOptions{})
+		configCR, err = ctlr.clientsets.kubeCRClient.CisV1().DeployConfigs(ns).Get(context.TODO(), configCRName, metaV1.GetOptions{})
 	}
 	// Exit gracefully if Extended config CR is not found
 	if err != nil || configCR == nil {
@@ -943,7 +943,7 @@ func (ctlr *Controller) setNamespaceLabelMode(configCR *cisapiv1.DeployConfig) e
 	if namespace && namespaceLabel {
 		return fmt.Errorf("can not specify both namespace and namespace-label in DeployConfig CR %v/%v", configCR.Namespace, configCR.Name)
 	}
-	if ctlr.baseConfig.NamespaceLabel == "" && namespaceLabel {
+	if ctlr.resourceSelectorConfig.NamespaceLabel == "" && namespaceLabel {
 		return fmt.Errorf("--namespace-label deployment parameter is required with namespace-label in DeployConfig CR")
 	}
 	// set namespaceLabel informers
@@ -956,7 +956,7 @@ func (ctlr *Controller) setNamespaceLabelMode(configCR *cisapiv1.DeployConfig) e
 			ergc := es.ExtendedRouteGroupConfigs[rg]
 
 			// setting up the namespace nsLabel informer
-			nsLabel := fmt.Sprintf("%v,%v", ctlr.baseConfig.NamespaceLabel, ergc.NamespaceLabel)
+			nsLabel := fmt.Sprintf("%v,%v", ctlr.resourceSelectorConfig.NamespaceLabel, ergc.NamespaceLabel)
 			if _, ok := ctlr.nsInformers[nsLabel]; !ok {
 				err := ctlr.createNamespaceLabeledInformer(nsLabel)
 				if err != nil {
@@ -1075,10 +1075,10 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es cisapiv1.ExtendedSpec,
 			delete(ctlr.resources.extdSpecMap, routeGroupKey)
 			if ctlr.namespaceLabelMode {
 				// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
-				nsLabel := fmt.Sprintf("%v,%v", ctlr.baseConfig.NamespaceLabel, routeGroupKey)
+				nsLabel := fmt.Sprintf("%v,%v", ctlr.resourceSelectorConfig.NamespaceLabel, routeGroupKey)
 				if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
 					log.Debugf("%v Removed namespace label informer: %v", ctlr.getMultiClusterLog(), nsLabel)
-					nsInf.stop()
+					nsInf.stop(nsLabel)
 					delete(ctlr.nsInformers, nsLabel)
 				}
 			}
@@ -1295,7 +1295,7 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig cisapiv1
 
 }
 
-func (ctlr *Controller) isGlobalExtendedCM(configCR *cisapiv1.DeployConfig) bool {
+func (ctlr *Controller) isGlobalExtendedCR(configCR *cisapiv1.DeployConfig) bool {
 	configCRKey := configCR.Namespace + "/" + configCR.Name
 
 	if configCRKey == ctlr.CISConfigCRKey {
@@ -1573,7 +1573,7 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 				LastTransitionTime: &now,
 			}},
 		})
-		_, err := ctlr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+		_, err := ctlr.clientsets.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
 		if err == nil {
 			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
 			return
@@ -1588,9 +1588,9 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 	// Get the list of all unwatched Routes from all NS.
 	unmonitoredOptions := metaV1.ListOptions{
-		LabelSelector: strings.ReplaceAll(ctlr.routeLabel, " in ", " notin "),
+		LabelSelector: strings.ReplaceAll(ctlr.resourceSelectorConfig.RouteLabel, " in ", " notin "),
 	}
-	unmonitoredRoutes, err := ctlr.routeClientV1.Routes("").List(context.TODO(), unmonitoredOptions)
+	unmonitoredRoutes, err := ctlr.clientsets.routeClientV1.Routes("").List(context.TODO(), unmonitoredOptions)
 	if err != nil {
 		log.Errorf("[CORE] Error listing all Routes: %v", err)
 		return
@@ -1634,7 +1634,7 @@ func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
 			erased := false
 			retryCount := 0
 			for !erased && retryCount < 3 {
-				_, err := ctlr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+				_, err := ctlr.clientsets.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
 				if err != nil {
 					log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
 					retryCount++
@@ -1866,8 +1866,8 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 			namespaces = append(namespaces, namespaceGroup)
 			ctlr.resources.invertedNamespaceLabelMap[namespaceGroup] = namespaceGroup
 		} else {
-			nsLabel := fmt.Sprintf("%v,%v", ctlr.baseConfig.NamespaceLabel, namespaceGroup)
-			nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
+			nsLabel := fmt.Sprintf("%v,%v", ctlr.resourceSelectorConfig.NamespaceLabel, namespaceGroup)
+			nss, err := ctlr.clientsets.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
 			if err != nil {
 				log.Errorf("%v Unable to Fetch Namespaces: %v", ctlr.getMultiClusterLog(), err)
 				return nil
@@ -2254,7 +2254,7 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	if !exist {
 		log.Debugf("[MultiCluster] Fetching secret: %s for cluster: %s using kubeclient", secretName, clusterName)
 		// During start up the informers may not be updated so, try to fetch secret using kubeClient
-		kubeConfigSecret, err = ctlr.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
+		kubeConfigSecret, err = ctlr.clientsets.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
 			metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("[MultiCluster] error occurred while fetching Secret: %s for the cluster: %s, Error: %v",

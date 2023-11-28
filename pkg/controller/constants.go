@@ -97,6 +97,8 @@ const (
 
 	Shared = "Shared"
 
+	Local = "local"
+
 	F5RouterName = "F5 BIG-IP"
 
 	HTTP  = "http"

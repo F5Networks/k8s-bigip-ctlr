@@ -19,7 +19,6 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -60,7 +59,6 @@ func NewAgent(params AgentParams) *Agent {
 		EventChan:   make(chan interface{}),
 		respChan:    make(chan resourceStatusMeta, 1),
 		userAgent:   params.UserAgent,
-		HttpAddress: params.HttpAddress,
 	}
 
 	// agentWorker runs as a separate go routine
@@ -72,19 +70,19 @@ func NewAgent(params AgentParams) *Agent {
 	go agent.retryWorker()
 
 	// Set the AS3 version for the LTM Postmanager
-	err := agent.IsBigIPAppServicesAvailable()
-	if err != nil {
-		log.Errorf("%v", err)
-		os.Exit(1)
-	}
-	// Set the AS3 version on the GTM Postmanager
-	if agent.GTMPostManager != nil {
-		err = agent.GTMPostManager.IsBigIPAppServicesAvailable()
-		if err != nil {
-			log.Errorf("%v", err)
-			os.Exit(1)
-		}
-	}
+	//err := agent.IsBigIPAppServicesAvailable()
+	//if err != nil {
+	//	log.Errorf("%v", err)
+	//	os.Exit(1)
+	//}
+	//// Set the AS3 version on the GTM Postmanager
+	//if agent.GTMPostManager != nil {
+	//	err = agent.GTMPostManager.IsBigIPAppServicesAvailable()
+	//	if err != nil {
+	//		log.Errorf("%v", err)
+	//		os.Exit(1)
+	//	}
+	//}
 	return agent
 }
 

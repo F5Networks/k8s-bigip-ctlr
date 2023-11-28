@@ -13,7 +13,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 )
 
-func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
+func (ctlr *Controller) enqueueReq(config BigIpResourceConfig) int {
 	rm := requestMeta{
 		partitionMap: make(map[string]map[string]string, len(config.ltmConfig)),
 	}

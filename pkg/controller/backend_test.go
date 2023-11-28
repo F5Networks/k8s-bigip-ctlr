@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"net/http"
 	"strings"
 
@@ -233,17 +234,15 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
+				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
+				bigipConfig:         v1.BigIpConfig{},
 			}
 			zero := 0
-			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
-			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
+			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 
-			decl := agent.createTenantAS3Declaration(config)
+			decl := agent.createTenantAS3Declaration(config.bigIpResourceConfig)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
@@ -270,17 +269,15 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
+				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
+				bigipConfig:         v1.BigIpConfig{},
 			}
 
 			zero := 0
-			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
+			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
-			decl := agent.createTenantAS3Declaration(config)
+			decl := agent.createTenantAS3Declaration(config.bigIpResourceConfig)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "adminState")).To(BeTrue())
@@ -289,16 +286,14 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
+				bigipConfig:         v1.BigIpConfig{},
+				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 
 			zero := 0
-			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			agent.CMURL = "https://192.168.1.1"
-			as3decl := agent.createTenantAS3Declaration(config)
+			as3decl := agent.createTenantAS3Declaration(config.bigIpResourceConfig)
 			var as3Config map[string]interface{}
 			_ = json.Unmarshal([]byte(as3decl), &as3Config)
 			deletedTenantDecl := as3Tenant{
@@ -345,15 +340,16 @@ var _ = Describe("Backend Tests", func() {
 				status: http.StatusOK,
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
-			agent.PostManager = &PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1"},
-				httpClient: client, firstPost: true}
+			agent.PostManager = &PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1", httpClient: client},
+				firstPost: true}
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
-				ltmConfig: make(LTMConfig),
+				bigipConfig:         v1.BigIpConfig{},
+				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 
-			decl := agent.createTenantAS3Declaration(config)
+			decl := agent.createTenantAS3Declaration(config.bigIpResourceConfig)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
@@ -379,7 +375,7 @@ var _ = Describe("Backend Tests", func() {
 
 		It("Empty GTM Partition Config / Delete Case", func() {
 			adc := as3ADC{}
-			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+			adc = agent.createAS3GTMConfigADC(BigIpResourceConfig{
 				gtmConfig: GTMConfig{
 					DEFAULT_PARTITION: GTMPartitionConfig{},
 				},
@@ -427,7 +423,7 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 			adc := agent.createAS3GTMConfigADC(
-				ResourceConfigRequest{gtmConfig: gtmConfig},
+				BigIpResourceConfig{gtmConfig: gtmConfig},
 				as3ADC{},
 			)
 
@@ -517,15 +513,15 @@ var _ = Describe("Backend Tests", func() {
 		AfterEach(func() {
 			server.Close()
 		})
-		It("New Agent", func() {
+		//Commenting this as we no longer AS3 version from CM
+		/*It("New Agent", func() {
 			var agentParams AgentParams
 			agentParams.EnableIPV6 = true
 			agentParams.Partition = "test"
 			agentParams.PostParams.CMURL = "http://" + server.Addr()
-			agent := NewAgent(agentParams)
-			Expect(agent.PostManager).ToNot(BeNil())
-
-		})
+			agent := NewAgent(agentParams, "bigip1")
+			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.48.0"))
+		})*/
 	})
 
 })

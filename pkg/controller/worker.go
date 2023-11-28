@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -627,20 +628,15 @@ func (ctlr *Controller) processResources() bool {
 	} else {
 		ctlr.resourceQueue.Forget(key)
 	}
-
+	// TODO: After processing resources per bigipLabel, update the BIGIPConfigmap with the latest config
 	// we have processed the resource but as controller is still in init state do not post the config
+	bigipMap := BigIpMap{}
 	if ctlr.initState {
 		return true
 	}
 
 	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
 		(ctlr.multiClusterMode == SecondaryCIS && rKey.kind == HACIS) {
-		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
-			shareNodes:         ctlr.shareNodes,
-			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
-			defaultRouteDomain: ctlr.defaultRouteDomain,
-		}
 
 		if ctlr.multiClusterMode != "" {
 			// only standalone CIS & Primary CIS should post the teems data
@@ -656,10 +652,19 @@ func (ctlr *Controller) processResources() bool {
 			//TODO add support for teems data
 			// go ctlr.TeemData.PostTeemsData()
 		}
-		config.reqId = ctlr.enqueueReq(config)
-		ctlr.Agent.PostConfig(config)
+		// Put each BIGIPConfig per bigip  pair into specific requestChannel
+		for bigip, bigipConfig := range bigipMap {
+			agent := ctlr.AgentMap[bigip.BigIpLabel]
+			config := ResourceConfigRequest{
+				bigipConfig:         bigip,
+				bigIpResourceConfig: bigipConfig,
+			}
+			config.reqId = ctlr.enqueueReq(bigipConfig)
+			agent.EnqueueRequestConfig(config)
+		}
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
+
 	}
 	return true
 }
@@ -2752,10 +2757,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
 
 	partitions := ctlr.resources.getLTMPartitions()
-
+	//TODO: get bigip label from edns spec once we support multiple bigips
+	bigipLabel := "bigip1"
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[bigipLabel].CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -3576,6 +3582,18 @@ func (nodes NodeList) Swap(i, j int) {
 	nodes[i], nodes[j] = nodes[j], nodes[i]
 }
 
+// sort BIGIP config by bigip label
+func (configs BIGIPConfigs) Len() int {
+	return len(configs)
+}
+
+func (configs BIGIPConfigs) Less(i, j int) bool {
+	return configs[i].BigIpLabel < configs[j].BigIpLabel
+}
+
+func (configs BIGIPConfigs) Swap(i, j int) {
+	configs[i], configs[j] = configs[j], configs[i]
+}
 func getNodeport(svc *v1.Service, servicePort int32) int32 {
 	for _, port := range svc.Spec.Ports {
 		if port.Port == servicePort {
@@ -3791,6 +3809,9 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		}
 
 	}()
+	// get bigipConfig and start/stop agent if needed
+	bigipconfig := configCR.Spec.BigIpConfig
+	ctlr.handleBigipConfigUpdates(bigipconfig)
 	es := configCR.Spec.ExtendedSpec
 	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
 	clusterConfigUpdated := false
@@ -3815,7 +3836,10 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		if es.HAMode != "" {
 			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
 				ctlr.haModeType = es.HAMode
-				ctlr.Agent.HAMode = true
+				//TODO: could each bigip pair will have different HA mode?
+				for _, agent := range ctlr.AgentMap {
+					agent.HAMode = true
+				}
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio)")
@@ -4184,4 +4208,49 @@ func (ctlr *Controller) getResourceServicePort(ns string,
 		return ctlr.getSvcPortFromHACluster(ns, svcName, portName, rscType)
 	}
 	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
+}
+
+func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) {
+	//check if bigip config is existing or not in the bigipMap
+	existingBigipConfig := make([]cisapiv1.BigIpConfig, len(ctlr.bigIpMap))
+	for bigipConfig, _ := range ctlr.bigIpMap {
+		existingBigipConfig = append(existingBigipConfig, bigipConfig)
+	}
+	sort.Sort(BIGIPConfigs(existingBigipConfig))
+	sort.Sort(BIGIPConfigs(config))
+	if !reflect.DeepEqual(existingBigipConfig, config) {
+		// check if bigip config is removed
+		for _, existingConfig := range existingBigipConfig {
+			if !slices.Contains(config, existingConfig) {
+				// stop agent
+				ctlr.stopAgent(existingConfig)
+			}
+		}
+		// check if bigip config is added
+		for _, newConfig := range config {
+			if !slices.Contains(existingBigipConfig, newConfig) {
+				// start agent
+				ctlr.startAgent(newConfig)
+			}
+		}
+	}
+}
+
+func (ctlr *Controller) stopAgent(config cisapiv1.BigIpConfig) {
+	//stop agent
+	agent := ctlr.AgentMap[config.BigIpLabel]
+	if agent != nil {
+		//close the channels to stop the agent
+		close(agent.reqChan)
+		close(agent.postChan)
+	}
+	//remove bigiplabel from agentmap
+	delete(ctlr.AgentMap, config.BigIpLabel)
+}
+
+func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
+	//start agent
+	agent := NewAgent(ctlr.AgentParams, config.BigIpLabel)
+	// update agent Map
+	ctlr.AgentMap[config.BigIpLabel] = agent
 }

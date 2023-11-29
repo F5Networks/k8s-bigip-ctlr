@@ -43,6 +43,8 @@ func newMockController() *mockController {
 	return &mockController{
 		Controller: &Controller{
 			resourceSelectorConfig: ResourceSelectorConfig{},
+			AgentMap:               make(map[string]*Agent),
+			AgentParams:            AgentParams{},
 			clientsets:             &ClientSets{},
 			managedResources:       ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
 		},
@@ -56,7 +58,7 @@ func (m *mockController) shutdown() error {
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &PostManager{
-			postChan:            make(chan ResourceConfigRequest, 1),
+			postChan:            make(chan agentConfig, 1),
 			cachedTenantDeclMap: make(map[string]as3Tenant),
 			retryTenantDeclMap:  make(map[string]*tenantParams),
 		},
@@ -98,14 +100,13 @@ func getMockHttpClient(responces []responceCtx, method string) (*http.Client, er
 
 func (mockPM *mockPostManager) setResponses(responces []responceCtx, method string) {
 	client, _ := getMockHttpClient(responces, method)
-	mockPM.httpClient = client
+	mockPM.PostParams.httpClient = client
 }
 
 func newMockAgent() *Agent {
 	return &Agent{
-		PostManager: &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
+		PostManager: &PostManager{postChan: make(chan agentConfig, 1)},
 		Partition:   "test",
-		EventChan:   make(chan interface{}),
 		userAgent:   "",
 	}
 }

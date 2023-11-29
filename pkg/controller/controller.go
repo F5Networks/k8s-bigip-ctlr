@@ -47,7 +47,7 @@ func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
 		resources:       NewResourceStore(),
-		Agent:           params.Agent,
+		AgentParams:     params.AgentParams,
 		PoolMemberType:  params.PoolMemberType,
 		UseNodeInternal: params.UseNodeInternal,
 		Partition:       params.Partition,
@@ -63,6 +63,7 @@ func NewController(params Params) *Controller {
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 		clusterAdminState:     make(map[string]cisapiv1.AdminState),
+		AgentMap:              make(map[string]*Agent),
 		CMTokenManager: tokenmanager.NewTokenManager(
 			params.CMConfigDetails.URL,
 			tokenmanager.Credentials{Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password},
@@ -99,15 +100,19 @@ func NewController(params Params) *Controller {
 	if err3 := ctlr.setupInformers(); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
+	// setup agents for bigip label
+	for bigip, _ := range ctlr.bigIpMap {
+		agent := NewAgent(ctlr.AgentParams, bigip.BigIpLabel)
+		//Maintain map of agent per bigipLabel
+		ctlr.AgentMap[bigip.BigIpLabel] = agent
+		go ctlr.responseHandler(agent.respChan)
+		// enable http endpoint
+		go ctlr.enableHttpEndpoint(params.HttpAddress, bigip.BigIpLabel)
+	}
 
 	ctlr.setupIPAM(params)
 
-	go ctlr.responseHandler(ctlr.Agent.respChan)
-
 	go ctlr.Start()
-
-	// enable http endpoint
-	go ctlr.enableHttpEndpoint(params.HttpAddress)
 
 	return ctlr
 }
@@ -279,7 +284,5 @@ func (ctlr *Controller) Stop() {
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
 	}
-	if ctlr.Agent.EventChan != nil {
-		close(ctlr.Agent.EventChan)
-	}
+
 }

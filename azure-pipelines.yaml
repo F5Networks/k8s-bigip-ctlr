@@ -32,12 +32,17 @@ variables:
   operatorImageName: 'f5networks/f5-cis-operator-devel'
   operatorBundleImageName: 'f5networks/f5-cis-operator-bundle-devel'
   operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
+  goVersion: 1.21.4
 
 stages:
 - stage: PreCheck
   jobs:
   - job: Preverification
     steps:
+    - task: GoTool@0
+      inputs:
+        version: $(goVersion)
+      displayName: Install Go 1.21.4
     - task: CmdLine@2
       displayName: Check Go format and Suspicious constructs
       inputs:

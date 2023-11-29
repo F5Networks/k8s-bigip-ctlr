@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,17 +40,36 @@ func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
 		incomingTenantDeclMap:           make(map[string]as3Tenant),
 		retryTenantDeclMap:              make(map[string]*tenantParams),
 		tenantPriorityMap:               make(map[string]int),
-		postChan:                        make(chan ResourceConfigRequest, 1),
+		postChan:                        make(chan agentConfig, 1),
 		retryChan:                       make(chan struct{}, 1),
 	}
-	if !gtmPostMgr {
-		pm.PostParams = params.PostParams
-	} else {
-		pm.PostParams = params.GTMParams
-		pm.postManagerPrefix = "[GTM]"
-	}
+	// postManager runs as a separate go routine
+	// blocks on postChan to get new/updated AS3/L3 declaration to be posted to BIG-IP
+	go pm.postManager()
+	pm.PostParams = params.PostParams
 	pm.setupBIGIPRESTClient()
 	return pm
+}
+
+// blocks on post channel and handles posting of AS3,L3 declaration to BIGIP pairs.
+func (postMgr *PostManager) postManager() {
+	for config := range postMgr.postChan {
+		//Handle AS3 post
+		go postMgr.publishConfig(config.as3Config)
+		//TODO: L3 post manger handling
+		//TODO: after post check for failed state and update retry chan
+
+		postMgr.updateTenantResponseMap(true)
+
+		if len(postMgr.retryTenantDeclMap) > 0 {
+			// Activate retry
+			select {
+			case postMgr.retryChan <- struct{}{}:
+			case <-postMgr.retryChan:
+				postMgr.retryChan <- struct{}{}
+			}
+		}
+	}
 }
 
 func (postMgr *PostManager) setupBIGIPRESTClient() {
@@ -84,7 +102,7 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 				),
 			),
 		)
-		postMgr.httpClient = &http.Client{
+		postMgr.PostParams.httpClient = &http.Client{
 			Transport: instrumentedRoundTripper,
 			Timeout:   timeoutLarge,
 		}
@@ -107,13 +125,13 @@ func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
 }
 
 // publishConfig posts incoming configuration to BIG-IP
-func (postMgr *PostManager) publishConfig(cfg agentConfig) {
+func (postMgr *PostManager) publishConfig(cfg as3Config) {
 	log.Debugf("[AS3]%v PostManager Accepted the configuration", postMgr.postManagerPrefix)
 	// postConfig updates the tenantResponseMap with response codes
 	postMgr.postConfig(&cfg)
 }
 
-func (postMgr *PostManager) postConfig(cfg *agentConfig) {
+func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	// log as3 request if it's set
 	if postMgr.LogAS3Request {
 		postMgr.logAS3Request(cfg.data)
@@ -148,7 +166,7 @@ func (postMgr *PostManager) postConfig(cfg *agentConfig) {
 	case http.StatusNotFound:
 		postMgr.handleResponseStatusNotFound(responseMap)
 	default:
-		postMgr.handleResponseOthers(responseMap, cfg)
+		postMgr.handleResponseOthers(responseMap)
 	}
 }
 
@@ -290,7 +308,7 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *agentConfig) {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) {
 	if postMgr.LogAS3Response {
 		postMgr.logAS3Response(responseMap)
 	}
@@ -503,48 +521,6 @@ func (postMgr *PostManager) logAS3Request(cfg string) {
 	log.Debugf("[AS3]%v Unified declaration: %v\n", postMgr.postManagerPrefix, as3Declaration(decl))
 }
 
-// Method to verify if App Services are installed or CIS as3 version is
-// compatible with BIG-IP, it will return with error if any one of the
-// requirements are not met
-func (postMgr *PostManager) IsBigIPAppServicesAvailable() error {
-	version, build, schemaVersion, err := postMgr.GetBigipAS3Version()
-	if err != nil {
-		log.Errorf("[AS3]%v %v ", postMgr.postManagerPrefix, err)
-		return err
-	}
-	am := as3VersionInfo{
-		as3Version:       version,
-		as3SchemaVersion: schemaVersion,
-		as3Release:       version + "-" + build,
-	}
-	postMgr.AS3VersionInfo = am
-	versionstr := version[:strings.LastIndex(version, ".")]
-	bigIPAS3Version, err := strconv.ParseFloat(versionstr, 64)
-	if err != nil {
-		log.Errorf("[AS3]%v Error while converting AS3 version to float", postMgr.postManagerPrefix)
-		return err
-	}
-	postMgr.bigIPAS3Version = bigIPAS3Version
-	if bigIPAS3Version >= as3SupportedVersion && bigIPAS3Version <= as3Version {
-		log.Debugf("[AS3]%v BIGIP is serving with AS3 version: %v", postMgr.postManagerPrefix, version)
-		return nil
-	}
-
-	if bigIPAS3Version > as3Version {
-		am.as3Version = defaultAS3Version
-		am.as3SchemaVersion = fmt.Sprintf("%.2f.0", as3Version)
-		as3Build := defaultAS3Build
-		am.as3Release = am.as3Version + "-" + as3Build
-		log.Debugf("[AS3]%v BIGIP is serving with AS3 version: %v", postMgr.postManagerPrefix, bigIPAS3Version)
-		postMgr.AS3VersionInfo = am
-		return nil
-	}
-
-	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >=%v. "+
-		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
-		bigIPAS3Version, as3SupportedVersion)
-}
-
 func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
 	/*
 		Non 200 ok tenants will be added to retryTenantDeclMap map
@@ -675,7 +651,7 @@ func (postMgr *PostManager) retryFailedTenant(userAgent string) {
 
 	if len(retryTenants) > 0 {
 		// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
-		cfg := agentConfig{
+		cfg := as3Config{
 			data:      string(postMgr.createAS3Declaration(retryDecl, userAgent)),
 			as3APIURL: postMgr.getAS3APIURL(retryTenants),
 			id:        0,

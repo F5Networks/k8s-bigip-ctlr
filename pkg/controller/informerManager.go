@@ -32,6 +32,7 @@ func (ctlr *Controller) initInformers() {
 		os.Exit(1)
 	}
 	ctlr.updateResourceSelectorConfig(configCR.Spec.BaseConfig)
+	ctlr.updateBigIpConfigMap(configCR.Spec.BigIpConfig)
 	if ctlr.managedResources.ManageRoutes {
 		// initialize the processed host-path map
 		var processedHostPath ProcessedHostPath
@@ -132,6 +133,13 @@ func (ctlr *Controller) updateResourceSelectorConfig(config cisapiv1.BaseConfig)
 	}
 	ctlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	ctlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+}
+
+func (ctlr *Controller) updateBigIpConfigMap(config []cisapiv1.BigIpConfig) {
+	for _, bigipconfig := range config {
+		//initialize map with empty bigipconfig.will be updated after resource processing
+		ctlr.bigIpMap[bigipconfig] = BigIpResourceConfig{}
+	}
 }
 
 func (ctlr *Controller) resetControllerForNodeLabel() {

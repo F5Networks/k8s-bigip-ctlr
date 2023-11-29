@@ -56,7 +56,8 @@ type (
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
-		Agent                  *Agent
+		AgentParams            AgentParams
+		AgentMap               map[string]*Agent
 		PoolMemberType         string
 		UseNodeInternal        bool
 		initState              bool
@@ -81,6 +82,7 @@ type (
 		managedResources       ManagedResources
 		resourceSelectorConfig ResourceSelectorConfig
 		CMTokenManager         *tokenmanager.TokenManager
+		bigIpMap               BigIpMap
 		resourceContext
 	}
 	ClientSets struct {
@@ -124,8 +126,8 @@ type (
 		Config                *rest.Config
 		Namespaces            []string
 		Partition             string
-		Agent                 *Agent
 		PoolMemberType        string
+		AgentParams           AgentParams
 		UseNodeInternal       bool
 		NodePollInterval      int
 		ShareNodes            bool
@@ -399,12 +401,26 @@ type (
 		DataServer     string
 	}
 
+	// ResourceConfigRequest Each BigIPConfig per BigIP HA pair to put into the queue to process
 	ResourceConfigRequest struct {
+		bigipConfig         cisapiv1.BigIpConfig
+		bigIpResourceConfig BigIpResourceConfig
+		reqId               int
+	}
+
+	// BigIpMap Where key is the BigIP structure and value is the bigip-next configuration
+	BigIpMap map[cisapiv1.BigIpConfig]BigIpResourceConfig
+
+	// BigIP struct to hold the bigip address and label for HA pairs
+	BigIP        cisapiv1.BigIpConfig
+	BIGIPConfigs []cisapiv1.BigIpConfig
+
+	// BigIpResourceConfig struct to hold the bigip-next ltm and gtm configuration
+	BigIpResourceConfig struct {
 		ltmConfig          LTMConfig
-		shareNodes         bool
 		gtmConfig          GTMConfig
+		shareNodes         bool
 		defaultRouteDomain int
-		reqId              int
 	}
 
 	resourceStatusMeta struct {
@@ -731,14 +747,15 @@ type (
 	Agent struct {
 		*PostManager
 		Partition       string
-		EventChan       chan interface{}
 		respChan        chan resourceStatusMeta
+		reqChan         chan ResourceConfigRequest
 		PythonDriverPID int
 		userAgent       string
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
 		HAMode          bool
 		GTMPostManager  *GTMPostManager
+		bigipLabel      string
 	}
 
 	AgentParams struct {
@@ -760,7 +777,6 @@ type (
 	}
 
 	PostManager struct {
-		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
@@ -775,8 +791,9 @@ type (
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
-		postChan           chan ResourceConfigRequest
+		postChan           chan agentConfig
 		retryChan          chan struct{}
+		bigipLabel         string
 	}
 
 	PrimaryClusterHealthProbeParams struct {
@@ -800,6 +817,7 @@ type (
 		LogAS3Response    bool
 		LogAS3Request     bool
 		HTTPClientMetrics bool
+		httpClient        *http.Client
 	}
 
 	GTMParams struct {
@@ -819,10 +837,21 @@ type (
 		tenantResponse
 	}
 
+	//agentConfig holds as3config and l3config to put onto post channel
 	agentConfig struct {
-		data      string
-		as3APIURL string
-		id        int
+		as3Config as3Config
+		l3Config  l3Config
+	}
+	//as3Config to put into post channel
+	as3Config struct {
+		data               string
+		as3APIURL          string
+		id                 int
+		bigipTargetAddress string
+	}
+
+	//TODO L3Config to put into post channel. Handle with L3Postmanager implementation
+	l3Config struct {
 	}
 
 	globalSection struct {

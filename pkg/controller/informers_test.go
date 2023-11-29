@@ -372,9 +372,9 @@ var _ = Describe("Informers Tests", func() {
 					ExternalDNS:  make(map[string]int),
 				},
 			}
-			mockCtlr.Agent = &Agent{
+			mockCtlr.AgentMap["bigip1"] = &Agent{
 				PostManager: &PostManager{
-					postChan: make(chan ResourceConfigRequest, 1),
+					postChan: make(chan agentConfig, 1),
 					PostParams: PostParams{
 						CMURL: "10.10.10.1",
 					},

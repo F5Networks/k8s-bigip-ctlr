@@ -9,24 +9,24 @@ import (
 	"time"
 )
 
-func (postMgr *PostManager) checkPrimaryClusterHealthStatus() bool {
+func (ctlr *Controller) checkPrimaryClusterHealthStatus() bool {
 
 	status := false
 	for i := 1; i <= 2; i++ {
-		switch postMgr.PrimaryClusterHealthProbeParams.EndPointType {
+		switch ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPointType {
 		case "http":
-			status = postMgr.getPrimaryClusterHealthStatusFromHTTPEndPoint()
+			status = ctlr.getPrimaryClusterHealthStatusFromHTTPEndPoint()
 		case "tcp":
-			status = postMgr.getPrimaryClusterHealthStatusFromTCPEndPoint()
+			status = ctlr.getPrimaryClusterHealthStatusFromTCPEndPoint()
 		case "", "default":
-			log.Debugf("[MultiCluster] unsupported primaryEndPoint specified under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+			log.Debugf("[MultiCluster] unsupported primaryEndPoint specified under highAvailabilityCIS section: %v", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint)
 			return false
 		}
 
 		if status {
 			return status
 		}
-		time.Sleep(time.Duration(postMgr.PrimaryClusterHealthProbeParams.retryInterval) * time.Second)
+		time.Sleep(time.Duration(ctlr.AgentParams.PrimaryClusterHealthProbeParams.retryInterval) * time.Second)
 	}
 	return false
 }
@@ -35,47 +35,47 @@ func (postMgr *PostManager) checkPrimaryClusterHealthStatus() bool {
 // http/tcp are the supported types
 // when cis runs in primary mode this method should never be called
 // should be called only when cis is running in secondary mode
-func (postMgr *PostManager) setPrimaryClusterHealthCheckEndPointType() {
-	if postMgr.PrimaryClusterHealthProbeParams.EndPoint != "" {
-		if strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
-			postMgr.PrimaryClusterHealthProbeParams.EndPointType = "tcp"
-		} else if strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
-			postMgr.PrimaryClusterHealthProbeParams.EndPointType = "http"
+func (ctlr *Controller) setPrimaryClusterHealthCheckEndPointType() {
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint != "" {
+		if strings.HasPrefix(ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPointType = "tcp"
+		} else if strings.HasPrefix(ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPointType = "http"
 		} else {
 			log.Debugf("[MultiCluster] unsupported primaryEndPoint protocol type configured under highAvailabilityCIS section. EndPoint: %v \n "+
-				"supported protocols:[http, tcp] ", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+				"supported protocols:[http, tcp] ", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint)
 			os.Exit(1)
 		}
 	}
 }
 
 // getPrimaryClusterHealthStatusFromHTTPEndPoint check the primary cluster health using http endPoint
-func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool {
+func (ctlr *Controller) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool {
 
-	if postMgr.PrimaryClusterHealthProbeParams.EndPoint == "" {
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint == "" {
 		return false
 	}
-	if !strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
-		log.Debugf("[MultiCluster] Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+	if !strings.HasPrefix(ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
+		log.Debugf("[MultiCluster] Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
 
-	req, err := http.NewRequest("GET", postMgr.PrimaryClusterHealthProbeParams.EndPoint, nil)
+	req, err := http.NewRequest("GET", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, nil)
 	if err != nil {
 		log.Errorf("[MultiCluster] Creating new HTTP request error: %v ", err)
 		return false
 	}
 
-	timeOut := postMgr.httpClient.Timeout
+	timeOut := ctlr.AgentParams.PostParams.httpClient.Timeout
 	defer func() {
-		postMgr.httpClient.Timeout = timeOut
+		ctlr.AgentParams.PostParams.httpClient.Timeout = timeOut
 	}()
-	if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
-		log.Debugf("[MultiCluster] posting GET Check primaryEndPoint Health request on %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusChanged {
+		log.Debugf("[MultiCluster] posting GET Check primaryEndPoint Health request on %v", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint)
 	}
-	postMgr.httpClient.Timeout = 10 * time.Second
+	ctlr.AgentParams.PostParams.httpClient.Timeout = 10 * time.Second
 
-	httpResp := postMgr.httpGetReq(req)
+	httpResp := ctlr.httpGetReq(req)
 	if httpResp == nil {
 		return false
 	}
@@ -84,34 +84,34 @@ func (postMgr *PostManager) getPrimaryClusterHealthStatusFromHTTPEndPoint() bool
 		return true
 	case http.StatusNotFound, http.StatusInternalServerError:
 		log.Debugf("[MultiCluster] error fetching primaryEndPoint health status. endPoint:%v, statusCode: %v, error:%v",
-			postMgr.PrimaryClusterHealthProbeParams.EndPoint, httpResp.StatusCode, httpResp.Request.Response)
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, httpResp.StatusCode, httpResp.Request.Response)
 	}
 	return false
 }
 
 // getPrimaryClusterHealthStatusFromTCPEndPoint check the primary cluster health using tcp endPoint
-func (postMgr *PostManager) getPrimaryClusterHealthStatusFromTCPEndPoint() bool {
-	if postMgr.PrimaryClusterHealthProbeParams.EndPoint == "" {
+func (ctlr *Controller) getPrimaryClusterHealthStatusFromTCPEndPoint() bool {
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint == "" {
 		return false
 	}
-	if !strings.HasPrefix(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
-		log.Debugf("[MultiCluster] invalid primaryEndPoint health probe tcp endpoint: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint)
+	if !strings.HasPrefix(ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
+		log.Debugf("[MultiCluster] invalid primaryEndPoint health probe tcp endpoint: %v", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
 
-	_, err := net.Dial("tcp", strings.TrimLeft(postMgr.PrimaryClusterHealthProbeParams.EndPoint, "tcp://"))
+	_, err := net.Dial("tcp", strings.TrimLeft(ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, "tcp://"))
 	if err != nil {
-		log.Debugf("[MultiCluster] error connecting to primaryEndPoint tcp health probe: %v, error: %v", postMgr.PrimaryClusterHealthProbeParams.EndPoint, err)
+		log.Debugf("[MultiCluster] error connecting to primaryEndPoint tcp health probe: %v, error: %v", ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint, err)
 		return false
 	}
 	return true
 }
 
-func (postMgr *PostManager) httpGetReq(request *http.Request) *http.Response {
-	httpResp, err := postMgr.httpClient.Do(request)
+func (ctlr *Controller) httpGetReq(request *http.Request) *http.Response {
+	httpResp, err := ctlr.AgentParams.PostParams.httpClient.Do(request)
 
 	if err != nil {
-		if postMgr.PrimaryClusterHealthProbeParams.statusChanged {
+		if ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusChanged {
 			log.Debugf("[MultiCluster] REST call error: %v ", err)
 		}
 		return nil
@@ -142,27 +142,27 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 func (ctlr *Controller) getPrimaryClusterHealthStatus() {
 
 	// only process when the cis is initialized
-	status := ctlr.Agent.checkPrimaryClusterHealthStatus()
+	status := ctlr.checkPrimaryClusterHealthStatus()
 	// if status is changed i.e from up -> down / down -> up
-	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
-	if ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning != status {
-		ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = true
+	ctlr.AgentParams.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusRunning != status {
+		ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusChanged = true
 		// if primary cis id down then post the config
 		if !status {
-			ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = false
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusRunning = false
 			ctlr.enqueuePrimaryClusterProbeEvent()
 		} else {
-			ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = true
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusRunning = true
 		}
 	} else {
-		ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = false
+		ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusChanged = false
 	}
-	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+	ctlr.AgentParams.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 	// wait for configured probeInterval
-	time.Sleep(time.Duration(ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
+	time.Sleep(time.Duration(ctlr.AgentParams.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
 }
 
 func (ctlr *Controller) firstPollPrimaryClusterHealthStatus() {
-	ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning = ctlr.Agent.checkPrimaryClusterHealthStatus()
-	ctlr.Agent.PrimaryClusterHealthProbeParams.statusChanged = true
+	ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusRunning = ctlr.checkPrimaryClusterHealthStatus()
+	ctlr.AgentParams.PrimaryClusterHealthProbeParams.statusChanged = true
 }

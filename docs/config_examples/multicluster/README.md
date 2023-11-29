@@ -39,7 +39,7 @@ In a Standalone deployment of CIS, CIS is only deployed in one cluster, then cre
 
 ![architecture](images/standaloneMultiCluster.png)
 
-Below is the sample Multi-Cluster Config in an Extended Global ConfigMap.
+Below is the sample Multi-Cluster Config in an Extended ConfigMap.
 ```
   extendedSpec: |
     externalClustersConfig:    -------------------------------------|----------------------------|                            |
@@ -104,7 +104,7 @@ Below is a tabular representation of the scenarios mentioned above:
 
 ![architecture](images/haMultiCluster.png)
 
-Below is the sample Multi-Cluster Configs with HA in Extended Global ConfigMap.
+Below is the sample Multi-Cluster Configs with HA in Extended ConfigMap.
 ```
   extendedSpec: |
     mode: active-active       -----------------------------------|---->  HA Mode              |
@@ -137,7 +137,7 @@ Below is the sample Multi-Cluster Configs with HA in Extended Global ConfigMap.
       allowOverride: false           _____________________|
 ```
 
-Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global ConfigMap.
+Below is the sample Multi-Cluster Configs with HA and Ratio in Extended ConfigMap.
 ```
   extendedSpec: |
     mode: ratio        ------------------------------------------|----------------------------|
@@ -176,7 +176,7 @@ Below is the sample Multi-Cluster Configs with HA and Ratio in Extended Global C
 ```
 **Note**: extendedRouteSpec is only applicable in case of openshift route resources not for CRD resources.
 
-Below is the sample Multi-Cluster Configs with HA and cluster AdminState in Extended Global ConfigMap.
+Below is the sample Multi-Cluster Configs with HA and cluster AdminState in Extended ConfigMap.
 ```
   extendedSpec: |
     mode: active-active    --------------------------------------|----------------------------|
@@ -213,7 +213,7 @@ Below is the sample Multi-Cluster Configs with HA and cluster AdminState in Exte
 ```
 **Note**: extendedRouteSpec is only applicable in case of openshift route resources not for CRD resources.
 
-Below is the sample Multi-Cluster Configs with standalone CIS and cluster AdminState in Extended Global ConfigMap.
+Below is the sample Multi-Cluster Configs with standalone CIS and cluster AdminState in Extended ConfigMap.
 ```
   extendedSpec: |
     localClusterAdminState: disable  ----------------------------|AdminState for local cluster|
@@ -273,7 +273,7 @@ Following is the sample deployment for primary CIS deployment:
         - DEBUG
         - --insecure
         - --controller-mode=openshift
-        - --extended-spec-configmap=kube-system/global-spec-config
+        - --extended-spec-configmap=kube-system/extended-spec-config
         - --route-label=systest
         - --pool-member-type
         - nodeport
@@ -387,7 +387,7 @@ Following is the sample deployment for primary CIS deployment:
         - DEBUG
         - --insecure
         - --custom-resource-mode=true
-        - --extended-spec-configmap=kube-system/global-spec-config
+        - --extended-spec-configmap=kube-system/extended-spec-config
         - --pool-member-type
         - nodeport
         - --multi-cluster-mode=primary
@@ -474,7 +474,7 @@ Following is the sample deployment for primary CIS deployment:
         - --static-routing-mode=true
         - --orchestration-cni=ovn-k8s
         - --shared-static-routes=true
-        - --extended-spec-configmap=kube-system/global-spec-config
+        - --extended-spec-configmap=kube-system/extended-spec-config
         - --pool-member-type
         - cluster
         - --multi-cluster-mode=primary

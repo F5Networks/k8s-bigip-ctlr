@@ -9,7 +9,7 @@ kind: ConfigMap
 metadata:
   labels:
     f5nr: "true"
-  name: global-spec-config
+  name: extended-spec-config
   namespace: kube-system
 data:
   extendedSpec: |

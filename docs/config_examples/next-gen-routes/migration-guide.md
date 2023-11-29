@@ -180,7 +180,7 @@ You can create an extended ConfigMap for given example as follows:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: global-spec-config
+  name: extended-spec-config
   namespace: f5demo2
 data:
     extendedSpec: |
@@ -236,8 +236,8 @@ spec:
 * Configure extended ConfigMap and specify that in the CIS deployment parameter.
     
 ```
-    - --route-spec-configmap
-    - f5demo2/global-spec-config
+    - --extended-spec-configmap
+    - f5demo2/extended-spec-config
 ```
 
 * Remove "route-vserver-addr" parameter from CIS deployment and define as vserverAddr in extendedConfigMap.
@@ -263,7 +263,7 @@ spec:
       "--namespace=f5demo2",
       "--log-level=DEBUG",
       "--log-as3-response=true",
-      "--route-spec-configmap=f5demo2/global-spec-config",
+      "--extended-spec-configmap=f5demo2/extended-spec-config",
       "--insecure=true",
       "--route-label=f5type=systest",
       ]

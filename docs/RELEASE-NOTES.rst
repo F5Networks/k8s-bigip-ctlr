@@ -348,10 +348,10 @@ Added Functionality
 
 **What’s new:**
     * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
-        * Added new base config block for TLSCiphers in global extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
-        * Support for namespaceLabel in global extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
-        * Support for BigIP ClientSSL/ServerSSL profile reference in global extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
-        * Support for allowSourceRange in global & local extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Added new base config block for TLSCiphers in extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for namespaceLabel in extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for BigIP ClientSSL/ServerSSL profile reference in extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for allowSourceRange in extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
         * rewrite-target-url support via route annotations. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
         * Load Balancing support via route annotation. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
         * Support for AB Deployment in routes

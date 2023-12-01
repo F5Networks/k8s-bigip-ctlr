@@ -330,13 +330,12 @@ func initController(
 ) *controller.Controller {
 
 	agentParams := getAgentParams()
-	agent := controller.NewAgent(agentParams)
 	ctlr := controller.NewController(
 		controller.Params{
 			Config:           config,
-			Agent:            agent,
 			PoolMemberType:   poolMemberMode,
 			OrchestrationCNI: *orchestrationCNI,
+			AgentParams:      agentParams,
 			CMConfigDetails: &controller.CMConfig{
 				URL:      *cmURL,
 				UserName: *cmUsername,
@@ -400,13 +399,16 @@ func initTeems(ctlr *controller.Controller) {
 	}
 	ctlr.TeemData = td
 	if !(*disableTeems) {
-		key, err := ctlr.Agent.GetBigipRegKey()
-		if err != nil {
-			log.Errorf("%v", err)
+		for _, agent := range ctlr.AgentMap {
+			//TODO: Handle get reg key for each BIG-IP
+			key, err := agent.GetBigipRegKey()
+			if err != nil {
+				log.Errorf("%v", err)
+			}
+			ctlr.TeemData.Lock()
+			ctlr.TeemData.RegistrationKey = key
+			ctlr.TeemData.Unlock()
 		}
-		ctlr.TeemData.Lock()
-		ctlr.TeemData.RegistrationKey = key
-		ctlr.TeemData.Unlock()
 	}
 }
 

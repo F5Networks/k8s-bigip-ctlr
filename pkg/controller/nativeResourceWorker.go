@@ -2271,33 +2271,33 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 // updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
 func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig cisapiv1.HAClusterConfig) {
 	// Initialize PrimaryClusterHealthProbeParams if it's the first time
-	if ctlr.Agent.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
-		ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
+		ctlr.AgentParams.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
 			paramLock: &sync.RWMutex{},
 		}
 	}
-	ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Lock()
-	defer ctlr.Agent.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+	ctlr.AgentParams.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	defer ctlr.AgentParams.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 	// Check if primary cluster health probe endpoint has been updated and set the endpoint type
-	if ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint != haClusterConfig.PrimaryClusterEndPoint {
-		ctlr.Agent.PrimaryClusterHealthProbeParams.EndPoint = haClusterConfig.PrimaryClusterEndPoint
-		ctlr.Agent.setPrimaryClusterHealthCheckEndPointType()
+	if ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint != haClusterConfig.PrimaryClusterEndPoint {
+		ctlr.AgentParams.PrimaryClusterHealthProbeParams.EndPoint = haClusterConfig.PrimaryClusterEndPoint
+		ctlr.setPrimaryClusterHealthCheckEndPointType()
 	}
 	// Check if probe interval has been updated
 	if haClusterConfig.ProbeInterval == 0 {
-		if ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval != DefaultProbeInterval {
-			ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval = DefaultProbeInterval
+		if ctlr.AgentParams.PrimaryClusterHealthProbeParams.probeInterval != DefaultProbeInterval {
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.probeInterval = DefaultProbeInterval
 		}
-	} else if ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval != haClusterConfig.ProbeInterval {
-		ctlr.Agent.PrimaryClusterHealthProbeParams.probeInterval = haClusterConfig.ProbeInterval
+	} else if ctlr.AgentParams.PrimaryClusterHealthProbeParams.probeInterval != haClusterConfig.ProbeInterval {
+		ctlr.AgentParams.PrimaryClusterHealthProbeParams.probeInterval = haClusterConfig.ProbeInterval
 	}
 	// Check if retry interval has been updated
 	if haClusterConfig.RetryInterval == 0 {
-		if ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval != DefaultRetryInterval {
-			ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval = DefaultRetryInterval
+		if ctlr.AgentParams.PrimaryClusterHealthProbeParams.retryInterval != DefaultRetryInterval {
+			ctlr.AgentParams.PrimaryClusterHealthProbeParams.retryInterval = DefaultRetryInterval
 		}
-	} else if ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval != haClusterConfig.RetryInterval {
-		ctlr.Agent.PrimaryClusterHealthProbeParams.retryInterval = haClusterConfig.RetryInterval
+	} else if ctlr.AgentParams.PrimaryClusterHealthProbeParams.retryInterval != haClusterConfig.RetryInterval {
+		ctlr.AgentParams.PrimaryClusterHealthProbeParams.retryInterval = haClusterConfig.RetryInterval
 	}
 }
 

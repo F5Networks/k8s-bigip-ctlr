@@ -24,10 +24,10 @@ import (
 	"net/http"
 )
 
-func (ctlr *Controller) enableHttpEndpoint(httpAddress string) {
+func (ctlr *Controller) enableHttpEndpoint(httpAddress string, bigipLabel string) {
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
-	bigIPPrometheus.RegisterMetrics(ctlr.Agent.PostManager.HTTPClientMetrics)
+	bigIPPrometheus.RegisterMetrics(ctlr.AgentMap[bigipLabel].PostManager.HTTPClientMetrics)
 	// Expose cis health endpoint
 	http.Handle("/health", ctlr.CISHealthCheckHandler())
 	log.Fatal(http.ListenAndServe(httpAddress, nil).Error())

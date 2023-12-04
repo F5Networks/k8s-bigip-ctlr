@@ -347,3 +347,10 @@ Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ct
 *  `Issue 777 <https://github.com/F5Networks/f5-appsvcs-extension/issues/777>`_: Cluster adminState in multiCluster mode doesn't work properly with AS3 (v3.47 and v3.48) as updating pool member adminState from enable to offline fails with 422 error with AS3 (v3.47 and v3.48). If customer needs this feature, we recommend to use AS3 v3.46 or lower on BIGIP.
   
 Refer Release Notes for [CIS v2.15](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+### **Upgrading from 2.15.0 to 2.15.1:**
+* `Issue 3160 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3160>`_: Support to provide different IPs for the same resources deployed in different clusters for Infoblox IPAM provider only.
+   ```
+   Note: Remove the ipam CR created by previous version of CIS before enabling this --ipam-cluster-label parameter```
+   eg: kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam
+   ```

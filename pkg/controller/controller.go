@@ -230,7 +230,10 @@ func NewController(params Params) *Controller {
 
 		ipamClient := ipammachinery.NewIPAMClient(ipamParams)
 		ctlr.ipamCli = ipamClient
-
+		ctlr.ipamClusterLabel = params.IPAMClusterLabel
+		if params.IPAMClusterLabel != "" {
+			ctlr.ipamClusterLabel = params.IPAMClusterLabel + "-"
+		}
 		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
 		_ = ctlr.createIPAMResource()

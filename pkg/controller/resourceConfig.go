@@ -1773,26 +1773,6 @@ func (idg *InternalDataGroup) RemoveRecord(name string) bool {
 	return false
 }
 
-// AS3NameFormatter formarts resources names according to AS3 convention
-// TODO: Should we use this? Or this will be done in agent?
-func AS3NameFormatter(name string) string {
-	modifySpecialChars := map[string]string{
-		".":  "_",
-		":":  "_",
-		"/":  "_",
-		"%":  ".",
-		"-":  "_",
-		"[":  "",
-		"]":  "",
-		"=":  "_",
-		"*_": ""}
-	SpecialChars := [9]string{".", ":", "/", "%", "-", "[", "]", "=", "*_"}
-	for _, key := range SpecialChars {
-		name = strings.ReplaceAll(name, key, modifySpecialChars[key])
-	}
-	return name
-}
-
 func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	vsHost string,

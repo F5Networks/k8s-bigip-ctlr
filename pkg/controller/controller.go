@@ -63,7 +63,8 @@ func NewController(params Params) *Controller {
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 		clusterAdminState:     make(map[string]cisapiv1.AdminState),
-		AgentMap:              make(map[string]*Agent),
+		AgentMap:              make(map[string]*RequestHandler),
+		respChan:              make(chan resourceStatusMeta, 1),
 		CMTokenManager: tokenmanager.NewTokenManager(
 			params.CMConfigDetails.URL,
 			tokenmanager.Credentials{Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password},
@@ -100,6 +101,9 @@ func NewController(params Params) *Controller {
 	if err3 := ctlr.setupInformers(); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
+
+	go ctlr.responseHandler(ctlr.respChan)
+
 	// setup agents for bigip label
 	for bigip, _ := range ctlr.bigIpMap {
 

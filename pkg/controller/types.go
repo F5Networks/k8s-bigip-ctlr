@@ -56,7 +56,7 @@ type (
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		AgentParams            AgentParams
-		AgentMap               map[string]*Agent
+		AgentMap               map[string]*RequestHandler
 		PoolMemberType         string
 		UseNodeInternal        bool
 		initState              bool
@@ -82,6 +82,7 @@ type (
 		resourceSelectorConfig ResourceSelectorConfig
 		CMTokenManager         *tokenmanager.TokenManager
 		bigIpMap               BigIpMap
+		respChan               chan resourceStatusMeta
 		resourceContext
 	}
 	ClientSets struct {
@@ -737,22 +738,17 @@ type (
 	}
 )
 
+type L3PostManager struct {
+}
+
 type (
-	GTMPostManager struct {
-		*PostManager
-		Partition string
-	}
-	Agent struct {
-		*PostManager
-		Partition       string
-		respChan        chan resourceStatusMeta
+	RequestHandler struct {
+		PostManager     *PostManager
 		reqChan         chan ResourceConfigRequest
 		PythonDriverPID int
 		userAgent       string
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
-		HAMode          bool
-		GTMPostManager  *GTMPostManager
 		bigipLabel      string
 	}
 
@@ -773,13 +769,9 @@ type (
 	}
 
 	PostManager struct {
-		tenantResponseMap map[string]tenantResponse
-		PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		firstPost                       bool
-		AS3VersionInfo                  as3VersionInfo
-		bigIPAS3Version                 float64
-		postManagerPrefix               string
+		AS3PostManager *AS3PostManager
+		L3PostManager  *L3PostManager
+		tokenManager   *tokenmanager.TokenManager
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
 		cachedTenantDeclMap   map[string]as3Tenant
 		incomingTenantDeclMap map[string]as3Tenant
@@ -788,8 +780,21 @@ type (
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
 		postChan           chan agentConfig
+		tenantResponseMap  map[string]tenantResponse
 		retryChan          chan struct{}
-		bigipLabel         string
+		defaultPartition   string
+		HAMode             bool
+		respChan           chan resourceStatusMeta
+		PostParams
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		postManagerPrefix               string
+	}
+	AS3PostManager struct {
+		AS3VersionInfo  as3VersionInfo
+		AS3Config       cisapiv1.AS3Config
+		bigIPAS3Version float64
+		firstPost       bool
+		bigipLabel      string
 	}
 
 	PrimaryClusterHealthProbeParams struct {
@@ -808,9 +813,9 @@ type (
 		CMURL             string
 		TrustedCerts      string
 		SSLInsecure       bool
-		AS3Config         cisapiv1.AS3Config
 		HTTPClientMetrics bool
 		httpClient        *http.Client
+		AS3Config         cisapiv1.AS3Config
 	}
 
 	GTMParams struct {

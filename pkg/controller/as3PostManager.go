@@ -1,0 +1,1191 @@
+package controller
+
+import (
+	"encoding/json"
+	"fmt"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"reflect"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
+	var as3Config map[string]interface{}
+
+	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
+		postMgr.AS3VersionInfo.as3Release, postMgr.AS3VersionInfo.as3SchemaVersion)
+	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
+
+	adc := as3Config["declaration"].(map[string]interface{})
+
+	controlObj := make(map[string]interface{})
+	controlObj["class"] = "Controls"
+	controlObj["userAgent"] = userAgent
+	adc["controls"] = controlObj
+
+	for tenant, decl := range tenantDeclMap {
+		adc[tenant] = decl
+	}
+	decl, err := json.Marshal(as3Config)
+	if err != nil {
+		log.Debugf("[AS3] Unified declaration: %v\n", err)
+	}
+
+	return as3Declaration(decl)
+}
+
+func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string) as3Tenant {
+	if defaultPartition == tenant {
+		// Flush Partition contents
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+		return as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
+		}
+	}
+	return as3Tenant{
+		"class": "Tenant",
+	}
+}
+
+func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
+	for _, rsCfg := range rsMap {
+		// Skip processing IRules for "None" value
+		for _, v := range rsCfg.Virtual.IRules {
+			if v == "none" {
+				continue
+			}
+		}
+		// Create irule declaration
+		for _, v := range rsCfg.IRulesMap {
+			iRule := &as3IRules{}
+			iRule.Class = "iRule"
+			iRule.IRule = v.Code
+			sharedApp[v.Name] = iRule
+		}
+	}
+}
+
+func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
+	for _, rsCfg := range rsMap {
+		// Skip processing DataGroup for "None" iRule value
+		for _, v := range rsCfg.Virtual.IRules {
+			if v == "none" {
+				continue
+			}
+		}
+		for _, idg := range rsCfg.IntDgMap {
+			for _, dg := range idg {
+				dataGroupRecord, found := sharedApp[dg.Name]
+				if !found {
+					dgMap := &as3DataGroup{}
+					dgMap.Class = "Data_Group"
+					dgMap.KeyDataType = dg.Type
+					for _, record := range dg.Records {
+						dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
+					}
+					// sort above create dgMap records.
+					sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
+					sharedApp[dg.Name] = dgMap
+				} else {
+					for _, record := range dg.Records {
+						sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, as3Record{Key: record.Name, Value: record.Data})
+					}
+					// sort above created
+					sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
+						func(i, j int) bool {
+							return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
+								sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
+						})
+				}
+			}
+		}
+	}
+}
+
+// Process for AS3 Resource
+func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string) {
+	for _, cfg := range rsMap {
+		//Create policies
+		createPoliciesDecl(cfg, sharedApp)
+
+		//Create health monitor declaration
+		createMonitorDecl(cfg, sharedApp)
+
+		//Create pools
+		createPoolDecl(cfg, sharedApp, shareNodes, tenant)
+
+		switch cfg.MetaData.ResourceType {
+		case VirtualServer:
+			//Create AS3 Service for virtual server
+			createServiceDecl(cfg, sharedApp, tenant)
+		case TransportServer:
+			//Create AS3 Service for transport virtual server
+			createTransportServiceDecl(cfg, sharedApp, tenant)
+		}
+	}
+}
+
+// Create policy declaration
+func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
+	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	for _, pl := range cfg.Policies {
+		//Create EndpointPolicy
+		ep := &as3EndpointPolicy{}
+		for _, rl := range pl.Rules {
+
+			ep.Class = "Endpoint_Policy"
+			s := strings.Split(pl.Strategy, "/")
+			ep.Strategy = s[len(s)-1]
+
+			//Create rules
+			rulesData := &as3Rule{Name: rl.Name}
+
+			//Create condition object
+			createRuleCondition(rl, rulesData, port)
+
+			//Creat action object
+			createRuleAction(rl, rulesData)
+
+			ep.Rules = append(ep.Rules, rulesData)
+		}
+		//Setting Endpoint_Policy Name
+		sharedApp[pl.Name] = ep
+	}
+}
+
+// Create AS3 Pools for CRD
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant string) {
+	for _, v := range cfg.Pools {
+		pool := &as3Pool{}
+		pool.LoadBalancingMode = v.Balance
+		pool.Class = "Pool"
+		pool.ReselectTries = v.ReselectTries
+		pool.ServiceDownAction = v.ServiceDownAction
+		pool.SlowRampTime = v.SlowRampTime
+		poolMemberSet := make(map[PoolMember]struct{})
+		for _, val := range v.Members {
+			// Skip duplicate pool members
+			if _, ok := poolMemberSet[val]; ok {
+				continue
+			}
+			poolMemberSet[val] = struct{}{}
+			var member as3PoolMember
+			member.AddressDiscovery = "static"
+			member.ServicePort = val.Port
+			member.ServerAddresses = append(member.ServerAddresses, val.Address)
+			if shareNodes {
+				member.ShareNodes = shareNodes
+			}
+			if val.AdminState != "" {
+				member.AdminState = val.AdminState
+			}
+			if val.ConnectionLimit != 0 {
+				member.ConnectionLimit = val.ConnectionLimit
+			}
+			pool.Members = append(pool.Members, member)
+		}
+		for _, val := range v.MonitorNames {
+			var monitor as3ResourcePointer
+			//Reference existing health monitor from BIGIP
+			if val.Reference == BIGIP {
+				monitor.BigIP = val.Name
+			} else {
+				use := strings.Split(val.Name, "/")
+				monitor.Use = fmt.Sprintf("/%s/%s/%s",
+					tenant,
+					as3SharedApplication,
+					use[len(use)-1],
+				)
+			}
+			pool.Monitors = append(pool.Monitors, monitor)
+		}
+		if len(pool.Monitors) > 0 {
+			if v.MinimumMonitors.StrVal != "" || v.MinimumMonitors.IntVal != 0 {
+				pool.MinimumMonitors = v.MinimumMonitors
+			} else {
+				pool.MinimumMonitors = intstr.IntOrString{Type: 0, IntVal: 1}
+			}
+		} else {
+			pool.MinimumMonitors = intstr.IntOrString{Type: 1, StrVal: "all"}
+		}
+		sharedApp[v.Name] = pool
+	}
+}
+
+func updateVirtualToHTTPS(v *as3Service) {
+	v.Class = "Service_HTTPS"
+	redirect80 := false
+	v.Redirect80 = &redirect80
+}
+
+// Process Irules for CRD
+func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
+	var IRules []interface{}
+	// Skip processing IRules for "None" value
+	for _, v := range cfg.Virtual.IRules {
+		if v == "none" {
+			continue
+		}
+		splits := strings.Split(v, "/")
+		iRuleName := splits[len(splits)-1]
+
+		var iRuleNoPort string
+		lastIndex := strings.LastIndex(iRuleName, "_")
+		if lastIndex > 0 {
+			iRuleNoPort = iRuleName[:lastIndex]
+		} else {
+			iRuleNoPort = iRuleName
+		}
+		if strings.HasSuffix(iRuleNoPort, HttpRedirectIRuleName) ||
+			strings.HasSuffix(iRuleNoPort, HttpRedirectNoHostIRuleName) ||
+			strings.HasSuffix(iRuleName, TLSIRuleName) ||
+			strings.HasSuffix(iRuleName, ABPathIRuleName) {
+
+			IRules = append(IRules, iRuleName)
+		} else {
+			irule := &as3ResourcePointer{
+				BigIP: v,
+			}
+			IRules = append(IRules, irule)
+		}
+		svc.IRules = IRules
+	}
+}
+
+// Create AS3 Service for CRD
+func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+	svc := &as3Service{}
+	numPolicies := len(cfg.Virtual.Policies)
+	switch {
+	case numPolicies == 1:
+		policyName := cfg.Virtual.Policies[0].Name
+		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
+			tenant,
+			as3SharedApplication,
+			policyName)
+	case numPolicies > 1:
+		var peps []as3ResourcePointer
+		for _, pep := range cfg.Virtual.Policies {
+			peps = append(
+				peps,
+				as3ResourcePointer{
+					Use: fmt.Sprintf("/%s/%s/%s",
+						tenant,
+						as3SharedApplication,
+						pep.Name,
+					),
+				},
+			)
+		}
+		svc.PolicyEndpoint = peps
+	}
+	// Attach the default pool if pool name is present for virtual.
+	if cfg.Virtual.PoolName != "" {
+		var poolPointer as3ResourcePointer
+		if cfg.MetaData.defaultPoolType == BIGIP {
+			poolPointer.BigIP = cfg.Virtual.PoolName
+		} else {
+			ps := strings.Split(cfg.Virtual.PoolName, "/")
+			poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+				tenant,
+				as3SharedApplication,
+				ps[len(ps)-1],
+			)
+		}
+		svc.Pool = &poolPointer
+	}
+
+	if cfg.Virtual.TLSTermination != TLSPassthrough {
+		svc.Layer4 = cfg.Virtual.IpProtocol
+		svc.Source = "0.0.0.0/0"
+		svc.TranslateServerAddress = true
+		svc.TranslateServerPort = true
+		svc.Class = "Service_HTTP"
+	} else {
+		if len(cfg.Virtual.PersistenceProfile) == 0 {
+			cfg.Virtual.PersistenceProfile = "tls-session-id"
+		}
+		svc.Class = "Service_TCP"
+	}
+
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
+
+	if len(cfg.Virtual.ProfileDOS) > 0 {
+		svc.ProfileDOS = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileDOS,
+		}
+	}
+	if len(cfg.Virtual.ProfileBotDefense) > 0 {
+		svc.ProfileBotDefense = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
+
+	if cfg.MetaData.Protocol == "https" {
+		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
+			if cfg.Virtual.HTTP2.Client == "" {
+				log.Errorf("[AS3] resetting ProfileHTTP2 as client profile doesnt co-exist with HTTP2 Server Profile, Please include client HTTP2 Profile ")
+			}
+			if cfg.Virtual.HTTP2.Server == "" {
+				svc.ProfileHTTP2 = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+				}
+			}
+			if cfg.Virtual.HTTP2.Client == "" && cfg.Virtual.HTTP2.Server != "" {
+				svc.ProfileHTTP2 = as3ProfileHTTP2{
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+					},
+				}
+			}
+			if cfg.Virtual.HTTP2.Client != "" && cfg.Virtual.HTTP2.Server != "" {
+				svc.ProfileHTTP2 = as3ProfileHTTP2{
+					Ingress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+					},
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+					},
+				}
+			}
+		}
+	}
+
+	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
+		if cfg.Virtual.TCP.Client == "" {
+			log.Errorf("[AS3] resetting ProfileTCP as client profile doesnt co-exist with TCP Server Profile, Please include client TCP Profile ")
+		}
+		if cfg.Virtual.TCP.Server == "" {
+			svc.ProfileTCP = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+			}
+		}
+		if cfg.Virtual.TCP.Client != "" && cfg.Virtual.TCP.Server != "" {
+			svc.ProfileTCP = as3ProfileTCP{
+				Ingress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+				},
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
+				},
+			}
+		}
+	}
+
+	if len(cfg.Virtual.ProfileMultiplex) > 0 {
+		svc.ProfileMultiplex = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileMultiplex,
+		}
+	}
+	// updating the virtual server to https if a passthrough datagroup is found
+	name := getRSCfgResName(cfg.Virtual.Name, PassthroughHostsDgName)
+	mapKey := NameRef{
+		Name:      name,
+		Partition: cfg.Virtual.Partition,
+	}
+	if _, ok := cfg.IntDgMap[mapKey]; ok {
+		svc.ServerTLS = &as3ResourcePointer{
+			BigIP: "/Common/clientssl",
+		}
+		updateVirtualToHTTPS(svc)
+	}
+
+	// Attaching Profiles from Policy CRD
+	for _, profile := range cfg.Virtual.Profiles {
+		_, name := getPartitionAndName(profile.Name)
+		switch profile.Context {
+		case "http":
+			if !profile.BigIPProfile {
+				svc.ProfileHTTP = name
+			} else {
+				svc.ProfileHTTP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		}
+	}
+
+	//Attaching WAF policy
+	if cfg.Virtual.WAF != "" {
+		svc.WAF = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
+		}
+	}
+
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
+				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					va = append(va, val)
+				}
+			}
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else {
+			//Attach Service Address
+			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
+				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					//Attach Service Address
+					serviceAddressName := createServiceAddressDecl(cfg, val, sharedApp)
+					//handle additional service addresses
+					asa := &as3ResourcePointer{
+						Use: serviceAddressName,
+					}
+					svc.VirtualAddresses = append(svc.VirtualAddresses, asa)
+				}
+			}
+			svc.VirtualPort = port
+		}
+	}
+	if cfg.Virtual.HttpMrfRoutingEnabled != nil {
+		//set HttpMrfRoutingEnabled
+		svc.HttpMrfRoutingEnabled = *cfg.Virtual.HttpMrfRoutingEnabled
+	}
+	svc.AutoLastHop = cfg.Virtual.AutoLastHop
+
+	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile != "" {
+		svc.HttpAnalyticsProfile = &as3ResourcePointer{
+			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile,
+		}
+	}
+	//set websocket profile
+	if cfg.Virtual.ProfileWebSocket != "" {
+		svc.ProfileWebSocket = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileWebSocket,
+		}
+	}
+	processCommonDecl(cfg, svc)
+	sharedApp[cfg.Virtual.Name] = svc
+}
+
+// Create AS3 Service Address for Virtual Server Address
+func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, sharedApp as3Application) string {
+	var name string
+	for _, sa := range cfg.ServiceAddress {
+		serviceAddress := &as3ServiceAddress{}
+		serviceAddress.Class = "Service_Address"
+		serviceAddress.ArpEnabled = sa.ArpEnabled
+		serviceAddress.ICMPEcho = sa.ICMPEcho
+		serviceAddress.RouteAdvertisement = sa.RouteAdvertisement
+		serviceAddress.SpanningEnabled = sa.SpanningEnabled
+		serviceAddress.TrafficGroup = sa.TrafficGroup
+		serviceAddress.VirtualAddress = virtualAddress
+		name = "crd_service_address_" + AS3NameFormatter(virtualAddress)
+		sharedApp[name] = serviceAddress
+	}
+	return name
+}
+
+// Create AS3 Rule Condition for CRD
+func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
+	for _, c := range rl.Conditions {
+		condition := &as3Condition{}
+
+		if c.Host {
+			condition.Name = "host"
+			var values []string
+			// For ports other then 80 and 443, attaching port number to host.
+			// Ex. example.com:8080
+			if port != 80 && port != 443 {
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val)
+				}
+			} else {
+				//For ports 80 and 443, host header should match both
+				// host and host:port match
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val, c.Values[i])
+				}
+			}
+			condition.All = &as3PolicyCompareString{
+				Values: values,
+			}
+			if c.HTTPHost {
+				condition.Type = "httpHeader"
+			}
+			if c.Equals {
+				condition.All.Operand = "equals"
+			}
+			if c.EndsWith {
+				condition.All.Operand = "ends-with"
+			}
+		} else if c.PathSegment {
+			condition.PathSegment = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.Name != "" {
+				condition.Name = c.Name
+			}
+			condition.Index = c.Index
+			if c.HTTPURI {
+				condition.Type = "httpUri"
+			}
+			if c.Equals {
+				condition.PathSegment.Operand = "equals"
+			}
+		} else if c.Path {
+			condition.Path = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.Name != "" {
+				condition.Name = c.Name
+			}
+			condition.Index = c.Index
+			if c.HTTPURI {
+				condition.Type = "httpUri"
+			}
+			if c.Equals {
+				condition.Path.Operand = "equals"
+			}
+		} else if c.Tcp {
+			if c.Address && len(c.Values) > 0 {
+				condition.Type = "tcp"
+				condition.Address = &as3PolicyAddressString{
+					Values: c.Values,
+				}
+			}
+		}
+		if c.Request {
+			condition.Event = "request"
+		}
+
+		rulesData.Conditions = append(rulesData.Conditions, condition)
+	}
+}
+
+// Create AS3 Rule Action for CRD
+func createRuleAction(rl *Rule, rulesData *as3Rule) {
+	for _, v := range rl.Actions {
+		action := &as3Action{}
+		if v.Forward {
+			action.Type = "forward"
+		}
+		if v.Log {
+			action.Type = "log"
+		}
+		if v.Request {
+			action.Event = "request"
+		}
+		if v.Redirect {
+			action.Type = "httpRedirect"
+		}
+		if v.HTTPHost {
+			action.Type = "httpHeader"
+		}
+		if v.HTTPURI {
+			action.Type = "httpUri"
+		}
+		if v.Location != "" {
+			action.Location = v.Location
+		}
+		if v.Log {
+			action.Write = &as3LogMessage{
+				Message: v.Message,
+			}
+		}
+		// Handle vsHostname rewrite.
+		if v.Replace && v.HTTPHost {
+			action.Replace = &as3ActionReplaceMap{
+				Value: v.Value,
+				Name:  "host",
+			}
+		}
+		// handle uri rewrite.
+		if v.Replace && v.HTTPURI {
+			action.Replace = &as3ActionReplaceMap{
+				Value: v.Value,
+			}
+		}
+		p := strings.Split(v.Pool, "/")
+		if v.Pool != "" {
+			action.Select = &as3ActionForwardSelect{
+				Pool: &as3ResourcePointer{
+					Use: p[len(p)-1],
+				},
+			}
+		}
+		// WAF action
+		if v.WAF {
+			action.Type = "waf"
+		}
+		// Add policy reference
+		if v.Policy != "" {
+			action.Policy = &as3ResourcePointer{
+				BigIP: v.Policy,
+			}
+		}
+		if v.Enabled != nil {
+			action.Enabled = v.Enabled
+		}
+		// Add drop action if specified
+		if v.Drop {
+			action.Type = "drop"
+		}
+
+		rulesData.Actions = append(rulesData.Actions, action)
+	}
+}
+
+func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
+	if decl1 == "" && decl2 == "" {
+		return true
+	}
+	var o1, o2 interface{}
+
+	err := json.Unmarshal([]byte(decl1), &o1)
+	if err != nil {
+		return false
+	}
+
+	err = json.Unmarshal([]byte(decl2), &o2)
+	if err != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(o1, o2)
+}
+
+func processProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
+	for _, cfg := range rsMap {
+		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
+			processTLSProfilesForAS3(&cfg.Virtual, svc, cfg.Virtual.Name)
+		}
+	}
+}
+
+func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName string) {
+	// lets discard BIGIP profile creation when there exists a custom profile.
+	as3ClientSuffix := "_tls_client"
+	as3ServerSuffix := "_tls_server"
+	var clientProfiles []as3MultiTypeParam
+	var serverProfiles []as3MultiTypeParam
+	for _, profile := range virtual.Profiles {
+		switch profile.Context {
+		case CustomProfileClient:
+			// Profile is stored in a k8s secret
+			if !profile.BigIPProfile {
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				svc.ServerTLS = fmt.Sprintf("/%v/%v/%v%v", virtual.Partition,
+					as3SharedApplication, profileName, as3ServerSuffix)
+
+			} else {
+				// Profile is a BIG-IP reference
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				clientProfiles = append(clientProfiles, &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				})
+			}
+			updateVirtualToHTTPS(svc)
+		case CustomProfileServer:
+			// Profile is stored in a k8s secret
+			if !profile.BigIPProfile {
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				svc.ClientTLS = fmt.Sprintf("/%v/%v/%v%v", virtual.Partition,
+					as3SharedApplication, profileName, as3ClientSuffix)
+			} else {
+				// Profile is a BIG-IP reference
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				serverProfiles = append(serverProfiles, &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				})
+			}
+			updateVirtualToHTTPS(svc)
+		}
+	}
+	if len(clientProfiles) > 0 {
+		svc.ServerTLS = clientProfiles
+	}
+	if len(serverProfiles) > 0 {
+		svc.ClientTLS = serverProfiles
+	}
+}
+
+func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as3Version float64) {
+	caBundleName := "serverssl_ca_bundle"
+	var tlsClient *as3TLSClient
+	svcNameMap := make(map[string]struct{})
+	// TLS Certificates are available in CustomProfiles
+	for _, rsCfg := range rsMap {
+		// Sort customProfiles so that they are processed in orderly manner
+		keys := getSortedCustomProfileKeys(rsCfg.customProfiles)
+
+		for _, key := range keys {
+			prof := rsCfg.customProfiles[key]
+			// Create TLSServer and Certificate for each profile
+			svcName := key.ResourceName
+			if svcName == "" {
+				continue
+			}
+			if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
+				// Create Certificate only if the corresponding TLSServer is created
+				createCertificateDecl(prof, sharedApp)
+				svcNameMap[svcName] = struct{}{}
+			} else {
+				createUpdateCABundle(prof, caBundleName, sharedApp)
+				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+
+				skey := SecretKey{
+					Name: prof.Name + "-ca",
+				}
+				if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
+					// If a profile exist in customProfiles with key as created above
+					// then it indicates that secure-serverssl needs to be added
+					tlsClient.ValidateCertificate = true
+				}
+			}
+		}
+	}
+	// if AS3 version on bigIP is lower than 3.44 then don't enable sniDefault, as it's only supported from AS3 v3.44 onwards
+	if as3Version < 3.44 {
+		return
+	}
+	for svcName, _ := range svcNameMap {
+		if _, ok := sharedApp[svcName].(*as3Service); ok {
+			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+			if !ok {
+				continue
+			}
+			if len(tlsServer.Certificates) > 1 {
+				tlsServer.Certificates[0].SNIDefault = true
+			}
+		}
+	}
+}
+
+// createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
+func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
+	if len(prof.Certificates) > 0 {
+		if sharedApp[svcName] == nil {
+			return false
+		}
+		svc := sharedApp[svcName].(*as3Service)
+		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+		tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+		if !ok {
+			tlsServer = &as3TLSServer{
+				Class:        "TLS_Server",
+				Certificates: []as3TLSServerCertificates{},
+			}
+			if prof.CipherGroup != "" {
+				tlsServer.CipherGroup = &as3ResourcePointer{BigIP: prof.CipherGroup}
+				tlsServer.TLS1_3Enabled = true
+			} else {
+				tlsServer.Ciphers = prof.Ciphers
+			}
+
+			sharedApp[tlsServerName] = tlsServer
+			svc.ServerTLS = tlsServerName
+			updateVirtualToHTTPS(svc)
+		}
+		for index, certificate := range prof.Certificates {
+			certName := fmt.Sprintf("%s_%d", prof.Name, index)
+			// A TLSServer profile needs to carry both Certificate and Key
+			if len(certificate.Cert) > 0 && len(certificate.Key) > 0 {
+				tlsServer.Certificates = append(
+					tlsServer.Certificates,
+					as3TLSServerCertificates{
+						Certificate: certName,
+					},
+				)
+			} else {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
+	for index, certificate := range prof.Certificates {
+		if len(certificate.Cert) > 0 && len(certificate.Key) > 0 {
+			cert := &as3Certificate{
+				Class:       "Certificate",
+				Certificate: certificate.Cert,
+				PrivateKey:  certificate.Key,
+				ChainCA:     prof.CAFile,
+			}
+			sharedApp[fmt.Sprintf("%s_%d", prof.Name, index)] = cert
+		}
+	}
+}
+
+func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3Application) {
+	for _, cert := range prof.Certificates {
+		// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
+		if len(cert.Cert) > 0 && len(cert.Key) == 0 {
+			caBundle, ok := sharedApp[caBundleName].(*as3CABundle)
+
+			if !ok {
+				caBundle = &as3CABundle{
+					Class:  "CA_Bundle",
+					Bundle: "",
+				}
+				sharedApp[caBundleName] = caBundle
+			}
+			caBundle.Bundle += "\n" + cert.Cert
+		}
+	}
+}
+
+// Create health monitor declaration
+func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
+
+	for _, v := range cfg.Monitors {
+		monitor := &as3Monitor{}
+		monitor.Class = "Monitor"
+		monitor.Interval = v.Interval
+		monitor.MonitorType = v.Type
+		monitor.Timeout = v.Timeout
+		val := 0
+		monitor.TargetPort = v.TargetPort
+		targetAddressStr := ""
+		monitor.TargetAddress = &targetAddressStr
+		monitor.TimeUnitilUp = v.TimeUntilUp
+		//Monitor type
+		switch v.Type {
+		case "http":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Dscp = &val
+			monitor.Receive = "none"
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.Send = v.Send
+		case "https":
+			//Todo: For https monitor type
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.Send = v.Send
+			monitor.TimeUnitilUp = v.TimeUntilUp
+		case "tcp", "udp":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Receive = v.Recv
+			monitor.Send = v.Send
+		}
+		sharedApp[v.Name] = monitor
+	}
+
+}
+
+// Create AS3 transport Service for CRD
+func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+	svc := &as3Service{}
+	if cfg.Virtual.Mode == "standard" {
+		if cfg.Virtual.IpProtocol == "udp" {
+			svc.Class = "Service_UDP"
+		} else if cfg.Virtual.IpProtocol == "sctp" {
+			svc.Class = "Service_SCTP"
+		} else {
+			svc.Class = "Service_TCP"
+		}
+	} else if cfg.Virtual.Mode == "performance" {
+		svc.Class = "Service_L4"
+		if cfg.Virtual.IpProtocol == "udp" {
+			svc.Layer4 = "udp"
+		} else if cfg.Virtual.IpProtocol == "sctp" {
+			svc.Layer4 = "sctp"
+		} else {
+			svc.Layer4 = "tcp"
+		}
+	}
+
+	svc.ProfileL4 = "basic"
+	if len(cfg.Virtual.ProfileL4) > 0 {
+		svc.ProfileL4 = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileL4,
+		}
+	}
+
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
+
+	if len(cfg.Virtual.ProfileDOS) > 0 {
+		svc.ProfileDOS = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileDOS,
+		}
+	}
+
+	if len(cfg.Virtual.ProfileBotDefense) > 0 {
+		svc.ProfileBotDefense = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
+
+	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
+		if cfg.Virtual.TCP.Client == "" {
+			log.Errorf("[AS3] resetting ProfileTCP as client profile doesnt co-exist with TCP Server Profile, Please include client TCP Profile ")
+		}
+		if cfg.Virtual.TCP.Server == "" {
+			svc.ProfileTCP = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+			}
+		}
+		if cfg.Virtual.TCP.Client != "" && cfg.Virtual.TCP.Server != "" {
+			svc.ProfileTCP = as3ProfileTCP{
+				Ingress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+				},
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
+				},
+			}
+		}
+	}
+
+	// Attaching Profiles from Policy CRD
+	for _, profile := range cfg.Virtual.Profiles {
+		_, name := getPartitionAndName(profile.Name)
+		switch profile.Context {
+		case "udp":
+			if !profile.BigIPProfile {
+				svc.ProfileUDP = name
+			} else {
+				svc.ProfileUDP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		}
+	}
+
+	if cfg.Virtual.TranslateServerAddress == true {
+		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
+	}
+	if cfg.Virtual.TranslateServerPort == true {
+		svc.TranslateServerPort = cfg.Virtual.TranslateServerPort
+	}
+	if cfg.Virtual.Source != "" {
+		svc.Source = cfg.Virtual.Source
+	}
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else {
+			//Attach Service Address
+			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			svc.VirtualPort = port
+		}
+	}
+	var poolPointer as3ResourcePointer
+	ps := strings.Split(cfg.Virtual.PoolName, "/")
+	poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+		tenant,
+		as3SharedApplication,
+		ps[len(ps)-1],
+	)
+	svc.Pool = &poolPointer
+	processCommonDecl(cfg, svc)
+	sharedApp[cfg.Virtual.Name] = svc
+}
+
+// Process common declaration for VS and TS
+func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
+
+	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
+		svc.SNAT = cfg.Virtual.SNAT
+	} else {
+		svc.SNAT = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
+		}
+	}
+	// Enable connection mirroring
+	if cfg.Virtual.ConnectionMirroring != "" {
+		svc.Mirroring = cfg.Virtual.ConnectionMirroring
+	}
+	//Attach AllowVLANs
+	if cfg.Virtual.AllowVLANs != nil {
+		for _, vlan := range cfg.Virtual.AllowVLANs {
+			vlans := as3ResourcePointer{BigIP: vlan}
+			svc.AllowVLANs = append(svc.AllowVLANs, vlans)
+		}
+	}
+
+	//Attach Firewall policy
+	if cfg.Virtual.Firewall != "" {
+		svc.Firewall = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.Firewall),
+		}
+	}
+
+	//Attach ipIntelligence policy
+	if cfg.Virtual.IpIntelligencePolicy != "" {
+		svc.IpIntelligencePolicy = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.IpIntelligencePolicy),
+		}
+	}
+
+	//Attach logging profile
+	if cfg.Virtual.LogProfiles != nil {
+		for _, lp := range cfg.Virtual.LogProfiles {
+			logProfile := as3ResourcePointer{BigIP: lp}
+			svc.LogProfiles = append(svc.LogProfiles, logProfile)
+		}
+	}
+
+	//Process iRules for crd
+	processIrulesForCRD(cfg, svc)
+}
+
+// addPersistenceMethod adds persistence methods in the service declaration
+func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
+	if len(persistenceProfile) == 0 {
+		return
+	}
+	switch persistenceProfile {
+	case "none":
+		svc.PersistenceMethods = &[]as3MultiTypeParam{}
+	case "cookie", "destination-address", "hash", "msrdp", "sip-info", "source-address", "tls-session-id", "universal":
+		svc.PersistenceMethods = &[]as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
+	default:
+		svc.PersistenceMethods = &[]as3MultiTypeParam{
+			as3MultiTypeParam(
+				as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", persistenceProfile),
+				},
+			),
+		}
+	}
+}
+
+// Creates AS3 adc only for tenants with updated configuration
+func (req *RequestHandler) createTenantDeclaration(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) interface{} {
+	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
+	req.PostManager.incomingTenantDeclMap = make(map[string]as3Tenant)
+	req.PostManager.tenantPriorityMap = make(map[string]int)
+
+	for tenant, cfg := range req.PostManager.AS3PostManager.createAS3BIGIPConfig(config, partition, cachedTenantDeclMap) {
+		if !reflect.DeepEqual(cfg, req.PostManager.cachedTenantDeclMap[tenant]) ||
+			(req.PostManager.PrimaryClusterHealthProbeParams.EndPoint != "" && req.PostManager.PrimaryClusterHealthProbeParams.statusChanged) {
+			req.PostManager.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
+		} else {
+			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
+			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
+			// delete entry from retryTenantDeclMap if any
+			delete(req.PostManager.retryTenantDeclMap, tenant)
+			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
+			if req.PostManager.PrimaryClusterHealthProbeParams.EndPoint == "" || !req.PostManager.PrimaryClusterHealthProbeParams.statusRunning {
+				log.Debugf("[AS3] No change in %v tenant configuration", tenant)
+			}
+		}
+	}
+
+	return req.PostManager.AS3PostManager.createAS3Declaration(req.PostManager.incomingTenantDeclMap, req.userAgent)
+}
+
+func (req *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
+	adc := req.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap)
+	return adc
+}
+
+func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
+	adc := as3ADC{}
+	cisLabel := partition
+
+	for tenant := range cachedTenantDeclMap {
+		if _, ok := config.ltmConfig[tenant]; !ok {
+			// Remove partition
+			adc[tenant] = getDeletedTenantDeclaration(partition, tenant, cisLabel)
+		}
+	}
+	for tenantName, partitionConfig := range config.ltmConfig {
+
+		if len(partitionConfig.ResourceMap) == 0 {
+			// Remove partition
+			adc[tenantName] = getDeletedTenantDeclaration(partition, tenantName, cisLabel)
+			continue
+		}
+		// Create Shared as3Application object
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+
+		// Process rscfg to create AS3 Resources
+		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName)
+
+		// Process CustomProfiles
+		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, postMgr.bigIPAS3Version)
+
+		// Process Profiles
+		processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
+
+		processIRulesForAS3(partitionConfig.ResourceMap, sharedApp)
+
+		processDataGroupForAS3(partitionConfig.ResourceMap, sharedApp)
+
+		// Create AS3 Tenant
+		tenantDecl := as3Tenant{
+			"class":              "Tenant",
+			"defaultRouteDomain": config.defaultRouteDomain,
+			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
+		}
+		adc[tenantName] = tenantDecl
+	}
+	return adc
+}
+
+// removeDeletedTenantsForBigIP will check the tenant exists on bigip or not
+// if tenant exists and rsConfig does not have tenant, update the tenant with empty PartitionConfig
+func removeDeletedTenantsForBigIP(rsConfig *BigIpResourceConfig, cisLabel string, as3Config map[string]interface{}, partition string) {
+
+	for k, v := range as3Config {
+		if decl, ok := v.(map[string]interface{}); ok {
+			if label, found := decl["label"]; found && label == cisLabel && k != partition+"_gtm" {
+				if _, ok := rsConfig.ltmConfig[k]; !ok {
+					// adding an empty tenant to delete the tenant from BIGIP
+					priority := 1
+					rsConfig.ltmConfig[k] = &PartitionConfig{Priority: &priority}
+				}
+			}
+		}
+	}
+}
+
+// AS3NameFormatter formarts resources names according to AS3 convention
+// TODO: Should we use this? Or this will be done in agent?
+func AS3NameFormatter(name string) string {
+	modifySpecialChars := map[string]string{
+		".":  "_",
+		":":  "_",
+		"/":  "_",
+		"%":  ".",
+		"-":  "_",
+		"[":  "",
+		"]":  "",
+		"=":  "_",
+		"*_": ""}
+	SpecialChars := [9]string{".", ":", "/", "%", "-", "[", "]", "=", "*_"}
+	for _, key := range SpecialChars {
+		name = strings.ReplaceAll(name, key, modifySpecialChars[key])
+	}
+	return name
+}

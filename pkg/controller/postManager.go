@@ -32,10 +32,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
-	pm := &PostManager{
-		firstPost:                       true,
+func NewPostManager(params AgentParams) *PostManager {
+
+	var pm = &PostManager{
 		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
+		AS3PostManager:                  &AS3PostManager{},
 		cachedTenantDeclMap:             make(map[string]as3Tenant),
 		incomingTenantDeclMap:           make(map[string]as3Tenant),
 		retryTenantDeclMap:              make(map[string]*tenantParams),
@@ -55,7 +56,7 @@ func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
 func (postMgr *PostManager) postManager() {
 	for config := range postMgr.postChan {
 		//Handle AS3 post
-		go postMgr.publishConfig(config.as3Config)
+		postMgr.publishConfig(config.as3Config)
 		//TODO: L3 post manger handling
 		//TODO: after post check for failed state and update retry chan
 
@@ -133,7 +134,7 @@ func (postMgr *PostManager) publishConfig(cfg as3Config) {
 
 func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	// log as3 request if it's set
-	if postMgr.AS3Config.DebugAS3 {
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Request(cfg.data)
 	}
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
@@ -143,15 +144,16 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 		return
 	}
 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
+	// add authorization header to the req
+	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
 		return
 	}
 
-	if postMgr.firstPost {
-		postMgr.firstPost = false
+	if postMgr.AS3PostManager.firstPost {
+		postMgr.AS3PostManager.firstPost = false
 	}
 
 	switch httpResp.StatusCode {
@@ -196,7 +198,7 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3]%v Response body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
-		if postMgr.AS3Config.DebugAS3 {
+		if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 			log.Errorf("[AS3]%v Raw response from Big-IP: %v", postMgr.postManagerPrefix, string(body))
 		}
 		return nil, nil
@@ -233,7 +235,8 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 		return
 	}
 	log.Debugf("[AS3]%v posting request with taskId to %v", postMgr.postManagerPrefix, postMgr.getAS3TaskIdURL(id))
-	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
+	// add authorization header to the req
+	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
@@ -302,14 +305,14 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	} else {
 		log.Errorf("[AS3]%v Big-IP Responded with error code: %v", postMgr.postManagerPrefix, http.StatusNotFound)
 	}
-	if postMgr.AS3Config.DebugAS3 {
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
 	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) {
-	if postMgr.AS3Config.DebugAS3 {
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
@@ -336,7 +339,8 @@ func (postMgr *PostManager) GetBigipAS3Version() (string, string, string, error)
 	}
 
 	log.Debugf("[AS3]%v posting GET BIGIP AS3 Version request on %v", postMgr.postManagerPrefix, url)
-	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
+	// add authorization header to the req
+	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -373,7 +377,8 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 	}
 
 	log.Debugf("[AS3]%v Posting GET BIGIP Reg Key request on %v", postMgr.postManagerPrefix, url)
-	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
+	// add authorization header to the req
+	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -404,7 +409,8 @@ func (postMgr *PostManager) GetAS3DeclarationFromBigIP() (map[string]interface{}
 	}
 
 	log.Debugf("[AS3]%v posting GET BIGIP AS3 declaration request on %v", postMgr.postManagerPrefix, url)
-	req.SetBasicAuth(postMgr.CMUsername, postMgr.CMPassword)
+	// add authorization header to the req
+	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -441,7 +447,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3]%v Response body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
-		if postMgr.AS3Config.DebugAS3 {
+		if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 			log.Errorf("[AS3]%v Raw response from Big-IP: %v", postMgr.postManagerPrefix, string(body))
 		}
 		return nil, nil
@@ -608,30 +614,6 @@ func (postMgr *PostManager) pollTenantStatus() {
 	}
 }
 
-func (postMgr *PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
-	var as3Config map[string]interface{}
-
-	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version, postMgr.AS3VersionInfo.as3Release, postMgr.AS3VersionInfo.as3SchemaVersion)
-	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
-
-	adc := as3Config["declaration"].(map[string]interface{})
-
-	controlObj := make(map[string]interface{})
-	controlObj["class"] = "Controls"
-	controlObj["userAgent"] = userAgent
-	adc["controls"] = controlObj
-
-	for tenant, decl := range tenantDeclMap {
-		adc[tenant] = decl
-	}
-	decl, err := json.Marshal(as3Config)
-	if err != nil {
-		log.Debugf("[AS3] Unified declaration: %v\n", err)
-	}
-
-	return as3Declaration(decl)
-}
-
 func (postMgr *PostManager) retryFailedTenant(userAgent string) {
 	var retryTenants []string
 
@@ -652,7 +634,7 @@ func (postMgr *PostManager) retryFailedTenant(userAgent string) {
 	if len(retryTenants) > 0 {
 		// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
 		cfg := as3Config{
-			data:      string(postMgr.createAS3Declaration(retryDecl, userAgent)),
+			data:      string(postMgr.AS3PostManager.createAS3Declaration(retryDecl, userAgent)),
 			as3APIURL: postMgr.getAS3APIURL(retryTenants),
 			id:        0,
 		}
@@ -664,4 +646,29 @@ func (postMgr *PostManager) retryFailedTenant(userAgent string) {
 		postMgr.updateTenantResponseMap(false)
 	}
 
+}
+
+func (postMgr *PostManager) notifyRscStatusHandler(id int, overwriteCfg bool) {
+
+	rscUpdateMeta := resourceStatusMeta{
+		id,
+		make(map[string]struct{}),
+	}
+	for tenant := range postMgr.retryTenantDeclMap {
+		rscUpdateMeta.failedTenants[tenant] = struct{}{}
+	}
+	// If triggerred from retry block, process the previous successful request completely
+	if !overwriteCfg {
+		postMgr.respChan <- rscUpdateMeta
+	} else {
+		// Always push latest id to channel
+		// Case1: Put latest id into the channel
+		// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
+		// Either Case1 or Case2 executes, which ensures the above
+		select {
+		case postMgr.respChan <- rscUpdateMeta:
+		case <-postMgr.respChan:
+			postMgr.respChan <- rscUpdateMeta
+		}
+	}
 }

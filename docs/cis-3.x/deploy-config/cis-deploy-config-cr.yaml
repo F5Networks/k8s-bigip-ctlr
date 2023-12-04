@@ -16,3 +16,4 @@ spec:
     - bigIpAddress: 10.10.10.1
       haBigIpAddress: 10.10.10.2
       bigIpLabel: Hyderabad
+      defaultPartition: test

@@ -57,6 +57,7 @@ var _ = Describe("Routes", func() {
 				},
 			},
 		}
+		mockCtlr.bigIpMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
 	})
 
 	Describe("Routes", func() {
@@ -404,8 +405,6 @@ var _ = Describe("Routes", func() {
 			crName := "escm"
 			crNamespace := "kube-system"
 			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
-			mockCtlr.Partition = "default"
-
 			extConfig := `
 {
     "baseRouteSpec": {
@@ -1946,7 +1945,6 @@ var _ = Describe("Routes", func() {
 		})
 
 		It("Verify autoMonitor Options", func() {
-			mockCtlr.Partition = "test"
 			// Verify autoMonitor defaults to readiness-probe when invalid value is provided
 			extConfig := `
 {
@@ -1966,6 +1964,12 @@ var _ = Describe("Routes", func() {
 			es := cisapiv1.ExtendedSpec{}
 			_ = json.Unmarshal([]byte(extConfig), &es)
 			configCR.Spec.ExtendedSpec = es
+			configCR.Spec.BigIpConfig = []cisapiv1.BigIpConfig{}
+			bigipConfig := cisapiv1.BigIpConfig{
+				BigIpLabel:       "bigip1",
+				DefaultPartition: "default",
+			}
+			configCR.Spec.BigIpConfig = append(configCR.Spec.BigIpConfig, bigipConfig)
 			err, ok := mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -2064,6 +2068,12 @@ var _ = Describe("Routes", func() {
 			es = cisapiv1.ExtendedSpec{}
 			_ = json.Unmarshal([]byte(extConfig), &es)
 			configCR.Spec.ExtendedSpec = es
+			configCR.Spec.BigIpConfig = []cisapiv1.BigIpConfig{}
+			Config := cisapiv1.BigIpConfig{
+				BigIpLabel:       "bigip1",
+				DefaultPartition: "default",
+			}
+			configCR.Spec.BigIpConfig = append(configCR.Spec.BigIpConfig, Config)
 			err, ok = mockCtlr.processConfigCR(configCR, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -2074,11 +2084,12 @@ var _ = Describe("Routes", func() {
 				Name:        "foo_80_default_monitor",
 				Timeout:     50,
 				Type:        "tcp",
-				Partition:   "test",
+				Partition:   "default",
 				TimeUntilUp: &zero,
 			}
-			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
-			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
+			partition := mockCtlr.getPartitionForBIGIP("")
+			Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
+			Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
 
 		})
 	})

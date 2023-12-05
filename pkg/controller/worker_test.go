@@ -41,6 +41,8 @@ var _ = Describe("Worker Tests", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.bigIpMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
+		mockCtlr.bigIpMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", DefaultPartition: "default"}] = BigIpResourceConfig{}
 		svc1 = test.NewService(
 			"svc1",
 			"1",
@@ -80,7 +82,6 @@ var _ = Describe("Worker Tests", func() {
 				ServiceIPAddress: nil,
 			})
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-		mockCtlr.Partition = "test"
 		mockCtlr.AgentMap["bigip1"] = &Agent{
 			respChan: make(chan resourceStatusMeta, 1),
 			PostManager: &PostManager{
@@ -684,14 +685,15 @@ var _ = Describe("Worker Tests", func() {
 				}
 				mockCtlr.addVirtualServer(vrt2)
 				mockCtlr.processResources()
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1), "Invalid VS count")
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(1), "Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
 					To(Equal(1), "Invalid host count")
 				mockCtlr.addVirtualServer(vrt3)
 				mockCtlr.processResources()
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1),
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(1),
 					"Invalid VS count")
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
 					To(Equal(2), "Invalid host count")
 			})
 
@@ -857,7 +859,7 @@ var _ = Describe("Worker Tests", func() {
 					},
 				},
 			}
-			mockCtlr.Partition = "default"
+			mockCtlr.bigIpMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", DefaultPartition: "default"}] = BigIpResourceConfig{}
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
@@ -902,7 +904,8 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 
 			_ = mockCtlr.processLBServices(svc1, true)
-			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
+			partition := mockCtlr.getPartitionForBIGIP("")
+			Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
 		})
 
@@ -915,8 +918,6 @@ var _ = Describe("Worker Tests", func() {
 					ExternalDNS: make(map[string]int),
 				},
 			}
-			mockCtlr.Partition = "default"
-
 			newEDNS := test.NewExternalDNS(
 				"SampleEDNS",
 				namespace,
@@ -994,17 +995,18 @@ var _ = Describe("Worker Tests", func() {
 			err := mockCtlr.processIngressLink(IngressLink1, false)
 			Expect(err).To(BeNil(), "Failed to process IngressLink while creation")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
-			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(mockCtlr.Partition),
+			partition := mockCtlr.getPartitionForBIGIP("")
+			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(partition),
 				"Invalid LTM Config")
-			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1),
+			Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(1),
 				"Invalid Resource Config")
 
 			// Deletion of IngressLink
 			err = mockCtlr.processIngressLink(IngressLink1, true)
 			Expect(err).To(BeNil(), "Failed to process IngressLink while deletion")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
-			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(mockCtlr.Partition), "Invalid LTM Config")
-			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0),
+			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(partition), "Invalid LTM Config")
+			Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(0),
 				"Invalid Resource Config")
 
 		})
@@ -1138,7 +1140,6 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				}
-				mockCtlr.Partition = namespace
 				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 				//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
@@ -1742,14 +1743,15 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
 				rsname := "crd_10_8_0_1_443"
-				Expect(*mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses)).To(Equal(1))
-				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses[0]).To(Equal("10.16.0.1"))
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(*mockCtlr.resources.ltmConfig[partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses)).To(Equal(1))
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses[0]).To(Equal("10.16.0.1"))
 				//check irules
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.IRules)).To(Equal(4), "irules not propely attached")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap[rsname].Virtual.IRules)).To(Equal(4), "irules not propely attached")
 				//check websocket profile
-				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.ProfileWebSocket).To(Equal("/Common/websocket"))
-				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap[rsname].Virtual.ProfileWebSocket).To(Equal("/Common/websocket"))
+				for _, rule := range mockCtlr.resources.ltmConfig[partition].ResourceMap[rsname].Policies[0].Rules {
 					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
 						Expect(len(rule.Actions)).To(Equal(3))
 					} else if rule.Name == "vs_test_com_redirectto__home" {
@@ -1944,7 +1946,7 @@ var _ = Describe("Worker Tests", func() {
 				_, status := mockCtlr.requestIP("test", host, key)
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "VS not Processed")
-				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
+				Expect(*mockCtlr.resources.ltmConfig["default"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeTrue(), "http mrf route not processed correctly")
 
 				mockCtlr.deleteVirtualServer(vs)
@@ -1955,7 +1957,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "VS not Processed")
-				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
+				Expect(*mockCtlr.resources.ltmConfig["default"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeFalse(), "http mrf route not processed correctly")
 
 				mockCtlr.deleteVirtualServer(vs)
@@ -1996,7 +1998,7 @@ var _ = Describe("Worker Tests", func() {
 				_, status = mockCtlr.requestIP("test", "", key)
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
-				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
+				Expect(*mockCtlr.resources.ltmConfig["default"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeTrue(), "http mrf route not processed correctly")
 
 				rscUpdateMeta := resourceStatusMeta{
@@ -2031,8 +2033,6 @@ var _ = Describe("Worker Tests", func() {
 				crInf.start()
 				nrInf.start()
 				vs.Spec.TLSProfileName = ""
-				mockCtlr.Partition = "test"
-
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
@@ -2095,7 +2095,8 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid VS count")
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(1), "Invalid VS count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid VS count")
 
 				vs2.Spec.Partition = ""
@@ -2109,7 +2110,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.updatePartitionPriority("dev", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(2), "Invalid VS count")
 
 			})
 		})
@@ -2345,7 +2346,6 @@ var _ = Describe("Worker Tests", func() {
 			It("Transport Server with Partition", func() {
 				go mockCtlr.AgentMap["bigip1"].requestHandler()
 				go mockCtlr.AgentMap["bigip1"].retryWorker()
-				mockCtlr.Partition = "test"
 				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
 				//Add Service
 				mockCtlr.addEndpoints(fooEndpts)
@@ -2428,7 +2428,8 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.updatePartitionPriority("dev2", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(3), "Invalid Partition count")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid TS count")
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(1), "Invalid TS count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
 
@@ -2442,7 +2443,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.updatePartitionPriority("dev", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(2), "Invalid TS count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
 
 			})
@@ -2556,15 +2557,15 @@ var _ = Describe("Worker Tests", func() {
 				ts1.Spec.VirtualServerAddress = "10.1.1.2"
 				mockCtlr.addTransportServer(&ts1)
 				mockCtlr.processResources()
-
+				partition := mockCtlr.getPartitionForBIGIP("")
 				Expect(len(mockCtlr.resources.ltmConfig)).
 					To(Equal(1), "Invalid Partition Count")
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).
 					To(Equal(2), "Invalid TS Count")
 				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
 					To(Equal(1), "EDNS not processed with Transport Server")
 				Expect(mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members[0]).
-					To(Equal("/test/Shared/crd_10_1_1_1_0"),
+					To(Equal("/default/Shared/crd_10_1_1_1_0"),
 						"Invalid EDNS Pool members")
 
 				mockCtlr.deleteTransportServer(ts)
@@ -2688,7 +2689,6 @@ var _ = Describe("Worker Tests", func() {
 			It("Ingress Link with partition", func() {
 				go mockCtlr.AgentMap["bigip1"].requestHandler()
 				go mockCtlr.AgentMap["bigip1"].retryWorker()
-				mockCtlr.Partition = "test"
 				fooPorts := []v1.ServicePort{
 					{
 						Port: 8080,
@@ -2762,7 +2762,8 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid IL count")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid IL count")
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(1), "Invalid IL count")
 
 				ingressLink11 := *ingressLink1
 				ingressLink11.Spec.Partition = ""
@@ -2774,7 +2775,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.updatePartitionPriority("dev", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
-				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid IL count")
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(2), "Invalid IL count")
 
 			})
 		})
@@ -2916,6 +2917,12 @@ var _ = Describe("Worker Tests", func() {
 				//log.Debugf("GCM: %v", cm.Data)
 				_ = json.Unmarshal([]byte(extConfig), &es)
 				configSpec.ExtendedSpec = es
+				configSpec.BigIpConfig = []cisapiv1.BigIpConfig{}
+				bigipConfig := cisapiv1.BigIpConfig{
+					BigIpLabel:       "bigip1",
+					DefaultPartition: "default",
+				}
+				configSpec.BigIpConfig = append(configSpec.BigIpConfig, bigipConfig)
 				configCR = test.NewConfigCR(
 					crName,
 					"default",
@@ -2935,6 +2942,8 @@ var _ = Describe("Worker Tests", func() {
 				localEs := cisapiv1.ExtendedSpec{}
 				_ = json.Unmarshal([]byte(localExtConfig), &localEs)
 				localConfigSpec.ExtendedSpec = localEs
+				localConfigSpec.BigIpConfig = []cisapiv1.BigIpConfig{}
+				localConfigSpec.BigIpConfig = append(localConfigSpec.BigIpConfig, bigipConfig)
 				localConfigCR = test.NewConfigCR(
 					"localESCM",
 					"default",
@@ -3158,6 +3167,12 @@ var _ = Describe("Worker Tests", func() {
 				es := cisapiv1.ExtendedSpec{}
 				_ = json.Unmarshal([]byte(extConfig), &es)
 				configSpec.ExtendedSpec = es
+				configSpec.BigIpConfig = []cisapiv1.BigIpConfig{}
+				bigipConfig := cisapiv1.BigIpConfig{
+					BigIpLabel:       "bigip1",
+					DefaultPartition: "default",
+				}
+				configSpec.BigIpConfig = append(configSpec.BigIpConfig, bigipConfig)
 				configCR = test.NewConfigCR(
 					crName,
 					crNamespace,
@@ -3179,7 +3194,8 @@ var _ = Describe("Worker Tests", func() {
 				//log.Debugf("GCM: %v", cm.Data)
 				_ = json.Unmarshal([]byte(localExtConfig), &localEs)
 				localConfigSpec.ExtendedSpec = localEs
-
+				localConfigSpec.BigIpConfig = []cisapiv1.BigIpConfig{}
+				localConfigSpec.BigIpConfig = append(localConfigSpec.BigIpConfig, bigipConfig)
 				localConfigCR = test.NewConfigCR(
 					"localESCM",
 					"default",
@@ -3273,19 +3289,20 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AutoLastHop).
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.AutoLastHop).
 					To(Equal("default"), "auto last hop not processed")
-				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
+				Expect(*mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
 					To(Equal(true), "http mrf route not processed")
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors)).
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Monitors)).
 					To(Equal(1), "readiness-based health monitor not processed")
-				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.HttpMrfRoutingEnabled).
+				Expect(*mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Virtual.HttpMrfRoutingEnabled).
 					To(Equal(false), "http mrf route not processed")
-				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors)).
+				Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Monitors)).
 					To(Equal(1), "readiness-based health monitor not processed")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
 					To(Equal("http"), "readiness-based health monitor not processed")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
 					To(Equal("http"), "readiness-based health monitor not processed")
 				// update the readiness probe and liveness probe to tcp based probe
 				HandlerTCP := v1.ProbeHandler{
@@ -3297,9 +3314,9 @@ var _ = Describe("Worker Tests", func() {
 				cnt.ReadinessProbe.ProbeHandler = HandlerTCP
 				mockCtlr.updatePod(pod)
 				mockCtlr.processResources()
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
 					To(Equal("tcp"), "readiness-based health monitor not processed")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
 					To(Equal("tcp"), "readiness-based health monitor not processed")
 			})
 			It("Test http profile analytics with routes", func() {
@@ -3377,9 +3394,10 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 
 				// only secured vs should have http analytics profile
@@ -3420,9 +3438,9 @@ var _ = Describe("Worker Tests", func() {
 				configCR.Spec = configSpec
 				mockCtlr.updateConfigCR(configCR)
 				mockCtlr.processResources()
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(BeEmpty(), "http profile analytics not processed correctly")
 
 				// only unsecured vs should have http analytics profile
@@ -3438,18 +3456,18 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				mockCtlr.enqueuePolicy(insecureVSPolicy, Update)
 				mockCtlr.processResources()
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(BeEmpty(), "http profile analytics not processed correctly")
 
 				// both vs should have http analytics profile
 				policy.Spec.Profiles.AnalyticsProfiles = insecureVSPolicy.Spec.Profiles.AnalyticsProfiles
 				mockCtlr.enqueuePolicy(policy, Update)
 				mockCtlr.processResources()
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
 
 				// both vs should not have http analytics profile
@@ -3459,9 +3477,9 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				mockCtlr.enqueuePolicy(insecureVSPolicy, Update)
 				mockCtlr.processResources()
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(BeEmpty(), "http profile analytics not processed correctly")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(BeEmpty(), "http profile analytics not processed correctly")
 			})
 
@@ -3553,7 +3571,8 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
-				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
+				partition := mockCtlr.getPartitionForBIGIP("")
+				Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["nextgenroutes_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeNil(), "http mrf route processed incorrectly")
 
 				route1.Spec.TLS.Certificate = ""
@@ -3769,7 +3788,8 @@ var _ = Describe("Worker Tests", func() {
 	Describe("Processing VS, TS, IL, SvcLB on pod update", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.Partition = "test"
+			mockCtlr.bigIpMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
+			mockCtlr.bigIpMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", BigIpAddress: "", DefaultPartition: "test"}] = BigIpResourceConfig{}
 			mockCtlr.AgentMap["bigip1"] = &Agent{
 				respChan: make(chan resourceStatusMeta, 1),
 				PostManager: &PostManager{

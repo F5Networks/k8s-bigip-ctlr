@@ -50,7 +50,6 @@ func NewController(params Params) *Controller {
 		AgentParams:     params.AgentParams,
 		PoolMemberType:  params.PoolMemberType,
 		UseNodeInternal: params.UseNodeInternal,
-		Partition:       params.Partition,
 		initState:       true,
 		shareNodes:      params.ShareNodes,
 		//eventNotifier:         apm.NewEventNotifier(nil),
@@ -102,6 +101,7 @@ func NewController(params Params) *Controller {
 	}
 	// setup agents for bigip label
 	for bigip, _ := range ctlr.bigIpMap {
+		ctlr.AgentParams.Partition = bigip.DefaultPartition
 		agent := NewAgent(ctlr.AgentParams, bigip.BigIpLabel)
 		//Maintain map of agent per bigipLabel
 		ctlr.AgentMap[bigip.BigIpLabel] = agent

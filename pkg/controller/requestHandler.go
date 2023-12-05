@@ -27,10 +27,10 @@ import (
 func (agent *Agent) requestHandler() {
 	for rsConfig := range agent.reqChan {
 		// For the very first post after starting controller, need not wait to post
-		if !agent.firstPost && agent.AS3PostDelay != 0 {
+		if !agent.firstPost && agent.AS3Config.PostDelayAS3 != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", agent.AS3PostDelay)
-			_ = <-time.After(time.Duration(agent.AS3PostDelay) * time.Second)
+			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", agent.AS3Config.PostDelayAS3)
+			_ = <-time.After(time.Duration(agent.AS3Config.PostDelayAS3) * time.Second)
 		}
 
 		// Fetch the latest config from channel
@@ -124,7 +124,6 @@ func NewAgent(params AgentParams, bigiplabel string) *Agent {
 	// retryWorker runs as a separate go routine
 	// blocks on retryChan ; retries failed declarations and polls for accepted tenant statuses
 	go agent.retryWorker()
-
 	return agent
 }
 

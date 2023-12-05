@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"os"
 	"strings"
@@ -101,13 +102,11 @@ func NewController(params Params) *Controller {
 	}
 	// setup agents for bigip label
 	for bigip, _ := range ctlr.bigIpMap {
-		ctlr.AgentParams.Partition = bigip.DefaultPartition
-		agent := NewAgent(ctlr.AgentParams, bigip.BigIpLabel)
-		//Maintain map of agent per bigipLabel
-		ctlr.AgentMap[bigip.BigIpLabel] = agent
-		go ctlr.responseHandler(agent.respChan)
+
+		ctlr.startAgent(bigip)
+
 		// enable http endpoint
-		go ctlr.enableHttpEndpoint(params.HttpAddress, bigip.BigIpLabel)
+		go ctlr.enableHttpEndpoint(params.HttpAddress, bigip)
 	}
 
 	ctlr.setupIPAM(params)
@@ -285,4 +284,10 @@ func (ctlr *Controller) Stop() {
 		ctlr.ipamCli.Stop()
 	}
 
+}
+
+// Set the resource count for prometheus metrics
+func (ctlr *Controller) setPrometheusResourceCount() {
+	prometheus.ManagedServices.Set(float64(len(ctlr.resources.poolMemCache)))
+	prometheus.ManagedTransportServers.Set(float64(len(ctlr.TeemData.ResourceType.TransportServer) + len(ctlr.TeemData.ResourceType.IPAMTS)))
 }

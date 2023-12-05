@@ -19,7 +19,6 @@ package test
 import (
 	"bytes"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/pollers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
@@ -93,28 +92,6 @@ func (mw *MockWriter) SendSection(
 	}
 
 	return doneCh, errCh, nil
-}
-
-type MockPoller struct {
-	FailStyle int
-}
-
-func (mp *MockPoller) Run() error {
-	return nil
-}
-
-func (mp *MockPoller) Stop() error {
-	return nil
-}
-
-func (mp *MockPoller) RegisterListener(p pollers.PollListener) error {
-	switch mp.FailStyle {
-	case ImmediateFail:
-		return fmt.Errorf("immediate test error")
-	case Success:
-		return nil
-	}
-	return nil
 }
 
 // NewConfigMap returns a new configmap object

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"os"
@@ -652,6 +653,8 @@ func (ctlr *Controller) processResources() bool {
 			//TODO add support for teems data
 			// go ctlr.TeemData.PostTeemsData()
 		}
+		// set prometheus resource metrics
+		ctlr.setPrometheusResourceCount()
 		// Put each BIGIPConfig per bigip  pair into specific requestChannel
 		for bigip, bigipConfig := range bigipMap {
 			agent := ctlr.AgentMap[bigip.BigIpLabel]
@@ -1002,12 +1005,13 @@ func (ctlr *Controller) processVirtualServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := ctlr.checkValidVirtualServer(virtual)
 		if false == valid {
-			log.Warningf("VirtualServer %s, is not valid",
-				vkey)
+			warning := fmt.Sprintf("VirtualServer %s, is not valid", vkey)
+			log.Warningf(warning)
+			prometheus.ConfigurationWarnings.WithLabelValues(VirtualServer, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name, warning).Set(1)
 			return nil
 		}
 	}
-
+	prometheus.ConfigurationWarnings.WithLabelValues(VirtualServer, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name, "").Set(0)
 	var allVirtuals []*cisapiv1.VirtualServer
 	if virtual.Spec.HostGroup != "" {
 		// grouping by hg across all namespaces
@@ -2254,11 +2258,13 @@ func (ctlr *Controller) processTransportServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := ctlr.checkValidTransportServer(virtual)
 		if false == valid {
-			log.Warningf("TransportServer %s, is not valid",
-				vkey)
+			warning := fmt.Sprintf("TransportServer %s, is not valid", vkey)
+			log.Warningf(warning)
+			prometheus.ConfigurationWarnings.WithLabelValues(TransportServer, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name, warning).Set(1)
 			return nil
 		}
 	}
+	prometheus.ConfigurationWarnings.WithLabelValues(TransportServer, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name, "").Set(0)
 	ctlr.TeemData.Lock()
 	ctlr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace] = len(ctlr.getAllTransportServers(virtual.Namespace))
 	ctlr.TeemData.Unlock()
@@ -2503,10 +2509,12 @@ func (ctlr *Controller) processLBServices(
 		return nil
 	}
 	if ctlr.ipamCli == nil {
-		log.Warningf("[IPAM] IPAM is not enabled, Unable to process Services of Type LoadBalancer")
+		warning := "[IPAM] IPAM is not enabled, Unable to process Services of Type LoadBalancer"
+		log.Warningf(warning)
+		prometheus.ConfigurationWarnings.WithLabelValues(Service, svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, warning).Set(1)
 		return nil
 	}
-
+	prometheus.ConfigurationWarnings.WithLabelValues(Service, svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, "").Set(0)
 	svcKey := svc.Namespace + "/" + svc.Name + "_svc"
 	var ip string
 	var status int
@@ -3118,10 +3126,13 @@ func (ctlr *Controller) processIngressLink(
 		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
 		valid := ctlr.checkValidIngressLink(ingLink)
 		if false == valid {
-			log.Warningf("ingressLink %s, is not valid", vkey)
+			warning := fmt.Sprintf("ingressLink %s, is not valid", vkey)
+			log.Warningf(warning)
+			prometheus.ConfigurationWarnings.WithLabelValues(IngressLink, ingLink.ObjectMeta.Namespace, ingLink.ObjectMeta.Name, warning).Set(1)
 			return nil
 		}
 	}
+	prometheus.ConfigurationWarnings.WithLabelValues(IngressLink, ingLink.ObjectMeta.Namespace, ingLink.ObjectMeta.Name, "").Set(0)
 	var ingLinks []*cisapiv1.IngressLink
 	if ingLink.Spec.Host != "" {
 		ingLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
@@ -4252,6 +4263,8 @@ func (ctlr *Controller) stopAgent(config cisapiv1.BigIpConfig) {
 	}
 	//remove bigiplabel from agentmap
 	delete(ctlr.AgentMap, config.BigIpLabel)
+	// decrease the Agent Count
+	prometheus.AgentCount.Dec()
 }
 
 func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
@@ -4260,6 +4273,8 @@ func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
 	agent := NewAgent(ctlr.AgentParams, config.BigIpLabel)
 	// update agent Map
 	ctlr.AgentMap[config.BigIpLabel] = agent
+	// increase the Agent Count
+	prometheus.AgentCount.Inc()
 }
 
 func (ctlr *Controller) getPartitionForBIGIP(bigipLabel string) string {

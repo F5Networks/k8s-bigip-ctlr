@@ -64,3 +64,14 @@ kubectl delete secret f5-bigip-ctlr-login -n kube-system
 kubectl delete -f ./docs/config_examples/customResourceDefinitions/incubator/customresourcedefinitions.yml
 kubectl delete -f ./docs/cis-3.x/rbac/clusterrole.yaml
 ```
+
+Prometheus Metrics
+------------------
+
+| Name                                     | Type  | Default Status | Description                                                               | Labels                                   |
+|------------------------------------------|-------|----------------|---------------------------------------------------------------------------|------------------------------------------|
+| k8s_bigip_ctlr_managed_services          | Gauge | Enabled        | The total number of managed services by the CIS Controller                | -                                        |
+| k8s_bigip_ctlr_managed_transport_servers | Gauge | Enabled        | The total number of managed transport servers by the CIS Controller       | -                                        |
+| k8s_bigip_ctlr_configuration_warnings    | Gauge | Enabled        | The total number of configuration warnings by the CIS Controller          | ["kind" ,"namespace", "name", "warning"] |
+| k8s_bigip_ctlr_managed_bigips            | Gauge | Enabled        | The total number of bigips where the CIS Controller posts the declaration | -                                        |
+| k8s_bigip_ctlr_monitored_nodes           | Gauge | Enabled        | The total number of monitored nodes by the CIS Controller                 | ["nodeselector"]                         |

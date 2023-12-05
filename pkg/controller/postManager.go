@@ -133,7 +133,7 @@ func (postMgr *PostManager) publishConfig(cfg as3Config) {
 
 func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	// log as3 request if it's set
-	if postMgr.LogAS3Request {
+	if postMgr.AS3Config.DebugAS3 {
 		postMgr.logAS3Request(cfg.data)
 	}
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
@@ -196,7 +196,7 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3]%v Response body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
-		if postMgr.LogAS3Response {
+		if postMgr.AS3Config.DebugAS3 {
 			log.Errorf("[AS3]%v Raw response from Big-IP: %v", postMgr.postManagerPrefix, string(body))
 		}
 		return nil, nil
@@ -302,14 +302,14 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	} else {
 		log.Errorf("[AS3]%v Big-IP Responded with error code: %v", postMgr.postManagerPrefix, http.StatusNotFound)
 	}
-	if postMgr.LogAS3Response {
+	if postMgr.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
 	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) {
-	if postMgr.LogAS3Response {
+	if postMgr.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
@@ -441,7 +441,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3]%v Response body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
-		if postMgr.LogAS3Response {
+		if postMgr.AS3Config.DebugAS3 {
 			log.Errorf("[AS3]%v Raw response from Big-IP: %v", postMgr.postManagerPrefix, string(body))
 		}
 		return nil, nil

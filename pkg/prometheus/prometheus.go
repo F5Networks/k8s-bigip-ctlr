@@ -2,44 +2,49 @@ package prometheus
 
 import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// TODO use as Counter not Gauge
+var ManagedServices = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "k8s_bigip_ctlr_managed_services",
+	Help: "The total number of managed services by the CIS Controller.",
+})
+
+var ManagedTransportServers = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "k8s_bigip_ctlr_managed_transport_servers",
+	Help: "The total number of managed transport servers by the CIS Controller.",
+})
+
+var ConfigurationWarnings = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "k8s_bigip_ctlr_configuration_warnings",
+		Help: "The total number of configuration warnings by the CIS Controller.",
+	},
+	[]string{"kind", "namespace", "name", "warning"},
+)
+
+var AgentCount = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "k8s_bigip_ctlr_managed_bigips",
+	Help: "The total number of bigips where the CIS Controller posts the declaration.",
+})
+
 var MonitoredNodes = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
-		Name: "bigip_monitored_nodes",
-		Help: "Total count of monitored nodes by the BigIP k8s CTLR.",
+		Name: "k8s_bigip_ctlr_monitored_nodes",
+		Help: "The total number of monitored nodes by the CIS Controller",
 	},
 	[]string{"nodeselector"},
 )
 
-var MonitoredServices = prometheus.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: "bigip_monitored_services",
-		Help: "Total count of monitored services by the BigIP k8s CTLR.",
-	},
-	[]string{"namespace", "name", "status"},
-)
-
-var CurrentErrors = prometheus.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: "bigip_current_errors",
-		Help: "Total count of errors occured parsing the configuration.",
-	},
-	[]string{},
-)
-
 var ClientInFlightGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Name: "bigip_http_client_in_flight_requests",
+	Name: "k8s_bigip_ctlr_http_client_in_flight_requests",
 	Help: "Total count of in-flight requests for the wrapped http client.",
 })
 
 var ClientAPIRequestsCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "bigip_http_client_api_requests_total",
+		Name: "k8s_bigip_ctlr_http_client_api_requests_total",
 		Help: "A counter for requests from the wrapped http client.",
 	},
 	[]string{"code", "method"},
@@ -47,7 +52,7 @@ var ClientAPIRequestsCounter = prometheus.NewCounterVec(
 
 var ClientDNSLatencyVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name:    "bigip_http_client_dns_duration_seconds",
+		Name:    "k8s_bigip_ctlr_http_client_dns_duration_seconds",
 		Help:    "Trace dns latency histogram.",
 		Buckets: []float64{.005, .01, .025, .05},
 	},
@@ -56,7 +61,7 @@ var ClientDNSLatencyVec = prometheus.NewHistogramVec(
 
 var ClientTLSLatencyVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name:    "bigip_http_client_tls_duration_seconds",
+		Name:    "k8s_bigip_ctlr_http_client_tls_duration_seconds",
 		Help:    "Trace tls latency histogram.",
 		Buckets: []float64{.05, .1, .25, .5},
 	},
@@ -65,7 +70,7 @@ var ClientTLSLatencyVec = prometheus.NewHistogramVec(
 
 var ClientHistVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name:    "bigip_http_client_request_duration_seconds",
+		Name:    "k8s_bigip_ctlr_http_client_request_duration_seconds",
 		Help:    "Trace http request latencies histogram.",
 		Buckets: prometheus.DefBuckets,
 	},
@@ -89,13 +94,15 @@ var ClientTrace = &promhttp.InstrumentTrace{
 
 // further metrics? todo think about
 // RegisterMetrics registers all Prometheus metrics defined above
-func RegisterMetrics(httpClientMetrics bool) {
-	log.Info("Registered BigIP Metrics")
+func RegisterMetrics(httpClientMetrics bool, bigip string) {
+	log.Infof("Registered BigIP Metrics for BigIP %v", bigip)
 	if httpClientMetrics {
 		prometheus.MustRegister(
+			ManagedServices,
+			ManagedTransportServers,
+			ConfigurationWarnings,
+			AgentCount,
 			MonitoredNodes,
-			MonitoredServices,
-			CurrentErrors,
 			ClientInFlightGauge,
 			ClientAPIRequestsCounter,
 			ClientDNSLatencyVec,
@@ -104,9 +111,11 @@ func RegisterMetrics(httpClientMetrics bool) {
 		)
 	} else {
 		prometheus.MustRegister(
+			ManagedServices,
+			ManagedTransportServers,
+			ConfigurationWarnings,
+			AgentCount,
 			MonitoredNodes,
-			MonitoredServices,
-			CurrentErrors,
 		)
 	}
 }

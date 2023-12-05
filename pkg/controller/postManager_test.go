@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"net/http"
@@ -12,8 +13,8 @@ var _ = Describe("PostManager Tests", func() {
 	BeforeEach(func() {
 		mockPM = newMockPostManger()
 		mockPM.tenantResponseMap = make(map[string]tenantResponse)
-		mockPM.LogAS3Response = true
-		mockPM.AS3PostDelay = 2
+		mockPM.AS3Config = cisapiv1.AS3Config{DebugAS3: true,
+			PostDelayAS3: 2}
 	})
 
 	It("Setup Client", func() {
@@ -27,7 +28,7 @@ var _ = Describe("PostManager Tests", func() {
 			mockPM.CMUsername = "user"
 			mockPM.CMPassword = "pswd"
 			agentCfg = as3Config{
-				data:      "{}",
+				data:      `{"declaration": {"test": {"Shared": {"class": "application"}}}}`,
 				as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
 				id:        0,
 			}

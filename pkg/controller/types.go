@@ -765,9 +765,7 @@ type (
 		LogLevel           string
 		VerifyInterval     int
 		VXLANName          string
-		PythonBaseDir      string
 		UserAgent          string
-		HttpAddress        string
 		EnableIPV6         bool
 		StaticRoutingMode  bool
 		SharedStaticRoutes bool
@@ -805,15 +803,12 @@ type (
 	}
 
 	PostParams struct {
-		CMUsername   string
-		CMPassword   string
-		CMURL        string
-		TrustedCerts string
-		SSLInsecure  bool
-		AS3PostDelay int
-		// Log the AS3 response body in Controller logs
-		LogAS3Response    bool
-		LogAS3Request     bool
+		CMUsername        string
+		CMPassword        string
+		CMURL             string
+		TrustedCerts      string
+		SSLInsecure       bool
+		AS3Config         cisapiv1.AS3Config
 		HTTPClientMetrics bool
 		httpClient        *http.Client
 	}

@@ -55,7 +55,6 @@ type (
 		namespaces             map[string]bool
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
-		Partition              string
 		AgentParams            AgentParams
 		AgentMap               map[string]*Agent
 		PoolMemberType         string
@@ -125,7 +124,6 @@ type (
 	Params struct {
 		Config                *rest.Config
 		Namespaces            []string
-		Partition             string
 		PoolMemberType        string
 		AgentParams           AgentParams
 		UseNodeInternal       bool

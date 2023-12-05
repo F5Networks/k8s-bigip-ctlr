@@ -1485,7 +1485,7 @@ func (ctlr *Controller) validateILsWithSameVSAddress(
 }
 func (ctlr *Controller) getCRPartition(partition string) string {
 	if partition == "" {
-		return ctlr.Partition
+		return ctlr.getPartitionForBIGIP("")
 	}
 	return partition
 }
@@ -2542,13 +2542,16 @@ func (ctlr *Controller) processLBServices(
 			svc.ObjectMeta.Name, portSpec)
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
+		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
+		//Phase1 getting partition from bigipconfig index 0
+		partition := ctlr.getPartitionForBIGIP("")
 		if isSVCDeleted {
-			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 			var hostnames []string
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -2556,7 +2559,7 @@ func (ctlr *Controller) processLBServices(
 		}
 
 		rsCfg := &ResourceConfig{}
-		rsCfg.Virtual.Partition = ctlr.Partition
+		rsCfg.Virtual.Partition = partition
 		rsCfg.Virtual.IpProtocol = strings.ToLower(string(portSpec.Protocol))
 		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.MetaData.namespace = svc.ObjectMeta.Namespace
@@ -2593,7 +2596,7 @@ func (ctlr *Controller) processLBServices(
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
 
-		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition)
 
 		rsMap[rsName] = rsCfg
 		if len(rsCfg.MetaData.hosts) > 0 {
@@ -4223,6 +4226,8 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 			if !slices.Contains(config, existingConfig) {
 				// stop agent
 				ctlr.stopAgent(existingConfig)
+				//remove bigipconfig from bigipMap
+				delete(ctlr.bigIpMap, existingConfig)
 			}
 		}
 		// check if bigip config is added
@@ -4230,6 +4235,8 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 			if !slices.Contains(existingBigipConfig, newConfig) {
 				// start agent
 				ctlr.startAgent(newConfig)
+				//update bigipMap with new bigipconfig
+				ctlr.bigIpMap[newConfig] = BigIpResourceConfig{}
 			}
 		}
 	}
@@ -4249,7 +4256,24 @@ func (ctlr *Controller) stopAgent(config cisapiv1.BigIpConfig) {
 
 func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
 	//start agent
+	ctlr.AgentParams.Partition = config.DefaultPartition
 	agent := NewAgent(ctlr.AgentParams, config.BigIpLabel)
 	// update agent Map
 	ctlr.AgentMap[config.BigIpLabel] = agent
+}
+
+func (ctlr *Controller) getPartitionForBIGIP(bigipLabel string) string {
+	//get partition from bigip
+	for bigipconfig, _ := range ctlr.bigIpMap {
+		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
+		//Phase1 getting partition from bigipconfig index 0
+		if bigipLabel == "" {
+			return bigipconfig.DefaultPartition
+		} else {
+			if bigipconfig.BigIpLabel == bigipLabel {
+				return bigipconfig.DefaultPartition
+			}
+		}
+	}
+	return ""
 }

@@ -990,7 +990,9 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es cisapiv1.ExtendedSpec,
 	if len(es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition) > 0 {
 		partition = es.BaseRouteConfig.DefaultRouteGroupConfig.BigIpPartition
 	} else {
-		partition = ctlr.Partition
+		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
+		//Phase1 getting partition from bigipconfig index 0
+		partition = ctlr.getPartitionForBIGIP("")
 	}
 
 	if es.BaseRouteConfig.DefaultRouteGroupConfig != (cisapiv1.DefaultRouteGroupConfig{}) {
@@ -1030,7 +1032,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es cisapiv1.ExtendedSpec,
 		if len(ergc.BigIpPartition) > 0 {
 			partition = ergc.BigIpPartition
 		} else {
-			partition = ctlr.Partition
+			partition = ctlr.getPartitionForBIGIP("")
 		}
 		newExtdSpecMap[routeGroup] = &extendedParsedSpec{
 			override:   allowOverride,

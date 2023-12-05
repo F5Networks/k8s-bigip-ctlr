@@ -1002,7 +1002,7 @@ func (ctlr *Controller) processVirtualServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := ctlr.checkValidVirtualServer(virtual)
 		if false == valid {
-			log.Errorf("VirtualServer %s, is not valid",
+			log.Warningf("VirtualServer %s, is not valid",
 				vkey)
 			return nil
 		}
@@ -2254,7 +2254,7 @@ func (ctlr *Controller) processTransportServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := ctlr.checkValidTransportServer(virtual)
 		if false == valid {
-			log.Errorf("TransportServer %s, is not valid",
+			log.Warningf("TransportServer %s, is not valid",
 				vkey)
 			return nil
 		}
@@ -3118,8 +3118,7 @@ func (ctlr *Controller) processIngressLink(
 		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
 		valid := ctlr.checkValidIngressLink(ingLink)
 		if false == valid {
-			log.Errorf("ingressLink %s, is not valid",
-				vkey)
+			log.Warningf("ingressLink %s, is not valid", vkey)
 			return nil
 		}
 	}

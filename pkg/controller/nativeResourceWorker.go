@@ -1687,7 +1687,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		// update the status if different route
 		if processedRouteTimestamp.Before(&route.ObjectMeta.CreationTimestamp) {
 			message := fmt.Sprintf("Discarding route %v as other route already exposes URI %v%v and is older ", route.Name, route.Spec.Host, route.Spec.Path)
-			log.Errorf(message)
+			log.Warningf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "HostAlreadyClaimed", message, v1.ConditionFalse)
 			return false
 		}
@@ -1738,13 +1738,13 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	if appRootPath, ok := route.Annotations[F5VsAppRootAnnotation]; ok {
 		if appRootPath == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, F5VsAppRootAnnotation)
-			log.Errorf(message)
+			log.Warningf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
 		if route.Spec.Path != "" && route.Spec.Path != "/" {
 			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", F5VsAppRootAnnotation, appRootPath, route.Name)
-			log.Errorf(message)
+			log.Warningf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
@@ -1754,7 +1754,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	if wafPolicy, ok := route.Annotations[F5VsWAFPolicy]; ok {
 		if wafPolicy == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, F5VsWAFPolicy)
-			log.Errorf(message)
+			log.Warningf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
@@ -1774,7 +1774,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if invalidAllowSourceRange {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name,
 				F5VsAllowSourceRangeAnnotation)
-			log.Errorf(message)
+			log.Warningf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
@@ -1790,7 +1790,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				for _, svc := range clusterSvcs {
 					if !ctlr.checkValidExtendedService(svc) {
 						// In case of invalid extendedServiceReference, just log the error and proceed
-						log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
+						log.Warningf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
 							"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
 							"config for the cluster in which it's running is not provided in DeployConfig CR.", svc, route.Name)
 						continue
@@ -1798,7 +1798,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				}
 			} else {
 				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", MultiClusterServicesAnnotation, route.Name, route.Namespace)
-				log.Errorf(message)
+				log.Warningf(message)
 				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 				return false
 			}
@@ -1809,7 +1809,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if err != nil {
 			message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
 				route.Name)
-			log.Errorf(message)
+			log.Warningf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
 				"ServiceNotFound", message, v1.ConditionFalse)
 			return false

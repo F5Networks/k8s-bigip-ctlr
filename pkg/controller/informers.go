@@ -711,7 +711,7 @@ func (ctlr *Controller) enqueueIPAM(obj interface{}) {
 		return
 	}
 
-	log.Infof("Enqueueing IPAM: %v", ipamObj)
+	log.Debugf("Enqueueing IPAM: %v", ipamObj)
 	key := &rqKey{
 		namespace: ipamObj.ObjectMeta.Namespace,
 		kind:      IPAM,
@@ -735,7 +735,7 @@ func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 		return
 	}
 
-	log.Infof("Enqueueing Updated IPAM: %v", curIpam)
+	log.Debugf("Enqueueing Updated IPAM: %v", curIpam)
 	key := &rqKey{
 		namespace: curIpam.ObjectMeta.Namespace,
 		kind:      IPAM,
@@ -754,7 +754,7 @@ func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 		return
 	}
 
-	log.Infof("Enqueueing IPAM: %v", ipamObj)
+	log.Debugf("Enqueueing IPAM: %v", ipamObj)
 	key := &rqKey{
 		namespace: ipamObj.ObjectMeta.Namespace,
 		kind:      IPAM,
@@ -846,7 +846,7 @@ func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 
 func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 	tls := obj.(*cisapiv1.TLSProfile)
-	log.Infof("Enqueueing TLSProfile: %v", tls)
+	log.Debugf("Enqueueing TLSProfile: %v", tls)
 	key := &rqKey{
 		namespace: tls.ObjectMeta.Namespace,
 		kind:      TLSProfile,
@@ -860,7 +860,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 	ts := obj.(*cisapiv1.TransportServer)
-	log.Infof("Enqueueing TransportServer: %v", ts)
+	log.Debugf("Enqueueing TransportServer: %v", ts)
 	key := &rqKey{
 		namespace: ts.ObjectMeta.Namespace,
 		kind:      TransportServer,
@@ -936,7 +936,7 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 
 func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
 	pol := obj.(*cisapiv1.Policy)
-	log.Infof("Enqueueing Policy: %v", pol)
+	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace: pol.ObjectMeta.Namespace,
 		kind:      CustomPolicy,
@@ -950,7 +950,7 @@ func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 	pol := obj.(*cisapiv1.Policy)
-	log.Infof("Enqueueing Policy: %v", pol)
+	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace: pol.ObjectMeta.Namespace,
 		kind:      CustomPolicy,
@@ -964,7 +964,7 @@ func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 
 func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
-	log.Infof("Enqueueing IngressLink: %v", ingLink)
+	log.Debugf("Enqueueing IngressLink: %v", ingLink)
 	key := &rqKey{
 		namespace: ingLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -978,7 +978,7 @@ func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
-	log.Infof("Enqueueing IngressLink: %v on Delete", ingLink)
+	log.Debugf("Enqueueing IngressLink: %v on Delete", ingLink)
 	key := &rqKey{
 		namespace: ingLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -1016,7 +1016,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 		ctlr.resourceQueue.Add(key)
 	}
 
-	log.Infof("Enqueueing IngressLink: %v on Update", newIngLink)
+	log.Debugf("Enqueueing IngressLink: %v on Update", newIngLink)
 	key := &rqKey{
 		namespace: newIngLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -1030,7 +1030,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 
 func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
 	edns := obj.(*cisapiv1.ExternalDNS)
-	log.Infof("Enqueueing ExternalDNS: %v", edns)
+	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace: edns.ObjectMeta.Namespace,
 		kind:      ExternalDNS,
@@ -1058,7 +1058,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 		ctlr.resourceQueue.Add(key)
 	}
 
-	log.Infof("Enqueueing Updated ExternalDNS: %v", edns)
+	log.Debugf("Enqueueing Updated ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace: edns.ObjectMeta.Namespace,
 		kind:      ExternalDNS,
@@ -1072,7 +1072,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	edns := obj.(*cisapiv1.ExternalDNS)
-	log.Infof("Enqueueing ExternalDNS: %v", edns)
+	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace: edns.ObjectMeta.Namespace,
 		kind:      ExternalDNS,
@@ -1441,7 +1441,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 
 func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 	ns := obj.(*corev1.Namespace)
-	log.Infof("Enqueueing Namespace: %v", ns)
+	log.Debugf("Enqueueing Namespace: %v", ns)
 	key := &rqKey{
 		namespace: ns.ObjectMeta.Namespace,
 		kind:      Namespace,
@@ -1454,7 +1454,7 @@ func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 	ns := obj.(*corev1.Namespace)
-	log.Infof("Enqueueing Namespace: %v on Delete", ns)
+	log.Debugf("Enqueueing Namespace: %v on Delete", ns)
 	key := &rqKey{
 		namespace: ns.ObjectMeta.Namespace,
 		kind:      Namespace,

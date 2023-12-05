@@ -33,7 +33,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
-		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
+		log.Warningf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -44,7 +44,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	}
 	// Check if HTTPTraffic is set for insecure VS
 	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
-		log.Errorf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
+		log.Warningf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
 		return false
 	}
 
@@ -71,7 +71,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		for _, mcs := range pool.MultiClusterServices {
 			if !ctlr.checkValidExtendedService(mcs) {
 				// In case of invalid extendedServiceReference, just log the error and proceed
-				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s. Some of the mandatory "+
+				log.Warningf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s. Some of the mandatory "+
 					"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
 					"config for the cluster in which it's running is not provided in DeployConfig CR.", mcs, vsName)
 				continue
@@ -92,7 +92,7 @@ func (ctlr *Controller) checkValidTransportServer(
 
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
-		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
+		log.Warningf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -122,14 +122,14 @@ func (ctlr *Controller) checkValidTransportServer(
 	if tsResource.Spec.Type == "" {
 		tsResource.Spec.Type = "tcp"
 	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
-		log.Errorf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
+		log.Warningf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
 		return false
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
 			if !ctlr.checkValidExtendedService(mcs) {
 				// In case of invalid extendedServiceReference, just log the error and proceed
-				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s. Some of the mandatory "+
+				log.Warningf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s. Some of the mandatory "+
 					"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
 					"config for the cluster in which it's running is not provided in DeployConfig CR.", mcs, vsName)
 				continue
@@ -149,7 +149,7 @@ func (ctlr *Controller) checkValidIngressLink(
 
 	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace)
 	if !ok {
-		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
+		log.Warningf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.

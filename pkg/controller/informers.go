@@ -1480,7 +1480,7 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 }
 
 func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
-	log.Debugf("[MultiCluster] Enqueueing primary CIS/cluster down event")
+	log.Infof("[MultiCluster] Enqueueing primary CIS/cluster down event")
 	key := &rqKey{
 		kind: HACIS,
 	}

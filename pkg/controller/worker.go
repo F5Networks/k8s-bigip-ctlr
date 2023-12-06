@@ -1068,10 +1068,10 @@ func (ctlr *Controller) processVirtualServers(
 			if virtual.Spec.HostGroup != "" {
 				//hg is unique across namespaces
 				//all virtuals with same hg are grouped together across namespaces
-				key := virtual.Spec.HostGroup + "_hg"
+				key := ctlr.ipamClusterLabel + virtual.Spec.HostGroup + "_hg"
 				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
 			} else {
-				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
+				key := ctlr.ipamClusterLabel + virtual.Namespace + "/" + virtual.Spec.Host + "_host"
 				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, key)
 			}
 		} else if virtual.Spec.VirtualServerAddress != "" {
@@ -1081,10 +1081,10 @@ func (ctlr *Controller) processVirtualServers(
 			ipamLabel := getIPAMLabel(virtuals)
 			if virtual.Spec.HostGroup != "" {
 				//hg is unique across namepsaces
-				key := virtual.Spec.HostGroup + "_hg"
+				key := ctlr.ipamClusterLabel + virtual.Spec.HostGroup + "_hg"
 				ip, status = ctlr.requestIP(ipamLabel, "", key)
 			} else {
-				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
+				key := ctlr.ipamClusterLabel + virtual.Namespace + "/" + virtual.Spec.Host + "_host"
 				ip, status = ctlr.requestIP(ipamLabel, virtual.Spec.Host, key)
 			}
 
@@ -2318,10 +2318,10 @@ func (ctlr *Controller) processTransportServers(
 	var key string
 	var status int
 	partition := ctlr.getCRPartition(virtual.Spec.Partition)
-	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
+	key = ctlr.ipamClusterLabel + virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
 	if ctlr.ipamCli != nil {
 		if virtual.Spec.HostGroup != "" {
-			key = virtual.Spec.HostGroup + "_hg"
+			key = ctlr.ipamClusterLabel + virtual.Spec.HostGroup + "_hg"
 		}
 		if isTSDeleted && virtual.Spec.VirtualServerAddress == "" {
 			ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
@@ -2540,7 +2540,7 @@ func (ctlr *Controller) processLBServices(
 		return nil
 	}
 
-	svcKey := svc.Namespace + "/" + svc.Name + "_svc"
+	svcKey := ctlr.ipamClusterLabel + svc.Namespace + "/" + svc.Name + "_svc"
 	var ip string
 	var status int
 	if isSVCDeleted {
@@ -3166,7 +3166,7 @@ func (ctlr *Controller) processIngressLink(
 	var key string
 	var status int
 	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
-	key = ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
+	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
 	if ctlr.ipamCli != nil {
 		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
 			ip = ctlr.releaseIP(ingLink.Spec.IPAMLabel, "", key)

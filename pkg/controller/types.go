@@ -78,6 +78,7 @@ type (
 		dgPath                 string
 		shareNodes             bool
 		ipamCli                *ipammachinery.IPAMClient
+		ipamClusterLabel       string
 		ipamCR                 string
 		defaultRouteDomain     int
 		TeemData               *teem.TeemsData
@@ -128,6 +129,7 @@ type (
 		NodeLabelSelector           string
 		ShareNodes                  bool
 		IPAM                        bool
+		IPAMClusterLabel            string
 		DefaultRouteDomain          int
 		Mode                        ControllerMode
 		GlobalExtendedSpecConfigmap string

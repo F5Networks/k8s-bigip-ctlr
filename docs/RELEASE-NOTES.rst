@@ -1,5 +1,12 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+Next Release
+-------------
+
+Bug Fixes
+````````````
+* `Issue 3160 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3160>`_: Support to provide different IPs for the same resources deployed in different clusters for Infoblox IPAM provider only.
+
 
 2.15.0
 -------------

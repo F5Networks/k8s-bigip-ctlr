@@ -162,6 +162,7 @@ var (
 	as3Validation             *bool
 	sslInsecure               *bool
 	ipam                      *bool
+	ipamClusterLabel          *string
 	enableTLS                 *string
 	tls13CipherGroupReference *string
 	ciphers                   *string
@@ -301,6 +302,8 @@ func _init() {
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
 	ipam = bigIPFlags.Bool("ipam", false,
 		"Optional, when set to true, enable ipam feature for CRD.")
+	ipamClusterLabel = bigIPFlags.String("ipam-cluster-label", "",
+		"Optional, Valid for Infoblox IPAM provider only. Prepends the value of this label to form the key. Generally advised to use in MultiCluster Environment")
 	as3PostDelay = bigIPFlags.Int("as3-post-delay", 0,
 		"Optional, time (in seconds) that CIS waits to post the available AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
@@ -917,6 +920,7 @@ func initController(
 			NodePollInterval:            *nodePollInterval,
 			NodeLabelSelector:           *nodeLabelSelector,
 			IPAM:                        *ipam,
+			IPAMClusterLabel:            *ipamClusterLabel,
 			ShareNodes:                  *shareNodes,
 			DefaultRouteDomain:          *defaultRouteDomain,
 			Mode:                        controller.ControllerMode(*controllerMode),

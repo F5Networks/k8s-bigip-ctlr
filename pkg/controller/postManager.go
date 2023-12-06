@@ -22,8 +22,9 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -150,10 +151,11 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
-		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
+		log.Errorf("%v[AS3]%v Creating new HTTP request error: %v ", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err)
 		return
 	}
-	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+
+	log.Infof("%v[AS3]%v posting request for %v tenants", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, getTenantsFromUri(cfg.as3APIURL))
 	// add authorization header to the req
 	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
 
@@ -168,17 +170,23 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 
 	switch httpResp.StatusCode {
 	case http.StatusOK:
+		log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
 		postMgr.handleResponseStatusOK(responseMap)
 	case http.StatusCreated, http.StatusAccepted:
+		log.Infof("%v[AS3]%v post resulted in ACCEPTED", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
 		postMgr.handleResponseAccepted(responseMap)
 	case http.StatusMultiStatus:
-		postMgr.handleMultiStatus(responseMap)
+		log.Infof("%v[AS3]%v post resulted in MULTI-STATUS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+		postMgr.handleMultiStatus(responseMap, cfg.id)
 	case http.StatusServiceUnavailable:
-		postMgr.handleResponseStatusServiceUnavailable(responseMap)
+		log.Infof("%v[AS3]%v post resulted in RETRY", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+		postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg.id)
 	case http.StatusNotFound:
-		postMgr.handleResponseStatusNotFound(responseMap)
+		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+		postMgr.handleResponseStatusNotFound(responseMap, cfg.id)
 	default:
-		postMgr.handleResponseOthers(responseMap)
+		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+		postMgr.handleResponseOthers(responseMap, cfg.id)
 	}
 }
 
@@ -199,7 +207,7 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	}
 	defer httpResp.Body.Close()
 
-	body, err := ioutil.ReadAll(httpResp.Body)
+	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		log.Errorf("[AS3]%v REST call response error: %v ", postMgr.postManagerPrefix, err)
 		return nil, nil
@@ -268,6 +276,10 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 				} else {
 					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 				}
+				intId, err := strconv.Atoi(id)
+				if err == nil {
+					log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(intId), postMgr.postManagerPrefix)
+				}
 			}
 		}
 	} else if httpResp.StatusCode != http.StatusServiceUnavailable {
@@ -276,7 +288,7 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 	}
 }
 
-func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}) {
+func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}, id int) {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
@@ -284,7 +296,7 @@ func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}
 
 			if v["code"].(float64) != 200 {
 				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), false)
-				log.Errorf("[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+				log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 			} else {
 				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 				log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
@@ -301,19 +313,19 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 	}
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}) {
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, id int) {
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("[AS3]%v Big-IP Responded with error code: %v", postMgr.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
 	}
 	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", postMgr.postManagerPrefix, timeoutMedium)
 	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, "", "", false)
 }
 
-func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) {
+func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, id int) {
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("[AS3]%v Big-IP Responded with error code: %v", postMgr.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
 	} else {
-		log.Errorf("[AS3]%v Big-IP Responded with error code: %v", postMgr.postManagerPrefix, http.StatusNotFound)
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, http.StatusNotFound)
 	}
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
@@ -321,21 +333,21 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, id int) {
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
-			log.Errorf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+			log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 			postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), false)
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("[AS3]%v Big-IP Responded with error code: %v", postMgr.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
 		postMgr.updateTenantResponseCode(int(err["code"].(float64)), "", "", false)
 	} else {
-		log.Errorf("[AS3]%v Big-IP Responded with code: %v", postMgr.postManagerPrefix, responseMap["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, responseMap["code"])
 		postMgr.updateTenantResponseCode(int(responseMap["code"].(float64)), "", "", false)
 	}
 }
@@ -448,7 +460,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	}
 	defer httpResp.Body.Close()
 
-	body, err := ioutil.ReadAll(httpResp.Body)
+	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		log.Errorf("[AS3]%v REST call response error: %v ", postMgr.postManagerPrefix, err)
 		return nil, nil
@@ -539,8 +551,8 @@ func (postMgr *PostManager) logAS3Request(cfg string) {
 
 func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
 	/*
-		Non 200 ok tenants will be added to retryTenantDeclMap map
-		Locks to update the map will be acquired in the calling method
+	 Non 200 ok tenants will be added to retryTenantDeclMap map
+	 Locks to update the map will be acquired in the calling method
 	*/
 	for tenant, resp := range postMgr.tenantResponseMap {
 		if resp.agentResponseCode == 200 {
@@ -681,4 +693,21 @@ func (postMgr *PostManager) notifyRscStatusHandler(id int, overwriteCfg bool) {
 			postMgr.respChan <- rscUpdateMeta
 		}
 	}
+}
+
+// function for returning the prefix string for request id
+func getRequestPrefix(id int) string {
+	if id == 0 {
+		return "[Retry]"
+	}
+	return fmt.Sprintf("[Request: %v]", id)
+}
+
+// function for returning the tenants from URI
+func getTenantsFromUri(uri string) string {
+	res := strings.Split(uri, "declare/")
+	if len(res[0]) == 0 {
+		return "all"
+	}
+	return res[1]
 }

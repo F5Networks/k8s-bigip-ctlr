@@ -50,7 +50,7 @@ var _ = Describe("Routes", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.AgentMap["bigip1"] = &Agent{
+		mockCtlr.AgentMap["bigip1"] = &RequestHandler{
 			PostManager: &PostManager{
 				PostParams: PostParams{
 					CMURL: "10.10.10.1",
@@ -2133,7 +2133,7 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			crName := "escm"
 			crNamespace := "system"
 			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
-			mockCtlr.AgentMap["bigip1"] = &Agent{
+			mockCtlr.AgentMap["bigip1"] = &RequestHandler{
 				PostManager: &PostManager{
 					PostParams: PostParams{
 						CMURL: "10.10.10.1",
@@ -2291,7 +2291,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.AgentMap["bigip1"] = &Agent{
+		mockCtlr.AgentMap["bigip1"] = &RequestHandler{
 			PostManager: &PostManager{
 				PostParams: PostParams{
 					CMURL: "10.10.10.1",
@@ -2633,7 +2633,7 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.AgentMap["bigip1"] = &Agent{
+		mockCtlr.AgentMap["bigip1"] = &RequestHandler{
 			PostManager: &PostManager{
 				PostParams: PostParams{
 					CMURL: "10.10.10.1",

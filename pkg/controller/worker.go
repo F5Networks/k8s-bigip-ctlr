@@ -658,6 +658,7 @@ func (ctlr *Controller) processResources() bool {
 		// Put each BIGIPConfig per bigip  pair into specific requestChannel
 		for bigip, bigipConfig := range bigipMap {
 			agent := ctlr.AgentMap[bigip.BigIpLabel]
+			agent.startAgent()
 			config := ResourceConfigRequest{
 				bigipConfig:         bigip,
 				bigIpResourceConfig: bigipConfig,
@@ -2772,7 +2773,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	bigipLabel := "bigip1"
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[bigipLabel].CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[bigipLabel].PostManager.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -3851,7 +3852,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 				ctlr.haModeType = es.HAMode
 				//TODO: could each bigip pair will have different HA mode?
 				for _, agent := range ctlr.AgentMap {
-					agent.HAMode = true
+					agent.PostManager.HAMode = true
 				}
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
@@ -4257,9 +4258,8 @@ func (ctlr *Controller) stopAgent(config cisapiv1.BigIpConfig) {
 	//stop agent
 	agent := ctlr.AgentMap[config.BigIpLabel]
 	if agent != nil {
-		//close the channels to stop the agent
-		close(agent.reqChan)
-		close(agent.postChan)
+		//close the channels to stop the requesthandler
+		agent.stopAgent()
 	}
 	//remove bigiplabel from agentmap
 	delete(ctlr.AgentMap, config.BigIpLabel)
@@ -4271,6 +4271,8 @@ func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
 	//start agent
 	ctlr.AgentParams.Partition = config.DefaultPartition
 	agent := NewAgent(ctlr.AgentParams, config.BigIpLabel)
+	agent.PostManager.respChan = ctlr.respChan
+	agent.PostManager.AS3PostManager.AS3Config = ctlr.AgentParams.PostParams.AS3Config
 	// update agent Map
 	ctlr.AgentMap[config.BigIpLabel] = agent
 	// increase the Agent Count

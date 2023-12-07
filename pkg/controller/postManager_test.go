@@ -8,12 +8,12 @@ import (
 	"net/http"
 )
 
-var _ = Describe("PostManager Tests", func() {
+var _ = Describe("AS3PostManager Tests", func() {
 	var mockPM *mockPostManager
 	BeforeEach(func() {
 		mockPM = newMockPostManger()
 		mockPM.tenantResponseMap = make(map[string]tenantResponse)
-		mockPM.AS3Config = cisapiv1.AS3Config{DebugAS3: true,
+		mockPM.PostManager.AS3PostManager.AS3Config = cisapiv1.AS3Config{DebugAS3: true,
 			PostDelayAS3: 2}
 	})
 
@@ -42,7 +42,7 @@ var _ = Describe("PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   "",
 			}}, http.MethodPost)
-			mockPM.firstPost = false
+			mockPM.AS3PostManager.firstPost = false
 			mockPM.publishConfig(agentCfg)
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})

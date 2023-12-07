@@ -53,11 +53,10 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 				Timeout: 1,
 			},
 		}
-		mockCtlr.AgentMap["bigip1"] = &Agent{
-			PostManager: &PostManager{
+		mockCtlr.AgentMap["bigip1"] = newMockAgent(
+			&PostManager{
 				PostParams: postparams,
-			},
-		}
+			}, "test", "as3")
 		mockCtlr.AgentParams = AgentParams{PostParams: postparams}
 		cmName := "ecm"
 		cmNamespace := "kube-system"

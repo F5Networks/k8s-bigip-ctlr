@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -43,7 +44,7 @@ func newMockController() *mockController {
 	return &mockController{
 		Controller: &Controller{
 			resourceSelectorConfig: ResourceSelectorConfig{},
-			AgentMap:               make(map[string]*Agent),
+			AgentMap:               map[string]*RequestHandler{},
 			AgentParams:            AgentParams{},
 			clientsets:             &ClientSets{},
 			managedResources:       ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
@@ -61,12 +62,17 @@ func newMockPostManger() *mockPostManager {
 			postChan:            make(chan agentConfig, 1),
 			cachedTenantDeclMap: make(map[string]as3Tenant),
 			retryTenantDeclMap:  make(map[string]*tenantParams),
+			respChan:            make(chan resourceStatusMeta, 1),
 		},
 		Responses: []int{},
 		RespIndex: 0,
 	}
+	mockPM.AS3PostManager = &AS3PostManager{}
 	mockPM.tenantResponseMap = make(map[string]tenantResponse)
-	mockPM.firstPost = true
+	mockPM.AS3PostManager.firstPost = true
+	mockPM.tokenManager = tokenmanager.NewTokenManager(
+		"0.0.0.0",
+		tokenmanager.Credentials{Username: "admin", Password: "admin"}, "", false)
 	return mockPM
 }
 
@@ -103,11 +109,10 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	mockPM.PostParams.httpClient = client
 }
 
-func newMockAgent() *Agent {
-	return &Agent{
-		PostManager: &PostManager{postChan: make(chan agentConfig, 1)},
-		Partition:   "test",
-		userAgent:   "",
+func newMockAgent(postManager *PostManager, partition, userAgent string) *RequestHandler {
+	return &RequestHandler{
+		PostManager: postManager,
+		userAgent:   userAgent,
 	}
 }
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {

@@ -19,12 +19,12 @@ This page documents the multi cluster support in CIS. Check the Known Issues sec
 
 ## Overview
 
-Multi-Cluster Support in CIS allows users to expose multiple apps spread across OpenShift/Kubernetes clusters using a single BIG-IP Virtual Server. An app can be deployed different OpenShift clusters exposing them using a route resource. Using a Multi-Cluster implementation the CIS can be deployed in a HA topology, or Standalone CIS, to expose the apps spread across OpenShift clusters.
+Multi-Cluster Support in CIS allows users to expose multiple apps spread across OpenShift/Kubernetes clusters using a single BIG-IP Virtual Server. An app can be deployed in different OpenShift/Kubernetes clusters exposing them using a Route/VS/TS CR resource. Using a Multi-Cluster implementation the CIS can be deployed in a HA topology, or Standalone CIS, to expose the apps spread across OpenShift/Kubernetes clusters.
 
 
 **Note**: 
 * CIS supports processing of routes in traditional way as well as with NextGen Controller and with Multi-Cluster support.
-* Currently, nodePort is supported.Cluster mode is supported with static route configuration on BIGIP(No tunnels)
+* At present, nodePort mode is supported and Cluster mode is available with static route configuration on BIGIP(No tunnels)
 
 ## Prerequisites
 * Cluster node, where CIS is deployed, should be able to reach the API server of all OpenShift/Kubernetes clusters.
@@ -82,6 +82,13 @@ Deploying CIS HA in Two Modes:
 **Note:**
  * Additionally, there is another supported mode called "ratio", in which pool members from all the Kubernetes/Openshift clusters are update for the Virtual Server, however the traffic distribution is done based on the ratio values defined for each cluster.
  * Ratio doesn't require CIS to be running in HA environment. It is supported in both CIS HA and non-HA environment.
+
+**Note**:
+* For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters. 
+* The CIS monitored resource manifests must be identical on both primary and Secondary Clusters
+* So, In case of CIS failover, CIS on Secondary Cluster will take control and will start processing the CIS monitored resource manifests.
+* CIS on Secondary Cluster will not process the CIS monitored resource manifests if they are not available in Secondary Cluster.
+* MakeSure to have identical resource manifests in both the clusters to avoid any issues during CIS failover.
 
 Below is a tabular representation of the scenarios mentioned above:
 
@@ -287,6 +294,14 @@ Following is the sample deployment for primary CIS deployment:
 1. Update the ```multi-cluster-mode``` to *secondary* for secondary CIS deployment in high availablility topology, See [High Availability CIS](#high-availability-cis). 
 2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
 
+**Note**:
+* For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.
+* The CIS monitored resource manifests must be identical on both primary and Secondary Clusters
+* So, In case of CIS failover, CIS on Secondary Cluster will take control and will start processing the CIS monitored resource manifests.
+* CIS on Secondary Cluster will not process the CIS monitored resource manifests if they are not available in Secondary Cluster.
+* MakeSure to have identical resource manifests in both the clusters to avoid any issues during CIS failover.
+
+
 ### extended ConfigMap Parameters
 
 #### externalClustersConfig Parameters
@@ -401,6 +416,15 @@ Following is the sample deployment for primary CIS deployment:
 2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
 
 **Note**: _weight_ needs to be specified onlyonly in A/B scenario
+
+**Note**:
+* For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.
+* The CIS monitored resource manifests must be identical on both primary and Secondary Clusters
+* So, In case of CIS failover, CIS on Secondary Cluster will take control and will start processing the CIS monitored resource manifests.
+* CIS on Secondary Cluster will not process the CIS monitored resource manifests if they are not available in Secondary Cluster.
+* MakeSure to have identical resource manifests in both the clusters to avoid any issues during CIS failover.
+
+
 ### Virutal Server Pool with Multi-ClusterServices
 Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the VS Pool as mentioned below:
 ```
@@ -515,6 +539,14 @@ By default clusters are in enabled state.<br>
 **adminState: disable**, all new connections except those which match an existing persistence session are not allowed for the pool members from the cluster.<br>
 **adminState: offline**, no new connections are allowed to the pool members from the cluster, even if they match an existing persistence session.
 
+**Note**:
+* For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.
+* The CIS monitored resource manifests must be identical on both primary and Secondary Clusters
+* So, In case of CIS failover, CIS on Secondary Cluster will take control and will start processing the CIS monitored resource manifests.
+* CIS on Secondary Cluster will not process the CIS monitored resource manifests if they are not available in Secondary Cluster.
+* MakeSure to have identical resource manifests in both the clusters to avoid any issues during CIS failover.
+
+
 ## Known issues
 *  Pool members are not getting populated for extended service in ratio mode
 *  CIS doesn't update pool members if service doesn't exist in primary cluster but exists in secondary cluster for Route.
@@ -541,7 +573,7 @@ Yes. CIS has to be restarted when there is a change in the mode.
 To add a new cluster, create a kube-config file with read only permissions. Then create a Kubernetes secret using the kube-config file. Refer this in secret in the extended ConfigMap to add the new cluster.
 CIS dynamically reads the new kube-config of the new cluster and starts listening to the services and endpoints in the new cluster when a route refers this new cluster.
 
-### Where do you manage the manifest or Configuration Objects like Routes, Configmaps etc.?
+### Where do you manage the manifest or Configuration Objects like Routes, CRDs, ExtendedConfigmaps etc.?
 Manifests or Configuration objects are managed centralized in Primary Cluster and if HA is desired the same manifests are expected to be in Secondary Cluster.
 
 ### What are the supported CNIs?
@@ -576,3 +608,104 @@ Yes. CIS supports A/B with multiCluster.
 
 ### Is A/B custom persistence supported in all the modes?
 No. A/B persistence is supported in ratio mode and pool member type as cluster.
+
+### Does Secondary CIS require resource manifests existing in Primary Cluster?
+Yes. CIS on Secondary Cluster will not process the CIS monitored resource manifests[NextGen Routes, CRDs, extendedConfigmap] if they are not available in Primary Cluster.
+This is required in case of CIS failover, CIS on Secondary Cluster will take control and will start processing the CIS monitored resource manifests.
+It is suggested to maintain identical CIS monitored resource manifests in both the clusters to avoid any issues during CIS failover.
+This requirement is applicable in case of CIS HA mode [namely Active-Standby, Active-Active, Ratio].
+
+### How to configure primaryEndPoint in HA mode?
+primaryEndPoint is a mandatory parameter if CIS is intended to run in Multi-Cluster HA mode[namely Active-Standby, Active-Active, Ratio]. If this is not specified the secondary CIS will not run.
+Secondary CIS will continuously monitor the health of the primary cluster based on the primaryEndPoint value. If it's down, then the secondary CIS takes the responsibility of posting declarations to BIG-IP.
+Supported Protocols for primaryEndPoint are HTTP and TCP.
+Generally, it's suggested to use the primaryEndPoint as
+  a) any available endpoint to check the health of the primary cluster.
+  b) Primary CIS cluster's health check endpoint (/ready) if accessible.
+  c) Primary CIS cluster's kube-api server endpoint if accessible.
+Response code 200 OK is expected from the primaryEndPoint in case of HTTP Protocol.
+Successful TCP connection is expected from the primaryEndPoint in case of TCP Protocol.
+Secondary CIS become active if the primaryEndPoint is not accessible.
+PrimaryEndPoint is optional to configure for Primary CIS.
+Note: Primary CIS will not monitor the health of the Secondary CIS cluster.
+
+### How to configure primaryEndPoint in Standalone mode?
+primaryEndPoint is not applicable in Standalone mode. It's only applicable in HA mode.
+
+### How to use CIS /ready endpoint to check the health of CIS?
+Fetch the CIS PodIP and use it in the curl command as shown below from any of the cluster nodes:
+```
+curl  http://<CIS-PodIP>:8080/ready
+```
+Response code 200 OK is expected from the CIS /ready endpoint if kube-api server is accessible.
+Example:
+```
+[root@cluster-1-worker0 ~]# curl http://10.244.1.213:8080/ready
+Ok[root@cluster-1-worker0 ~]# curl http://10.244.1.213:8080/ready -v
+* About to connect() to 10.244.1.213 port 8080 (#0)
+*   Trying 10.244.1.213...
+* Connected to 10.244.1.213 (10.244.1.213) port 8080 (#0)
+> GET /ready HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: 10.244.1.213:8080
+> Accept: */*
+> 
+< HTTP/1.1 200 OK
+< Date: Thu, 07 Dec 2023 08:28:57 GMT
+< Content-Length: 2
+< Content-Type: text/plain; charset=utf-8
+< 
+* Connection #0 to host 10.244.1.213 left intact
+Ok[root@cluster-1-worker0 ~]#
+```
+where 10.244.1.213 is the CIS PodIP.
+
+
+### How extendedServiceReferences is different from multiClusterServices?
+extendedServiceReferences is applicable for Virtual Server CR or Transport Server CR and multiClusterServices is applicable for NextGen Routes.
+extendedServiceReferences is used to refer the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, in the VS Pool or TS Pool.
+multiClusterServices is used to refer the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, in the Route annotation.
+
+### How multiClusterServices and extendedServiceReferences are similar?
+multiClusterServices and extendedServiceReferences are similar in terms of referring the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair.
+Both are applicable to refer services running in external Clusters, apart from the HA cluster pair
+
+### How to configure multiClusterServices in Route annotation?
+multiClusterServices is a Route annotation. Below is the sample Route annotation with multiClusterServices:
+```
+virtual-server.f5.com/multiClusterServices:
+'[
+     {
+         "clusterName": "cluster2",
+         "serviceName": "svc-pytest-foo-1-com",
+         "namespace": "foo",
+         "port": 80,
+         "weight": 30,
+     }
+]'
+```
+where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, port is the port of the service and serviceName is the name of the service.
+where cluster2 is the external cluster apart from the HA cluster pair.
+Note: External Clusters doesn't need to install CIS
+
+### How to configure extendedServiceReferences in Virtual Server CR or Transport Server CR?
+extendedServiceReferences is a field in Virtual Server CR or Transport Server CR. Below is the sample Virtual Server CR with extendedServiceReferences:
+```
+  pools:
+  - path: /tea
+    serviceNamespace: tea
+    service: svc-2
+    servicePort: 80
+    extendedServiceReferences:
+    - clusterName: cluster3
+      namespace: ns1
+      port: 8080
+      serviceName: svc-1
+    - clusterName: cluster4
+      namespace: ns2
+      port: 80
+      serviceName: svc-ext-1
+```
+where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, port is the port of the service and serviceName is the name of the service.
+where cluster3 and cluster4 are the external clusters apart from the HA cluster pair.
+Note: External Clusters doesn't need to install CIS

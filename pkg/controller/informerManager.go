@@ -35,6 +35,7 @@ func (ctlr *Controller) initInformers() {
 	ctlr.updateBigIpConfigMap(configCR.Spec.BigIpConfig)
 	// update the agent params
 	ctlr.AgentParams.PostParams.AS3Config = configCR.Spec.AS3Config
+	ctlr.AgentParams.PostParams.tokenManager = ctlr.CMTokenManager
 	if ctlr.managedResources.ManageRoutes {
 		// initialize the processed host-path map
 		var processedHostPath ProcessedHostPath
@@ -140,7 +141,7 @@ func (ctlr *Controller) updateResourceSelectorConfig(config cisapiv1.BaseConfig)
 func (ctlr *Controller) updateBigIpConfigMap(config []cisapiv1.BigIpConfig) {
 	for _, bigipconfig := range config {
 		//initialize map with empty bigipconfig.will be updated after resource processing
-		ctlr.bigIpMap[bigipconfig] = BigIpResourceConfig{}
+		ctlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 	}
 }
 

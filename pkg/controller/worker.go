@@ -629,14 +629,11 @@ func (ctlr *Controller) processResources() bool {
 	} else {
 		ctlr.resourceQueue.Forget(key)
 	}
-	// TODO: After processing resources per bigipLabel, update the BIGIPConfigmap with the latest config
-	// we have processed the resource but as controller is still in init state do not post the config
-	bigipMap := BigIpMap{}
 	if ctlr.initState {
 		return true
 	}
 
-	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
+	if (ctlr.resourceQueue.Len() == 0) ||
 		(ctlr.multiClusterMode == SecondaryCIS && rKey.kind == HACIS) {
 
 		if ctlr.multiClusterMode != "" {
@@ -656,15 +653,16 @@ func (ctlr *Controller) processResources() bool {
 		// set prometheus resource metrics
 		ctlr.setPrometheusResourceCount()
 		// Put each BIGIPConfig per bigip  pair into specific requestChannel
-		for bigip, bigipConfig := range bigipMap {
-			agent := ctlr.AgentMap[bigip.BigIpLabel]
-			agent.startAgent()
-			config := ResourceConfigRequest{
-				bigipConfig:         bigip,
-				bigIpResourceConfig: bigipConfig,
+		for bigip, bigipConfig := range ctlr.resources.bigIpMap {
+			if (!reflect.DeepEqual(bigipConfig.ltmConfig, LTMConfig{}) || !reflect.DeepEqual(bigipConfig.gtmConfig, GTMConfig{})) && ctlr.resources.isConfigUpdated(bigip) {
+				agent := ctlr.AgentMap[bigip.BigIpLabel]
+				config := ResourceConfigRequest{
+					bigipConfig:         bigip,
+					bigIpResourceConfig: bigipConfig,
+				}
+				config.reqId = ctlr.enqueueReq(bigipConfig)
+				agent.EnqueueRequestConfig(config)
 			}
-			config.reqId = ctlr.enqueueReq(bigipConfig)
-			agent.EnqueueRequestConfig(config)
 		}
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
@@ -1027,7 +1025,10 @@ func (ctlr *Controller) processVirtualServers(
 	// Prepare list of associated VirtualServers to be processed
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
-
+	// TODO: phase2 get bigipLabel from cr resource or service address cr
+	// Phase1 setting bigipLabel to empty string
+	bigipLabel := BigIPLabel
+	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 	VSSpecProps := &VSSpecProperties{}
 	virtuals := ctlr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted, VSSpecProps)
 	//ctlr.getAssociatedSpecVirtuals(virtuals,VSSpecProps)
@@ -1131,12 +1132,12 @@ func (ctlr *Controller) processVirtualServers(
 			(portS.protocol == HTTP && !doVSHandleHTTP(virtuals, virtual)) ||
 			(isVSDeleted && portS.protocol == HTTPS && !doVSUseSameHTTPSPort(virtuals, virtual)) {
 			var hostnames []string
-			rsMap := ctlr.resources.getPartitionResourceMap(partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteVirtualServer(partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -1260,7 +1261,7 @@ func (ctlr *Controller) processVirtualServers(
 
 	if !processingError {
 		var hostnames []string
-		rsMap := ctlr.resources.getPartitionResourceMap(partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 
 		// Update ltmConfig with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
@@ -1876,13 +1877,14 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 	return ip
 }
 
-func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKey, rsKey resourceRef, svcPort intstr.IntOrString, poolName, partition, rsName, path string) {
+func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKey, rsKey resourceRef, svcPort intstr.IntOrString, poolName, partition, rsName, path string, bigipLabel string) {
 	poolId := PoolIdentifier{
-		poolName:  poolName,
-		partition: partition,
-		rsName:    rsName,
-		path:      path,
-		rsKey:     rsKey,
+		poolName:   poolName,
+		partition:  partition,
+		rsName:     rsName,
+		path:       path,
+		rsKey:      rsKey,
+		bigIpLabel: bigipLabel,
 	}
 	multiClusterSvcConfig := MultiClusterServiceConfig{svcPort: svcPort}
 	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName]; !ok {
@@ -1902,7 +1904,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
 				for poolId := range poolIds {
-					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName)
+					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName, poolId.bigIpLabel)
 					if rsCfg == nil {
 						continue
 					}
@@ -1957,7 +1959,8 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 							freshRsCfg.Pools[index] = pool
 						}
 					}
-					_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
+					bigipConfig := ctlr.getBIGIPConfig(BigIPLabel)
+					_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg, bigipConfig)
 				}
 			}
 		}
@@ -2277,6 +2280,10 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	var allVirtuals []*cisapiv1.TransportServer
+	// TODO: phase2 get bigipLabel from cr resource or service address cr
+	// Phase1 setting bigipLabel to empty string
+	bigipLabel := BigIPLabel
+	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 	if virtual.Spec.HostGroup != "" {
 		// grouping by hg across all namespaces
 		allVirtuals = ctlr.getAllTSFromMonitoredNamespaces()
@@ -2341,13 +2348,13 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	if isTSDeleted {
-		rsMap := ctlr.resources.getPartitionResourceMap(partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 		var hostnames []string
 		if _, ok := rsMap[rsName]; ok {
 			hostnames = rsMap[rsName].MetaData.hosts
 		}
 
-		ctlr.deleteVirtualServer(partition, rsName)
+		ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
@@ -2410,9 +2417,8 @@ func (ctlr *Controller) processTransportServers(
 		name:      virtual.Name,
 	}] = struct{}{}
 
-	rsMap := ctlr.resources.getPartitionResourceMap(partition)
+	rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 	rsMap[rsName] = rsCfg
-
 	if len(rsCfg.MetaData.hosts) > 0 {
 		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 	}
@@ -2553,14 +2559,16 @@ func (ctlr *Controller) processLBServices(
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
 		//Phase1 getting partition from bigipconfig index 0
-		partition := ctlr.getPartitionForBIGIP("")
+		bigipLabel := BigIPLabel
+		partition := ctlr.getPartitionForBIGIP(bigipLabel)
+		bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 		if isSVCDeleted {
-			rsMap := ctlr.resources.getPartitionResourceMap(partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 			var hostnames []string
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteVirtualServer(partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -2605,8 +2613,7 @@ func (ctlr *Controller) processLBServices(
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
 
-		rsMap := ctlr.resources.getPartitionResourceMap(partition)
-
+		rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 		rsMap[rsName] = rsCfg
 		if len(rsCfg.MetaData.hosts) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
@@ -2709,21 +2716,29 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	if ctlr.managedResources.ManageEDNS == false {
 		return
 	}
-	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
-		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
-			if processedWIP.UID != string(edns.UID) {
-				log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
-				return
+	//TODO: get bigipLabel from route resource or service address cr
+	// Phase1 setting bigipLabel to empty string
+	bigipLabel := BigIPLabel
+	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
+	if bigipConfig != (cisapiv1.BigIpConfig{}) {
+		if _, ok := ctlr.resources.bigIpMap[bigipConfig]; ok {
+			if gtmPartitionConfig, ok := ctlr.resources.bigIpMap[bigipConfig].gtmConfig[DEFAULT_GTM_PARTITION]; ok {
+				if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
+					if processedWIP.UID != string(edns.UID) {
+						log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
+						return
+					}
+				}
 			}
 		}
 	}
 
 	if isDelete {
-		if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
+		if _, ok := ctlr.resources.bigIpMap[bigipConfig].gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
 			return
 		}
 
-		delete(ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
+		delete(ctlr.resources.bigIpMap[bigipConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -2768,12 +2783,10 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
 
-	partitions := ctlr.resources.getLTMPartitions()
-	//TODO: get bigip label from edns spec once we support multiple bigips
-	bigipLabel := "bigip1"
+	partitions := ctlr.resources.getLTMPartitions(bigipLabel)
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[bigipLabel].PostManager.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[bigipConfig.BigIpLabel].PostManager.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -2796,7 +2809,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			pool.LBMethod = "round-robin"
 		}
 		for _, partition := range partitions {
-			rsMap := ctlr.resources.getPartitionResourceMap(partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 
 			for vsName, vs := range rsMap {
 				var found bool
@@ -2872,13 +2885,20 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}
-	if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
-		ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION] = GTMPartitionConfig{
+	if _, present := ctlr.resources.bigIpMap[bigipConfig]; !present {
+		ctlr.resources.bigIpMap[bigipConfig] = BigIpResourceConfig{
+			ltmConfig: make(LTMConfig),
+			gtmConfig: make(GTMConfig),
+		}
+
+	}
+	if _, ok := ctlr.resources.bigIpMap[bigipConfig].gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
+		ctlr.resources.bigIpMap[bigipConfig].gtmConfig[DEFAULT_GTM_PARTITION] = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
 	}
 
-	ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
+	ctlr.resources.bigIpMap[bigipConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
 	return
 }
 
@@ -3150,6 +3170,10 @@ func (ctlr *Controller) processIngressLink(
 	var status int
 	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
 	key = ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
+	//TODO: get bigipLabel from route resource or service address cr
+	// Phase1 setting bigipLabel to empty string
+	bigipLabel := BigIPLabel
+	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 	if ctlr.ipamCli != nil {
 		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
 			ip = ctlr.releaseIP(ingLink.Spec.IPAMLabel, "", key)
@@ -3197,7 +3221,7 @@ func (ctlr *Controller) processIngressLink(
 	}
 	if isILDeleted {
 		var delRes []string
-		rsMap := ctlr.resources.getPartitionResourceMap(partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 		for k := range rsMap {
 			rsName := "ingress_link_" + formatVirtualServerName(
 				ip,
@@ -3210,12 +3234,12 @@ func (ctlr *Controller) processIngressLink(
 		for _, rsName := range delRes {
 			var hostnames []string
 			if rsMap[rsName] != nil {
-				rsCfg, err := ctlr.resources.getResourceConfig(partition, rsName)
+				rsCfg, err := ctlr.resources.getResourceConfig(partition, rsName, BigIPLabel)
 				if err == nil {
 					hostnames = rsCfg.MetaData.hosts
 				}
 			}
-			ctlr.deleteVirtualServer(partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -3249,7 +3273,7 @@ func (ctlr *Controller) processIngressLink(
 		}
 	}
 
-	rsMap := ctlr.resources.getPartitionResourceMap(partition)
+	rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 	for _, port := range svc.Spec.Ports {
 		//for nginx health monitor port skip vs creation
 		if port.Port == nginxMonitorPort {
@@ -3300,7 +3324,7 @@ func (ctlr *Controller) processIngressLink(
 			kind:      IngressLink,
 		}
 		// updating the service cache
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.ObjectMeta.Name, "", pool, svcPort, "")
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.ObjectMeta.Name, "", pool, svcPort, "", bigipLabel)
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {
@@ -4248,7 +4272,7 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 				// start agent
 				ctlr.startAgent(newConfig)
 				//update bigipMap with new bigipconfig
-				ctlr.bigIpMap[newConfig] = BigIpResourceConfig{}
+				ctlr.bigIpMap[newConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 			}
 		}
 	}
@@ -4273,6 +4297,7 @@ func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
 	agent := NewAgent(ctlr.AgentParams, config.BigIpLabel)
 	agent.PostManager.respChan = ctlr.respChan
 	agent.PostManager.AS3PostManager.AS3Config = ctlr.AgentParams.PostParams.AS3Config
+	agent.PostManager.tokenManager = ctlr.CMTokenManager
 	// update agent Map
 	ctlr.AgentMap[config.BigIpLabel] = agent
 	// increase the Agent Count
@@ -4293,4 +4318,20 @@ func (ctlr *Controller) getPartitionForBIGIP(bigipLabel string) string {
 		}
 	}
 	return ""
+}
+
+func (ctlr *Controller) getBIGIPConfig(bigipLabel string) cisapiv1.BigIpConfig {
+	//get partition from bigip
+	for bigipconfig, _ := range ctlr.bigIpMap {
+		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
+		//Phase1 getting partition from bigipconfig index 0
+		if bigipLabel == "" {
+			return bigipconfig
+		} else {
+			if bigipconfig.BigIpLabel == bigipLabel {
+				return bigipconfig
+			}
+		}
+	}
+	return cisapiv1.BigIpConfig{}
 }

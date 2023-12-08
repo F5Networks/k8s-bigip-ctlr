@@ -42,6 +42,9 @@ func (ctlr *Controller) enqueueReq(config BigIpResourceConfig) int {
 func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 	// todo: update only when there is a change(success to fail or vice versa) in tenant status
 	ctlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+	//TODO: Need to get bigipLabel from rspchan
+	bigipLabel := BigIPLabel
+	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 	for rscUpdateMeta := range respChan {
 
 		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
@@ -50,7 +53,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 			// Priority tenant doesn't have any meta
 			if _, found := rscUpdateMeta.failedTenants[partition]; !found && len(meta) == 0 {
 				// updating the tenant priority back to zero if it's not in failed tenants
-				ctlr.resources.updatePartitionPriority(partition, 0)
+				ctlr.resources.updatePartitionPriority(partition, 0, bigipConfig)
 				continue
 			}
 			for rscKey, kind := range meta {

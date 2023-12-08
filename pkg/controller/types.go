@@ -320,11 +320,9 @@ type (
 
 	// ResourceStore contain processed LTM and GTM resource data
 	ResourceStore struct {
-		ltmConfig      LTMConfig
-		ltmConfigCache LTMConfig
-		gtmConfig      GTMConfig
-		gtmConfigCache GTMConfig
-		nplStore       NPLStore
+		bigIpMap      BigIpMap
+		bigIpMapCache BigIpMap
+		nplStore      NPLStore
 		supplementContextCache
 	}
 
@@ -816,6 +814,7 @@ type (
 		HTTPClientMetrics bool
 		httpClient        *http.Client
 		AS3Config         cisapiv1.AS3Config
+		tokenManager      *tokenmanager.TokenManager
 	}
 
 	GTMParams struct {
@@ -1279,11 +1278,12 @@ type TLSVersion string
 
 type (
 	PoolIdentifier struct {
-		poolName  string
-		partition string
-		rsName    string
-		path      string
-		rsKey     resourceRef
+		poolName   string
+		partition  string
+		rsName     string
+		path       string
+		rsKey      resourceRef
+		bigIpLabel string
 	}
 
 	MultiClusterResourceStore struct {

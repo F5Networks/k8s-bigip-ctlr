@@ -225,3 +225,5 @@ const AllowSourceRangeDgName = "allowSourceRange"
 
 // Internal data group for ab deployment routes.
 const AbDeploymentDgName = "ab_deployment_dg"
+
+const BigIPLabel = ""

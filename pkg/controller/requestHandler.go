@@ -18,8 +18,12 @@ func (req *RequestHandler) startAgent() {
 
 func (req *RequestHandler) stopAgent() {
 	log.Debug("stopping requestHandler")
-	close(req.reqChan)
-	close(req.PostManager.postChan)
+	if req.reqChan != nil {
+		close(req.reqChan)
+	}
+	if req.PostManager.postChan != nil {
+		close(req.PostManager.postChan)
+	}
 }
 
 func NewAgent(params AgentParams, bigiplabel string) *RequestHandler {
@@ -45,9 +49,7 @@ func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) 
 
 	select {
 	case req.reqChan <- rsConfig:
-	case <-req.reqChan:
-		req.reqChan <- rsConfig
-
+	case <-time.After(3 * time.Millisecond):
 	}
 }
 

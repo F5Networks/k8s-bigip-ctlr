@@ -59,16 +59,19 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 
 	routes := ctlr.getGroupedRoutes(routeGroup, annotationsUsed, policySSLProfiles)
-
+	// TODO: phase2 get bigipLabel from cr resource or service address cr
+	// Phase1 setting bigipLabel to empty string
+	bigipLabel := BigIPLabel
+	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
 			rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-			vs := ctlr.getVirtualServer(partition, rsName)
+			vs := ctlr.getVirtualServer(partition, rsName, bigipLabel)
 			if vs != nil {
 				log.Debugf("Removing virtual %v belongs to RouteGroup: %v",
 					rsName, routeGroup)
-				ctlr.deleteVirtualServer(partition, rsName)
+				ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
 				ctlr.ProcessRouteEDNS(vs.MetaData.hosts)
 			}
 		}
@@ -89,7 +92,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// Delete rsCfg if it is HTTP port and the Route does not handle HTTPTraffic
 		if portStruct.protocol == "http" && !doRoutesHandleHTTP(routes) {
-			ctlr.deleteVirtualServer(partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
 			continue
 		}
 
@@ -192,7 +195,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	if !processingError {
 		var hosts []string
 		for name, rscfg := range vsMap {
-			rsMap := ctlr.resources.getPartitionResourceMap(partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 			rsMap[name] = rscfg
 
 			if len(rscfg.MetaData.hosts) > 0 {
@@ -428,7 +431,9 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	}
 
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
-
+	///TODO: get bigipLabel from cr resource or service address cr resource
+	//	//Phase1 setting bigipLabel to default
+	bigipLabel := BigIPLabel
 	if ctlr.multiClusterMode != "" {
 		//check for external service reference annotation
 		if annotation := route.Annotations[MultiClusterServicesAnnotation]; annotation != "" {
@@ -490,23 +495,23 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 							ServicePort: config.svcPort,
 						})
 						// update the clusterSvcMap
-						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
+						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path, bigipLabel)
 					}
 					pool.MultiClusterServices = multiClusterServices
 				}
 				// update the multicluster resource serviceMap with local cluster services
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "", bigipLabel)
 				// update the multicluster resource serviceMap with HA pair cluster services
 				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
-						ctlr.multiClusterConfigs.HAPairClusterName)
+						ctlr.multiClusterConfigs.HAPairClusterName, bigipLabel)
 				}
 			} else {
 				// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster)
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, bs.Cluster, bigipLabel)
 			}
 		} else {
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "", bigipLabel)
 		}
 		// Handle Route pod concurrent connections
 		podConnections, ok := route.ObjectMeta.Annotations[PodConcurrentConnectionsAnnotation]
@@ -779,7 +784,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 		if svcPorts, ok2 := serviceKeys[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
 				for poolId := range poolIds {
-					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName)
+					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName, poolId.bigIpLabel)
 					if rsCfg == nil {
 						continue
 					}
@@ -843,7 +848,8 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 										break
 									}
 								}
-								_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)
+								bigipConfig := ctlr.getBIGIPConfig(BigIPLabel)
+								_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg, bigipConfig)
 							}
 						}
 					}
@@ -1094,14 +1100,17 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es cisapiv1.ExtendedSpec,
 		}
 
 	}
-
+	//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
+	//Phase1 getting partition from bigipconfig index 0
+	bigipLabel := BigIPLabel
+	bigipconfig := ctlr.getBIGIPConfig(bigipLabel)
 	for _, routeGroupKey := range modifiedSpecs {
 		routeGroupsToBeProcessed[routeGroupKey] = struct{}{}
 		_ = ctlr.processRoutes(routeGroupKey, true)
 		// deleting the bigip partition when partition is changes
 		if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
-			if _, ok := ctlr.resources.ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
-				ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1)
+			if _, ok := ctlr.resources.bigIpMap[bigipconfig].ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
+				ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1, bigipconfig)
 			}
 		}
 		ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
@@ -2227,7 +2236,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 
 // updateMultiClusterResourceServiceMap updates the multiCluster rscSvcMap and clusterSvcMap
 func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConfig, rsRef resourceRef, serviceName, path string,
-	pool Pool, servicePort intstr.IntOrString, clusterName string) {
+	pool Pool, servicePort intstr.IntOrString, clusterName string, bigipLabel string) {
 	if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
 		ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
 	}
@@ -2238,7 +2247,7 @@ func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConf
 	}
 	ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
 	// update the clusterSvcMap
-	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, path)
+	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, path, bigipLabel)
 }
 
 // fetchKubeConfigSecret fetches the kubeConfig secret associated with a cluster

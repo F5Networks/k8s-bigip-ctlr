@@ -37,6 +37,7 @@ func NewPostManager(params AgentParams) *PostManager {
 	var pm = &PostManager{
 		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
 		AS3PostManager:                  &AS3PostManager{},
+		tokenManager:                    params.PostParams.tokenManager,
 		cachedTenantDeclMap:             make(map[string]as3Tenant),
 		incomingTenantDeclMap:           make(map[string]as3Tenant),
 		retryTenantDeclMap:              make(map[string]*tenantParams),

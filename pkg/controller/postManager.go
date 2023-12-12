@@ -71,6 +71,15 @@ func (postMgr *PostManager) postManager() {
 				postMgr.retryChan <- struct{}{}
 			}
 		}
+
+		/*
+			If there are any tenants with 201 response code,
+			poll for its status continuously and block incoming requests
+		*/
+		postMgr.pollTenantStatus()
+
+		// notify resourceStatusUpdate response handler on successful tenant update
+		postMgr.notifyRscStatusHandler(config.as3Config.id, true)
 	}
 }
 

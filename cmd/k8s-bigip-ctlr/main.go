@@ -205,11 +205,11 @@ func verifyArgs() error {
 		return fmt.Errorf("Missing CM credentials info")
 	}
 	if len(*CISConfigCR) == 0 {
-		return fmt.Errorf("Missing required argument --cis-config-cr")
+		return fmt.Errorf("Missing required argument --deploy-config-cr")
 	} else {
 		if len(strings.Split(*CISConfigCR, "/")) != 2 {
-			return fmt.Errorf("invalid value provided for --cis-config-cr" +
-				"Usage: --cis-config-cr=<namespace>/<CR-name>")
+			return fmt.Errorf("invalid value provided for --deploy-config-cr" +
+				"Usage: --deploy-config-cr=<namespace>/<CR-name>")
 		}
 	}
 
@@ -457,6 +457,9 @@ func getUserAgentInfo() string {
 
 // Read certificate from configmap
 func getBIGIPTrustedCerts() string {
+	if *trustedCertsCfgmap == "" {
+		return ""
+	}
 	namespaceCfgmapSlice := strings.Split(*trustedCertsCfgmap, "/")
 	if len(namespaceCfgmapSlice) != 2 {
 		log.Debugf("[INIT] either trusted-certs-cfgmap is not provided or provided trusted-certs-cfgmap is invalid.")

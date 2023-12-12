@@ -5,14 +5,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: bigip-ctlr-clusterrole
 rules:
-  - apiGroups: ["", "extensions", "networking.k8s.io", "route.openshift.io"]
-    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses", "policies", "routes"]
+  - apiGroups: ["", "extensions"]
+    resources: ["nodes", "services", "endpoints", "namespaces", "pods"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["", "extensions", "networking.k8s.io", "route.openshift.io"]
-    resources: ["configmaps", "events", "ingresses/status", "services/status", "routes/status"]
+  - apiGroups: ["", "extensions"]
+    resources: ["events", "services/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "transportservers/status", "ingresslinks", "ingresslinks/status", "externaldnses", "policies"]
+    resources: ["transportservers", "transportservers/status", "deployconfigs", "policies"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["fic.f5.com"]
     resources: ["ipams", "ipams/status"]
@@ -26,6 +26,7 @@ rules:
   - apiGroups: ["config.openshift.io/v1"]
     resources: ["network"]
     verbs: ["list"]
+
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

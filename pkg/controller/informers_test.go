@@ -86,8 +86,8 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
 			mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
 			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
-			mockCtlr.bigIpMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", DefaultPartition: "test"}] = BigIpResourceConfig{}
-			mockCtlr.AgentMap["bigip1"] = &RequestHandler{
+			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
 				reqChan: make(chan ResourceConfigRequest, 1),
 				PostManager: &PostManager{
 					tokenManager: mockCtlr.CMTokenManager,
@@ -413,7 +413,8 @@ var _ = Describe("Informers Tests", func() {
 					ExternalDNS:  make(map[string]int),
 				},
 			}
-			mockCtlr.AgentMap["bigip1"] = &RequestHandler{
+			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
 				PostManager: &PostManager{
 					tokenManager: mockCtlr.CMTokenManager,
 					postChan:     make(chan agentConfig, 1),

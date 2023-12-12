@@ -56,7 +56,7 @@ type (
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
 		AgentParams            AgentParams
-		AgentMap               map[string]*RequestHandler
+		AgentMap               map[BigIpKey]*RequestHandler
 		PoolMemberType         string
 		UseNodeInternal        bool
 		initState              bool
@@ -400,7 +400,7 @@ type (
 
 	// ResourceConfigRequest Each BigIPConfig per BigIP HA pair to put into the queue to process
 	ResourceConfigRequest struct {
-		bigipConfig         cisapiv1.BigIpConfig
+		bigipConfig         BigIpKey
 		bigIpResourceConfig BigIpResourceConfig
 		reqId               int
 	}
@@ -409,8 +409,12 @@ type (
 	BigIpMap map[cisapiv1.BigIpConfig]BigIpResourceConfig
 
 	// BigIP struct to hold the bigip address and label for HA pairs
-	BigIP        cisapiv1.BigIpConfig
 	BIGIPConfigs []cisapiv1.BigIpConfig
+
+	BigIpKey struct {
+		BigIpAddress string
+		BigIpLabel   string
+	}
 
 	// BigIpResourceConfig struct to hold the bigip-next ltm and gtm configuration
 	BigIpResourceConfig struct {
@@ -748,6 +752,7 @@ type (
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
 		bigipLabel      string
+		bigIpAddress    string
 	}
 
 	AgentParams struct {

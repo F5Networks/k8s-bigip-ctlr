@@ -45,7 +45,7 @@ func newMockController() *mockController {
 		Controller: &Controller{
 			resourceSelectorConfig: ResourceSelectorConfig{},
 			CMTokenManager:         tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false),
-			AgentMap:               map[string]*RequestHandler{},
+			AgentMap:               map[BigIpKey]*RequestHandler{},
 			bigIpMap:               make(BigIpMap),
 			AgentParams:            AgentParams{},
 			clientsets:             &ClientSets{},

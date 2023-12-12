@@ -26,16 +26,17 @@ func (req *RequestHandler) stopAgent() {
 	}
 }
 
-func NewAgent(params AgentParams, bigiplabel string) *RequestHandler {
+func NewAgent(params AgentParams, bigiplabel string, bigIpAddress string) *RequestHandler {
 	DEFAULT_PARTITION = params.Partition
 	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
 	postMgr := NewPostManager(params)
 
 	agent := &RequestHandler{
-		PostManager: postMgr,
-		reqChan:     make(chan ResourceConfigRequest, 1),
-		userAgent:   params.UserAgent,
-		bigipLabel:  bigiplabel,
+		PostManager:  postMgr,
+		reqChan:      make(chan ResourceConfigRequest, 1),
+		userAgent:    params.UserAgent,
+		bigipLabel:   bigiplabel,
+		bigIpAddress: bigIpAddress,
 	}
 	agent.startAgent()
 	return agent
@@ -76,10 +77,6 @@ func (req *RequestHandler) requestHandler() {
 
 func (req *RequestHandler) createDeclarationForBIGIP(rsConfig ResourceConfigRequest) {
 	//for each bigip config create AS3, L3 declaration
-	targetIPs := []string{rsConfig.bigipConfig.BigIpAddress}
-	if rsConfig.bigipConfig.HaBigIpAddress != "" {
-		targetIPs = append(targetIPs, rsConfig.bigipConfig.HaBigIpAddress)
-	}
 
 	req.declUpdate.Lock()
 	currentConfig, err := req.PostManager.GetAS3DeclarationFromBigIP()
@@ -148,16 +145,14 @@ func (req *RequestHandler) createDeclarationForBIGIP(rsConfig ResourceConfigRequ
 		}
 	}
 	req.declUpdate.Unlock()
-	for _, bigIPAddress := range targetIPs {
-		// TODO: need to handle bigip target address depending on AS3 API either single or two step as part of postManager
-		// Update the priority tenants first
-		if len(priorityTenants) > 0 {
-			req.enqueueCfgForPost(decl.(as3Declaration), rsConfig, priorityTenants, bigIPAddress)
-		}
-		// Updating the remaining tenants
-		req.enqueueCfgForPost(decl.(as3Declaration), rsConfig, updatedTenants, bigIPAddress)
-
+	// TODO: need to handle bigip target address depending on AS3 API either single or two step as part of postManager
+	// Update the priority tenants first
+	if len(priorityTenants) > 0 {
+		req.enqueueCfgForPost(decl.(as3Declaration), rsConfig, priorityTenants, rsConfig.bigipConfig.BigIpAddress)
 	}
+	// Updating the remaining tenants
+	req.enqueueCfgForPost(decl.(as3Declaration), rsConfig, updatedTenants, rsConfig.bigipConfig.BigIpAddress)
+
 }
 
 // Enqueue AS3 declaration to post chanel

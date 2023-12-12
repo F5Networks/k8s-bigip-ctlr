@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/json"
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"strings"
@@ -233,7 +232,7 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigipConfig:         v1.BigIpConfig{},
+				bigipConfig:         BigIpKey{},
 			}
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
@@ -268,7 +267,7 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigipConfig:         v1.BigIpConfig{},
+				bigipConfig:         BigIpKey{},
 			}
 
 			zero := 0
@@ -284,7 +283,7 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
-				bigipConfig:         v1.BigIpConfig{},
+				bigipConfig:         BigIpKey{},
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 
@@ -343,7 +342,7 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
-				bigipConfig:         v1.BigIpConfig{},
+				bigipConfig:         BigIpKey{},
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 

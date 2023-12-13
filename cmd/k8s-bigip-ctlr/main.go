@@ -317,7 +317,7 @@ func main() {
 	ctlr := initController(config)
 
 	//TODO initialize and add support for teems data
-	// initTeems(ctlr)
+	initTeems(ctlr)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs

@@ -2430,9 +2430,9 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 	rsMap[rsName] = rsCfg
-	if len(rsCfg.MetaData.hosts) > 0 {
-		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
-	}
+	//if len(rsCfg.MetaData.hosts) > 0 {
+	//	ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
+	//}
 
 	return nil
 }

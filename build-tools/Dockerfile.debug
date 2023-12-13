@@ -7,11 +7,12 @@ ARG BUILD_VERSION
 ARG BUILD_INFO
 
 WORKDIR $REPOPATH
+ENV CGO_ENABLED=0
 ENV GO111MODULE on
 COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh && \
-    go install github.com/go-delve/delve/cmd/dlv@v1.20.1
+    go install github.com/go-delve/delve/cmd/dlv@v1.21.2
 
 FROM python:3.10-slim-buster
 

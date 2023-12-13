@@ -146,7 +146,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	}
 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
 	// add authorization header to the req
-	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
+	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {

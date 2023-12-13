@@ -74,6 +74,7 @@ func NewController(params Params) *Controller {
 			ManageCustomResources: true,
 			ManageTransportServer: true,
 		},
+		bigIpMap: make(BigIpMap),
 	}
 
 	log.Debug("Controller Created")

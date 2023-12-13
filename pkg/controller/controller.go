@@ -63,7 +63,7 @@ func NewController(params Params) *Controller {
 		multiClusterMode:      params.MultiClusterMode,
 		clusterRatio:          make(map[string]*int),
 		clusterAdminState:     make(map[string]cisapiv1.AdminState),
-		AgentMap:              make(map[string]*RequestHandler),
+		AgentMap:              make(map[BigIpKey]*RequestHandler),
 		respChan:              make(chan resourceStatusMeta, 1),
 		CMTokenManager: tokenmanager.NewTokenManager(
 			params.CMConfigDetails.URL,

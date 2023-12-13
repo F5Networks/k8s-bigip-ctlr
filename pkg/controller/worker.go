@@ -655,13 +655,15 @@ func (ctlr *Controller) processResources() bool {
 		// Put each BIGIPConfig per bigip  pair into specific requestChannel
 		for bigip, bigipConfig := range ctlr.resources.bigIpMap {
 			if (!reflect.DeepEqual(bigipConfig.ltmConfig, LTMConfig{}) || !reflect.DeepEqual(bigipConfig.gtmConfig, GTMConfig{})) && ctlr.resources.isConfigUpdated(bigip) {
-				agent := ctlr.AgentMap[bigip.BigIpLabel]
-				config := ResourceConfigRequest{
-					bigipConfig:         bigip,
-					bigIpResourceConfig: bigipConfig,
+				for _, bigIpKey := range getBigIpList(bigip) {
+					agent := ctlr.AgentMap[bigIpKey]
+					config := ResourceConfigRequest{
+						bigipConfig:         bigIpKey,
+						bigIpResourceConfig: bigipConfig,
+					}
+					config.reqId = ctlr.enqueueReq(bigipConfig)
+					agent.EnqueueRequestConfig(config)
 				}
-				config.reqId = ctlr.enqueueReq(bigipConfig)
-				agent.EnqueueRequestConfig(config)
 			}
 		}
 		ctlr.initState = false
@@ -669,6 +671,15 @@ func (ctlr *Controller) processResources() bool {
 
 	}
 	return true
+}
+
+func getBigIpList(config cisapiv1.BigIpConfig) []BigIpKey {
+	var bigIpList []BigIpKey
+	bigIpList = append(bigIpList, BigIpKey{BigIpAddress: config.BigIpAddress, BigIpLabel: config.BigIpLabel})
+	if config.HaBigIpAddress != "" {
+		bigIpList = append(bigIpList, BigIpKey{BigIpAddress: config.HaBigIpAddress, BigIpLabel: config.BigIpLabel})
+	}
+	return bigIpList
 }
 
 // getServiceForEndpoints returns the service associated with endpoints.
@@ -2786,7 +2797,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	partitions := ctlr.resources.getLTMPartitions(bigipLabel)
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[bigipConfig.BigIpLabel].PostManager.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[BigIpKey{BigIpAddress: bigipConfig.BigIpAddress, BigIpLabel: bigipConfig.BigIpLabel}].PostManager.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -4279,27 +4290,31 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 }
 
 func (ctlr *Controller) stopAgent(config cisapiv1.BigIpConfig) {
-	//stop agent
-	agent := ctlr.AgentMap[config.BigIpLabel]
-	if agent != nil {
-		//close the channels to stop the requesthandler
-		agent.stopAgent()
+	for _, bigipList := range getBigIpList(config) {
+		//stop agent
+		agent := ctlr.AgentMap[bigipList]
+		if agent != nil {
+			//close the channels to stop the requesthandler
+			agent.stopAgent()
+		}
+		//remove bigiplabel from agentmap
+		delete(ctlr.AgentMap, bigipList)
 	}
-	//remove bigiplabel from agentmap
-	delete(ctlr.AgentMap, config.BigIpLabel)
 	// decrease the Agent Count
 	prometheus.AgentCount.Dec()
 }
 
 func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
-	//start agent
-	ctlr.AgentParams.Partition = config.DefaultPartition
-	agent := NewAgent(ctlr.AgentParams, config.BigIpLabel)
-	agent.PostManager.respChan = ctlr.respChan
-	agent.PostManager.AS3PostManager.AS3Config = ctlr.AgentParams.PostParams.AS3Config
-	agent.PostManager.tokenManager = ctlr.CMTokenManager
-	// update agent Map
-	ctlr.AgentMap[config.BigIpLabel] = agent
+	for _, bigipList := range getBigIpList(config) {
+		//start agent
+		ctlr.AgentParams.Partition = config.DefaultPartition
+		agent := NewAgent(ctlr.AgentParams, config.BigIpLabel, bigipList.BigIpAddress)
+		agent.PostManager.respChan = ctlr.respChan
+		agent.PostManager.AS3PostManager.AS3Config = ctlr.AgentParams.PostParams.AS3Config
+		agent.PostManager.tokenManager = ctlr.CMTokenManager
+		// update agent Map
+		ctlr.AgentMap[bigipList] = agent
+	}
 	// increase the Agent Count
 	prometheus.AgentCount.Inc()
 }

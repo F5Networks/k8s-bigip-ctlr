@@ -68,6 +68,7 @@ func (req *RequestHandler) requestHandler() {
 		// Fetch the latest config from channel
 		select {
 		case rsConfig = <-req.reqChan:
+			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
 		case <-time.After(1 * time.Microsecond):
 		}
 		//create AS3 declaration for bigip pair and put in post channel

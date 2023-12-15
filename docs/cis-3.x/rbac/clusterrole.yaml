@@ -14,6 +14,13 @@ rules:
   - apiGroups: ["cis.f5.com"]
     resources: ["transportservers", "transportservers/status", "deployconfigs", "policies"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["fic.f5.com"]
+    resources: ["ipams", "ipams/status"]
+    verbs: ["get", "list", "watch", "update", "create", "patch", "delete"]
+  - apiGroups: ["", "extensions"]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

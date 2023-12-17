@@ -89,9 +89,9 @@ var _ = Describe("Informers Tests", func() {
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
 				reqChan: make(chan ResourceConfigRequest, 1),
-				PostManager: &PostManager{
+				PostManager: &AS3Manager{
 					tokenManager: mockCtlr.CMTokenManager,
-					postChan:     make(chan agentConfig, 1),
+					postChan:     make(chan interface{}, 1),
 				},
 			}
 			// setting teem data
@@ -415,9 +415,9 @@ var _ = Describe("Informers Tests", func() {
 			}
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-				PostManager: &PostManager{
+				PostManager: &AS3Manager{
 					tokenManager: mockCtlr.CMTokenManager,
-					postChan:     make(chan agentConfig, 1),
+					postChan:     make(chan interface{}, 1),
 					PostParams: PostParams{
 						CMURL: "10.10.10.1",
 					},

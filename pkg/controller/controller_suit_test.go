@@ -28,7 +28,7 @@ type (
 	}
 
 	mockPostManager struct {
-		*PostManager
+		*AS3Manager
 		Responses []int
 		RespIndex int
 	}
@@ -60,8 +60,8 @@ func (m *mockController) shutdown() error {
 
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
-		PostManager: &PostManager{
-			postChan:            make(chan agentConfig, 1),
+		AS3Manager: &AS3Manager{
+			postChan:            make(chan interface{}, 1),
 			cachedTenantDeclMap: make(map[string]as3Tenant),
 			retryTenantDeclMap:  make(map[string]*tenantParams),
 			respChan:            make(chan resourceStatusMeta, 1),
@@ -111,10 +111,12 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	mockPM.PostParams.httpClient = client
 }
 
-func newMockAgent(postManager *PostManager, partition, userAgent string) *RequestHandler {
+func newMockAgent(postManager *AS3Manager, partition, userAgent string, HAMode bool) *RequestHandler {
 	return &RequestHandler{
-		PostManager: postManager,
-		userAgent:   userAgent,
+		PostManager:      postManager,
+		userAgent:        userAgent,
+		defaultPartition: partition,
+		HAMode:           HAMode,
 	}
 }
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {

@@ -401,7 +401,7 @@ func initTeems(ctlr *controller.Controller) {
 	if !(*disableTeems) {
 		for _, agent := range ctlr.AgentMap {
 			//TODO: Handle get reg key for each BIG-IP
-			key, err := agent.PostManager.GetBigipRegKey()
+			key, err := agent.PostManager.GetBigIPRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}

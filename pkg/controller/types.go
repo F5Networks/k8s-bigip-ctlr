@@ -745,14 +745,16 @@ type L3PostManager struct {
 
 type (
 	RequestHandler struct {
-		PostManager     *PostManager
-		reqChan         chan ResourceConfigRequest
-		PythonDriverPID int
-		userAgent       string
-		EnableIPV6      bool
-		declUpdate      sync.Mutex
-		bigipLabel      string
-		bigIpAddress    string
+		PostManager                     PostManagerInterface
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		reqChan                         chan ResourceConfigRequest
+		userAgent                       string
+		EnableIPV6                      bool
+		declUpdate                      sync.Mutex
+		bigipLabel                      string
+		bigIpAddress                    string
+		defaultPartition                string
+		HAMode                          bool
 	}
 
 	AgentParams struct {
@@ -771,7 +773,7 @@ type (
 		MultiClusterMode   string
 	}
 
-	PostManager struct {
+	AS3Manager struct {
 		AS3PostManager *AS3PostManager
 		L3PostManager  *L3PostManager
 		tokenManager   *tokenmanager.TokenManager
@@ -782,15 +784,14 @@ type (
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
-		postChan           chan agentConfig
+		postChan           chan interface{}
 		tenantResponseMap  map[string]tenantResponse
 		retryChan          chan struct{}
-		defaultPartition   string
-		HAMode             bool
+		userAgent          string
 		respChan           chan resourceStatusMeta
 		PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		postManagerPrefix               string
+		postManagerPrefix string
+		sync.Mutex
 	}
 	AS3PostManager struct {
 		AS3VersionInfo  as3VersionInfo

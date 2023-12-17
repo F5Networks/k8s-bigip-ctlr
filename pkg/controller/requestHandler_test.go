@@ -18,8 +18,9 @@ var _ = Describe("Backend Tests", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
 		var agent *RequestHandler
 		BeforeEach(func() {
-			agent = newMockAgent(&PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1"}}, "test", "as3")
-			agent.PostManager.AS3PostManager = &AS3PostManager{}
+			agent = newMockAgent(&AS3Manager{PostParams: PostParams{CMURL: "https://192.168.1.1"}}, "test", "as3", false)
+			agent.PostManager = &AS3Manager{
+				AS3PostManager: &AS3PostManager{}}
 			mem1 = PoolMember{
 				Address:         "1.2.3.5",
 				Port:            8080,
@@ -239,7 +240,7 @@ var _ = Describe("Backend Tests", func() {
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 
-			decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
+			decl := agent.PostManager.createTenantDeclaration(config.bigIpResourceConfig, "test", agent.PrimaryClusterHealthProbeParams)
 
 			Expect(string(decl.(as3Declaration))).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl.(as3Declaration)), "pool1")).To(BeTrue())
@@ -274,7 +275,7 @@ var _ = Describe("Backend Tests", func() {
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
-			decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
+			decl := agent.PostManager.createTenantDeclaration(config.bigIpResourceConfig, "test", agent.PrimaryClusterHealthProbeParams)
 
 			Expect(string(decl.(as3Declaration))).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl.(as3Declaration)), "adminState")).To(BeTrue())
@@ -289,7 +290,7 @@ var _ = Describe("Backend Tests", func() {
 
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			as3decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
+			as3decl := agent.PostManager.createTenantDeclaration(config.bigIpResourceConfig, "test", agent.PrimaryClusterHealthProbeParams)
 			var as3Config map[string]interface{}
 			_ = json.Unmarshal([]byte(as3decl.(as3Declaration)), &as3Config)
 			deletedTenantDecl := as3Tenant{
@@ -334,11 +335,11 @@ var _ = Describe("Backend Tests", func() {
 				status: http.StatusOK,
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
-			agent = newMockAgent(&PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1", httpClient: client},
-				defaultPartition: "test"}, "test", "as3")
-			agent.PostManager.HAMode = true
-			agent.PostManager.AS3PostManager = &AS3PostManager{}
-
+			agent = newMockAgent(&AS3Manager{
+				tokenManager: tokenmanager.NewTokenManager("https://0.0.0.0",
+					tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false),
+				PostParams:     PostParams{CMURL: "https://192.168.1.1", httpClient: client},
+				AS3PostManager: &AS3PostManager{firstPost: true}}, "test", "as3", true)
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
@@ -346,11 +347,11 @@ var _ = Describe("Backend Tests", func() {
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 
-			agent.PostManager.AS3PostManager.firstPost = true
-			agent.PostManager.tokenManager = tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false)
-			currentConfig, _ := agent.PostManager.GetAS3DeclarationFromBigIP()
-			removeDeletedTenantsForBigIP(&config.bigIpResourceConfig, agent.PostManager.defaultPartition, currentConfig, agent.PostManager.defaultPartition)
-			decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
+			//agent.AS3Manager.setFirstPost(true)
+			//agent.AS3Manager.setTokenManager()
+			currentConfig, _ := agent.PostManager.GetDeclarationFromBigIP()
+			removeDeletedTenantsForBigIP(&config.bigIpResourceConfig, "test", currentConfig, "test")
+			decl := agent.PostManager.createTenantDeclaration(config.bigIpResourceConfig, "test", agent.PrimaryClusterHealthProbeParams)
 
 			Expect(string(decl.(as3Declaration))).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl.(as3Declaration)), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())

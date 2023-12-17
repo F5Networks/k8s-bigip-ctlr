@@ -55,9 +55,9 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 		}
 		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 		mockCtlr.AgentMap[bigIpKey] = newMockAgent(
-			&PostManager{
+			&AS3Manager{
 				PostParams: postparams,
-			}, "test", "as3")
+			}, "test", "as3", false)
 		mockCtlr.AgentParams = AgentParams{PostParams: postparams}
 		cmName := "ecm"
 		cmNamespace := "kube-system"

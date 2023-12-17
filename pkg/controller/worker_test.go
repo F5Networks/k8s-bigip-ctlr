@@ -89,8 +89,8 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 		mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-			PostManager: &PostManager{
-				postChan:            make(chan agentConfig, 1),
+			PostManager: &AS3Manager{
+				postChan:            make(chan interface{}, 1),
 				tokenManager:        mockCtlr.CMTokenManager,
 				cachedTenantDeclMap: make(map[string]as3Tenant),
 				retryTenantDeclMap:  make(map[string]*tenantParams),
@@ -203,7 +203,7 @@ var _ = Describe("Worker Tests", func() {
 		BeforeEach(func() {
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-				PostManager: &PostManager{
+				PostManager: &AS3Manager{
 					tokenManager: mockCtlr.CMTokenManager,
 					PostParams: PostParams{
 						CMURL: "10.10.10.1",
@@ -862,7 +862,7 @@ var _ = Describe("Worker Tests", func() {
 
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-				PostManager: &PostManager{
+				PostManager: &AS3Manager{
 					PostParams: PostParams{
 						CMURL: "10.10.10.1",
 					},
@@ -1149,7 +1149,7 @@ var _ = Describe("Worker Tests", func() {
 				)
 				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-					PostManager: &PostManager{
+					PostManager: &AS3Manager{
 						tokenManager: mockCtlr.CMTokenManager,
 						PostParams: PostParams{
 							CMURL: "10.10.10.1",
@@ -1498,7 +1498,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.CMUsername = "user"
 			mockPM.CMPassword = "pswd"
 			mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			mockPM.PostManager.AS3PostManager.AS3Config = cisapiv1.AS3Config{DebugAS3: true}
+			mockPM.AS3Manager.AS3PostManager.AS3Config = cisapiv1.AS3Config{DebugAS3: true}
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
@@ -1509,7 +1509,7 @@ var _ = Describe("Worker Tests", func() {
 			}}, http.MethodPost)
 			mockPM.AS3PostManager.firstPost = false
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.AgentMap[bigIpKey] = newMockAgent(mockPM.PostManager, "test", "as3")
+			mockCtlr.AgentMap[bigIpKey] = newMockAgent(mockPM.AS3Manager, "test", "as3", false)
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource()
@@ -1899,7 +1899,7 @@ var _ = Describe("Worker Tests", func() {
 			It("Virtual Server with IPAM", func() {
 				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				go mockCtlr.AgentMap[bigIpKey].startAgent()
-				go mockCtlr.responseHandler(mockCtlr.AgentMap[bigIpKey].PostManager.respChan)
+				go mockCtlr.responseHandler(mockCtlr.AgentMap[bigIpKey].PostManager.getRespChan())
 				httpMrfRouterEnabled := true
 				httpMrfRouterDisabled := false
 				policy.Spec.Profiles.HttpMrfRoutingEnabled = &httpMrfRouterEnabled
@@ -2028,7 +2028,7 @@ var _ = Describe("Worker Tests", func() {
 				}
 
 				time.Sleep(10 * time.Millisecond)
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 				time.Sleep(10 * time.Millisecond)
 				bigipResourceConfig := BigIpResourceConfig{
 					ltmConfig: mockCtlr.resources.getLTMConfigDeepCopy(bigipConfig),
@@ -2041,10 +2041,10 @@ var _ = Describe("Worker Tests", func() {
 					},
 				}
 				config.reqId = mockCtlr.Controller.enqueueReq(bigipResourceConfig)
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 
 				rscUpdateMeta.failedTenants["test"] = struct{}{}
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 
 				time.Sleep(10 * time.Millisecond)
 			})
@@ -2188,8 +2188,8 @@ var _ = Describe("Worker Tests", func() {
 			It("Transport Server Validation", func() {
 				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				go mockCtlr.AgentMap[bigIpKey].startAgent()
-				_ = mockCtlr.AgentMap[bigIpKey].PostManager.respChan
-				go mockCtlr.responseHandler(mockCtlr.AgentMap[bigIpKey].PostManager.respChan)
+				_ = mockCtlr.AgentMap[bigIpKey].PostManager.getRespChan()
+				go mockCtlr.responseHandler(mockCtlr.AgentMap[bigIpKey].PostManager.getRespChan())
 
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
@@ -2227,7 +2227,7 @@ var _ = Describe("Worker Tests", func() {
 					make(map[string]struct{}),
 				}
 
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 				bigipConfig := BigIpResourceConfig{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(bigipConfig),
 					shareNodes: mockCtlr.shareNodes,
@@ -2239,7 +2239,7 @@ var _ = Describe("Worker Tests", func() {
 				config.reqId = mockCtlr.Controller.enqueueReq(bigipConfig)
 				config.reqId = mockCtlr.Controller.enqueueReq(bigipConfig)
 				rscUpdateMeta.id = 3
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 
 				rscUpdateMeta.failedTenants["test"] = struct{}{}
 				config.reqId = mockCtlr.Controller.enqueueReq(bigipConfig)
@@ -2247,7 +2247,7 @@ var _ = Describe("Worker Tests", func() {
 				rscUpdateMeta.id = 3
 
 				delete(rscUpdateMeta.failedTenants, "test")
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 
 				time.Sleep(10 * time.Millisecond)
 
@@ -2864,7 +2864,7 @@ var _ = Describe("Worker Tests", func() {
 			}}, http.MethodPost)
 			mockPM.AS3PostManager.firstPost = false
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.AgentMap[bigIpKey] = newMockAgent(mockPM.PostManager, "test", "as3")
+			mockCtlr.AgentMap[bigIpKey] = newMockAgent(mockPM.AS3Manager, "test", "as3", false)
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource()
@@ -3718,7 +3718,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 			It("Process Pass-through Route", func() {
 				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-				go mockCtlr.responseHandler(mockCtlr.AgentMap[bigIpKey].PostManager.respChan)
+				go mockCtlr.responseHandler(mockCtlr.AgentMap[bigIpKey].PostManager.getRespChan())
 				go mockCtlr.AgentMap[bigIpKey].startAgent()
 				mockCtlr.initState = true
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
@@ -3777,7 +3777,7 @@ var _ = Describe("Worker Tests", func() {
 
 				//	This will fail the TC because we are updating route status
 				time.Sleep(10 * time.Millisecond)
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 				bigipConfig := BigIpResourceConfig{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(bigipConfig),
 					shareNodes: mockCtlr.shareNodes,
@@ -3788,9 +3788,9 @@ var _ = Describe("Worker Tests", func() {
 					bigipConfig:         BigIpKey{BigIpLabel: "bigip1", BigIpAddress: "10.4.8.12"},
 				}
 				config.reqId = mockCtlr.Controller.enqueueReq(bigipConfig)
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 
-				mockCtlr.AgentMap[bigIpKey].PostManager.respChan <- rscUpdateMeta
+				mockCtlr.AgentMap[bigIpKey].PostManager.setRespChan(rscUpdateMeta)
 
 				time.Sleep(10 * time.Millisecond)
 
@@ -3805,10 +3805,10 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.bigIpMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", BigIpAddress: "10.8.3.11", DefaultPartition: "test"}] = BigIpResourceConfig{}
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-				PostManager: &PostManager{
+				PostManager: &AS3Manager{
 					tokenManager:        mockCtlr.CMTokenManager,
 					retryTenantDeclMap:  make(map[string]*tenantParams),
-					postChan:            make(chan agentConfig, 1),
+					postChan:            make(chan interface{}, 1),
 					cachedTenantDeclMap: make(map[string]as3Tenant),
 					PostParams: PostParams{
 						CMURL: "10.10.10.1",

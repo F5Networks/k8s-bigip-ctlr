@@ -28,7 +28,7 @@ import (
 func (ctlr *Controller) enableHttpEndpoint(httpAddress string, bigip cisapiv1.BigIpConfig) {
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
-	bigIPPrometheus.RegisterMetrics(ctlr.AgentMap[BigIpKey{BigIpAddress: bigip.BigIpAddress, BigIpLabel: bigip.BigIpLabel}].PostManager.HTTPClientMetrics, bigip.BigIpAddress)
+	bigIPPrometheus.RegisterMetrics(ctlr.AgentMap[BigIpKey{BigIpAddress: bigip.BigIpAddress, BigIpLabel: bigip.BigIpLabel}].PostManager.getHTTPClientMetrics(), bigip.BigIpAddress)
 	// Expose cis health endpoint
 	http.Handle("/health", ctlr.CISHealthCheckHandler())
 	log.Fatal(http.ListenAndServe(httpAddress, nil).Error())

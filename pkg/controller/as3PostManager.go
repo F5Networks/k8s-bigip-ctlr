@@ -11,11 +11,11 @@ import (
 	"strings"
 )
 
-func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
+func (as3PostMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
 	var as3Config map[string]interface{}
 
-	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
-		postMgr.AS3VersionInfo.as3Release, postMgr.AS3VersionInfo.as3SchemaVersion)
+	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, as3PostMgr.AS3VersionInfo.as3Version,
+		as3PostMgr.AS3VersionInfo.as3Release, as3PostMgr.AS3VersionInfo.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
 
 	adc := as3Config["declaration"].(map[string]interface{})
@@ -1076,37 +1076,12 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 	}
 }
 
-// Creates AS3 adc only for tenants with updated configuration
-func (req *RequestHandler) createTenantDeclaration(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) interface{} {
-	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
-	req.PostManager.incomingTenantDeclMap = make(map[string]as3Tenant)
-	req.PostManager.tenantPriorityMap = make(map[string]int)
-
-	for tenant, cfg := range req.PostManager.AS3PostManager.createAS3BIGIPConfig(config, partition, cachedTenantDeclMap) {
-		if !reflect.DeepEqual(cfg, req.PostManager.cachedTenantDeclMap[tenant]) ||
-			(req.PostManager.PrimaryClusterHealthProbeParams.EndPoint != "" && req.PostManager.PrimaryClusterHealthProbeParams.statusChanged) {
-			req.PostManager.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
-		} else {
-			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
-			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
-			// delete entry from retryTenantDeclMap if any
-			delete(req.PostManager.retryTenantDeclMap, tenant)
-			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
-			if req.PostManager.PrimaryClusterHealthProbeParams.EndPoint == "" || !req.PostManager.PrimaryClusterHealthProbeParams.statusRunning {
-				log.Debugf("[AS3] No change in %v tenant configuration", tenant)
-			}
-		}
-	}
-
-	return req.PostManager.AS3PostManager.createAS3Declaration(req.PostManager.incomingTenantDeclMap, req.userAgent)
-}
-
 func (req *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
 	adc := req.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap)
 	return adc
 }
 
-func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
+func (as3PostMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
 	adc := as3ADC{}
 	cisLabel := partition
 
@@ -1132,7 +1107,7 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName)
 
 		// Process CustomProfiles
-		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, postMgr.bigIPAS3Version)
+		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, as3PostMgr.bigIPAS3Version)
 
 		// Process Profiles
 		processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)

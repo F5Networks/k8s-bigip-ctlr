@@ -13,7 +13,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 	BeforeEach(func() {
 		mockPM = newMockPostManger()
 		mockPM.tenantResponseMap = make(map[string]tenantResponse)
-		mockPM.PostManager.AS3PostManager.AS3Config = cisapiv1.AS3Config{DebugAS3: true,
+		mockPM.AS3Manager.AS3PostManager.AS3Config = cisapiv1.AS3Config{DebugAS3: true,
 			PostDelayAS3: 2}
 	})
 
@@ -237,7 +237,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   `{"registrationKey": "sfiifhanji"}`,
 			}}, http.MethodGet)
-			key, err := mockPM.GetBigipRegKey()
+			key, err := mockPM.GetBigIPRegKey()
 			Expect(err).To(BeNil(), "Failed to fetch registration key")
 			Expect(key).NotTo(BeEmpty(), "Fetched invalid registration key")
 		})
@@ -256,11 +256,11 @@ var _ = Describe("AS3PostManager Tests", func() {
 				},
 			}, http.MethodGet)
 
-			key, err := mockPM.GetBigipRegKey()
+			key, err := mockPM.GetBigIPRegKey()
 			Expect(err).NotTo(BeNil(), "Failed to fetch registration key")
 			Expect(key).To(BeEmpty(), "Fetched invalid registration key")
 
-			key, err = mockPM.GetBigipRegKey()
+			key, err = mockPM.GetBigIPRegKey()
 			Expect(err).NotTo(BeNil(), "Failed to fetch registration key")
 			Expect(key).To(BeEmpty(), "Fetched invalid registration key")
 		})
@@ -278,7 +278,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   `{"declaration": {"test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
-			dec, err := mockPM.GetAS3DeclarationFromBigIP()
+			dec, err := mockPM.AS3Manager.GetDeclarationFromBigIP()
 			Expect(err).To(BeNil(), "Failed to fetch declaration")
 			Expect(dec).NotTo(BeEmpty(), "Fetched invalid declaration")
 		})
@@ -297,7 +297,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 				},
 			}, http.MethodGet)
 
-			dec, err := mockPM.GetAS3DeclarationFromBigIP()
+			dec, err := mockPM.AS3Manager.GetDeclarationFromBigIP()
 			Expect(err).NotTo(BeNil(), "Failed to fetch declaration")
 			Expect(dec).To(BeEmpty(), "Fetched invalid declaration")
 		})

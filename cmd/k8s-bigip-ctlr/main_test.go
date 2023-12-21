@@ -80,7 +80,7 @@ var _ = Describe("Main Tests", func() {
 				*arg = holder
 			}
 		})
-		It("verifies with missing all required CLI parameters ", func() {
+		It("verifies with missing all required CLI parameters", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
@@ -88,6 +88,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
 				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
 			}
 
 			flags.Parse(os.Args)
@@ -96,19 +97,20 @@ var _ = Describe("Main Tests", func() {
 
 		})
 
-		It("verifies with missing --cm-password required CLI parameters ", func() {
+		It("verifies with missing --cm-password required CLI parameter", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
 				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
 			}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
 		})
-		It("verifies with missing all required CLI parameters ", func() {
+		It("verifies with missing all required CLI parameters", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
@@ -117,63 +119,83 @@ var _ = Describe("Main Tests", func() {
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
 		})
-		It("verifies with missing --deploy-config-cr required CLI parameters ", func() {
+		It("verifies with missing --deploy-config-cr required CLI parameter", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
+				"--no-verify-ssl=true",
 			}
 			flags.Init("", pflag.ContinueOnError)
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
 		})
-		It("verifies with missing --cm-url required CLI parameters ", func() {
+		It("verifies with missing --cm-url required CLI parameter", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-username=admin",
 				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
 			}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
 		})
-		It("verifies with missing --cm-username required CLI parameters ", func() {
+		It("verifies with missing --cm-username required CLI parameter", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
-				"--deploy-config-cr=default/testcr"}
+				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
+			}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
 		})
-		It("verifies with all required CLI parameters ", func() {
+		It("verifies with missing --no-verify-ssl required CLI parameter", func() {
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--cm-username=admin",
+				"--cm-password=admin",
+				"--cm-url=cm.example.com",
+				"--deploy-config-cr=default/testcr",
+			}
+			flags.Parse(os.Args)
+			argError := verifyArgs()
+			Expect(argError).ToNot(BeNil())
+		})
+		It("verifies with all required CLI parameter ", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--deploy-config-cr=default/testcr"}
+				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
+			}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).To(BeNil())
 
 		})
-		It("invalid CLI argument  ", func() {
+		It("invalid CLI argument", func() {
 			defer _init()
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--cm-password=admin",
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
-				"--deploy-config-cr=default"}
+				"--deploy-config-cr=default",
+				"--no-verify-ssl=true"}
 			flags.Parse(os.Args)
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
@@ -188,6 +210,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-url=cm.example.com",
 				"--cm-username=admin",
 				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
 			}
 			argError := verifyArgs()
 			Expect(argError).ToNot(BeNil())
@@ -203,6 +226,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-url=cm.example.com",
 				"--deploy-config-cr=default/testcr",
 				"--disable-teems=true",
+				"--no-verify-ssl=true",
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
@@ -240,6 +264,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-username=cli-user",
 				"--cm-password=cli-pass",
 				"--deploy-config-cr=default/testcr",
+				"--no-verify-ssl=true",
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)

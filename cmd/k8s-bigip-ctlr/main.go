@@ -204,6 +204,9 @@ func verifyArgs() error {
 		len(*cmPassword) == 0) && len(*credsDir) == 0 {
 		return fmt.Errorf("Missing CM credentials info")
 	}
+	if !*sslInsecure && len(*trustedCertsCfgmap) == 0 {
+		return fmt.Errorf("Missing one of required arguments i.e --no-verify-ssl or  --trusted-certs-cfgmap")
+	}
 	if len(*CISConfigCR) == 0 {
 		return fmt.Errorf("Missing required argument --deploy-config-cr")
 	} else {

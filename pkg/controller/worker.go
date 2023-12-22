@@ -656,13 +656,12 @@ func (ctlr *Controller) processResources() bool {
 		for bigip, bigipConfig := range ctlr.resources.bigIpMap {
 			if (!reflect.DeepEqual(bigipConfig.ltmConfig, LTMConfig{}) || !reflect.DeepEqual(bigipConfig.gtmConfig, GTMConfig{})) && ctlr.resources.isConfigUpdated(bigip) {
 				for _, bigIpKey := range getBigIpList(bigip) {
-					agent := ctlr.AgentMap[bigIpKey]
 					config := ResourceConfigRequest{
-						bigipConfig:         bigIpKey,
+						bigIpKey:            bigIpKey,
 						bigIpResourceConfig: bigipConfig,
 					}
-					config.reqId = ctlr.enqueueReq(bigipConfig)
-					agent.EnqueueRequestConfig(config)
+					config.reqMeta = ctlr.enqueueReq(bigipConfig, bigIpKey)
+					ctlr.RequestHandler.EnqueueRequestConfig(config)
 				}
 			}
 		}
@@ -2797,7 +2796,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	partitions := ctlr.resources.getLTMPartitions(bigipLabel)
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.AgentMap[BigIpKey{BigIpAddress: bigipConfig.BigIpAddress, BigIpLabel: bigipConfig.BigIpLabel}].PostManager.CMURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(bigipConfig.BigIpAddress, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -3858,7 +3857,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		}
 
 	}()
-	// get bigipConfig and start/stop agent if needed
+	// get bigIpKey and start/stop agent if needed
 	bigipconfig := configCR.Spec.BigIpConfig
 	ctlr.handleBigipConfigUpdates(bigipconfig)
 	es := configCR.Spec.ExtendedSpec
@@ -3885,10 +3884,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		if es.HAMode != "" {
 			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
 				ctlr.haModeType = es.HAMode
-				//TODO: could each bigip pair will have different HA mode?
-				for _, agent := range ctlr.AgentMap {
-					agent.PostManager.HAMode = true
-				}
+				ctlr.RequestHandler.HAMode = true
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio)")
@@ -4272,51 +4268,23 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 		for _, existingConfig := range existingBigipConfig {
 			if !slices.Contains(config, existingConfig) {
 				// stop agent
-				ctlr.stopAgent(existingConfig)
-				//remove bigipconfig from bigipMap
-				delete(ctlr.bigIpMap, existingConfig)
+				for _, bigIpKey := range getBigIpList(existingConfig) {
+					ctlr.RequestHandler.stopPostManager(bigIpKey)
+					//remove bigipconfig from bigipMap
+					delete(ctlr.bigIpMap, existingConfig)
+				}
 			}
 		}
 		// check if bigip config is added
 		for _, newConfig := range config {
 			if !slices.Contains(existingBigipConfig, newConfig) {
 				// start agent
-				ctlr.startAgent(newConfig)
+				ctlr.RequestHandler.startPostManager(newConfig)
 				//update bigipMap with new bigipconfig
 				ctlr.bigIpMap[newConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 			}
 		}
 	}
-}
-
-func (ctlr *Controller) stopAgent(config cisapiv1.BigIpConfig) {
-	for _, bigipList := range getBigIpList(config) {
-		//stop agent
-		agent := ctlr.AgentMap[bigipList]
-		if agent != nil {
-			//close the channels to stop the requesthandler
-			agent.stopAgent()
-		}
-		//remove bigiplabel from agentmap
-		delete(ctlr.AgentMap, bigipList)
-	}
-	// decrease the Agent Count
-	prometheus.AgentCount.Dec()
-}
-
-func (ctlr *Controller) startAgent(config cisapiv1.BigIpConfig) {
-	for _, bigipList := range getBigIpList(config) {
-		//start agent
-		ctlr.AgentParams.Partition = config.DefaultPartition
-		agent := NewAgent(ctlr.AgentParams, config.BigIpLabel, bigipList.BigIpAddress)
-		agent.PostManager.respChan = ctlr.respChan
-		agent.PostManager.AS3PostManager.AS3Config = ctlr.AgentParams.PostParams.AS3Config
-		agent.PostManager.tokenManager = ctlr.CMTokenManager
-		// update agent Map
-		ctlr.AgentMap[bigipList] = agent
-	}
-	// increase the Agent Count
-	prometheus.AgentCount.Inc()
 }
 
 func (ctlr *Controller) getPartitionForBIGIP(bigipLabel string) string {

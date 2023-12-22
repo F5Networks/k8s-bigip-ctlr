@@ -55,8 +55,8 @@ type (
 		namespaces             map[string]bool
 		initialResourceCount   int
 		resourceQueue          workqueue.RateLimitingInterface
-		AgentParams            AgentParams
-		AgentMap               map[BigIpKey]*RequestHandler
+		PostParams             PostParams
+		RequestHandler         *RequestHandler
 		PoolMemberType         string
 		UseNodeInternal        bool
 		initState              bool
@@ -66,7 +66,7 @@ type (
 		ipamCR                 string
 		defaultRouteDomain     int
 		TeemData               *teem.TeemsData
-		requestQueue           *requestQueue
+		requestMap             *requestMap
 		ipamHostSpecEmpty      bool
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
@@ -82,7 +82,7 @@ type (
 		resourceSelectorConfig ResourceSelectorConfig
 		CMTokenManager         *tokenmanager.TokenManager
 		bigIpMap               BigIpMap
-		respChan               chan resourceStatusMeta
+		respChan               chan *agentConfig
 		resourceContext
 	}
 	ClientSets struct {
@@ -126,7 +126,7 @@ type (
 		Config                *rest.Config
 		Namespaces            []string
 		PoolMemberType        string
-		AgentParams           AgentParams
+		UserAgent             string
 		UseNodeInternal       bool
 		NodePollInterval      int
 		ShareNodes            bool
@@ -142,6 +142,7 @@ type (
 		CMSSLInsecure         bool
 		HttpAddress           string
 		ManageCustomResources bool
+		httpClientMetrics     bool
 	}
 
 	// CMConfig defines the Central Manager config
@@ -400,9 +401,9 @@ type (
 
 	// ResourceConfigRequest Each BigIPConfig per BigIP HA pair to put into the queue to process
 	ResourceConfigRequest struct {
-		bigipConfig         BigIpKey
+		bigIpKey            BigIpKey
 		bigIpResourceConfig BigIpResourceConfig
-		reqId               int
+		reqMeta             requestMeta
 	}
 
 	// BigIpMap Where key is the BigIP structure and value is the bigip-next configuration
@@ -421,11 +422,6 @@ type (
 		ltmConfig  LTMConfig
 		gtmConfig  GTMConfig
 		shareNodes bool
-	}
-
-	resourceStatusMeta struct {
-		id            int
-		failedTenants map[string]struct{}
 	}
 
 	resourceRef struct {
@@ -694,6 +690,11 @@ type (
 		*list.List
 	}
 
+	requestMap struct {
+		sync.Mutex
+		requestMap map[BigIpKey]requestMeta
+	}
+
 	requestMeta struct {
 		partitionMap map[string]map[string]string
 		id           int
@@ -744,30 +745,15 @@ type L3PostManager struct {
 
 type (
 	RequestHandler struct {
-		PostManager     *PostManager
-		reqChan         chan ResourceConfigRequest
-		PythonDriverPID int
-		userAgent       string
-		EnableIPV6      bool
-		declUpdate      sync.Mutex
-		bigipLabel      string
-		bigIpAddress    string
-	}
-
-	AgentParams struct {
+		PostManagers                    PostManagers
+		reqChan                         chan ResourceConfigRequest
+		userAgent                       string
 		PostParams                      PostParams
-		GTMParams                       PostParams
+		respChan                        chan *agentConfig
+		CMTokenManager                  *tokenmanager.TokenManager
+		HAMode                          bool
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		// VxlnParams      VXLANParams
-		Partition          string
-		LogLevel           string
-		VerifyInterval     int
-		VXLANName          string
-		UserAgent          string
-		EnableIPV6         bool
-		StaticRoutingMode  bool
-		SharedStaticRoutes bool
-		MultiClusterMode   string
+		httpClientMetrics               bool
 	}
 
 	PostManager struct {
@@ -775,21 +761,17 @@ type (
 		L3PostManager  *L3PostManager
 		tokenManager   *tokenmanager.TokenManager
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
-		cachedTenantDeclMap   map[string]as3Tenant
-		incomingTenantDeclMap map[string]as3Tenant
-		// this map stores the tenant priority map
-		tenantPriorityMap map[string]int
-		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
-		retryTenantDeclMap map[string]*tenantParams
-		postChan           chan agentConfig
-		tenantResponseMap  map[string]tenantResponse
-		retryChan          chan struct{}
-		defaultPartition   string
-		HAMode             bool
-		respChan           chan resourceStatusMeta
+		cachedTenantDeclMap map[string]as3Tenant
+		postChan            chan agentConfig
+		defaultPartition    string
+		respChan            chan *agentConfig
 		PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		postManagerPrefix               string
+		postManagerPrefix string
+	}
+
+	PostManagers struct {
+		sync.RWMutex
+		PostManagerMap map[BigIpKey]*PostManager
 	}
 	AS3PostManager struct {
 		AS3VersionInfo  as3VersionInfo
@@ -810,74 +792,40 @@ type (
 	}
 
 	PostParams struct {
-		CMUsername        string
-		CMPassword        string
-		CMURL             string
-		TrustedCerts      string
-		SSLInsecure       bool
 		HTTPClientMetrics bool
 		httpClient        *http.Client
 		AS3Config         cisapiv1.AS3Config
 		tokenManager      *tokenmanager.TokenManager
-	}
-
-	GTMParams struct {
-		GTMBigIpUsername string
-		GTMBigIpPassword string
-		GTMBigIpUrl      string
+		UserAgent         string
 	}
 
 	tenantResponse struct {
 		agentResponseCode int
-		taskId            string
 		isDeleted         bool
-	}
-
-	tenantParams struct {
-		as3Decl interface{} // to update cachedTenantDeclMap on success
-		tenantResponse
 	}
 
 	//agentConfig holds as3config and l3config to put onto post channel
 	agentConfig struct {
 		as3Config as3Config
 		l3Config  l3Config
+		id        int
+		BigIpKey  BigIpKey
+		reqMeta   requestMeta
 	}
 	//as3Config to put into post channel
 	as3Config struct {
-		data               string
-		as3APIURL          string
-		id                 int
-		bigipTargetAddress string
+		data                  string
+		as3APIURL             string
+		id                    int
+		tenantResponseMap     map[string]tenantResponse
+		acceptedTaskId        string
+		failedTenants         map[string]struct{}
+		incomingTenantDeclMap map[string]as3Tenant
 	}
 
 	//TODO L3Config to put into post channel. Handle with L3Postmanager implementation
 	l3Config struct {
-	}
-
-	globalSection struct {
-		LogLevel           string `json:"log-level,omitempty"`
-		VerifyInterval     int    `json:"verify-interval,omitempty"`
-		VXLANPartition     string `json:"vxlan-partition,omitempty"`
-		DisableLTM         bool   `json:"disable-ltm,omitempty"`
-		GTM                bool   `json:"gtm,omitempty"`
-		DisableARP         bool   `json:"disable-arp,omitempty"`
-		SharedStaticRoutes bool   `json:"shared-static-routes,omitempty"`
-		StaticRoutingMode  bool   `json:"static-route-mode,omitempty"`
-		MultiClusterMode   string `json:"multi-cluster-mode,omitempty"`
-	}
-
-	bigIPSection struct {
-		BigIPUsername   string   `json:"username,omitempty"`
-		BigIPPassword   string   `json:"password,omitempty"`
-		BigIPURL        string   `json:"url,omitempty"`
-		BigIPPartitions []string `json:"partitions,omitempty"`
-	}
-
-	gtmBigIPSection struct {
-		GtmBigIPUsername string `json:"username,omitempty"`
-		GtmBigIPPassword string `json:"password,omitempty"`
-		GtmBigIPURL      string `json:"url,omitempty"`
+		deployL3Status bool
 	}
 
 	// AS3 version struct
@@ -895,6 +843,8 @@ type (
 	// TODO: Need to remove omitempty tag for the mandatory fields
 	// as3JSONDeclaration maps to ADC in AS3 Resources
 	as3ADC as3JSONWithArbKeys
+	// target bigip
+	as3Target as3JSONWithArbKeys
 	// as3Tenant maps to Tenant in AS3 Resources
 	as3Tenant as3JSONWithArbKeys
 

@@ -24,10 +24,10 @@ const (
 type TokenManager struct {
 	mu           sync.Mutex
 	token        string
-	serverURL    string
+	ServerURL    string
 	credentials  Credentials
-	sslInsecure  bool
-	trustedCerts string
+	SslInsecure  bool
+	TrustedCerts string
 }
 
 // Credentials represent the username and password used for authentication.
@@ -46,10 +46,10 @@ type TokenResponse struct {
 // NewTokenManager creates a new instance of TokenManager.
 func NewTokenManager(serverURL string, credentials Credentials, trustedCerts string, sslInsecure bool) *TokenManager {
 	return &TokenManager{
-		serverURL:    serverURL,
+		ServerURL:    serverURL,
 		credentials:  credentials,
-		trustedCerts: trustedCerts,
-		sslInsecure:  sslInsecure,
+		TrustedCerts: trustedCerts,
+		SslInsecure:  sslInsecure,
 	}
 }
 
@@ -75,17 +75,17 @@ func (tm *TokenManager) fetchToken() error {
 		rootCAs = x509.NewCertPool()
 	}
 
-	certs := []byte(tm.trustedCerts)
+	certs := []byte(tm.TrustedCerts)
 
 	// Append our certs to the system pool
 	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
 		log.Debug("[Token Manager] No certs appended, using only system certs")
 	}
 
-	// Create an insecure/secure client based on the sslInsecure flag
+	// Create an insecure/secure client based on the SslInsecure flag
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: tm.sslInsecure,
+			InsecureSkipVerify: tm.SslInsecure,
 			RootCAs:            rootCAs,
 		},
 	}
@@ -93,7 +93,7 @@ func (tm *TokenManager) fetchToken() error {
 	client := &http.Client{Transport: tr}
 
 	// Send POST request for token
-	resp, err := client.Post(tm.serverURL+CMLoginURL, "application/json", bytes.NewBuffer(payload))
+	resp, err := client.Post(tm.ServerURL+CMLoginURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		log.Errorf("[Token Manager] Unable to establish connection with Central Manager, Probable reasons might be: invalid custom-certs (or) custom-certs not provided using --trusted-certs-cfgmap flag")
 		os.Exit(1)

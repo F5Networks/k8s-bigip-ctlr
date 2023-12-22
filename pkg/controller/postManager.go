@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -33,23 +32,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func NewPostManager(params AgentParams) *PostManager {
+func NewPostManager(params PostParams, partition string) *PostManager {
 
 	var pm = &PostManager{
-		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
-		AS3PostManager:                  &AS3PostManager{},
-		tokenManager:                    params.PostParams.tokenManager,
-		cachedTenantDeclMap:             make(map[string]as3Tenant),
-		incomingTenantDeclMap:           make(map[string]as3Tenant),
-		retryTenantDeclMap:              make(map[string]*tenantParams),
-		tenantPriorityMap:               make(map[string]int),
-		postChan:                        make(chan agentConfig, 1),
-		retryChan:                       make(chan struct{}, 1),
+		AS3PostManager: &AS3PostManager{
+			AS3Config: params.AS3Config,
+		},
+		tokenManager:        params.tokenManager,
+		cachedTenantDeclMap: make(map[string]as3Tenant),
+		postChan:            make(chan agentConfig, 1),
+		defaultPartition:    partition,
 	}
 	// postManager runs as a separate go routine
 	// blocks on postChan to get new/updated AS3/L3 declaration to be posted to BIG-IP
 	go pm.postManager()
-	pm.PostParams = params.PostParams
+	pm.PostParams = params
 	pm.setupBIGIPRESTClient()
 	return pm
 }
@@ -57,30 +54,27 @@ func NewPostManager(params AgentParams) *PostManager {
 // blocks on post channel and handles posting of AS3,L3 declaration to BIGIP pairs.
 func (postMgr *PostManager) postManager() {
 	for config := range postMgr.postChan {
+		// For the very first post after starting controller, need not wait to post
+		if !postMgr.AS3PostManager.firstPost && postMgr.AS3PostManager.AS3Config.PostDelayAS3 != 0 {
+			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
+			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", postMgr.AS3PostManager.AS3Config.PostDelayAS3)
+			_ = <-time.After(time.Duration(postMgr.AS3PostManager.AS3Config.PostDelayAS3) * time.Second)
+		}
 		//Handle AS3 post
 		postMgr.publishConfig(config.as3Config)
 		//TODO: L3 post manger handling
 		//TODO: after post check for failed state and update retry chan
 
-		postMgr.updateTenantResponseMap(true)
-
-		if len(postMgr.retryTenantDeclMap) > 0 {
-			// Activate retry
-			select {
-			case postMgr.retryChan <- struct{}{}:
-			case <-postMgr.retryChan:
-				postMgr.retryChan <- struct{}{}
-			}
-		}
+		postMgr.updateTenantCache(&config.as3Config)
 
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		postMgr.pollTenantStatus()
+		postMgr.pollTenantStatus(&config.as3Config)
 
 		// notify resourceStatusUpdate response handler on successful tenant update
-		postMgr.notifyRscStatusHandler(config.as3Config.id, true)
+		postMgr.respChan <- &config
 	}
 }
 
@@ -91,7 +85,7 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 		rootCAs = x509.NewCertPool()
 	}
 	// TODO: Make sure appMgr sets certificates in bigipInfo
-	certs := []byte(postMgr.TrustedCerts)
+	certs := []byte(postMgr.tokenManager.TrustedCerts)
 
 	// Append our certs to the system pool
 	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
@@ -100,7 +94,7 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: postMgr.SSLInsecure,
+			InsecureSkipVerify: postMgr.tokenManager.SslInsecure,
 			RootCAs:            rootCAs,
 		},
 	}
@@ -127,12 +121,14 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 }
 
 func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
-	apiURL := postMgr.CMURL + "/mgmt/shared/appsvcs/declare/" + strings.Join(tenants, ",")
+	// TODO: Add tenant filtering when support is added in Central Manger AS3
+	//apiURL := postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/declare/" + strings.Join(tenants, ",")
+	apiURL := postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/declare/"
 	return apiURL
 }
 
 func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
-	apiURL := postMgr.CMURL + "/mgmt/shared/appsvcs/task/" + taskId
+	apiURL := postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/task/" + taskId
 	return apiURL
 }
 
@@ -149,6 +145,21 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 		postMgr.logAS3Request(cfg.data)
 	}
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
+	var tenants []string
+	if len(cfg.failedTenants) > 0 {
+		for tenant := range cfg.failedTenants {
+			tenants = append(tenants, tenant)
+		}
+	} else {
+		for tenant := range cfg.incomingTenantDeclMap {
+			// CIS with AS3 doesn't allow to write to Common partition.So objects in common partition
+			// should not be updated or deleted by CIS. So removing from tenant map
+			if tenant != "Common" {
+				tenants = append(tenants, tenant)
+			}
+		}
+	}
+	cfg.as3APIURL = postMgr.getAS3APIURL(tenants)
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("%v[AS3]%v Creating new HTTP request error: %v ", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err)
@@ -158,7 +169,8 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	log.Infof("%v[AS3]%v posting request for %v tenants", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, getTenantsFromUri(cfg.as3APIURL))
 	// add authorization header to the req
 	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
-
+	// add content type header to the req
+	req.Header.Add("Content-Type", "application/json")
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
 		return
@@ -171,22 +183,22 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	switch httpResp.StatusCode {
 	case http.StatusOK:
 		log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleResponseStatusOK(responseMap)
+		postMgr.handleResponseStatusOK(responseMap, cfg)
 	case http.StatusCreated, http.StatusAccepted:
 		log.Infof("%v[AS3]%v post resulted in ACCEPTED", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleResponseAccepted(responseMap)
+		postMgr.handleResponseAccepted(responseMap, cfg)
 	case http.StatusMultiStatus:
 		log.Infof("%v[AS3]%v post resulted in MULTI-STATUS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleMultiStatus(responseMap, cfg.id)
+		postMgr.handleMultiStatus(responseMap, cfg)
 	case http.StatusServiceUnavailable:
 		log.Infof("%v[AS3]%v post resulted in RETRY", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg.id)
+		postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
 	case http.StatusNotFound:
 		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleResponseStatusNotFound(responseMap, cfg.id)
+		postMgr.handleResponseStatusNotFound(responseMap, cfg)
 	default:
 		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleResponseOthers(responseMap, cfg.id)
+		postMgr.handleResponseOthers(responseMap, cfg)
 	}
 }
 
@@ -224,29 +236,29 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func (postMgr *PostManager) updateTenantResponseCode(code int, id string, tenant string, isDeleted bool) {
+func (postMgr *PostManager) updateTenantResponseCode(code int, cfg *as3Config, tenant string, isDeleted bool) {
 	// Update status for a specific tenant if mentioned, else update the response for all tenants
 	if tenant != "" {
-		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, isDeleted}
+		cfg.tenantResponseMap[tenant] = tenantResponse{code, isDeleted}
 	} else {
-		for tenant := range postMgr.tenantResponseMap {
-			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, false}
+		for tenant := range cfg.tenantResponseMap {
+			cfg.tenantResponseMap[tenant] = tenantResponse{code, false}
 		}
 	}
 }
 
-func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) {
+func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg *as3Config) {
 	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 	for _, value := range results {
 		v := value.(map[string]interface{})
 		log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
-		postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
+		postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 	}
 }
 
-func (postMgr *PostManager) getTenantConfigStatus(id string) {
+func (postMgr *PostManager) getTenantConfigStatus(id string, cfg *as3Config) {
 	req, err := http.NewRequest("GET", postMgr.getAS3TaskIdURL(id), nil)
 	if err != nil {
 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
@@ -262,6 +274,8 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 	}
 
 	if httpResp.StatusCode == http.StatusOK {
+		// reset the accepted task id
+		cfg.acceptedTaskId = ""
 		results := (responseMap["results"]).([]interface{})
 		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
@@ -270,85 +284,83 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 				return
 			} else {
 				// reset task id, so that any failed tenants will go to post call in the next retry
-				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
+				postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 				if _, ok := v["response"]; ok {
 					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"], v["response"])
 				} else {
 					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 				}
-				intId, err := strconv.Atoi(id)
-				if err == nil {
-					log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(intId), postMgr.postManagerPrefix)
-				}
+				log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
 			}
 		}
 	} else if httpResp.StatusCode != http.StatusServiceUnavailable {
 		// reset task id, so that any failed tenants will go to post call in the next retry
-		postMgr.updateTenantResponseCode(httpResp.StatusCode, "", "", false)
+		cfg.acceptedTaskId = ""
+		postMgr.updateTenantResponseCode(httpResp.StatusCode, cfg, "", false)
 	}
 }
 
-func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}, id int) {
+func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}, cfg *as3Config) {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
 			v := value.(map[string]interface{})
 
 			if v["code"].(float64) != 200 {
-				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), false)
-				log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+				postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), false)
+				log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 			} else {
-				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
+				postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 				log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 			}
 		}
 	}
 }
 
-func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interface{}) {
+func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interface{}, cfg *as3Config) {
 	// traverse all response results
 	if respId, ok := (responseMap["id"]).(string); ok {
-		postMgr.updateTenantResponseCode(http.StatusAccepted, respId, "", false)
-		log.Debugf("[AS3]%v Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, respId, timeoutMedium)
+		cfg.acceptedTaskId = respId
+		log.Debugf("[AS3]%v Response from BIG-IP: code 201/202 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, respId, timeoutMedium)
 	}
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, id int) {
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg *as3Config) {
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
 	}
 	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", postMgr.postManagerPrefix, timeoutMedium)
-	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, "", "", false)
+	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, cfg, "", false)
 }
 
-func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, id int) {
+func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, cfg *as3Config) {
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
 	} else {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, http.StatusNotFound)
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, http.StatusNotFound)
 	}
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
-	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
+	postMgr.updateTenantResponseCode(http.StatusNotFound, cfg, "", false)
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, id int) {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *as3Config) {
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
 		postMgr.logAS3Response(responseMap)
 	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
-			log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
-			postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), false)
+			log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+			postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), false)
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
-		postMgr.updateTenantResponseCode(int(err["code"].(float64)), "", "", false)
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
+		postMgr.updateTenantResponseCode(int(err["code"].(float64)), cfg, "", false)
 	} else {
-		log.Errorf("%v[AS3]%v Big-IP Responded with code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, responseMap["code"])
-		postMgr.updateTenantResponseCode(int(responseMap["code"].(float64)), "", "", false)
+		log.Errorf("%v[AS3]%v Big-IP Responded with code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, responseMap["code"])
+		postMgr.updateTenantResponseCode(int(responseMap["code"].(float64)), cfg, "", false)
 	}
 }
 
@@ -478,12 +490,12 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 }
 
 func (postMgr *PostManager) getAS3VersionURL() string {
-	apiURL := postMgr.CMURL + "/mgmt/shared/appsvcs/info"
+	apiURL := postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/info"
 	return apiURL
 }
 
 func (postMgr *PostManager) getBigipRegKeyURL() string {
-	apiURL := postMgr.CMURL + "/mgmt/tm/shared/licensing/registration"
+	apiURL := postMgr.tokenManager.ServerURL + "/mgmt/tm/shared/licensing/registration"
 	return apiURL
 }
 
@@ -549,149 +561,37 @@ func (postMgr *PostManager) logAS3Request(cfg string) {
 	log.Debugf("[AS3]%v Unified declaration: %v\n", postMgr.postManagerPrefix, as3Declaration(decl))
 }
 
-func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
+func (postMgr *PostManager) updateTenantCache(cfg *as3Config) {
 	/*
 	 Non 200 ok tenants will be added to retryTenantDeclMap map
 	 Locks to update the map will be acquired in the calling method
 	*/
-	for tenant, resp := range postMgr.tenantResponseMap {
+	// re-initialize the failed tenants map
+	cfg.failedTenants = make(map[string]struct{})
+	for tenant, resp := range cfg.tenantResponseMap {
 		if resp.agentResponseCode == 200 {
+			// update the post manager's tenant cache
 			if resp.isDeleted {
 				// Update the cache tenant map if tenant is deleted.
 				delete(postMgr.cachedTenantDeclMap, tenant)
 			} else {
-				// update cachedTenantDeclMap with successfully posted declaration
-				if agentWorkerUpdate {
-					postMgr.cachedTenantDeclMap[tenant] = postMgr.incomingTenantDeclMap[tenant]
-				} else {
-					postMgr.cachedTenantDeclMap[tenant] = postMgr.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
-				}
-				// if received the 200 response remove the entry from tenantPriorityMap
-				if _, ok := postMgr.tenantPriorityMap[tenant]; ok {
-					delete(postMgr.tenantPriorityMap, tenant)
-				}
+				postMgr.cachedTenantDeclMap[tenant] = cfg.incomingTenantDeclMap[tenant]
 			}
-		}
-		if agentWorkerUpdate {
-			postMgr.updateRetryMap(tenant, resp, postMgr.incomingTenantDeclMap[tenant])
 		} else {
-			postMgr.updateRetryMap(tenant, resp, postMgr.retryTenantDeclMap[tenant].as3Decl)
+			// update the failed tenants list
+			cfg.failedTenants[tenant] = struct{}{}
 		}
 	}
 }
 
-func (postMgr *PostManager) updateRetryMap(tenant string, resp tenantResponse, tenDecl interface{}) {
-	if resp.agentResponseCode == http.StatusOK {
-		// delete the tenant entry from retry if any
-		delete(postMgr.retryTenantDeclMap, tenant)
-		// if received the 200 response remove the entry from tenantPriorityMap
-		if _, ok := postMgr.tenantPriorityMap[tenant]; ok {
-			delete(postMgr.tenantPriorityMap, tenant)
-		}
-	} else {
-		postMgr.retryTenantDeclMap[tenant] = &tenantParams{
-			tenDecl,
-			tenantResponse{resp.agentResponseCode, resp.taskId, false},
-		}
-	}
-}
-
-func (postMgr *PostManager) pollTenantStatus() {
-
-	var acceptedTenants []string
-	// Create a set to hold unique polling ids
-	acceptedTenantIds := map[string]struct{}{}
-
-	postMgr.tenantResponseMap = make(map[string]tenantResponse)
-
-	for tenant, cfg := range postMgr.retryTenantDeclMap {
-		// So, when we call updateTenantResponseMap, we have to retain failed agentResponseCodes and taskId's correctly
-		postMgr.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
-		if cfg.taskId != "" {
-			if _, found := acceptedTenantIds[cfg.taskId]; !found {
-				acceptedTenantIds[cfg.taskId] = struct{}{}
-				acceptedTenants = append(acceptedTenants, tenant)
-			}
-		}
-	}
-
-	for len(acceptedTenantIds) > 0 {
-		// Keep retrying until accepted tenant statuses are updated
-		// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
-		for taskId := range acceptedTenantIds {
-			<-time.After(timeoutMedium)
-			postMgr.getTenantConfigStatus(taskId)
-		}
-		for _, tenant := range acceptedTenants {
-			acceptedTenantIds = map[string]struct{}{}
-			// Even if there is any pending tenant which is not updated, keep retrying for that ID
-			if postMgr.tenantResponseMap[tenant].taskId != "" {
-				acceptedTenantIds[postMgr.tenantResponseMap[tenant].taskId] = struct{}{}
-			}
-		}
-	}
-
-	if len(acceptedTenants) > 0 {
-		postMgr.updateTenantResponseMap(false)
-	}
-}
-
-func (postMgr *PostManager) retryFailedTenant(userAgent string) {
-	var retryTenants []string
-
-	// this map is to collect all non-201 tenant configs
-	retryDecl := make(map[string]as3Tenant)
-
-	postMgr.tenantResponseMap = make(map[string]tenantResponse)
-
-	for tenant, cfg := range postMgr.retryTenantDeclMap {
-		// So, when we call updateTenantResponseMap, we have to retain failed agentResponseCodes and taskId's correctly
-		postMgr.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
-		if cfg.taskId == "" {
-			retryTenants = append(retryTenants, tenant)
-			retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
-		}
-	}
-
-	if len(retryTenants) > 0 {
-		// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
-		cfg := as3Config{
-			data:      string(postMgr.AS3PostManager.createAS3Declaration(retryDecl, userAgent)),
-			as3APIURL: postMgr.getAS3APIURL(retryTenants),
-			id:        0,
-		}
-		// Ignoring timeouts for custom errors
+func (postMgr *PostManager) pollTenantStatus(cfg *as3Config) {
+	// Keep retrying until accepted tenant statuses are updated
+	// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
+	for cfg.acceptedTaskId != "" {
 		<-time.After(timeoutMedium)
-
-		postMgr.postConfig(&cfg)
-
-		postMgr.updateTenantResponseMap(false)
-	}
-
-}
-
-func (postMgr *PostManager) notifyRscStatusHandler(id int, overwriteCfg bool) {
-
-	rscUpdateMeta := resourceStatusMeta{
-		id,
-		make(map[string]struct{}),
-	}
-	for tenant := range postMgr.retryTenantDeclMap {
-		rscUpdateMeta.failedTenants[tenant] = struct{}{}
-	}
-	// If triggerred from retry block, process the previous successful request completely
-	if !overwriteCfg {
-		postMgr.respChan <- rscUpdateMeta
-	} else {
-		// Always push latest id to channel
-		// Case1: Put latest id into the channel
-		// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
-		// Either Case1 or Case2 executes, which ensures the above
-		select {
-		case postMgr.respChan <- rscUpdateMeta:
-		case <-postMgr.respChan:
-			postMgr.respChan <- rscUpdateMeta
-		}
+		cfg.tenantResponseMap = make(map[string]tenantResponse)
+		postMgr.getTenantConfigStatus(cfg.acceptedTaskId, cfg)
+		postMgr.updateTenantCache(cfg)
 	}
 }
 

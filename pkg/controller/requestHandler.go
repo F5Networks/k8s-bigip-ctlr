@@ -1,45 +1,59 @@
 package controller
 
 import (
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+	"reflect"
 	"time"
 )
 
-func (req *RequestHandler) startAgent() {
-	log.Debug("starting requestHandler")
+func (req *RequestHandler) startRequestHandler() {
+	log.Debug("Starting requestHandler")
 	// requestHandler runs as a separate go routine
 	// blocks on reqChan to get new/updated configuration to be posted to BIG-IP
 	go req.requestHandler()
-
-	// retryWorker runs as a separate go routine
-	// blocks on retryChan ; retries failed declarations and polls for accepted tenant statuses
-	go req.retryWorker()
 }
 
-func (req *RequestHandler) stopAgent() {
-	log.Debug("stopping requestHandler")
+func (req *RequestHandler) stopRequestHandler() {
+	log.Debug("Stopping requestHandler")
 	if req.reqChan != nil {
 		close(req.reqChan)
 	}
-	if req.PostManager.postChan != nil {
-		close(req.PostManager.postChan)
+	req.PostManagers.Lock()
+	for key := range req.PostManagers.PostManagerMap {
+		req.stopPostManager(key)
+	}
+	req.PostManagers.Unlock()
+}
+
+func (req *RequestHandler) stopPostManager(key BigIpKey) {
+	//stop post manager
+	if pm, ok := req.PostManagers.PostManagerMap[key]; ok {
+		//close the channels to stop the post channel
+		close(pm.postChan)
+		//remove bigiplabel from agentmap
+		delete(req.PostManagers.PostManagerMap, key)
+		// decrease the post manager Count
+		prometheus.AgentCount.Dec()
 	}
 }
 
-func NewAgent(params AgentParams, bigiplabel string, bigIpAddress string) *RequestHandler {
-	DEFAULT_PARTITION = params.Partition
-	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
-	postMgr := NewPostManager(params)
-
-	agent := &RequestHandler{
-		PostManager:  postMgr,
-		reqChan:      make(chan ResourceConfigRequest, 1),
-		userAgent:    params.UserAgent,
-		bigipLabel:   bigiplabel,
-		bigIpAddress: bigIpAddress,
+func (req *RequestHandler) startPostManager(config cisapiv1.BigIpConfig) {
+	for _, bigIpKey := range getBigIpList(config) {
+		//start agent
+		req.PostManagers.Lock()
+		if _, ok := req.PostManagers.PostManagerMap[bigIpKey]; !ok {
+			pm := NewPostManager(req.PostParams, config.DefaultPartition)
+			pm.respChan = req.respChan
+			pm.tokenManager = req.CMTokenManager
+			// update agent Map
+			req.PostManagers.PostManagerMap[bigIpKey] = pm
+			// increase the Agent Count
+			prometheus.AgentCount.Inc()
+		}
+		req.PostManagers.Unlock()
 	}
-	agent.startAgent()
-	return agent
 }
 
 func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) {
@@ -58,174 +72,56 @@ func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) 
 // whenever it gets unblocked, it creates an as3, l3 declaration for respective bigip and puts on post channel for postmanger to handle
 func (req *RequestHandler) requestHandler() {
 	for rsConfig := range req.reqChan {
-		// For the very first post after starting controller, need not wait to post
-		if !req.PostManager.AS3PostManager.firstPost && req.PostManager.AS3PostManager.AS3Config.PostDelayAS3 != 0 {
-			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", req.PostManager.AS3PostManager.AS3Config.PostDelayAS3)
-			_ = <-time.After(time.Duration(req.PostManager.AS3PostManager.AS3Config.PostDelayAS3) * time.Second)
+		req.PostManagers.RLock()
+		if pm, ok := req.PostManagers.PostManagerMap[rsConfig.bigIpKey]; ok {
+			//create post config declaration for BigIp pair and put in post channel
+			cfg := req.createDeclarationForBIGIP(rsConfig, pm)
+			if !reflect.DeepEqual(cfg, agentConfig{}) {
+				pm.postChan <- cfg
+			}
 		}
-
-		// Fetch the latest config from channel
-		select {
-		case rsConfig = <-req.reqChan:
-			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
-		case <-time.After(1 * time.Microsecond):
-		}
-		//create AS3 declaration for bigip pair and put in post channel
-		req.createDeclarationForBIGIP(rsConfig)
+		req.PostManagers.RUnlock()
 	}
 }
 
-func (req *RequestHandler) createDeclarationForBIGIP(rsConfig ResourceConfigRequest) {
-	//for each bigip config create AS3, L3 declaration
-
-	req.declUpdate.Lock()
-	currentConfig, err := req.PostManager.GetAS3DeclarationFromBigIP()
-	if err != nil {
-		log.Errorf("[AS3] Could not fetch the latest AS3 declaration from BIG-IP")
-	}
-	if req.PostManager.HAMode {
-		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
-		// if it's secondary CIS and primary CIS is down and statusChanged is true
-		if req.PostManager.AS3PostManager.firstPost ||
-			(req.PostManager.PrimaryClusterHealthProbeParams.EndPoint != "" && !req.PostManager.PrimaryClusterHealthProbeParams.statusRunning &&
-				req.PostManager.PrimaryClusterHealthProbeParams.statusChanged) {
-			removeDeletedTenantsForBigIP(&rsConfig.bigIpResourceConfig, req.PostManager.defaultPartition, currentConfig, req.PostManager.defaultPartition)
-			req.PostManager.AS3PostManager.firstPost = false
-		}
-	}
-
-	for tenantName, partitionConfig := range rsConfig.bigIpResourceConfig.ltmConfig {
-		// TODO partitionConfig priority can be overridden by another request if requesthandler is unable to process the prioritized request in time
-		partitionConfig.PriorityMutex.RLock()
-		if *(partitionConfig.Priority) > 0 {
-			req.PostManager.tenantPriorityMap[tenantName] = *(partitionConfig.Priority)
-		}
-		partitionConfig.PriorityMutex.RUnlock()
-	}
-
-	decl := req.createTenantDeclaration(rsConfig.bigIpResourceConfig, req.PostManager.defaultPartition, req.PostManager.cachedTenantDeclMap)
-	if req.PostManager.HAMode {
+func (req *RequestHandler) createDeclarationForBIGIP(rsConfig ResourceConfigRequest, pm *PostManager) agentConfig {
+	var agentCfg agentConfig
+	if req.HAMode {
 		// if endPoint is not empty means, cis is running in secondary mode
 		// check if the primary cis is up and running
-		if req.PostManager.PrimaryClusterHealthProbeParams.EndPointType != "" {
-			if req.PostManager.PrimaryClusterHealthProbeParams.statusRunning {
-				req.declUpdate.Unlock()
-				return
+		if req.PrimaryClusterHealthProbeParams.EndPointType != "" {
+			if req.PrimaryClusterHealthProbeParams.statusRunning {
+				return agentCfg
 			} else {
-				if req.PostManager.PrimaryClusterHealthProbeParams.statusChanged {
-					req.PostManager.PrimaryClusterHealthProbeParams.paramLock.Lock()
-					req.PostManager.PrimaryClusterHealthProbeParams.statusChanged = false
-					req.PostManager.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+				if req.PrimaryClusterHealthProbeParams.statusChanged {
+					req.PrimaryClusterHealthProbeParams.paramLock.Lock()
+					req.PrimaryClusterHealthProbeParams.statusChanged = false
+					req.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 				}
 			}
 		}
-	}
-
-	var updatedTenants []string
-	// initializing the priority tenants
-	var priorityTenants []string
-	/*
-		For every incoming post request, create a new tenantResponseMap.
-		tenantResponseMap will be updated with responses during postConfig.
-		It holds the updatedTenants in the current iteration's as keys.
-		This is needed to update response code in cases (202/404) when httpResponse body does not contain the tenant details.
-	*/
-	req.PostManager.tenantResponseMap = make(map[string]tenantResponse)
-
-	for tenant := range req.PostManager.incomingTenantDeclMap {
-		// CIS with AS3 doesnt allow write to Common partition.So objects in common partition
-		// should not be updated or deleted by CIS. So removing from tenant map
-		if tenant != "Common" {
-			if _, ok := req.PostManager.tenantPriorityMap[tenant]; ok {
-				priorityTenants = append(priorityTenants, tenant)
-			} else {
-				updatedTenants = append(updatedTenants, tenant)
+		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
+		// if it's secondary CIS and primary CIS is down and statusChanged is true
+		if pm.AS3PostManager.firstPost ||
+			(req.PrimaryClusterHealthProbeParams.EndPoint != "" && !req.PrimaryClusterHealthProbeParams.statusRunning &&
+				req.PrimaryClusterHealthProbeParams.statusChanged) {
+			currentConfig, err := pm.GetAS3DeclarationFromBigIP()
+			if err != nil {
+				log.Errorf("[AS3] Could not fetch the latest AS3 declaration from BIG-IP")
 			}
-			req.PostManager.tenantResponseMap[tenant] = tenantResponse{}
+			removeDeletedTenantsForBigIP(&rsConfig.bigIpResourceConfig, pm.defaultPartition, currentConfig, pm.defaultPartition)
+			pm.AS3PostManager.firstPost = false
 		}
 	}
-	req.declUpdate.Unlock()
-	// TODO: need to handle bigip target address depending on AS3 API either single or two step as part of postManager
-	// Update the priority tenants first
-	if len(priorityTenants) > 0 {
-		req.enqueueCfgForPost(decl.(as3Declaration), rsConfig, priorityTenants, rsConfig.bigipConfig.BigIpAddress)
-	}
-	// Updating the remaining tenants
-	req.enqueueCfgForPost(decl.(as3Declaration), rsConfig, updatedTenants, rsConfig.bigipConfig.BigIpAddress)
-
-}
-
-// Enqueue AS3 declaration to post chanel
-func (req *RequestHandler) enqueueCfgForPost(decl as3Declaration, rsConfig ResourceConfigRequest, tenants []string, bigipTargetAddress string) {
-	as3cfg := as3Config{
-		data:               string(decl),
-		as3APIURL:          req.PostManager.getAS3APIURL(tenants),
-		id:                 rsConfig.reqId,
-		bigipTargetAddress: bigipTargetAddress,
-	}
-	//TODO: Implement as part of L3 Manager
-	l3cfg := l3Config{}
-	cfg := agentConfig{as3Config: as3cfg, l3Config: l3cfg}
-	select {
-	case req.PostManager.postChan <- cfg:
-		log.Debugf("Declaration written to post chan")
-	case <-time.After(3 * time.Second):
-	}
-}
-
-// retryWorker blocks on retryChan
-// whenever it gets unblocked, retries failed declarations and polls for accepted tenant statuses
-func (req *RequestHandler) retryWorker() {
-
-	/*
-		retryWorker runs as a goroutine. It is idle until an arrives at retryChan.
-		retryTenantDeclMal holds all information about tenant adc configuration and response codes.
-
-		Once retryChan is signalled, retryWorker posts tenant declarations and/or polls for accepted tenants' statuses continuously until it succeeds
-		Locks are used to block retries if an incoming request arrives at agentWorker.
-
-		For each iteration, retryWorker tries to acquire requesthandler.declUpdate lock.
-		During an ongoing agentWorker's activity, retryWorker tries to wait until requesthandler.declUpdate lock is acquired
-		Similarly, during an ongoing retry, agentWorker waits for graceful termination of ongoing iteration - i.e., until requesthandler.declUpdate is unlocked
-
-	*/
-
-	for range req.PostManager.retryChan {
-
-		for len(req.PostManager.retryTenantDeclMap) != 0 {
-
-			if req.PostManager.HAMode {
-				// if endPoint is not empty -> cis is running in secondary mode
-				// check if the primary cis is up and running
-				if req.PostManager.PrimaryClusterHealthProbeParams.EndPointType != "" {
-					if req.PostManager.PrimaryClusterHealthProbeParams.statusRunning {
-						req.PostManager.retryTenantDeclMap = make(map[string]*tenantParams)
-						// dont post the declaration
-						continue
-					}
-				}
-			}
-
-			req.declUpdate.Lock()
-
-			// If we had a delay in acquiring lock, re-check if we have any tenants to be retried
-			if len(req.PostManager.retryTenantDeclMap) == 0 {
-				req.declUpdate.Unlock()
-				break
-			}
-
-			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
-
-			//If there are any 201 tenants, poll for its status
-			req.PostManager.pollTenantStatus()
-
-			//If there are any failed tenants, retry posting them
-			req.PostManager.retryFailedTenant(req.userAgent)
-
-			req.PostManager.notifyRscStatusHandler(0, false)
-
-			req.declUpdate.Unlock()
-		}
-	}
+	//for each request config create AS3, L3 declaration
+	// create the AS3 declaration for the bigip
+	as3cfg := req.createAS3Config(rsConfig, pm)
+	// TODO : Create the L3 declaration for the bigip
+	agentCfg = agentConfig{
+		id:        rsConfig.reqMeta.id,
+		as3Config: as3cfg,
+		l3Config:  l3Config{},
+		BigIpKey:  rsConfig.bigIpKey,
+		reqMeta:   rsConfig.reqMeta}
+	return agentCfg
 }

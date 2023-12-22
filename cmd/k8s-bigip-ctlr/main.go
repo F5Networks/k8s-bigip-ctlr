@@ -175,7 +175,7 @@ func initLogger(logLevel, logFile string) error {
 	if len(logFile) > 0 {
 		logger = log.NewFileLogger(logFile)
 	} else {
-		logger = log.NewConsoleLogger()
+		logger = log.NewConsoleLoggerExt("", log.Ldate|log.Ltime|log.Lmicroseconds)
 	}
 	log.RegisterLogger(
 		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, logger)

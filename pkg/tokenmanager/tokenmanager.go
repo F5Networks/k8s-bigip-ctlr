@@ -95,7 +95,8 @@ func (tm *TokenManager) fetchToken() error {
 	// Send POST request for token
 	resp, err := client.Post(tm.serverURL+CMLoginURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
-		return err
+		log.Errorf("[Token Manager] Unable to establish connection with Central Manager, Probable reasons might be: invalid custom-certs (or) custom-certs not provided using --trusted-certs-cfgmap flag")
+		os.Exit(1)
 	}
 	defer resp.Body.Close()
 

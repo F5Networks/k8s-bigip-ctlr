@@ -345,7 +345,9 @@ const (
 	OVN_K8S                    = "ovn-k8s"
 	OVNK8sNodeSubnetAnnotation = "k8s.ovn.org/node-subnets"
 	OVNK8sNodeIPAnnotation     = "k8s.ovn.org/node-primary-ifaddr"
-	OVNK8sNodeIPAnnotation2    = "k8s.ovn.org/host-addresses"
+	// k8s.ovn.org/host-addresses is changed to k8s.ovn.org/host-cidrs in openshift 4.14
+	OVNK8sNodeIPAnnotation2 = "k8s.ovn.org/host-addresses"
+	OVNK8sNodeIPAnnotation3 = "k8s.ovn.org/host-cidrs"
 
 	CILIUM_K8S                      = "cilium-k8s"
 	CiliumK8sNodeSubnetAnnotation12 = "io.cilium.network.ipv4-pod-cidr"
@@ -3844,11 +3846,26 @@ func (appMgr *Manager) processStaticRouteUpdate(
 					log.Errorf("Unable to parse cidr %v with error %v", appMgr.staticRouteNodeCIDR, err)
 					continue
 				} else {
-					if hostaddresses, ok := annotations[OVNK8sNodeIPAnnotation2]; !ok {
-						log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
-						continue
+					var hostaddresses string
+					var ok bool
+					var nodeIP string
+					var err error
+					if hostaddresses, ok = annotations[OVNK8sNodeIPAnnotation2]; !ok {
+						//For ocp 4.14 and above check for new annotation
+						if hostaddresses, ok = annotations[OVNK8sNodeIPAnnotation3]; !ok {
+							log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
+							continue
+						} else {
+							nodeIP, err = parseHostCIDRS(hostaddresses, nodenetwork)
+							if err != nil {
+								log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation3, node.Name, err)
+								continue
+							}
+							route.Gateway = nodeIP
+							route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+						}
 					} else {
-						nodeIP, err := parseHostAddresses(hostaddresses, nodenetwork)
+						nodeIP, err = parseHostAddresses(hostaddresses, nodenetwork)
 						if err != nil {
 							log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation2, node.Name, err)
 							continue
@@ -3856,6 +3873,7 @@ func (appMgr *Manager) processStaticRouteUpdate(
 						route.Gateway = nodeIP
 						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
 					}
+
 				}
 			} else {
 				if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
@@ -3976,5 +3994,22 @@ func parseHostAddresses(ann string, nodenetwork *net.IPNet) (string, error) {
 		}
 	}
 	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OVNK8sNodeIPAnnotation2, nodenetwork)
+	return "", err
+}
+
+func parseHostCIDRS(ann string, nodenetwork *net.IPNet) (string, error) {
+	var hostcidrs []string
+	json.Unmarshal([]byte(ann), &hostcidrs)
+	for _, cidr := range hostcidrs {
+		ip, _, err := net.ParseCIDR(cidr)
+		if err != nil {
+			log.Errorf("Unable to parse cidr %v with error %v", cidr, err)
+		} else {
+			if nodenetwork.Contains(ip) {
+				return ip.String(), nil
+			}
+		}
+	}
+	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OVNK8sNodeIPAnnotation3, nodenetwork)
 	return "", err
 }

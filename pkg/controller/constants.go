@@ -29,7 +29,9 @@ const (
 	OVN_K8S                    = "ovn-k8s"
 	OVNK8sNodeSubnetAnnotation = "k8s.ovn.org/node-subnets"
 	OVNK8sNodeIPAnnotation     = "k8s.ovn.org/node-primary-ifaddr"
-	OVNK8sNodeIPAnnotation2    = "k8s.ovn.org/host-addresses"
+	//k8s.ovn.org/host-addresses is changed to k8s.ovn.org/host-cidrs in openshift 4.14
+	OVNK8sNodeIPAnnotation2 = "k8s.ovn.org/host-addresses"
+	OvnK8sNodeIPAnnotation3 = "k8s.ovn.org/host-cidrs"
 
 	//Cilium CNI
 	CILIUM_K8S                      = "cilium-k8s"

@@ -252,13 +252,28 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					log.Errorf("Unable to parse cidr %v with error %v", ctlr.StaticRouteNodeCIDR, err)
 					continue
 				} else {
-					if hostaddresses, ok := annotations[OVNK8sNodeIPAnnotation2]; !ok {
-						log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
-						continue
+					var hostaddresses string
+					var ok bool
+					var nodeIP string
+					var err error
+					if hostaddresses, ok = annotations[OVNK8sNodeIPAnnotation2]; !ok {
+						//For ocp 4.14 and above check for new annotation
+						if hostaddresses, ok = annotations[OvnK8sNodeIPAnnotation3]; !ok {
+							log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
+							continue
+						} else {
+							nodeIP, err = parseHostCIDRS(hostaddresses, nodenetwork)
+							if err != nil {
+								log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OvnK8sNodeIPAnnotation3, node.Name, err)
+								continue
+							}
+							route.Gateway = nodeIP
+							route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+						}
 					} else {
-						nodeIP, err := parseHostAddresses(hostaddresses, nodenetwork)
+						nodeIP, err = parseHostAddresses(hostaddresses, nodenetwork)
 						if err != nil {
-							log.Errorf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation2, node.Name, err)
+							log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation2, node.Name, err)
 							continue
 						}
 						route.Gateway = nodeIP
@@ -383,5 +398,22 @@ func parseHostAddresses(ann string, nodenetwork *net.IPNet) (string, error) {
 		}
 	}
 	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OVNK8sNodeIPAnnotation2, nodenetwork)
+	return "", err
+}
+
+func parseHostCIDRS(ann string, nodenetwork *net.IPNet) (string, error) {
+	var hostcidrs []string
+	json.Unmarshal([]byte(ann), &hostcidrs)
+	for _, cidr := range hostcidrs {
+		ip, _, err := net.ParseCIDR(cidr)
+		if err != nil {
+			log.Errorf("Unable to parse cidr %v with error %v", cidr, err)
+		} else {
+			if nodenetwork.Contains(ip) {
+				return ip.String(), nil
+			}
+		}
+	}
+	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OvnK8sNodeIPAnnotation3, nodenetwork)
 	return "", err
 }

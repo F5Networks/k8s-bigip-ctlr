@@ -1087,26 +1087,26 @@ var _ = Describe("Worker Tests", func() {
 			pod1.Annotations = ann
 			mockCtlr.processPod(pod1, false)
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(BeNil())
-			Expect(mockCtlr.GetPodsForService("test", "svc", true)).To(BeNil())
-			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("test", "svc", "", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			svc := test.NewService("svc", "1", "default", "ClusterIP", fooPorts)
 			mockCtlr.addService(svc)
-			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			svc.Annotations = map[string]string{"nodeportlocal.antrea.io/enabled": "enabled"}
 			mockCtlr.updateService(svc)
-			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			labels := make(map[string]string)
 			labels["app"] = "UpdatePoolHealthMonitors"
 			svc.Spec.Selector = labels
 			mockCtlr.updateService(svc)
-			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			pod1.Labels = labels
 			mockCtlr.addPod(pod1)
 			mockCtlr.kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
-			Expect(mockCtlr.GetPodsForService("default", "svc", true)).ToNot(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).ToNot(BeNil())
 			Expect(mockCtlr.GetService("test", "svc")).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc")).ToNot(BeNil())

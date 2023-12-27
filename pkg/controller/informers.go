@@ -1101,6 +1101,8 @@ func getClusterLog(clusterName string) string {
 	clusterNameLog := ""
 	if clusterName != "" {
 		clusterNameLog = "from cluster: " + clusterName
+	} else {
+		clusterNameLog = fmt.Sprintf("from cluster: %v", Local)
 	}
 	return clusterNameLog
 }

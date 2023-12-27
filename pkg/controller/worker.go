@@ -689,7 +689,9 @@ func (ctlr *Controller) processResources() bool {
 			go ctlr.TeemData.PostTeemsData()
 		}
 		config.reqId = ctlr.enqueueReq(config)
-		if rKey.clusterName == "" {
+		if rKey.kind == HACIS {
+			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqId, strings.ToTitle(Update))
+		} else if rKey.clusterName == "" {
 			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqId, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		} else {
 			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqId, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
@@ -758,7 +760,7 @@ func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 func (ctlr *Controller) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.VirtualServer {
 	nsVirtuals := ctlr.getAllVirtualServers(plc.Namespace)
 	if nil == nsVirtuals {
-		log.Infof("No VirtualServers found in namespace %s",
+		log.Debugf("No VirtualServers found in namespace %s",
 			plc.Namespace)
 		return nil
 	}
@@ -781,7 +783,7 @@ func (ctlr *Controller) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisa
 func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.TransportServer {
 	nsVirtuals := ctlr.getAllTransportServers(plc.Namespace)
 	if nil == nsVirtuals {
-		log.Infof("No VirtualServers found in namespace %s",
+		log.Debugf("No TransportServers found in namespace %s",
 			plc.Namespace)
 		return nil
 	}
@@ -805,7 +807,7 @@ func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy)
 func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy) []*v1.Service {
 	LBServices := ctlr.getAllLBServices(plc.Namespace)
 	if nil == LBServices {
-		log.Infof("No LB service found in namespace %s",
+		log.Debugf("No LB service found in namespace %s",
 			plc.Namespace)
 		return nil
 	}
@@ -2100,7 +2102,7 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		_ = ctlr.processService(svc, clusterName)
 		// update the nlpStore cache with pods and their node annotations
 		if ctlr.PoolMemberType == NodePortLocal {
-			pods := ctlr.GetPodsForService(svcKey.namespace, svcKey.serviceName, true)
+			pods := ctlr.GetPodsForService(svcKey.namespace, svcKey.serviceName, svcKey.clusterName, true)
 			for _, pod := range pods {
 				ctlr.processPod(pod, false)
 			}
@@ -2172,7 +2174,7 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 				return epPoolMembers
 			}
 		}
-		pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, true)
+		pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, mSvcKey.clusterName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
 				// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
@@ -3678,14 +3680,14 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 		return nil
 	}
 	if !found {
-		log.Errorf("Error: Service %v not found", svcKey)
+		log.Errorf("Error: Service %v not found %v", svcKey, getClusterLog(""))
 		return nil
 	}
 	return svc.(*v1.Service)
 }
 
 // GetPodsForService returns podList with labels set to svc selector
-func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnnotationRequired bool) []*v1.Pod {
+func (ctlr *Controller) GetPodsForService(namespace, serviceName, clusterName string, nplAnnotationRequired bool) []*v1.Pod {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
@@ -3698,7 +3700,7 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnno
 		return nil
 	}
 	if !found {
-		log.Errorf("Error: Service %v not found", svcKey)
+		log.Errorf("Error: Service %v not found %v", svcKey, getClusterLog(clusterName))
 		return nil
 	}
 	annotations := svc.(*v1.Service).Annotations
@@ -4177,7 +4179,7 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 
 func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace string) int32 {
 	var nodePort int32
-	pods := ctlr.GetPodsForService(namespace, svcName, true)
+	pods := ctlr.GetPodsForService(namespace, svcName, "", true)
 	if pods != nil {
 		for _, pod := range pods {
 			anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]

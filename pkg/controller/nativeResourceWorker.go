@@ -556,7 +556,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			}
 		} else if ctlr.resources.baseRouteConfig.AutoMonitor != None {
 			// handle auto-monitor for route
-			monitor := ctlr.handleAutoMonitor(rsCfg, route.Namespace, bs.Name, &pool)
+			monitor := ctlr.handleAutoMonitor(rsCfg, route.Namespace, bs.Name, bs.Cluster, &pool)
 			if monitor != (Monitor{}) {
 				rsCfg.Monitors = append(
 					rsCfg.Monitors,
@@ -789,7 +789,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 					for _, pool := range freshRsCfg.Pools {
 						if pool.Name == poolId.poolName && pool.Partition == poolId.partition && pool.Name == poolName {
 							if poolId.rsKey.kind == Route {
-								podMonitor := ctlr.handleAutoMonitor(rsCfg, svcKey.namespace, svcKey.serviceName, &pool)
+								podMonitor := ctlr.handleAutoMonitor(rsCfg, svcKey.namespace, svcKey.serviceName, svcKey.clusterName, &pool)
 
 								// update the monitor name in the config
 								for monitorInd, mon := range freshRsCfg.Monitors {
@@ -1797,7 +1797,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 					if !ctlr.checkValidExtendedService(svc) {
 						// In case of invalid extendedServiceReference, just log the error and proceed
 						log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
-							"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
+							"parameters (clusterName/namespace/serviceName/port) are missing or cluster "+
 							"config for the cluster in which it's running is not provided in extended configmap.", svc, route.Name)
 						continue
 					}
@@ -2076,7 +2076,6 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	// If externalClustersConfig is not specified, then clean up any old external cluster related config in case user had
 	// specified externalClusterConfigs earlier and now removed those configs
 	if externalClusterConfigs == nil || len(externalClusterConfigs) == 0 {
-		log.Infof("[MultiCluster] There is no externalClustersConfig section or there are no clusters defined in it.")
 		// Check if any processed data exists from the multiCluster config provided earlier, then remove them
 		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
@@ -2084,6 +2083,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
 					continue
 				}
+				log.Infof("[MultiCluster] There is no externalClustersConfig section or there are no clusters defined in it. Removing the cluster config for cluster %s from CIS Cache", clusterName)
 				delete(ctlr.multiClusterConfigs.ClusterConfigs, clusterName)
 				// Delete cluster ratio as well
 				if _, ok := ctlr.clusterRatio[clusterName]; ok {
@@ -2309,10 +2309,10 @@ func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig)
 	}
 }
 
-func (ctlr *Controller) handleAutoMonitor(rsCfg *ResourceConfig, svcNamespace, svcName string, pool *Pool) Monitor {
+func (ctlr *Controller) handleAutoMonitor(rsCfg *ResourceConfig, svcNamespace, svcName, clusterName string, pool *Pool) Monitor {
 	// Create health monitor if AutoMonitor is not set to None, which means either create pod readiness-probe  based HTTP monitor or default TCP monitor based on the autoMonitor value
 	// Skip NPL Annotation check on service
-	svcPods := ctlr.GetPodsForService(svcNamespace, svcName, false)
+	svcPods := ctlr.GetPodsForService(svcNamespace, svcName, clusterName, false)
 	var interval int            // interval for health monitor
 	var initialDelaySeconds int // initial delay for health monitor
 	var monitor Monitor

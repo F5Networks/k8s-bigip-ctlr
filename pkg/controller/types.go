@@ -418,10 +418,9 @@ type (
 
 	// BigIpResourceConfig struct to hold the bigip-next ltm and gtm configuration
 	BigIpResourceConfig struct {
-		ltmConfig          LTMConfig
-		gtmConfig          GTMConfig
-		shareNodes         bool
-		defaultRouteDomain int
+		ltmConfig  LTMConfig
+		gtmConfig  GTMConfig
+		shareNodes bool
 	}
 
 	resourceStatusMeta struct {
@@ -990,9 +989,6 @@ type (
 		LoadBalancingMode string               `json:"loadBalancingMode,omitempty"`
 		Members           []as3PoolMember      `json:"members,omitempty"`
 		Monitors          []as3ResourcePointer `json:"monitors,omitempty"`
-		MinimumMonitors   intstr.IntOrString   `json:"minimumMonitors,omitempty"`
-		ServiceDownAction string               `json:"serviceDownAction,omitempty"`
-		ReselectTries     int32                `json:"reselectTries,omitempty"`
 		SlowRampTime      int32                `json:"slowRampTime,omitempty"`
 	}
 
@@ -1023,39 +1019,29 @@ type (
 	// - Service_TCP
 	// - Service_UDP
 	as3Service struct {
-		Layer4                 string               `json:"layer4,omitempty"`
-		Source                 string               `json:"source,omitempty"`
-		TranslateServerAddress bool                 `json:"translateServerAddress,omitempty"`
-		TranslateServerPort    bool                 `json:"translateServerPort,omitempty"`
-		Class                  string               `json:"class,omitempty"`
-		VirtualAddresses       []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
-		VirtualPort            int                  `json:"virtualPort,omitempty"`
-		AutoLastHop            string               `json:"lastHop,omitempty"`
-		SNAT                   as3MultiTypeParam    `json:"snat,omitempty"`
-		Mirroring              string               `json:"mirroring,omitempty"`
-		PolicyEndpoint         as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
-		ClientTLS              as3MultiTypeParam    `json:"clientTLS,omitempty"`
-		ServerTLS              as3MultiTypeParam    `json:"serverTLS,omitempty"`
-		IRules                 as3MultiTypeParam    `json:"iRules,omitempty"`
-		Redirect80             *bool                `json:"redirect80,omitempty"`
-		Pool                   *as3ResourcePointer  `json:"pool,omitempty"`
-		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
-		Firewall               as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
-		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
-		ProfileL4              as3MultiTypeParam    `json:"profileL4,omitempty"`
-		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
-		PersistenceMethods     *[]as3MultiTypeParam `json:"persistenceMethods,omitempty"`
-		ProfileTCP             as3MultiTypeParam    `json:"profileTCP,omitempty"`
-		ProfileUDP             as3MultiTypeParam    `json:"profileUDP,omitempty"`
-		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`
-		ProfileHTTP2           as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
-		ProfileMultiplex       as3MultiTypeParam    `json:"profileMultiplex,omitempty"`
-		ProfileDOS             as3MultiTypeParam    `json:"profileDOS,omitempty"`
-		ProfileBotDefense      as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
-		HttpMrfRoutingEnabled  bool                 `json:"httpMrfRoutingEnabled,omitempty"`
-		IpIntelligencePolicy   as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
-		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
-		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
+		Layer4               string               `json:"layer4,omitempty"`
+		Class                string               `json:"class,omitempty"`
+		VirtualAddresses     []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
+		VirtualPort          int                  `json:"virtualPort,omitempty"`
+		SNAT                 as3MultiTypeParam    `json:"snat,omitempty"`
+		Mirroring            string               `json:"mirroring,omitempty"`
+		PolicyEndpoint       as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
+		ClientTLS            as3MultiTypeParam    `json:"clientTLS,omitempty"`
+		ServerTLS            as3MultiTypeParam    `json:"serverTLS,omitempty"`
+		IRules               as3MultiTypeParam    `json:"iRules,omitempty"`
+		Redirect80           *bool                `json:"redirect80,omitempty"`
+		Pool                 *as3ResourcePointer  `json:"pool,omitempty"`
+		WAF                  as3MultiTypeParam    `json:"policyWAF,omitempty"`
+		Firewall             as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
+		LogProfiles          []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
+		ProfileL4            as3MultiTypeParam    `json:"profileL4,omitempty"`
+		PersistenceMethods   *[]as3MultiTypeParam `json:"persistenceMethods,omitempty"`
+		ProfileTCP           as3MultiTypeParam    `json:"profileTCP,omitempty"`
+		ProfileUDP           as3MultiTypeParam    `json:"profileUDP,omitempty"`
+		ProfileHTTP          as3MultiTypeParam    `json:"profileHTTP,omitempty"`
+		ProfileHTTP2         as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
+		ProfileMultiplex     as3MultiTypeParam    `json:"profileMultiplex,omitempty"`
+		HttpAnalyticsProfile *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources
@@ -1074,19 +1060,15 @@ type (
 	// - Monitor_HTTP
 	// - Monitor_HTTPS
 	as3Monitor struct {
-		Class             string  `json:"class,omitempty"`
-		Interval          int     `json:"interval,omitempty"`
-		MonitorType       string  `json:"monitorType,omitempty"`
-		TargetAddress     *string `json:"targetAddress,omitempty"`
-		Timeout           int     `json:"timeout,omitempty"`
-		TimeUnitilUp      *int    `json:"timeUntilUp,omitempty"`
-		Adaptive          *bool   `json:"adaptive,omitempty"`
-		Dscp              *int    `json:"dscp,omitempty"`
-		Receive           string  `json:"receive"`
-		Send              string  `json:"send"`
-		TargetPort        int32   `json:"targetPort,omitempty"`
-		ClientCertificate string  `json:"clientCertificate,omitempty"`
-		Ciphers           string  `json:"ciphers,omitempty"`
+		Class             string `json:"class,omitempty"`
+		Interval          int    `json:"interval,omitempty"`
+		MonitorType       string `json:"monitorType,omitempty"`
+		Timeout           int    `json:"timeout,omitempty"`
+		TimeUnitilUp      *int   `json:"timeUntilUp,omitempty"`
+		Receive           string `json:"receive"`
+		Send              string `json:"send"`
+		ClientCertificate string `json:"clientCertificate,omitempty"`
+		Ciphers           string `json:"ciphers,omitempty"`
 	}
 
 	// as3CABundle maps to CA_Bundle in AS3 Resources

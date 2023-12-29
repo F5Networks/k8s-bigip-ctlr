@@ -108,14 +108,20 @@ func (tm *TokenManager) fetchToken() error {
 
 	// Check for successful response
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized {
-			log.Errorf("[Token Manager] Error fetching token from Central Manager: %s",
-				fmt.Errorf("status code: %d, response: %s", resp.StatusCode, body))
-			log.Errorf("[Token Manager] Unauthorized to fetch token from Central Manager. Please check the credentials")
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			log.Errorf("[Token Manager] Unauthorized to fetch token from Central Manager. "+
+				"Please check the credentials, status code: %d, response: %s", resp.StatusCode, body)
 			os.Exit(1)
+		case http.StatusServiceUnavailable:
+			return fmt.Errorf("[Token Manager] failed to get token due to service unavailability, "+
+				"status code: %d, response: %s", resp.StatusCode, body)
+		case http.StatusNotFound, http.StatusMovedPermanently:
+			log.Infof("[Token Manager] requested page/api not found, status code: %d, response: %s", resp.StatusCode, body)
+			os.Exit(1)
+		default:
+			return fmt.Errorf("failed to get token, status code: %d, response: %s", resp.StatusCode, body)
 		}
-
-		return fmt.Errorf("failed to get token, status code: %d, response: %s", resp.StatusCode, body)
 	}
 
 	// Parse the token and its expiration time from the response

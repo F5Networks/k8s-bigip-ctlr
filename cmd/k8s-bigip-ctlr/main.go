@@ -71,10 +71,11 @@ var (
 	cmIPFlags   *pflag.FlagSet
 	kubeFlags   *pflag.FlagSet
 
-	logLevel     *string
-	logFile      *string
-	printVersion *bool
-	disableTeems *bool
+	logLevel        *string
+	logFile         *string
+	printVersion    *bool
+	disableTeems    *bool
+	useNodeInternal *bool
 
 	kubeConfig            *string
 	manageCustomResources *bool
@@ -123,6 +124,8 @@ func _init() {
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
+	useNodeInternal = kubeFlags.Bool("use-node-internal", true,
+		"Optional, provide kubernetes InternalIP addresses to pool")
 	CISConfigCR = globalFlags.String("deploy-config-cr", "",
 		"Required, specify a CRD that holds additional spec for controller.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
@@ -346,6 +349,7 @@ func initController(
 			CISConfigCRKey:        *CISConfigCR,
 			HttpAddress:           *httpAddress,
 			ManageCustomResources: *manageCustomResources,
+			UseNodeInternal:       *useNodeInternal,
 		},
 	)
 

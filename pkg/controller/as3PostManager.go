@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"reflect"
 	"sort"
 	"strconv"
@@ -163,10 +162,21 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant string) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
-		pool.LoadBalancingMode = v.Balance
+		if v.Balance == "fastest-app-response" || v.Balance == "least-connections-member" ||
+			v.Balance == "predictive-member" || v.Balance == "ratio-least-connections-member" ||
+			v.Balance == "ratio-session" || v.Balance == "round-robin" || v.Balance == "weighted-round-robin" {
+			pool.LoadBalancingMode = v.Balance
+		} else {
+			log.Warningf("[AS3] virtualServer: %v, pool: %v, only following load-balancing types are supported with BIG-IP Next - fastest-app-response, "+
+				"least-connections-member, predictive-member, ratio-least-connections-member, ratio-session, round-robin, weighted-round-robin", cfg.Virtual.Name, v.Name)
+		}
 		pool.Class = "Pool"
-		pool.ReselectTries = v.ReselectTries
-		pool.ServiceDownAction = v.ServiceDownAction
+		if v.ReselectTries > 0 {
+			log.Warningf("[AS3] virtualServer: %v, pool: %v, ReselectTries pool property is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name)
+		}
+		if v.ServiceDownAction != "" {
+			log.Warningf("[AS3] virtualServer: %v, pool: %v, ServiceDownAction pool property is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name)
+		}
 		pool.SlowRampTime = v.SlowRampTime
 		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
@@ -194,7 +204,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			var monitor as3ResourcePointer
 			//Reference existing health monitor from BIGIP
 			if val.Reference == BIGIP {
-				monitor.BigIP = val.Name
+				log.Warningf("[AS3] virtualServer: %v, pool: %v, monitor: %v, bigIp reference feature is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name, val.Name)
 			} else {
 				use := strings.Split(val.Name, "/")
 				monitor.Use = fmt.Sprintf("/%s/%s/%s",
@@ -202,17 +212,13 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 					as3SharedApplication,
 					use[len(use)-1],
 				)
+				pool.Monitors = append(pool.Monitors, monitor)
 			}
-			pool.Monitors = append(pool.Monitors, monitor)
 		}
 		if len(pool.Monitors) > 0 {
 			if v.MinimumMonitors.StrVal != "" || v.MinimumMonitors.IntVal != 0 {
-				pool.MinimumMonitors = v.MinimumMonitors
-			} else {
-				pool.MinimumMonitors = intstr.IntOrString{Type: 0, IntVal: 1}
+				log.Warningf("[AS3] virtualServer: %v, pool: %v, MinimumMonitors feature is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name)
 			}
-		} else {
-			pool.MinimumMonitors = intstr.IntOrString{Type: 1, StrVal: "all"}
 		}
 		sharedApp[v.Name] = pool
 	}
@@ -303,9 +309,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 
 	if cfg.Virtual.TLSTermination != TLSPassthrough {
 		svc.Layer4 = cfg.Virtual.IpProtocol
-		svc.Source = "0.0.0.0/0"
-		svc.TranslateServerAddress = true
-		svc.TranslateServerPort = true
 		svc.Class = "Service_HTTP"
 	} else {
 		if len(cfg.Virtual.PersistenceProfile) == 0 {
@@ -317,14 +320,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
 
 	if len(cfg.Virtual.ProfileDOS) > 0 {
-		svc.ProfileDOS = &as3ResourcePointer{
-			BigIP: cfg.Virtual.ProfileDOS,
-		}
+		log.Warningf("[AS3] virtualServer: %v, ProfileDOS feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 	if len(cfg.Virtual.ProfileBotDefense) > 0 {
-		svc.ProfileBotDefense = &as3ResourcePointer{
-			BigIP: cfg.Virtual.ProfileBotDefense,
-		}
+		log.Warningf("[AS3] virtualServer: %v, ProfileBotDefense monitors feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 
 	if cfg.MetaData.Protocol == "https" {
@@ -453,9 +452,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	}
 	if cfg.Virtual.HttpMrfRoutingEnabled != nil {
 		//set HttpMrfRoutingEnabled
-		svc.HttpMrfRoutingEnabled = *cfg.Virtual.HttpMrfRoutingEnabled
+		log.Warningf("[AS3] virtualServer: %v, HttpMrfRoutingEnabled feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
-	svc.AutoLastHop = cfg.Virtual.AutoLastHop
+
+	if cfg.Virtual.AutoLastHop != "" {
+		log.Warningf("[AS3] virtualServer: %v, AutoLastHop feature is not supported with BIG-IP Next", cfg.Virtual.Name)
+	}
 
 	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile != "" {
 		svc.HttpAnalyticsProfile = &as3ResourcePointer{
@@ -464,9 +466,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	}
 	//set websocket profile
 	if cfg.Virtual.ProfileWebSocket != "" {
-		svc.ProfileWebSocket = &as3ResourcePointer{
-			BigIP: cfg.Virtual.ProfileWebSocket,
-		}
+		log.Warningf("[AS3] virtualServer: %v, ProfileWebSocket feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
@@ -854,17 +854,10 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		monitor.Interval = v.Interval
 		monitor.MonitorType = v.Type
 		monitor.Timeout = v.Timeout
-		val := 0
-		monitor.TargetPort = v.TargetPort
-		targetAddressStr := ""
-		monitor.TargetAddress = &targetAddressStr
 		monitor.TimeUnitilUp = v.TimeUntilUp
 		//Monitor type
 		switch v.Type {
 		case "http":
-			adaptiveFalse := false
-			monitor.Adaptive = &adaptiveFalse
-			monitor.Dscp = &val
 			monitor.Receive = "none"
 			if v.Recv != "" {
 				monitor.Receive = v.Recv
@@ -872,16 +865,12 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			monitor.Send = v.Send
 		case "https":
 			//Todo: For https monitor type
-			adaptiveFalse := false
-			monitor.Adaptive = &adaptiveFalse
 			if v.Recv != "" {
 				monitor.Receive = v.Recv
 			}
 			monitor.Send = v.Send
 			monitor.TimeUnitilUp = v.TimeUntilUp
 		case "tcp", "udp":
-			adaptiveFalse := false
-			monitor.Adaptive = &adaptiveFalse
 			monitor.Receive = v.Recv
 			monitor.Send = v.Send
 		}
@@ -912,7 +901,6 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 		}
 	}
 
-	svc.ProfileL4 = "basic"
 	if len(cfg.Virtual.ProfileL4) > 0 {
 		svc.ProfileL4 = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileL4,
@@ -922,15 +910,11 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
 
 	if len(cfg.Virtual.ProfileDOS) > 0 {
-		svc.ProfileDOS = &as3ResourcePointer{
-			BigIP: cfg.Virtual.ProfileDOS,
-		}
+		log.Warningf("[AS3] virtualServer: %v, ProfileDOS feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 
 	if len(cfg.Virtual.ProfileBotDefense) > 0 {
-		svc.ProfileBotDefense = &as3ResourcePointer{
-			BigIP: cfg.Virtual.ProfileBotDefense,
-		}
+		log.Warningf("[AS3] virtualServer: %v, ProfileBotDefense feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 
 	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
@@ -970,30 +954,24 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 	}
 
 	if cfg.Virtual.TranslateServerAddress == true {
-		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
+		log.Warningf("[AS3] virtualServer: %v, TranslateServerAddress feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 	if cfg.Virtual.TranslateServerPort == true {
-		svc.TranslateServerPort = cfg.Virtual.TranslateServerPort
+		log.Warningf("[AS3] virtualServer: %v, TranslateServerPort feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 	if cfg.Virtual.Source != "" {
-		svc.Source = cfg.Virtual.Source
+		log.Warningf("[AS3] virtualServer: %v, Source feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
-		if len(cfg.ServiceAddress) == 0 {
-			va := append(svc.VirtualAddresses, virtualAddress)
-			svc.VirtualAddresses = va
-			svc.VirtualPort = port
-		} else {
-			//Attach Service Address
-			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
-			sa := &as3ResourcePointer{
-				Use: serviceAddressName,
-			}
-			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
-			svc.VirtualPort = port
+		if len(cfg.ServiceAddress) > 0 {
+			log.Warningf("[AS3] virtualServer: %v, ServiceAddress feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 		}
+		va := append(svc.VirtualAddresses, virtualAddress)
+		svc.VirtualAddresses = va
+		svc.VirtualPort = port
+
 	}
 	var poolPointer as3ResourcePointer
 	ps := strings.Split(cfg.Virtual.PoolName, "/")
@@ -1023,10 +1001,7 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 	}
 	//Attach AllowVLANs
 	if cfg.Virtual.AllowVLANs != nil {
-		for _, vlan := range cfg.Virtual.AllowVLANs {
-			vlans := as3ResourcePointer{BigIP: vlan}
-			svc.AllowVLANs = append(svc.AllowVLANs, vlans)
-		}
+		log.Warningf("[AS3] virtualServer: %v, AllowVLANs feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 
 	//Attach Firewall policy
@@ -1038,9 +1013,7 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 
 	//Attach ipIntelligence policy
 	if cfg.Virtual.IpIntelligencePolicy != "" {
-		svc.IpIntelligencePolicy = &as3ResourcePointer{
-			BigIP: fmt.Sprintf("%v", cfg.Virtual.IpIntelligencePolicy),
-		}
+		log.Warningf("[AS3] virtualServer: %v, IpIntelligencePolicy feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 
 	//Attach logging profile
@@ -1144,7 +1117,6 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 		// Create AS3 Tenant
 		tenantDecl := as3Tenant{
 			"class":              "Tenant",
-			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
 			"label":              cisLabel,
 		}

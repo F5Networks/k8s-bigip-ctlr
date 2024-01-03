@@ -437,6 +437,18 @@ spec:
                     reference:
                       type: string
                       enum: [bigip, secret]
+                    clientSSLParams:
+                      type: object
+                      properties:
+                        renegotiationEnabled:
+                          type: boolean
+                          default: true
+                    serverSSLParams:
+                      type: object
+                      properties:
+                        renegotiationEnabled:
+                          type: boolean
+                          default: true
                   required:
                     - termination
 

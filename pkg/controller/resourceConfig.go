@@ -132,6 +132,7 @@ func NewCustomProfile(
 	caFile string,
 	chainCA string,
 	tlsCipher TLSCipher,
+	renegotiation *bool,
 ) CustomProfile {
 	cp := CustomProfile{
 		Name:         profile.Name,
@@ -142,6 +143,9 @@ func NewCustomProfile(
 		SNIDefault:   sni,
 		PeerCertMode: peerCertMode,
 		ChainCA:      chainCA,
+	}
+	if renegotiation != nil {
+		cp.RenegotiationEnabled = renegotiation
 	}
 	if peerCertMode == PeerCertRequired {
 		cp.CAFile = caFile
@@ -969,7 +973,7 @@ func (ctlr *Controller) handleTLS(
 						}
 						secrets = append(secrets, obj.(*v1.Secret))
 					}
-					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
+					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient, tlsContext.bigIPSSLProfiles.clientSSlParams.RenegotiationEnabled)
 					if err != nil {
 						log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
 							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -991,7 +995,7 @@ func (ctlr *Controller) handleTLS(
 							return false
 						}
 						secrets = append(secrets, obj.(*v1.Secret))
-						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
 						if err != nil {
 							log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
 								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -1005,7 +1009,7 @@ func (ctlr *Controller) handleTLS(
 				if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
 					cert := certificate{Cert: tlsContext.bigIPSSLProfiles.certificate, Key: tlsContext.bigIPSSLProfiles.key}
 					err, _ := ctlr.createClientSSLProfile(rsCfg, []certificate{cert},
-						fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
+						fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient, tlsContext.bigIPSSLProfiles.clientSSlParams.RenegotiationEnabled)
 					if err != nil {
 						log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
 							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -1018,10 +1022,10 @@ func (ctlr *Controller) handleTLS(
 					cert := certificate{Cert: tlsContext.bigIPSSLProfiles.destinationCACertificate}
 					if tlsContext.bigIPSSLProfiles.caCertificate != "" {
 						err, _ = ctlr.createServerSSLProfile(rsCfg, []certificate{cert},
-							tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+							tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
 					} else {
 						err, _ = ctlr.createServerSSLProfile(rsCfg, []certificate{cert},
-							"", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+							"", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
 					}
 					if err != nil {
 						log.Debugf("error %v encountered while creating serverssl profile  for '%s' '%s'/'%s'",
@@ -1216,12 +1220,14 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	} else if tls.Spec.TLS.ClientSSL != "" {
 		bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, tls.Spec.TLS.ClientSSL)
 	}
+	bigIPSSLProfiles.clientSSlParams = tls.Spec.TLS.ClientSSLParams
 	// Giving priority to ServerSSLs over ServerSSL
 	if len(tls.Spec.TLS.ServerSSLs) > 0 {
 		bigIPSSLProfiles.serverSSLs = tls.Spec.TLS.ServerSSLs
 	} else if tls.Spec.TLS.ServerSSL != "" {
 		bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, tls.Spec.TLS.ServerSSL)
 	}
+	bigIPSSLProfiles.serverSSlParams = tls.Spec.TLS.ServerSSLParams
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
 		poolBackends := ctlr.GetPoolBackends(&pl)

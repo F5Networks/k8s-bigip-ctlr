@@ -1457,7 +1457,9 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 			} else {
 				tlsServer.Ciphers = prof.Ciphers
 			}
-
+			if prof.RenegotiationEnabled != nil {
+				tlsServer.RenegotiationEnabled = prof.RenegotiationEnabled
+			}
 			sharedApp[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
 			updateVirtualToHTTPS(svc)
@@ -1540,6 +1542,9 @@ func createTLSClient(
 			tlsClient.TLS1_3Enabled = true
 		} else {
 			tlsClient.Ciphers = prof.Ciphers
+		}
+		if prof.RenegotiationEnabled != nil {
+			tlsClient.RenegotiationEnabled = prof.RenegotiationEnabled
 		}
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName

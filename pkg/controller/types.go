@@ -639,18 +639,19 @@ type (
 
 	// SSL Profile loaded from Secret or Route object
 	CustomProfile struct {
-		Name          string `json:"name"`
-		Partition     string `json:"-"`
-		Context       string `json:"context"` // 'clientside', 'serverside', or 'all'
-		Ciphers       string `json:"ciphers,omitempty"`
-		CipherGroup   string `json:"cipherGroup,omitempty"`
-		TLS1_3Enabled bool   `json:"tls1_3Enabled"`
-		ServerName    string `json:"serverName,omitempty"`
-		SNIDefault    bool   `json:"sniDefault,omitempty"`
-		PeerCertMode  string `json:"peerCertMode,omitempty"`
-		CAFile        string `json:"caFile,omitempty"`
-		ChainCA       string `json:"chainCA,omitempty"`
-		Certificates  []certificate
+		Name                 string `json:"name"`
+		Partition            string `json:"-"`
+		Context              string `json:"context"` // 'clientside', 'serverside', or 'all'
+		Ciphers              string `json:"ciphers,omitempty"`
+		CipherGroup          string `json:"cipherGroup,omitempty"`
+		TLS1_3Enabled        bool   `json:"tls1_3Enabled"`
+		ServerName           string `json:"serverName,omitempty"`
+		SNIDefault           bool   `json:"sniDefault,omitempty"`
+		PeerCertMode         string `json:"peerCertMode,omitempty"`
+		CAFile               string `json:"caFile,omitempty"`
+		ChainCA              string `json:"chainCA,omitempty"`
+		Certificates         []certificate
+		RenegotiationEnabled *bool `json:"renegotiationEnabled,omitempty"`
 	}
 
 	certificate struct {
@@ -1070,11 +1071,12 @@ type (
 
 	// as3TLSServer maps to TLS_Server in AS3 Resources
 	as3TLSServer struct {
-		Class         string                     `json:"class,omitempty"`
-		Certificates  []as3TLSServerCertificates `json:"certificates,omitempty"`
-		Ciphers       string                     `json:"ciphers,omitempty"`
-		CipherGroup   *as3ResourcePointer        `json:"cipherGroup,omitempty"`
-		TLS1_3Enabled bool                       `json:"tls1_3Enabled,omitempty"`
+		Class                string                     `json:"class,omitempty"`
+		Certificates         []as3TLSServerCertificates `json:"certificates,omitempty"`
+		Ciphers              string                     `json:"ciphers,omitempty"`
+		CipherGroup          *as3ResourcePointer        `json:"cipherGroup,omitempty"`
+		TLS1_3Enabled        bool                       `json:"tls1_3Enabled,omitempty"`
+		RenegotiationEnabled *bool                      `json:"renegotiationEnabled,omitempty"`
 	}
 
 	// as3TLSServerCertificates maps to TLS_Server_certificates in AS3 Resources
@@ -1085,12 +1087,13 @@ type (
 
 	// as3TLSClient maps to TLS_Client in AS3 Resources
 	as3TLSClient struct {
-		Class               string              `json:"class,omitempty"`
-		TrustCA             *as3ResourcePointer `json:"trustCA,omitempty"`
-		ValidateCertificate bool                `json:"validateCertificate,omitempty"`
-		Ciphers             string              `json:"ciphers,omitempty"`
-		CipherGroup         *as3ResourcePointer `json:"cipherGroup,omitempty"`
-		TLS1_3Enabled       bool                `json:"tls1_3Enabled,omitempty"`
+		Class                string              `json:"class,omitempty"`
+		TrustCA              *as3ResourcePointer `json:"trustCA,omitempty"`
+		ValidateCertificate  bool                `json:"validateCertificate,omitempty"`
+		Ciphers              string              `json:"ciphers,omitempty"`
+		CipherGroup          *as3ResourcePointer `json:"cipherGroup,omitempty"`
+		TLS1_3Enabled        bool                `json:"tls1_3Enabled,omitempty"`
+		RenegotiationEnabled *bool               `json:"renegotiationEnabled,omitempty"`
 	}
 
 	// as3DataGroup maps to Data_Group in AS3 Resources
@@ -1208,6 +1211,8 @@ type (
 		caCertificate            string
 		destinationCACertificate string
 		tlsCipher                TLSCipher
+		clientSSlParams          cisapiv1.ClientSSLParams
+		serverSSlParams          cisapiv1.ServerSSLParams
 	}
 
 	rgPlcSSLProfiles struct {

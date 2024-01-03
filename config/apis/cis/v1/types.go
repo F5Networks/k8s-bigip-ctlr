@@ -178,12 +178,24 @@ type TLSProfileSpec struct {
 
 // TLS contains required fields for TLS termination
 type TLS struct {
-	Termination string   `json:"termination"`
-	ClientSSL   string   `json:"clientSSL"`
-	ClientSSLs  []string `json:"clientSSLs"`
-	ServerSSL   string   `json:"serverSSL"`
-	ServerSSLs  []string `json:"serverSSLs"`
-	Reference   string   `json:"reference"`
+	Termination     string          `json:"termination"`
+	ClientSSL       string          `json:"clientSSL"`
+	ClientSSLs      []string        `json:"clientSSLs"`
+	ServerSSL       string          `json:"serverSSL"`
+	ServerSSLs      []string        `json:"serverSSLs"`
+	Reference       string          `json:"reference"`
+	ClientSSLParams ClientSSLParams `json:"clientSSLParams"`
+	ServerSSLParams ServerSSLParams `json:"serverSSLParams"`
+}
+
+// ClientSSLParams contains required fields for Client SSL
+type ClientSSLParams struct {
+	RenegotiationEnabled *bool `json:"renegotiationEnabled,omitempty"`
+}
+
+// ServerSSLParams contains required fields for Server SSL
+type ServerSSLParams struct {
+	RenegotiationEnabled *bool `json:"renegotiationEnabled,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -13,6 +13,7 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 	secrets []*v1.Secret,
 	tlsCipher TLSCipher,
 	context string,
+	renegotiationEnabled *bool,
 ) (error, bool) {
 
 	var certificates []certificate
@@ -35,7 +36,7 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 		certificates = append(certificates, cert)
 	}
 
-	return ctlr.createClientSSLProfile(rsCfg, certificates, secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context)
+	return ctlr.createClientSSLProfile(rsCfg, certificates, secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context, renegotiationEnabled)
 }
 
 // Creates a new ClientSSL profile from a Secret
@@ -46,6 +47,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	namespace string,
 	tlsCipher TLSCipher,
 	context string,
+	renegotiationEnabled *bool,
 ) (error, bool) {
 
 	// Create Default for SNI profile
@@ -60,7 +62,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, []certificate{}, "", true, "", "", "", tlsCipher)
+		cp := NewCustomProfile(sni, []certificate{}, "", true, "", "", "", tlsCipher, renegotiationEnabled)
 		rsCfg.customProfiles[skey] = cp
 	}
 
@@ -83,6 +85,7 @@ func (ctlr *Controller) createClientSSLProfile(
 		"",    // caFile
 		"",    // chainCA,
 		tlsCipher,
+		renegotiationEnabled,
 	)
 	skey = SecretKey{
 		Name:         cp.Name,
@@ -108,6 +111,7 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 	secrets []*v1.Secret,
 	tlsCipher TLSCipher,
 	context string,
+	renegotiationEnabled *bool,
 ) (error, bool) {
 
 	var certificates []certificate
@@ -123,7 +127,7 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 		}
 		certificates = append(certificates, cert)
 	}
-	return ctlr.createServerSSLProfile(rsCfg, certificates, "", secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context)
+	return ctlr.createServerSSLProfile(rsCfg, certificates, "", secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context, renegotiationEnabled)
 }
 
 // Creates a new ServerSSL profile from a Secret
@@ -135,6 +139,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	namespace string,
 	tlsCipher TLSCipher,
 	context string,
+	renegotiationEnabled *bool,
 ) (error, bool) {
 
 	// Create Default for SNI profile
@@ -149,7 +154,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, []certificate{}, "", true, "", "", "", tlsCipher)
+		cp := NewCustomProfile(sni, []certificate{}, "", true, "", "", "", tlsCipher, renegotiationEnabled)
 		rsCfg.customProfiles[skey] = cp
 	}
 	// TODO
@@ -171,6 +176,7 @@ func (ctlr *Controller) createServerSSLProfile(
 		"",        // caFile
 		certchain, // certchain,
 		tlsCipher,
+		renegotiationEnabled,
 	)
 	skey = SecretKey{
 		Name:         cp.Name,

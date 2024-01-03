@@ -18,17 +18,16 @@ package controller
 
 import (
 	"context"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 )
 
-func (ctlr *Controller) enableHttpEndpoint(httpAddress string, bigip cisapiv1.BigIpConfig) {
+func (ctlr *Controller) enableHttpEndpoint(httpAddress string) {
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
-	bigIPPrometheus.RegisterMetrics(ctlr.AgentMap[BigIpKey{BigIpAddress: bigip.BigIpAddress, BigIpLabel: bigip.BigIpLabel}].PostManager.HTTPClientMetrics, bigip.BigIpAddress)
+	bigIPPrometheus.RegisterMetrics(ctlr.RequestHandler.httpClientMetrics, ctlr.CMTokenManager.ServerURL)
 	// Expose cis health endpoint
 	http.Handle("/health", ctlr.CISHealthCheckHandler())
 	log.Fatal(http.ListenAndServe(httpAddress, nil).Error())

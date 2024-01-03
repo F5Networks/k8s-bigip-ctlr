@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"container/list"
 	"context"
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
@@ -85,14 +84,11 @@ var _ = Describe("Informers Tests", func() {
 			}
 			mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
 			mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-				reqChan: make(chan ResourceConfigRequest, 1),
-				PostManager: &PostManager{
-					tokenManager: mockCtlr.CMTokenManager,
-					postChan:     make(chan agentConfig, 1),
-				},
+			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+				tokenManager: mockCtlr.CMTokenManager,
+				postChan:     make(chan agentConfig, 1),
 			}
 			// setting teem data
 			mockCtlr.TeemData = &teem.TeemsData{
@@ -414,17 +410,13 @@ var _ = Describe("Informers Tests", func() {
 				},
 			}
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.AgentMap[bigIpKey] = &RequestHandler{
-				PostManager: &PostManager{
-					tokenManager: mockCtlr.CMTokenManager,
-					postChan:     make(chan agentConfig, 1),
-					PostParams: PostParams{
-						CMURL: "10.10.10.1",
-					},
-				},
+			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+				tokenManager: mockCtlr.CMTokenManager,
+				postChan:     make(chan agentConfig, 1),
+				PostParams:   PostParams{},
 			}
 
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
 
 			mockCtlr.enqueueExternalDNS(edns)
 			Expect(mockCtlr.processResources()).To(Equal(true))

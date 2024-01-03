@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"strings"
@@ -16,10 +17,14 @@ var _ = Describe("Backend Tests", func() {
 
 	Describe("Prepare AS3 Declaration", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
-		var agent *RequestHandler
+		var requestHandler *RequestHandler
 		BeforeEach(func() {
-			agent = newMockAgent(&PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1"}}, "test", "as3")
-			agent.PostManager.AS3PostManager = &AS3PostManager{}
+			requestHandler = newMockAgent("as3")
+			requestHandler.PostManagers.PostManagerMap[BigIpKey{}] = &PostManager{
+				PostParams: PostParams{},
+				AS3PostManager: &AS3PostManager{
+					AS3Config: v1.AS3Config{},
+				}}
 			mem1 = PoolMember{
 				Address:         "1.2.3.5",
 				Port:            8080,
@@ -232,18 +237,26 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigipConfig:         BigIpKey{},
+				bigIpKey:            BigIpKey{},
 			}
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
+			pm := &PostManager{
+				AS3PostManager: &AS3PostManager{
+					AS3Config: v1.AS3Config{},
+				},
+				tokenManager:        &tokenmanager.TokenManager{},
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				postChan:            make(chan agentConfig, 1),
+				defaultPartition:    "test",
+			}
+			as3Cfg := requestHandler.createAS3Config(config, pm)
 
-			decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
-
-			Expect(string(decl.(as3Declaration))).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl.(as3Declaration)), "pool1")).To(BeTrue())
-			Expect(strings.Contains(string(decl.(as3Declaration)), "default_pool_svc2")).To(BeTrue())
+			Expect(as3Cfg.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(as3Cfg.data, "pool1")).To(BeTrue())
+			Expect(strings.Contains(as3Cfg.data, "default_pool_svc2")).To(BeTrue())
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}
@@ -267,31 +280,48 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigipConfig:         BigIpKey{},
+				bigIpKey:            BigIpKey{},
 			}
 
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
+			pm := &PostManager{
+				AS3PostManager: &AS3PostManager{
+					AS3Config: v1.AS3Config{},
+				},
+				tokenManager:        &tokenmanager.TokenManager{},
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				postChan:            make(chan agentConfig, 1),
+				defaultPartition:    "test",
+			}
+			as3Cfg := requestHandler.createAS3Config(config, pm)
 
-			decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
-
-			Expect(string(decl.(as3Declaration))).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl.(as3Declaration)), "adminState")).To(BeTrue())
-			Expect(strings.Contains(string(decl.(as3Declaration)), "connectionLimit")).To(BeTrue())
+			Expect(as3Cfg.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(as3Cfg.data, "adminState")).To(BeTrue())
+			Expect(strings.Contains(as3Cfg.data, "connectionLimit")).To(BeTrue())
 
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
-				bigipConfig:         BigIpKey{},
+				bigIpKey:            BigIpKey{},
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			as3decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
+			pm := &PostManager{
+				AS3PostManager: &AS3PostManager{
+					AS3Config: v1.AS3Config{},
+				},
+				tokenManager:        &tokenmanager.TokenManager{},
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				postChan:            make(chan agentConfig, 1),
+				defaultPartition:    "test",
+			}
+			as3Cfg := requestHandler.createAS3Config(config, pm)
 			var as3Config map[string]interface{}
-			_ = json.Unmarshal([]byte(as3decl.(as3Declaration)), &as3Config)
+			_ = json.Unmarshal([]byte(as3Cfg.data), &as3Config)
 			deletedTenantDecl := as3Tenant{
 				"class": "Tenant",
 			}
@@ -326,7 +356,7 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Prepare AS3 Declaration with HAMode", func() {
-		var agent *RequestHandler
+		var requestHandler *RequestHandler
 		tnt := "test"
 		BeforeEach(func() {
 			client, _ := getMockHttpClient([]responceCtx{{
@@ -334,26 +364,33 @@ var _ = Describe("Backend Tests", func() {
 				status: http.StatusOK,
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
-			agent = newMockAgent(&PostManager{PostParams: PostParams{CMURL: "https://192.168.1.1", httpClient: client},
-				defaultPartition: "test"}, "test", "as3")
-			agent.PostManager.HAMode = true
-			agent.PostManager.AS3PostManager = &AS3PostManager{}
-
+			requestHandler = newMockAgent("as3")
+			requestHandler.PostManagers.PostManagerMap[BigIpKey{}] = &PostManager{
+				PostParams: PostParams{
+					httpClient: client},
+				AS3PostManager: &AS3PostManager{
+					AS3Config: v1.AS3Config{},
+				}}
+			requestHandler.HAMode = true
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
-				bigipConfig:         BigIpKey{},
-				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
+				bigIpKey: BigIpKey{},
+				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{
+					"test": &PartitionConfig{ResourceMap: make(ResourceMap)},
+				}},
 			}
-
-			agent.PostManager.AS3PostManager.firstPost = true
-			agent.PostManager.tokenManager = tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false)
-			currentConfig, _ := agent.PostManager.GetAS3DeclarationFromBigIP()
-			removeDeletedTenantsForBigIP(&config.bigIpResourceConfig, agent.PostManager.defaultPartition, currentConfig, agent.PostManager.defaultPartition)
-			decl := agent.createTenantDeclaration(config.bigIpResourceConfig, "test", make(map[string]as3Tenant))
-
-			Expect(string(decl.(as3Declaration))).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl.(as3Declaration)), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
+			pm := &PostManager{
+				AS3PostManager: &AS3PostManager{
+					AS3Config: v1.AS3Config{},
+				},
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				postChan:            make(chan agentConfig, 1),
+				defaultPartition:    "test",
+			}
+			as3Cfg := requestHandler.createAS3Config(config, pm)
+			Expect(as3Cfg.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(as3Cfg.data, "\"class\":\"Tenant\"")).To(BeTrue())
 
 		})
 	})
@@ -517,11 +554,11 @@ var _ = Describe("Backend Tests", func() {
 		})
 		//Commenting this as we no longer AS3 version from CM
 		/*It("New Agent", func() {
-			var agentParams AgentParams
+			var agentParams PostParams
 			agentParams.EnableIPV6 = true
 			agentParams.Partition = "test"
 			agentParams.PostParams.CMURL = "http://" + server.Addr()
-			requesthandler := NewAgent(agentParams, "bigip1")
+			requesthandler := NewRequestHandler(agentParams, "bigip1")
 			Expect(requesthandler.AS3VersionInfo.as3Version).To(Equal("3.48.0"))
 		})*/
 	})

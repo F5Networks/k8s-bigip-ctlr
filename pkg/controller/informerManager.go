@@ -34,8 +34,8 @@ func (ctlr *Controller) initInformers() {
 	ctlr.updateResourceSelectorConfig(configCR.Spec.BaseConfig)
 	ctlr.updateBigIpConfigMap(configCR.Spec.BigIpConfig)
 	// update the agent params
-	ctlr.AgentParams.PostParams.AS3Config = configCR.Spec.AS3Config
-	ctlr.AgentParams.PostParams.tokenManager = ctlr.CMTokenManager
+	ctlr.PostParams.AS3Config = configCR.Spec.AS3Config
+	ctlr.PostParams.tokenManager = ctlr.CMTokenManager
 	if ctlr.managedResources.ManageRoutes {
 		// initialize the processed host-path map
 		var processedHostPath ProcessedHostPath

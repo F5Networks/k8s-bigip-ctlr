@@ -330,13 +330,12 @@ func initController(
 	config *rest.Config,
 ) *controller.Controller {
 
-	agentParams := getAgentParams()
 	ctlr := controller.NewController(
 		controller.Params{
 			Config:           config,
 			PoolMemberType:   poolMemberMode,
 			OrchestrationCNI: *orchestrationCNI,
-			AgentParams:      agentParams,
+			UserAgent:        userAgentInfo,
 			CMConfigDetails: &controller.CMConfig{
 				URL:      *cmURL,
 				UserName: *cmUsername,
@@ -351,23 +350,6 @@ func initController(
 	)
 
 	return ctlr
-}
-
-func getAgentParams() controller.AgentParams {
-	postMgrParams := controller.PostParams{
-		CMUsername:   *cmUsername,
-		CMPassword:   *cmPassword,
-		CMURL:        *cmURL,
-		TrustedCerts: "",
-		SSLInsecure:  true,
-	}
-
-	agentParams := controller.AgentParams{
-		PostParams: postMgrParams,
-		LogLevel:   *logLevel,
-		UserAgent:  userAgentInfo,
-	}
-	return agentParams
 }
 
 func initTeems(ctlr *controller.Controller) {
@@ -400,9 +382,10 @@ func initTeems(ctlr *controller.Controller) {
 	}
 	ctlr.TeemData = td
 	if !(*disableTeems) {
-		for _, agent := range ctlr.AgentMap {
+		ctlr.RequestHandler.PostManagers.RLock()
+		for _, pm := range ctlr.RequestHandler.PostManagers.PostManagerMap {
 			//TODO: Handle get reg key for each BIG-IP
-			key, err := agent.PostManager.GetBigipRegKey()
+			key, err := pm.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}
@@ -410,6 +393,7 @@ func initTeems(ctlr *controller.Controller) {
 			ctlr.TeemData.RegistrationKey = key
 			ctlr.TeemData.Unlock()
 		}
+		ctlr.RequestHandler.PostManagers.RUnlock()
 	}
 }
 

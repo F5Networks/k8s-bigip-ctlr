@@ -10,11 +10,11 @@ import (
 	"strings"
 )
 
-func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
+func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent, targetAddress string) as3Declaration {
 	var as3Config map[string]interface{}
 
 	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
-		postMgr.AS3VersionInfo.as3Release, postMgr.AS3VersionInfo.as3SchemaVersion)
+		postMgr.AS3VersionInfo.as3Release)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
 
 	adc := as3Config["declaration"].(map[string]interface{})
@@ -26,6 +26,10 @@ func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3
 
 	for tenant, decl := range tenantDeclMap {
 		adc[tenant] = decl
+	}
+	// Set the target address for ADC
+	adc["target"] = as3Target{
+		"address": targetAddress,
 	}
 	decl, err := json.Marshal(as3Config)
 	if err != nil {
@@ -1050,32 +1054,31 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 }
 
 // Creates AS3 adc only for tenants with updated configuration
-func (req *RequestHandler) createTenantDeclaration(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) interface{} {
-	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
-	req.PostManager.incomingTenantDeclMap = make(map[string]as3Tenant)
-	req.PostManager.tenantPriorityMap = make(map[string]int)
-
-	for tenant, cfg := range req.PostManager.AS3PostManager.createAS3BIGIPConfig(config, partition, cachedTenantDeclMap) {
-		if !reflect.DeepEqual(cfg, req.PostManager.cachedTenantDeclMap[tenant]) ||
-			(req.PostManager.PrimaryClusterHealthProbeParams.EndPoint != "" && req.PostManager.PrimaryClusterHealthProbeParams.statusChanged) {
-			req.PostManager.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
+func (req *RequestHandler) createAS3Config(rsConfig ResourceConfigRequest, pm *PostManager) as3Config {
+	as3cfg := as3Config{
+		id:                    rsConfig.reqMeta.id,
+		tenantResponseMap:     make(map[string]tenantResponse),
+		failedTenants:         make(map[string]struct{}),
+		incomingTenantDeclMap: make(map[string]as3Tenant),
+	}
+	for tenant, cfg := range pm.AS3PostManager.createAS3BIGIPConfig(rsConfig.bigIpResourceConfig, pm.defaultPartition, pm.cachedTenantDeclMap) {
+		if !reflect.DeepEqual(cfg, pm.cachedTenantDeclMap[tenant]) ||
+			(req.PrimaryClusterHealthProbeParams.EndPoint != "" && req.PrimaryClusterHealthProbeParams.statusChanged) {
+			as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
+			as3cfg.tenantResponseMap[tenant] = tenantResponse{}
 		} else {
-			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
-			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
-			// delete entry from retryTenantDeclMap if any
-			delete(req.PostManager.retryTenantDeclMap, tenant)
 			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
-			if req.PostManager.PrimaryClusterHealthProbeParams.EndPoint == "" || !req.PostManager.PrimaryClusterHealthProbeParams.statusRunning {
+			if req.PrimaryClusterHealthProbeParams.EndPoint == "" || !req.PrimaryClusterHealthProbeParams.statusRunning {
 				log.Debugf("[AS3] No change in %v tenant configuration", tenant)
 			}
 		}
 	}
-
-	return req.PostManager.AS3PostManager.createAS3Declaration(req.PostManager.incomingTenantDeclMap, req.userAgent)
+	as3cfg.data = string(pm.AS3PostManager.createAS3Declaration(as3cfg.incomingTenantDeclMap, req.userAgent, rsConfig.bigIpKey.BigIpAddress))
+	return as3cfg
 }
 
-func (req *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
-	adc := req.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap)
+func (as3PM *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
+	adc := as3PM.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap)
 	return adc
 }
 
@@ -1128,7 +1131,6 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 // removeDeletedTenantsForBigIP will check the tenant exists on bigip or not
 // if tenant exists and rsConfig does not have tenant, update the tenant with empty PartitionConfig
 func removeDeletedTenantsForBigIP(rsConfig *BigIpResourceConfig, cisLabel string, as3Config map[string]interface{}, partition string) {
-
 	for k, v := range as3Config {
 		if decl, ok := v.(map[string]interface{}); ok {
 			if label, found := decl["label"]; found && label == cisLabel && k != partition+"_gtm" {

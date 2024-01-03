@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"net/http"
+	"sync"
 	"testing"
 )
 
@@ -41,15 +42,20 @@ type (
 )
 
 func newMockController() *mockController {
+	tokenManager := tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false)
 	return &mockController{
 		Controller: &Controller{
 			resourceSelectorConfig: ResourceSelectorConfig{},
-			CMTokenManager:         tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false),
-			AgentMap:               map[BigIpKey]*RequestHandler{},
-			bigIpMap:               make(BigIpMap),
-			AgentParams:            AgentParams{},
-			clientsets:             &ClientSets{},
-			managedResources:       ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
+			CMTokenManager:         tokenManager,
+			RequestHandler: &RequestHandler{
+				PostManagers: PostManagers{sync.RWMutex{}, make(map[BigIpKey]*PostManager)},
+				reqChan:      make(chan ResourceConfigRequest, 1),
+				PostParams:   PostParams{tokenManager: tokenManager},
+			},
+			bigIpMap:         make(BigIpMap),
+			PostParams:       PostParams{},
+			clientsets:       &ClientSets{},
+			managedResources: ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
 		},
 	}
 }
@@ -63,14 +69,12 @@ func newMockPostManger() *mockPostManager {
 		PostManager: &PostManager{
 			postChan:            make(chan agentConfig, 1),
 			cachedTenantDeclMap: make(map[string]as3Tenant),
-			retryTenantDeclMap:  make(map[string]*tenantParams),
-			respChan:            make(chan resourceStatusMeta, 1),
+			respChan:            make(chan *agentConfig, 1),
 		},
 		Responses: []int{},
 		RespIndex: 0,
 	}
 	mockPM.AS3PostManager = &AS3PostManager{}
-	mockPM.tenantResponseMap = make(map[string]tenantResponse)
 	mockPM.AS3PostManager.firstPost = true
 	mockPM.tokenManager = tokenmanager.NewTokenManager(
 		"0.0.0.0",
@@ -111,10 +115,10 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	mockPM.PostParams.httpClient = client
 }
 
-func newMockAgent(postManager *PostManager, partition, userAgent string) *RequestHandler {
+func newMockAgent(userAgent string) *RequestHandler {
 	return &RequestHandler{
-		PostManager: postManager,
-		userAgent:   userAgent,
+		PostManagers: PostManagers{sync.RWMutex{}, make(map[BigIpKey]*PostManager)},
+		userAgent:    userAgent,
 	}
 }
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {

@@ -116,6 +116,9 @@ func (req *RequestHandler) createDeclarationForBIGIP(rsConfig ResourceConfigRequ
 	//for each request config create AS3, L3 declaration
 	// create the AS3 declaration for the bigip
 	as3cfg := req.createAS3Config(rsConfig, pm)
+	if len(rsConfig.bigIpResourceConfig.ltmConfig) == 0 {
+		as3cfg.deleted = true
+	}
 	// TODO : Create the L3 declaration for the bigip
 	agentCfg = agentConfig{
 		id:        rsConfig.reqMeta.id,

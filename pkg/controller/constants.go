@@ -227,3 +227,5 @@ const AllowSourceRangeDgName = "allowSourceRange"
 const AbDeploymentDgName = "ab_deployment_dg"
 
 const BigIPLabel = ""
+
+const CM_DECLARE_API = "/api/v1/spaces/default/appsvcs/documents/"

@@ -39,7 +39,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			mockPM.AS3PostManager.firstPost = false
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(as3Cfg.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})
 
@@ -50,7 +50,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   "",
 			}}, http.MethodPost)
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(as3Cfg.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})
 
@@ -67,9 +67,9 @@ var _ = Describe("AS3PostManager Tests", func() {
 					status: http.StatusAccepted,
 					body:   `{"id": "100", "code": 400}`,
 				}}, http.MethodPost)
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(as3Cfg.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 		})
 
 		It("Handle Expected HTTP Response Errors", func() {
@@ -86,9 +86,9 @@ var _ = Describe("AS3PostManager Tests", func() {
 					body:   "",
 				},
 			}, http.MethodPost)
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(len(as3Cfg.tenantResponseMap)).To(BeZero(), "Posting Failed")
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(len(as3Cfg.tenantResponseMap)).To(BeZero(), "Posting Failed")
 		})
 
@@ -112,15 +112,15 @@ var _ = Describe("AS3PostManager Tests", func() {
 				},
 			}, http.MethodPost)
 
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(len(as3Cfg.tenantResponseMap)).To(Equal(1), "Posting Failed")
 			Expect(as3Cfg.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
 
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(len(as3Cfg.tenantResponseMap)).To(Equal(1), "Posting Failed")
 			Expect(as3Cfg.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
 
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(len(as3Cfg.tenantResponseMap)).To(Equal(1), "Posting Failed")
 			Expect(as3Cfg.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusAlreadyReported))
 		})
@@ -133,7 +133,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 				body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"success", "tenant": "%s"}],"declaration": {"%s": {"Shared": {"class": "application"}}}}`, http.StatusOK, tnt, tnt),
 			},
 			}, http.MethodPost)
-			mockPM.publishConfig(as3Cfg)
+			mockPM.publishConfig(&as3Cfg)
 			Expect(len(as3Cfg.tenantResponseMap)).To(Equal(1), "Posting Failed")
 		})
 	})

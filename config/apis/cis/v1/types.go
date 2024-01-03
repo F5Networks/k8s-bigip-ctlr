@@ -446,6 +446,7 @@ type BaseConfig struct {
 type AS3Config struct {
 	DebugAS3     bool `json:"debugAS3,omitempty"`
 	PostDelayAS3 int  `json:"postDelayAS3,omitempty"`
+	DocumentAPI  bool `json:"documentAPI,omitempty"`
 }
 
 type BigIpConfig struct {

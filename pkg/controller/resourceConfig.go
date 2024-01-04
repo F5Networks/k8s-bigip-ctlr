@@ -693,6 +693,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
 
+	if vs.Spec.HTMLProfile != "" {
+		rsCfg.Virtual.HTMLProfile = vs.Spec.HTMLProfile
+	}
+
 	if len(vs.Spec.Profiles.TCP.Client) > 0 || len(vs.Spec.Profiles.TCP.Server) > 0 {
 		rsCfg.Virtual.TCP.Client = vs.Spec.Profiles.TCP.Client
 		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
@@ -2177,6 +2181,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
+	rsCfg.Virtual.HTMLProfile = plc.Spec.Profiles.HTMLProfile
 	if ctlr.PoolMemberType == Cluster {
 		rsCfg.Virtual.MultiPoolPersistence.Method = plc.Spec.PoolSettings.MultiPoolPersistence.Method
 		rsCfg.Virtual.MultiPoolPersistence.TimeOut = plc.Spec.PoolSettings.MultiPoolPersistence.TimeOut

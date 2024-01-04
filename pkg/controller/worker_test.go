@@ -1126,6 +1126,7 @@ var _ = Describe("Worker Tests", func() {
 							},
 							ProfileL4:          "/Common/security-fastL4",
 							PersistenceProfile: "source-address",
+							HTMLProfile:        "/Common/html",
 							LogProfiles:        []string{"/Common/local-dos"},
 						},
 					},
@@ -1597,6 +1598,7 @@ var _ = Describe("Worker Tests", func() {
 						WAF:                "/Common/WAF",
 						IRules:             []string{"/Common/SampleIRule"},
 						PersistenceProfile: "source-address",
+						HTMLProfile:        "/Common/htmlProfile",
 						AllowVLANs:         []string{"/Common/devtraffic"},
 						Profiles: cisapiv1.ProfileVSSpec{
 							TCP: cisapiv1.ProfileTCP{
@@ -1747,6 +1749,8 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.IRules)).To(Equal(4), "irules not propely attached")
 				//check websocket profile
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.ProfileWebSocket).To(Equal("/Common/websocket"))
+				//check websocket profile
+				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HTMLProfile).To(Equal("/Common/htmlProfile"))
 				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
 					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
 						Expect(len(rule.Actions)).To(Equal(3))

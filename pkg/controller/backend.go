@@ -974,6 +974,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			BigIP: cfg.Virtual.ProfileBotDefense,
 		}
 	}
+	if len(cfg.Virtual.HTMLProfile) > 0 {
+		svc.ProfileHTML = &as3ResourcePointer{
+			BigIP: cfg.Virtual.HTMLProfile,
+		}
+	}
 
 	if cfg.MetaData.Protocol == "https" {
 		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {

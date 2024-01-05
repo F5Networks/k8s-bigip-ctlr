@@ -7,6 +7,8 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Improved Operator support for OpenShift 4.14
+    * CRD
+        * Support for HTML profile in Policy CR and VirtualServer CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.15-stable/docs/config_examples/customResource/Policy/policy-with-html-profile.yaml>`
 
 Bug Fixes
 ````````````

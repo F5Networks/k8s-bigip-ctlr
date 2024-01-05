@@ -55,6 +55,7 @@ type VirtualServerSpec struct {
 	AllowSourceRange                 []string         `json:"allowSourceRange,omitempty"`
 	HttpMrfRoutingEnabled            *bool            `json:"httpMrfRoutingEnabled,omitempty"`
 	Partition                        string           `json:"partition,omitempty"`
+	HTMLProfile                      string           `json:"htmlProfile,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -406,6 +407,7 @@ type ProfileSpec struct {
 	SSLProfiles           SSLProfiles       `json:"sslProfiles,omitempty"`
 	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
 	ProfileWebSocket      string            `json:"profileWebSocket,omitempty"`
+	HTMLProfile           string            `json:"htmlProfile,omitempty"`
 }
 
 type ProfileVSSpec struct {

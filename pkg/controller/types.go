@@ -243,6 +243,7 @@ type (
 		AutoLastHop                string                `json:"lastHop,omitempty"`
 		AnalyticsProfiles          AnalyticsProfiles     `json:"analyticsProfiles,omitempty"`
 		MultiPoolPersistence       MultiPoolPersistence  `json:"multiPoolPersistence,omitempty"`
+		HTMLProfile                string                `json:"htmlProfile,omitempty"`
 	}
 	MultiPoolPersistence struct {
 		Method  string `json:"method,omitempty"`
@@ -1022,6 +1023,7 @@ type (
 		IpIntelligencePolicy   as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
 		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
 		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
+		ProfileHTML            as3MultiTypeParam    `json:"profileHTML,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

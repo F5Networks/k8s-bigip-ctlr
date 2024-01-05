@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -53,27 +54,27 @@ var _ = Describe("Profile", func() {
 		secrets := []*v1.Secret{secret}
 		tlsCipher := mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher
 
-		err, updated := mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated := mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).To(BeNil(), "Failed to Create Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Client SSL")
 
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).To(BeNil(), "Failed to Create Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Client SSL")
 
 		secret.Data["tls.crt"] = []byte("dfaf")
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).To(BeNil(), "Failed to Update Client SSL")
 		Expect(updated).To(BeTrue(), "Failed to Update Client SSL")
 
 		// Negative Cases
 		delete(secret.Data, "tls.crt")
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).ToNot(BeNil(), "Failed to Validate Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Client SSL")
 
 		delete(secret.Data, "tls.key")
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).ToNot(BeNil(), "Failed to Validate Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Client SSL")
 
@@ -108,22 +109,27 @@ var _ = Describe("Profile", func() {
 		secret.Data["tls.crt"] = []byte("ahfa;osejfn;kahse;ha")
 		secrets := []*v1.Secret{secret}
 		tlsCipher := mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher
-		err, updated := mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		renegotaiationEnabled := true
+		err, updated := mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside", &renegotaiationEnabled)
+		skey := SecretKey{
+			Name:         fmt.Sprintf("default-%s-%s", "clientside", rsCfg.GetName()),
+			ResourceName: rsCfg.GetName(),
+		}
+		Expect(rsCfg.customProfiles[skey].RenegotiationEnabled).To(Equal(&renegotaiationEnabled), "Failed to Update renegotiationEnabled")
 		Expect(err).To(BeNil(), "Failed to Create Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Server SSL")
-
-		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).To(BeNil(), "Failed to Create Server SSL")
-		Expect(updated).To(BeFalse(), "Failed to Create Server SSL")
+		Expect(updated).To(BeTrue(), "Failed to Create Server SSL")
 
 		secret.Data["tls.crt"] = []byte("dfaf")
-		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).To(BeNil(), "Failed to Update Server SSL")
 		Expect(updated).To(BeTrue(), "Failed to Update Server SSL")
 
 		// Negative Cases
 		delete(secret.Data, "tls.crt")
-		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "clientside", nil)
 		Expect(err).ToNot(BeNil(), "Failed to Validate Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Server SSL")
 

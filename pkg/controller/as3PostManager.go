@@ -12,12 +12,22 @@ import (
 
 func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent, targetAddress string) as3Declaration {
 	var as3Config map[string]interface{}
-
-	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
-		postMgr.AS3VersionInfo.as3Release)
-	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
-
-	adc := as3Config["declaration"].(map[string]interface{})
+	var adc map[string]interface{}
+	var baseAS3ConfigTemplate string
+	if !postMgr.AS3Config.DocumentAPI {
+		baseAS3ConfigTemplate = fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
+			postMgr.AS3VersionInfo.as3Release)
+		_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
+		adc = as3Config["declaration"].(map[string]interface{})
+		// Set the target address for ADC
+		adc["target"] = as3Target{
+			"address": targetAddress,
+		}
+	} else {
+		baseAS3ConfigTemplate = baseAS3Config2
+		_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
+		adc = as3Config
+	}
 
 	controlObj := make(map[string]interface{})
 	controlObj["class"] = "Controls"
@@ -27,10 +37,7 @@ func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3
 	for tenant, decl := range tenantDeclMap {
 		adc[tenant] = decl
 	}
-	// Set the target address for ADC
-	adc["target"] = as3Target{
-		"address": targetAddress,
-	}
+
 	decl, err := json.Marshal(as3Config)
 	if err != nil {
 		log.Debugf("[AS3] Unified declaration: %v\n", err)
@@ -112,7 +119,7 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 }
 
 // Process for AS3 Resource
-func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string) {
+func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string, documentAPI bool) {
 	for _, cfg := range rsMap {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
@@ -129,7 +136,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 			createServiceDecl(cfg, sharedApp, tenant)
 		case TransportServer:
 			//Create AS3 Service for transport virtual server
-			createTransportServiceDecl(cfg, sharedApp, tenant)
+			createTransportServiceDecl(cfg, sharedApp, tenant, documentAPI)
 		}
 	}
 }
@@ -884,7 +891,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 transport Service for CRD
-func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string, documentAPI bool) {
 	svc := &as3Service{}
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
@@ -977,14 +984,19 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 		svc.VirtualPort = port
 
 	}
-	var poolPointer as3ResourcePointer
 	ps := strings.Split(cfg.Virtual.PoolName, "/")
-	poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+	poolValue := fmt.Sprintf("/%s/%s/%s",
 		tenant,
 		as3SharedApplication,
 		ps[len(ps)-1],
 	)
-	svc.Pool = &poolPointer
+	if !documentAPI {
+		var poolPointer as3ResourcePointer
+		poolPointer.Use = poolValue
+		svc.Pool = &poolPointer
+	} else {
+		svc.Pool = poolValue
+	}
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
@@ -1105,7 +1117,7 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 		sharedApp["template"] = "shared"
 
 		// Process rscfg to create AS3 Resources
-		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName)
+		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName, postMgr.AS3Config.DocumentAPI)
 
 		// Process CustomProfiles
 		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, postMgr.bigIPAS3Version)

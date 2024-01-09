@@ -766,7 +766,8 @@ type (
 		defaultPartition    string
 		respChan            chan *agentConfig
 		PostParams
-		postManagerPrefix string
+		postManagerPrefix      string
+		tenantDeclarationIDMap map[string]string
 	}
 
 	PostManagers struct {
@@ -815,12 +816,14 @@ type (
 	//as3Config to put into post channel
 	as3Config struct {
 		data                  string
+		targetAddress         string
 		as3APIURL             string
 		id                    int
 		tenantResponseMap     map[string]tenantResponse
 		acceptedTaskId        string
 		failedTenants         map[string]struct{}
 		incomingTenantDeclMap map[string]as3Tenant
+		deleted               bool
 	}
 
 	//TODO L3Config to put into post channel. Handle with L3Postmanager implementation
@@ -969,18 +972,19 @@ type (
 	// - Service_TCP
 	// - Service_UDP
 	as3Service struct {
-		Layer4               string               `json:"layer4,omitempty"`
-		Class                string               `json:"class,omitempty"`
-		VirtualAddresses     []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
-		VirtualPort          int                  `json:"virtualPort,omitempty"`
-		SNAT                 as3MultiTypeParam    `json:"snat,omitempty"`
-		Mirroring            string               `json:"mirroring,omitempty"`
-		PolicyEndpoint       as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
-		ClientTLS            as3MultiTypeParam    `json:"clientTLS,omitempty"`
-		ServerTLS            as3MultiTypeParam    `json:"serverTLS,omitempty"`
-		IRules               as3MultiTypeParam    `json:"iRules,omitempty"`
-		Redirect80           *bool                `json:"redirect80,omitempty"`
-		Pool                 *as3ResourcePointer  `json:"pool,omitempty"`
+		Layer4           string              `json:"layer4,omitempty"`
+		Class            string              `json:"class,omitempty"`
+		VirtualAddresses []as3MultiTypeParam `json:"virtualAddresses,omitempty"`
+		VirtualPort      int                 `json:"virtualPort,omitempty"`
+		SNAT             as3MultiTypeParam   `json:"snat,omitempty"`
+		Mirroring        string              `json:"mirroring,omitempty"`
+		PolicyEndpoint   as3MultiTypeParam   `json:"policyEndpoint,omitempty"`
+		ClientTLS        as3MultiTypeParam   `json:"clientTLS,omitempty"`
+		ServerTLS        as3MultiTypeParam   `json:"serverTLS,omitempty"`
+		IRules           as3MultiTypeParam   `json:"iRules,omitempty"`
+		Redirect80       *bool               `json:"redirect80,omitempty"`
+		//Pool                 *as3ResourcePointer  `json:"pool,omitempty"`
+		Pool                 interface{}          `json:"pool,omitempty"`
 		WAF                  as3MultiTypeParam    `json:"policyWAF,omitempty"`
 		Firewall             as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
 		LogProfiles          []as3ResourcePointer `json:"securityLogProfiles,omitempty"`

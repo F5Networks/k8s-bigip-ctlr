@@ -1120,6 +1120,8 @@ spec:
                       type: boolean
                     postDelayAS3:
                       type: integer
+                    documentAPI:
+                      type: boolean
                   type: object
                 baseConfig:
                   properties:

@@ -2358,16 +2358,16 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	if isTSDeleted {
-		rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
-		var hostnames []string
-		if _, ok := rsMap[rsName]; ok {
-			hostnames = rsMap[rsName].MetaData.hosts
-		}
+		//rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
+		//var hostnames []string
+		//if _, ok := rsMap[rsName]; ok {
+		//	hostnames = rsMap[rsName].MetaData.hosts
+		//}
 
 		ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
-		if len(hostnames) > 0 {
-			ctlr.ProcessAssociatedExternalDNS(hostnames)
-		}
+		//if len(hostnames) > 0 {
+		//	ctlr.ProcessAssociatedExternalDNS(hostnames)
+		//}
 
 		return nil
 	}

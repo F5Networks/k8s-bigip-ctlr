@@ -48,16 +48,10 @@ import (
 func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
-		resources:       NewResourceStore(),
-		PoolMemberType:  params.PoolMemberType,
-		UseNodeInternal: params.UseNodeInternal,
-		initState:       true,
-		shareNodes:      params.ShareNodes,
-		//eventNotifier:         apm.NewEventNotifier(nil),
+		resources:             NewResourceStore(),
+		UseNodeInternal:       params.UseNodeInternal,
+		initState:             true,
 		defaultRouteDomain:    params.DefaultRouteDomain,
-		StaticRoutingMode:     params.StaticRoutingMode,
-		OrchestrationCNI:      params.OrchestrationCNI,
-		StaticRouteNodeCIDR:   params.StaticRouteNodeCIDR,
 		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
 		multiClusterResources: newMultiClusterResourceStore(),
 		multiClusterMode:      params.MultiClusterMode,
@@ -85,11 +79,6 @@ func NewController(params Params) *Controller {
 
 	// set extended spec configCR for all
 	ctlr.CISConfigCRKey = params.CISConfigCRKey
-
-	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
-	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
-		ctlr.shareNodes = true
-	}
 
 	if err := ctlr.setupClients(params.Config); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)

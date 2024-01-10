@@ -1,3 +1,4 @@
+# note : any change to the cniConfig block requires the CIS to be restarted
 apiVersion: "cis.f5.com/v1"
 kind: DeployConfig
 metadata:
@@ -9,6 +10,12 @@ spec:
   baseConfig:
     namespaceLabel: controller=cis
     nodeLabel: controller=cis
+  networkConfig:
+    orchestrationCNI: ovn-static
+    metaData:
+      poolMemberType: cluster
+      sharedRouteMode: true
+      networkCIDR: "10.1.0.0/16"
   as3Config:
     debugAS3: true
     postDelayAS3: 10

@@ -3843,6 +3843,49 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 	return nil
 }
 
+func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
+
+	if ctlr.PoolMemberType != "" {
+		return
+	}
+
+	ctlr.OrchestrationCNI = configCR.Spec.NetworkConfig.OrchestrationCNI
+	ctlr.PoolMemberType = configCR.Spec.NetworkConfig.MetaData.PoolMemberType
+	if ctlr.PoolMemberType == "" {
+		ctlr.PoolMemberType = NodePort
+	}
+
+	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
+		ctlr.shareNodes = true
+		if ctlr.isStaticRouteCNI() {
+			log.Errorf("static route CNI: %v not supported with nodeport/nodeportlocal mode. Only supported with cluster mode", ctlr.OrchestrationCNI)
+			os.Exit(1)
+		}
+	} else if ctlr.PoolMemberType == Cluster {
+		if ctlr.OrchestrationCNI == "flannel" || ctlr.OrchestrationCNI == "cilium" ||
+			ctlr.OrchestrationCNI == "openshift-sdn" {
+			if configCR.Spec.NetworkConfig.MetaData.TunnelName == "" {
+				log.Errorf("tunnelName is not set in CIS Config CR")
+				os.Exit(1)
+			}
+		} else if ctlr.isStaticRouteCNI() {
+			ctlr.StaticRoutingMode = true
+			ctlr.StaticRouteNodeCIDR = configCR.Spec.NetworkConfig.MetaData.NetworkCIDR
+		} else {
+			log.Errorf("invalid CNI: %v configured in Config CR", ctlr.OrchestrationCNI)
+			os.Exit(1)
+		}
+	}
+}
+
+func (ctlr *Controller) isStaticRouteCNI() bool {
+	if ctlr.OrchestrationCNI == "flannel-static" || ctlr.OrchestrationCNI == "cilium-static" ||
+		ctlr.OrchestrationCNI == "ovn-static" || ctlr.OrchestrationCNI == "antrea-static" {
+		return true
+	}
+	return false
+}
+
 func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelete bool) (error, bool) {
 	startTime := time.Now()
 	defer func() {

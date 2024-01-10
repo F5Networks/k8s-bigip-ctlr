@@ -31,6 +31,7 @@ func (ctlr *Controller) initInformers() {
 		log.Errorf("%v", err)
 		os.Exit(1)
 	}
+	ctlr.processCNIConfig(configCR)
 	ctlr.updateResourceSelectorConfig(configCR.Spec.BaseConfig)
 	ctlr.updateBigIpConfigMap(configCR.Spec.BigIpConfig)
 	// update the agent params

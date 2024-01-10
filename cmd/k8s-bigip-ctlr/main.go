@@ -88,9 +88,8 @@ var (
 
 	trustedCertsCfgmap *string
 
-	orchestrationCNI *string
-	CISConfigCR      *string
-	httpAddress      *string
+	CISConfigCR *string
+	httpAddress *string
 
 	// package variables
 	kubeClient    kubernetes.Interface
@@ -123,7 +122,6 @@ func _init() {
 		"Optional, print version and exit.")
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
-	orchestrationCNI = globalFlags.String("orchestration-cni", "", "Optional, flag to specify orchestration CNI configured")
 	useNodeInternal = kubeFlags.Bool("use-node-internal", true,
 		"Optional, provide kubernetes InternalIP addresses to pool")
 	CISConfigCR = globalFlags.String("deploy-config-cr", "",
@@ -335,10 +333,8 @@ func initController(
 
 	ctlr := controller.NewController(
 		controller.Params{
-			Config:           config,
-			PoolMemberType:   poolMemberMode,
-			OrchestrationCNI: *orchestrationCNI,
-			UserAgent:        userAgentInfo,
+			Config:    config,
+			UserAgent: userAgentInfo,
 			CMConfigDetails: &controller.CMConfig{
 				URL:      *cmURL,
 				UserName: *cmUsername,
@@ -359,7 +355,7 @@ func initController(
 func initTeems(ctlr *controller.Controller) {
 	td := &teem.TeemsData{
 		CisVersion:      version,
-		PoolMemberType:  poolMemberMode,
+		PoolMemberType:  ctlr.PoolMemberType,
 		PlatformInfo:    userAgentInfo,
 		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
 		AccessEnabled:   true,
@@ -379,7 +375,7 @@ func initTeems(ctlr *controller.Controller) {
 		},
 	}
 	if !(*disableTeems) {
-		td.SDNType = *orchestrationCNI
+		td.SDNType = ctlr.OrchestrationCNI
 	} else {
 		td.AccessEnabled = false
 		log.Debug("Telemetry data reporting to TEEM server is disabled")

@@ -534,16 +534,21 @@ func (postMgr *PostManager) getTenantConfigStatus(id string, cfg *as3Config) {
 		declarationKey = "request"
 	}
 	if httpResp.StatusCode == http.StatusOK {
-		// reset the accepted task id
-		cfg.acceptedTaskId = ""
 		var results []interface{}
 		if !postMgr.AS3Config.DocumentAPI {
 			results = (responseMap["results"]).([]interface{})
 		} else {
-			response := (responseMap["response"]).(map[string]interface{})
-			results = (response["results"]).([]interface{})
+			if responseMap["response"] != nil {
+				response := (responseMap["response"]).(map[string]interface{})
+				results = (response["results"]).([]interface{})
+			} else {
+				log.Debugf("[AS3]%v response is nil", postMgr.postManagerPrefix)
+				return
+			}
 		}
 		declaration := (responseMap[declarationKey]).(interface{}).(map[string]interface{})
+		// reset the accepted task id
+		cfg.acceptedTaskId = ""
 		for _, value := range results {
 			v := value.(map[string]interface{})
 			if msg, ok := v["message"]; ok && msg.(string) == "in progress" {
@@ -867,6 +872,8 @@ func (postMgr *PostManager) pollTenantStatus(cfg *as3Config) {
 	for cfg.acceptedTaskId != "" {
 		if !postMgr.AS3Config.DocumentAPI {
 			<-time.After(timeoutMedium)
+		} else {
+			<-time.After(timeoutSmall)
 		}
 		cfg.tenantResponseMap = make(map[string]tenantResponse)
 		postMgr.getTenantConfigStatus(cfg.acceptedTaskId, cfg)

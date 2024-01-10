@@ -47,10 +47,10 @@ echo -n "10.10.10.10" > creds/url
 kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/ 
 ```
 
-Step 6: Update the CIS deployment file (./docs/cis-3.x/deployment/cis-deployment.yaml) with required image and parameters and install the CIS Controller.
+Step 6: Update the CIS deployment file (./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml) with required image and parameters and install the CIS Controller.
 
 ```shell
-kubectl create -f ./docs/cis-3.x/deployment/cis-deployment.yaml
+kubectl create -f ./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml
 ```
 
 Uninstalling CIS 3.x
@@ -59,7 +59,7 @@ Uninstalling CIS 3.x
 To uninstall CIS 3.x, run the following commands:
 
 ```shell
-kubectl delete -f ./docs/cis-3.x/deployment/cis-deployment.yaml
+kubectl delete -f ./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml
 kubectl delete secret f5-bigip-ctlr-login -n kube-system
 kubectl delete -f ./docs/config_examples/customResourceDefinitions/incubator/customresourcedefinitions.yml
 kubectl delete -f ./docs/cis-3.x/rbac/clusterrole.yaml

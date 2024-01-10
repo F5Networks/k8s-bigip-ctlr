@@ -62,10 +62,9 @@ spec:
             "--deploy-config-cr=kube-system/cis-config",
             "--manage-custom-resources=true",
             "--credentials-directory=/tmp/creds",
+            "--disable-teems=true",
             "--kubeconfig=/tmp/kubeconfig",
-            "--log-file=/tmp/k8s-bigip-ctlr.log",
             "--log-level=INFO",
-            "--http-client-metrics=true",
             "--no-verify-ssl=true"
           ]
       serviceAccountName: bigip-ctlr

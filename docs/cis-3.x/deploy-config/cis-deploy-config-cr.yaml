@@ -12,6 +12,7 @@ spec:
   as3Config:
     debugAS3: true
     postDelayAS3: 10
+    documentAPI: true
   bigIpConfig:
     - bigIpAddress: 10.10.10.1
       haBigIpAddress: 10.10.10.2

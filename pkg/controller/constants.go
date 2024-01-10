@@ -147,9 +147,9 @@ const (
 
 	as3SharedApplication = "Shared"
 	gtmPartition         = "Common"
-
-	timeoutMedium = 30 * time.Second
-	timeoutLarge  = 180 * time.Second
+	timeoutSmall         = 5 * time.Second
+	timeoutMedium        = 30 * time.Second
+	timeoutLarge         = 180 * time.Second
 )
 
 const (

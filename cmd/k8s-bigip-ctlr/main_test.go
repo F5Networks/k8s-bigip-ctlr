@@ -42,7 +42,6 @@ var _ = Describe("Main Tests", func() {
 				"--kubeconfig=/tmp/kubeconfig",
 				"--credentials-directory=/tmp/k8s-test-creds",
 				"--log-file=/tmp/k8s-bigip-ctlr.log",
-				"--orchestration-cni=flannel",
 			}
 
 			flags.Parse(os.Args)
@@ -59,7 +58,6 @@ var _ = Describe("Main Tests", func() {
 			Expect(*kubeConfig).To(Equal("/tmp/kubeconfig"))
 			Expect(*credsDir).To(Equal("/tmp/k8s-test-creds"))
 			Expect(*logFile).To(Equal("/tmp/k8s-bigip-ctlr.log"))
-			Expect(*orchestrationCNI).To(Equal("flannel"))
 		})
 		It("Test empty required args ", func() {
 			defer _init()

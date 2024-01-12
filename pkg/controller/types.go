@@ -125,17 +125,12 @@ type (
 	Params struct {
 		Config                *rest.Config
 		Namespaces            []string
-		PoolMemberType        string
 		UserAgent             string
 		UseNodeInternal       bool
 		NodePollInterval      int
-		ShareNodes            bool
 		IPAM                  bool
 		DefaultRouteDomain    int
 		CISConfigCRKey        string
-		StaticRoutingMode     bool
-		OrchestrationCNI      string
-		StaticRouteNodeCIDR   string
 		MultiClusterMode      string
 		CMConfigDetails       *CMConfig
 		CMTrustedCerts        string

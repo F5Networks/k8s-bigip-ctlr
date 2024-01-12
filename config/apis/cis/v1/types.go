@@ -431,16 +431,29 @@ type DeployConfigList struct {
 }
 
 type DeployConfigSpec struct {
-	BaseConfig   BaseConfig    `json:"baseConfig"`
-	AS3Config    AS3Config     `json:"as3Config,omitempty"`
-	BigIpConfig  []BigIpConfig `json:"bigIpConfig,omitempty"`
-	ExtendedSpec ExtendedSpec  `json:"extendedSpec,omitempty"`
+	BaseConfig    BaseConfig    `json:"baseConfig"`
+	NetworkConfig NetworkConfig `json:"networkConfig"`
+	AS3Config     AS3Config     `json:"as3Config,omitempty"`
+	BigIpConfig   []BigIpConfig `json:"bigIpConfig,omitempty"`
+	ExtendedSpec  ExtendedSpec  `json:"extendedSpec,omitempty"`
 }
 
 type BaseConfig struct {
 	NamespaceLabel string `json:"namespaceLabel,omitempty"`
 	NodeLabel      string `json:"nodeLabel,omitempty"`
 	RouteLabel     string `json:"routeLabel,omitempty"`
+}
+
+type NetworkConfig struct {
+	OrchestrationCNI string        `json:"orchestrationCNI,omitempty"`
+	MetaData         CNIConfigMeta `json:"metaData,omitempty"`
+}
+
+type CNIConfigMeta struct {
+	PoolMemberType string `json:"poolMemberType,omitempty"`
+	TunnelName     string `json:"tunnelName,omitempty"`
+	Shared         bool   `json:"shared,omitempty"`
+	NetworkCIDR    string `json:"networkCIDR,omitempty"`
 }
 
 type AS3Config struct {

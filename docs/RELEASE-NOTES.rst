@@ -1,18 +1,22 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-Next Release
+
+2.15.1
 -------------
 
 Added Functionality
 ```````````````````
 **What's new:**
-    * Improved Operator support for OpenShift 4.14
     * CRD
         * Support for HTML profile in Policy CR and VirtualServer CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.15-stable/docs/config_examples/customResource/Policy/policy-with-html-profile.yaml>`
+        * Support for renegotiationEnabled in TLSProfile CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.15-stable/docs/config_examples/customResource/VirtualServerWithTLSProfile/tls-with-ssl-renegotiation-disabled>`
+    * CIS compatible with OpenShift 4.14 and Kubernetes 1.29
+    * Improved operator support for OpenShift 4.14
 
 Bug Fixes
 ````````````
 * `Issue 3160 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3160>`_: Support to provide different IPs for the same resources deployed in different clusters for Infoblox IPAM provider only.
+* `Issue 3197 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3197>`_: Image mismatch in F5 operator metadata.
 
 
 2.15.0

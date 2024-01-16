@@ -50,6 +50,9 @@ spec:
                 persistenceProfile:
                   type: string
                   pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                htmlProfile:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 profiles:
                   type: object
                   properties:
@@ -318,6 +321,9 @@ spec:
                               type: integer
                               minimum: 0
                               maximum: 256
+                    required:
+                      - service
+                      - servicePort
                 virtualServerAddress:
                   type: string
                   pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$'
@@ -380,7 +386,7 @@ spec:
           jsonPath: .metadata.creationTimestamp
       subresources:
         status: {}
-
+          
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -437,6 +443,18 @@ spec:
                     reference:
                       type: string
                       enum: [bigip, secret]
+                    clientSSLParams:
+                      type: object
+                      properties:
+                        renegotiationEnabled:
+                          type: boolean
+                          default: true
+                    serverSSLParams:
+                      type: object
+                      properties:
+                        renegotiationEnabled:
+                          type: boolean
+                          default: true
                   required:
                     - termination
 
@@ -488,7 +506,7 @@ spec:
                 policyName:
                   type: string
                   pattern: '^([A-z0-9-_+])*([A-z0-9])$'
-                mode:
+                mode: 
                   type: string
                   enum: [standard, performance]
                 type:
@@ -603,25 +621,25 @@ spec:
                       items:
                         type: object
                         properties:
-                          type:
-                            type: string
-                            enum: [ tcp, udp, http, https ]
-                          interval:
-                            type: integer
-                          timeout:
-                            type: integer
-                          targetPort:
-                            type: integer
-                          name:
-                            type: string
-                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-                          reference:
-                            type: string
-                            enum: [bigip]
-                          send:
-                            type: string
-                          recv:
-                            type: string
+                            type:
+                              type: string
+                              enum: [ tcp, udp, http, https ]
+                            interval:
+                              type: integer
+                            timeout:
+                              type: integer
+                            targetPort:
+                              type: integer
+                            name:
+                              type: string
+                              pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                            reference:
+                              type: string
+                              enum: [bigip]
+                            send:
+                              type: string
+                            recv:
+                              type: string
                     reselectTries:
                       type: integer
                       minimum: 0
@@ -646,8 +664,8 @@ spec:
                               - type: integer
                               - type: string
                   required:
-                    - service
-                    - servicePort
+                      - service
+                      - servicePort
               required:
                 - virtualServerPort
                 - pool
@@ -662,37 +680,37 @@ spec:
                   type: string
                   default: Pending
       additionalPrinterColumns:
-        - name: virtualServerAddress
-          type: string
-          description: IP address of virtualServer
-          jsonPath: .spec.virtualServerAddress
-        - name: virtualServerPort
-          type: integer
-          description: Port of virtualServer
-          jsonPath: .spec.virtualServerPort
-        - name: pool
-          type: string
-          description: Name of service
-          jsonPath: .spec.pool.service
-        - name: poolPort
-          type: string
-          description: Port of service
-          jsonPath: .spec.pool.servicePort
-        - name: ipamLabel
-          type: string
-          description: ipamLabel for transport server
-          jsonPath: .spec.ipamLabel
-        - name: IPAMVSAddress
-          type: string
-          description: IP address of transport server
-          jsonPath: .status.vsAddress
-        - name: STATUS
-          type: string
-          description: status of TransportServer
-          jsonPath: .status.status
-        - name: Age
-          type: date
-          jsonPath: .metadata.creationTimestamp
+      - name: virtualServerAddress
+        type: string
+        description: IP address of virtualServer
+        jsonPath: .spec.virtualServerAddress
+      - name: virtualServerPort
+        type: integer
+        description: Port of virtualServer
+        jsonPath: .spec.virtualServerPort
+      - name: pool
+        type: string
+        description: Name of service
+        jsonPath: .spec.pool.service
+      - name: poolPort
+        type: string
+        description: Port of service
+        jsonPath: .spec.pool.servicePort
+      - name: ipamLabel
+        type: string
+        description: ipamLabel for transport server
+        jsonPath: .spec.ipamLabel
+      - name: IPAMVSAddress
+        type: string
+        description: IP address of transport server
+        jsonPath: .status.vsAddress
+      - name: STATUS
+        type: string
+        description: status of TransportServer
+        jsonPath: .status.status
+      - name: Age
+        type: date
+        jsonPath: .metadata.creationTimestamp
       subresources:
         status: { }
 ---
@@ -1037,6 +1055,9 @@ spec:
                         http:
                           type: string
                           pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    htmlProfile:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 autoLastHop:
                   type: string
                   enum: [ default, auto, disable ]

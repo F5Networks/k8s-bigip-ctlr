@@ -42,6 +42,7 @@ Compatibility Matrix
 | v2.13.1     | v16.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.25           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.14.0     | v17.0          | v1.27              | v4.12.0*                                                      | Yes | Yes                | v3.45       | v0.1.9      | v0.0.4            | v0.0.26           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.15.0     | v17.0          | v1.28              | v4.13.0*                                                      | Yes | Yes                | v3.48       | v0.1.9      | v0.0.4            | v0.0.27           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.15.1     | v17.0          | v1.29              | v4.14.0*                                                      | Yes | Yes                | v3.48       | v0.1.9      | v0.0.4            | v0.0.28           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
@@ -52,6 +53,7 @@ Compatibility Matrix for Multi Cluster Support
 |-------------|----------------|--------------------|-------------------|----------|-----|--------------------|-------------|-------------------|
 | v2.14.0     | v16.0          | v1.27              | v4.12.0           | Yes      | No  | Yes                | v3.45       | v0.0.26           |
 | v2.15.0     | v16.0          | v1.28              | v4.13.0           | Yes      | No  | Yes                | v3.48       | v0.0.27           |
+
 
 
 CIS Features and Examples
@@ -354,3 +356,5 @@ Refer Release Notes for [CIS v2.15](https://github.com/F5Networks/k8s-bigip-ctlr
    Note: Remove the ipam CR created by previous version of CIS before enabling this --ipam-cluster-label parameter```
    eg: kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam
    ```
+
+Refer Release Notes for [CIS v2.15.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)

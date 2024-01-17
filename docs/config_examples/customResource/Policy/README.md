@@ -80,6 +80,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | sslProfiles           | Object         | Optional | N/A                                                               | Reference to existing ssl profiles on BIGIP. Policy sslProfiles will have the highest precedence and will override route level profiles                                                                                                    |
 | analyticsProfiles     | Object         | Optional | N/A                                                               | Configures different analytics profiles on BIGIP virtual server.                                                                                                                                                                           |
 | profileWebSocket      | String         | Optional | N/A                                                               | Reference to existing BIG-IP websocket profile                                                                                                                                                                                             |
+| htmlProfile           | String         | Optional | NA                                                                | Pathname of existing BIG-IP HTML profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP HTML profiles.                                                                                   |
  
 
 **Note**:

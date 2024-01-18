@@ -3065,7 +3065,9 @@ func (appMgr *Manager) getServicePortsFromEndpoint(ep *v1.Endpoints) map[int32]i
 	svcKey := fmt.Sprintf("%s/%s", ep.Namespace, ep.Name)
 	comInf, ok := appMgr.getNamespaceInformer(ep.Namespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", ep.Namespace)
+		if !appMgr.hubMode {
+			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
+		}
 		return nil
 	}
 	svc, exists, err = comInf.svcInformer.GetIndexer().GetByKey(svcKey)

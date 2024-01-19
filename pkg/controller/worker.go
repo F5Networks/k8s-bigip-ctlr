@@ -1979,12 +1979,14 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 								}
 							}
 							ctlr.updatePoolMembersForResources(&pool)
-							if len(pool.Members) > 0 {
-								freshRsCfg.MetaData.Active = true
-							} else {
-								freshRsCfg.MetaData.Active = false
-							}
 							freshRsCfg.Pools[index] = pool
+						}
+					}
+					freshRsCfg.MetaData.Active = false
+					for _, pool := range freshRsCfg.Pools {
+						if len(pool.Members) > 0 {
+							freshRsCfg.MetaData.Active = true
+							break
 						}
 					}
 					_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg)

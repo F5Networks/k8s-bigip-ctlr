@@ -72,6 +72,12 @@ func NewController(params Params) *Controller {
 	}
 
 	log.Debug("Controller Created")
+	// fetch the CM token
+	err := ctlr.CMTokenManager.FetchToken()
+	if err != nil {
+		log.Errorf("Failed to Fetch Token: %v", err)
+		os.Exit(1)
+	}
 	// Sync CM token
 	go ctlr.CMTokenManager.SyncToken(make(chan struct{}))
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
@@ -85,7 +91,7 @@ func NewController(params Params) *Controller {
 	}
 
 	// Initialize the controller with base resources in CIS config CR
-	ctlr.initInformers()
+	ctlr.initController()
 
 	// create the informers for namespaces and node
 	if err3 := ctlr.setupInformers(); err3 != nil {
@@ -96,13 +102,22 @@ func NewController(params Params) *Controller {
 	ctlr.NewRequestHandler(params.UserAgent, params.httpClientMetrics)
 	ctlr.RequestHandler.startRequestHandler()
 
+	// start response handler
 	go ctlr.responseHandler(ctlr.respChan)
 
+	// start the networkConfigHandler
+	if ctlr.networkManager != nil {
+		go ctlr.networkManager.NetworkConfigHandler()
+	}
 	// setup postmanager for bigip label
 	for bigip, _ := range ctlr.bigIpMap {
 		ctlr.RequestHandler.startPostManager(bigip)
 	}
+
+	// enable http endpoint
 	go ctlr.enableHttpEndpoint(params.HttpAddress)
+
+	// setup ipam
 	ctlr.setupIPAM(params)
 
 	go ctlr.Start()

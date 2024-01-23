@@ -10,6 +10,7 @@ spec:
   baseConfig:
     namespaceLabel: controller=cis
     nodeLabel: controller=cis
+    controllerIdentifier: cluster-1
   networkConfig:
     orchestrationCNI: ovn-static
     metaData:

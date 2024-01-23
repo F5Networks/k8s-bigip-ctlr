@@ -112,7 +112,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockWriter, ok := mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
 	//	// Nodes without taints, CNI flannel, no podCIDR
 	//	for i, _ := range nodeObjs {
@@ -122,7 +122,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
 	//	// Nodes without taints, CNI flannel, with podCIDR, InternalNodeIP
 	//	mockCtlr.UseNodeInternal = true
@@ -135,8 +135,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//	}
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
-	//	expectedRouteSection := routeSection{
-	//		Entries: []routeConfig{
+	//	expectedRouteSection := L3ForwardStore{
+	//		routes: []routeConfig{
 	//			{
 	//				Name:    "k8s-worker1-1.2.3.4",
 	//				Network: "10.244.0.0/28",
@@ -153,7 +153,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
 	//	// OrchestrationCNI = OVN_K8S with incorrect OVN annotation on node
 	//	mockCtlr.OrchestrationCNI = OVN_K8S
@@ -166,7 +166,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
 	//	// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node but no k8s.ovn.org/node-primary-ifaddr annotation
 	//	mockCtlr.OrchestrationCNI = OVN_K8S
@@ -179,7 +179,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
 	//	// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
 	//	mockCtlr.OrchestrationCNI = OVN_K8S
@@ -191,7 +191,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
 	//	// OrchestrationCNI = OVN_K8S with correct OVN annotation on node valid k8s.ovn.org/node-primary-ifaddr annotation
 	//	mockCtlr.OrchestrationCNI = OVN_K8S
@@ -203,8 +203,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	expectedRouteSection = routeSection{
-	//		Entries: []routeConfig{
+	//	expectedRouteSection = L3ForwardStore{
+	//		routes: []routeConfig{
 	//			{
 	//				Name:    "k8s-worker1-10.244.0.0",
 	//				Network: "10.244.0.0/28",
@@ -224,8 +224,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	expectedRouteSection = routeSection{
-	//		Entries: []routeConfig{
+	//	expectedRouteSection = L3ForwardStore{
+	//		routes: []routeConfig{
 	//			{
 	//				Name:    "k8s-worker1-10.244.0.0",
 	//				Network: "10.244.0.0/28",
@@ -234,16 +234,16 @@ var _ = Describe("Node Poller Handler", func() {
 	//		},
 	//	}
 	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-	//	// OrchestrationCNI = CILIUM_K8S with no valid cilium-k8s annotation
-	//	mockCtlr.OrchestrationCNI = CILIUM_K8S
+	//	// OrchestrationCNI = CILIUM_Static with no valid cilium-k8s annotation
+	//	mockCtlr.OrchestrationCNI = CILIUM_Static
 	//	mockCtlr.UseNodeInternal = true
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
 	//
-	//	// OrchestrationCNI = CILIUM_K8S with network.cilium.io/ipv4-pod-cidr annotation
-	//	mockCtlr.OrchestrationCNI = CILIUM_K8S
+	//	// OrchestrationCNI = CILIUM_Static with network.cilium.io/ipv4-pod-cidr annotation
+	//	mockCtlr.OrchestrationCNI = CILIUM_Static
 	//	mockCtlr.UseNodeInternal = true
 	//	for i, _ := range nodeObjs {
 	//		nodeObjs[i].Annotations["network.cilium.io/ipv4-pod-cidr"] = "10.244.0.0/28"
@@ -252,8 +252,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//	mockCtlr.SetupNodeProcessing("")
 	//	Expect(ok).To(Equal(true))
 	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	expectedRouteSection = routeSection{
-	//		Entries: []routeConfig{
+	//	expectedRouteSection = L3ForwardStore{
+	//		routes: []routeConfig{
 	//			{
 	//				Name:    "k8s-worker1-1.2.3.4",
 	//				Network: "10.244.0.0/28",
@@ -263,8 +263,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//	}
 	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
 	//
-	//	// OrchestrationCNI = CILIUM_K8S with io.cilium.network.ipv4-pod-cidr annotation
-	//	mockCtlr.OrchestrationCNI = CILIUM_K8S
+	//	// OrchestrationCNI = CILIUM_Static with io.cilium.network.ipv4-pod-cidr annotation
+	//	mockCtlr.OrchestrationCNI = CILIUM_Static
 	//	mockCtlr.UseNodeInternal = true
 	//	for i, _ := range nodeObjs {
 	//		delete(nodeObjs[i].Annotations, "network.cilium.io/ipv4-pod-cidr")

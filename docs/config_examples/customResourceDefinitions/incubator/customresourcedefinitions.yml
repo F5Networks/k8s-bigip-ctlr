@@ -1125,6 +1125,11 @@ spec:
                   type: object
                 baseConfig:
                   properties:
+                    controllerIdentifier:
+                      type: string
+                      x-kubernetes-validations:
+                        - message: "Controller identifier can not be changed. Please delete and recreate the CIS controller and deploy config CR."
+                          rule: self == oldSelf
                     namespaceLabel:
                       type: string
                       pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
@@ -1132,6 +1137,8 @@ spec:
                       type: string
                       pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
                   type: object
+                  required:
+                    - controllerIdentifier
                 networkConfig:
                   properties:
                     orchestrationCNI:

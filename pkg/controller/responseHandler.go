@@ -54,6 +54,8 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 			ctlr.RequestHandler.PostManagers.RUnlock()
 		}
 		if latestRequestMeta.id >= config.id && len(config.as3Config.failedTenants) == 0 {
+			// Handle the network routes after successful post of tenants
+			ctlr.processStaticRouteUpdate()
 			// if the current request id is less than or equal to the latest request id, then udpate the status for current request
 			for partition, meta := range config.reqMeta.partitionMap {
 				// Check if it's a priority tenant and not in failedTenants map, if so then update the priority back to zero

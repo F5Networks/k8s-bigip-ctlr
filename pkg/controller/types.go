@@ -17,8 +17,8 @@
 package controller
 
 import (
-	"container/list"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"sync"
@@ -83,6 +83,8 @@ type (
 		CMTokenManager         *tokenmanager.TokenManager
 		bigIpMap               BigIpMap
 		respChan               chan *agentConfig
+		networkManager         *networkmanager.NetworkManager
+		ControllerIdentifier   string
 		resourceContext
 	}
 	ClientSets struct {
@@ -346,16 +348,6 @@ type (
 	// key is namespace/pod. stores list of npl annotation on pod
 	NPLStore map[string]NPLAnnoations
 
-	// static route config
-	routeSection struct {
-		Entries []routeConfig `json:"routes"`
-	}
-
-	routeConfig struct {
-		Name    string `json:"name"`
-		Network string `json:"network"`
-		Gateway string `json:"gw"`
-	}
 	// GTMConfig key is domainName and value is WideIP
 
 	WideIPs struct {
@@ -678,11 +670,6 @@ type (
 	portStruct struct {
 		protocol string
 		port     int32
-	}
-
-	requestQueue struct {
-		sync.Mutex
-		*list.List
 	}
 
 	requestMap struct {

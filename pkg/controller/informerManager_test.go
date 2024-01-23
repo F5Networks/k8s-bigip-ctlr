@@ -62,7 +62,7 @@ var _ = Describe("Informers Tests", func() {
 		//
 		//})
 		It("Controller infromer setup for all namespaces", func() {
-			mockCtlr.initInformers()
+			mockCtlr.initController()
 			Expect(mockCtlr.resourceSelectorConfig.NodeLabel).To(Equal(""), "Failed to initialize informers")
 			Expect(mockCtlr.resourceSelectorConfig.RouteLabel).To(Equal(""), "Failed to initialize informers")
 			Expect(mockCtlr.resourceSelectorConfig.NamespaceLabel).To(Equal(""), "Failed to initialize informers")
@@ -92,7 +92,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.stopInformers()
 		})
 		It("Controller reset with nodeLabel", func() {
-			mockCtlr.initInformers()
+			mockCtlr.initController()
 			mockCtlr.setupInformers()
 			newconfigCR := test.NewConfigCR(
 				configCRName,

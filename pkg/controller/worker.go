@@ -61,11 +61,9 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
 
-	// process static routes after DeployConfig CR if present is processed, so as to support external cluster static routes during cis init
-	if ctlr.StaticRoutingMode {
-		clusterNodes := ctlr.getNodesFromAllClusters()
-		ctlr.processStaticRouteUpdate(clusterNodes)
-	}
+	// process static routes after DeployConfig CR if present is processed to support external cluster static routes during cis init
+	ctlr.processStaticRouteUpdate()
+
 	log.Infof("Started Controller")
 	for ctlr.processResources() {
 	}
@@ -3845,10 +3843,6 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 
 func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 
-	if ctlr.PoolMemberType != "" {
-		return
-	}
-
 	ctlr.OrchestrationCNI = configCR.Spec.NetworkConfig.OrchestrationCNI
 	ctlr.PoolMemberType = configCR.Spec.NetworkConfig.MetaData.PoolMemberType
 	if ctlr.PoolMemberType == "" {
@@ -3879,7 +3873,7 @@ func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 }
 
 func (ctlr *Controller) isStaticRouteCNI() bool {
-	if ctlr.OrchestrationCNI == "flannel-static" || ctlr.OrchestrationCNI == "cilium-static" ||
+	if ctlr.OrchestrationCNI == "flannel-static" || ctlr.OrchestrationCNI == CILIUM_Static ||
 		ctlr.OrchestrationCNI == "ovn-static" || ctlr.OrchestrationCNI == "antrea-static" {
 		return true
 	}
@@ -3903,6 +3897,13 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 	// get bigIpKey and start/stop agent if needed
 	bigipconfig := configCR.Spec.BigIpConfig
 	ctlr.handleBigipConfigUpdates(bigipconfig)
+	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
+		err := ctlr.networkManager.SetInstanceIds(configCR.Spec.BigIpConfig)
+		if err != nil {
+			log.Errorf("%v", err)
+			os.Exit(1)
+		}
+	}
 	es := configCR.Spec.ExtendedSpec
 	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
 	clusterConfigUpdated := false

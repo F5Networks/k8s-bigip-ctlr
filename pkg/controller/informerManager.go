@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ func (ctlr *Controller) setupInformers() error {
 	return nil
 }
 
-func (ctlr *Controller) initInformers() {
+func (ctlr *Controller) initController() {
 	// Initialize the controller with base resources in CIS config CR
 	key := strings.Split(ctlr.CISConfigCRKey, "/")
 	configCR, err := ctlr.clientsets.kubeCRClient.CisV1().DeployConfigs(key[0]).Get(context.TODO(), key[1], metaV1.GetOptions{})
@@ -31,9 +32,18 @@ func (ctlr *Controller) initInformers() {
 		log.Errorf("%v", err)
 		os.Exit(1)
 	}
-	ctlr.processCNIConfig(configCR)
+
 	ctlr.updateResourceSelectorConfig(configCR.Spec.BaseConfig)
 	ctlr.updateBigIpConfigMap(configCR.Spec.BigIpConfig)
+
+	// process the CNI config
+	ctlr.processCNIConfig(configCR)
+	// create the network manager if required
+	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
+		// create a new network manager
+		ctlr.networkManager = networkmanager.NewNetworkManager(ctlr.CMTokenManager, ctlr.ControllerIdentifier)
+	}
+
 	// update the agent params
 	ctlr.PostParams.AS3Config = configCR.Spec.AS3Config
 	ctlr.PostParams.tokenManager = ctlr.CMTokenManager
@@ -135,6 +145,7 @@ func (ctlr *Controller) updateResourceSelectorConfig(config cisapiv1.BaseConfig)
 		NamespaceLabel: config.NamespaceLabel,
 		RouteLabel:     config.RouteLabel,
 	}
+	ctlr.ControllerIdentifier = config.ControllerIdentifier
 	ctlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	ctlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 }
@@ -178,7 +189,7 @@ func (ctlr *Controller) resetControllerForNamespaceLabel() {
 	// create new resource store
 	ctlr.resources = NewResourceStore()
 	// reinitialize the informers
-	ctlr.initInformers()
+	ctlr.initController()
 	ctlr.setupInformers()
 	ctlr.startInformers()
 	// process the resources
@@ -188,9 +199,6 @@ func (ctlr *Controller) resetControllerForNamespaceLabel() {
 	if ctlr.CISConfigCRKey != "" {
 		ctlr.processGlobalDeployConfigCR()
 	}
-	// process static routes after DeployConfig CR if present is processed, so as to support external cluster static routes during cis init
-	if ctlr.StaticRoutingMode {
-		clusterNodes := ctlr.getNodesFromAllClusters()
-		ctlr.processStaticRouteUpdate(clusterNodes)
-	}
+	// process static routes after DeployConfig CR if present is processed to support external cluster static routes
+	ctlr.processStaticRouteUpdate()
 }

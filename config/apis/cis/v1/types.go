@@ -469,9 +469,10 @@ type DeployConfigSpec struct {
 }
 
 type BaseConfig struct {
-	NamespaceLabel string `json:"namespaceLabel,omitempty"`
-	NodeLabel      string `json:"nodeLabel,omitempty"`
-	RouteLabel     string `json:"routeLabel,omitempty"`
+	NamespaceLabel       string `json:"namespaceLabel,omitempty"`
+	NodeLabel            string `json:"nodeLabel,omitempty"`
+	RouteLabel           string `json:"routeLabel,omitempty"`
+	ControllerIdentifier string `json:"controllerIdentifier"`
 }
 
 type NetworkConfig struct {

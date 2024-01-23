@@ -211,7 +211,7 @@ func (postMgr *PostManager) updateTenantResponseCode(code int, id string, tenant
 
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) {
 	if postMgr.LogAS3Response {
-		postMgr.logAS3Response(responseMap, true)
+		postMgr.logAS3Response(responseMap)
 	}
 	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
@@ -238,6 +238,9 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 	}
 
 	if httpResp.StatusCode == http.StatusOK {
+		if postMgr.LogAS3Response {
+			postMgr.logAS3Response(responseMap)
+		}
 		results := (responseMap["results"]).([]interface{})
 		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
@@ -266,23 +269,21 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 }
 
 func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}, id int) {
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
+	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
-		debug := true
 		for _, value := range results {
 			v := value.(map[string]interface{})
 
 			if v["code"].(float64) != 200 {
-				debug = false
 				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), false)
 				log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 			} else {
 				postMgr.updateTenantResponseCode(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 				log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 			}
-		}
-		if postMgr.LogAS3Response {
-			postMgr.logAS3Response(responseMap, debug)
 		}
 	}
 }
@@ -310,14 +311,14 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, http.StatusNotFound)
 	}
 	if postMgr.LogAS3Response {
-		postMgr.logAS3Response(responseMap, false)
+		postMgr.logAS3Response(responseMap)
 	}
 	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, id int) {
 	if postMgr.LogAS3Response {
-		postMgr.logAS3Response(responseMap, false)
+		postMgr.logAS3Response(responseMap)
 	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
@@ -466,7 +467,7 @@ func (postMgr *PostManager) getBigipRegKeyURL() string {
 	return apiURL
 }
 
-func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}, debug bool) {
+func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
 	// removing the certificates/privateKey from response log
 	if declaration, ok := (responseMap["declaration"]).([]interface{}); ok {
 		for _, value := range declaration {
@@ -493,12 +494,7 @@ func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}, d
 		}
 		responseMap["declaration"] = as3Declaration(decl)
 	}
-	rawResponse := fmt.Sprintf("[AS3]%v Raw response from Big-IP: %v ", postMgr.postManagerPrefix, responseMap)
-	if debug {
-		log.Debugf(rawResponse)
-	} else {
-		log.Errorf(rawResponse)
-	}
+	log.Debugf("[AS3]%v Raw response from Big-IP: %v ", postMgr.postManagerPrefix, responseMap)
 }
 
 func (postMgr *PostManager) logAS3Request(cfg string) {
@@ -577,8 +573,8 @@ func (postMgr *PostManager) IsBigIPAppServicesAvailable() error {
 
 func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
 	/*
-		Non 200 ok tenants will be added to retryTenantDeclMap map
-		Locks to update the map will be acquired in the calling method
+	 Non 200 ok tenants will be added to retryTenantDeclMap map
+	 Locks to update the map will be acquired in the calling method
 	*/
 	for tenant, resp := range postMgr.tenantResponseMap {
 		if resp.agentResponseCode == 200 {

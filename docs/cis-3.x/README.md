@@ -65,6 +65,61 @@ kubectl delete -f ./docs/config_examples/customResourceDefinitions/incubator/cus
 kubectl delete -f ./docs/cis-3.x/rbac/clusterrole.yaml
 ```
 
+Configuration Parameters
+------------------------
+All of the configuration parameters below are global.
+
+### General
+| Parameter            | Type       | Required  | Default         | Description                                                                                     | Allowed Values | Minimum Supported Version |
+|----------------------|------------|-----------|-----------------|-------------------------------------------------------------------------------------------------|----------------|---------------------------|
+| http-listen-address	 | String	| Optional	 | “0.0.0.0:8080”	 | Address at which to serve HTTP-based information (for example, /metrics, health) to Prometheus. |                |                           |
+| version              |	Boolean	| Optional  | 	false          |	Print CIS version. |    true, false | |
+| disable-teems        |	Boolean	| Optional  | 	false          | If true, disable sending telemetry data to TEEM | true, false | |
+| deploy-config-cr	    | String | Required  | N/A     |	Specify a CRD that holds additional spec for controller | | |
+
+### Logging
+| Parameter            | Type    | Required  | Default | Description                                                                                     | Allowed Values | Minimum Supported Version |
+|----------------------|---------|-----------|---------|-------------------------------------------------------------------------------------------------|----------------|---------------------------|
+| log-level | 	String |	Optional |	INFO |	Log level	| INFO, DEBUG, AS3DEBUG CRITICAL, WARNING, ERROR | |
+| log-file	| String  | Optional |	N/A	| File path to store the CIS logs.| | |
+
+**Note**: AS3DEBUG should only be used for debugging purposes, as it may impact CIS performance. 
+
+
+### CentralManager system
+| Parameter            | Type    | Required  | Default | Description                                                                                                                                                                                                                     | Allowed Values                                                                        | Minimum Supported Version |
+|----------------------|---------|-----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|---------------------------|
+| cm-password | String | Required |	N/A | CentralManager password for the user account <br/> You can secure your CentralManager credentials using a Kubernetes Secret.                                                                                                    |                                                                                       | |
+| cm-url |	String |	Required |	N/A | CentralManager URL <br> Examples: <br> URL with non-standard port --cm-url= https://x.x.x.x:8443 <br> IP address --cm-url= x.x.x.x <br> IP address with port --cm-url= x.x.x.x:8080 <br> IPv6 address --cm-url= '[2001:db8::6]' |  IP address <br> URL:PORT <br> IP-addr:PORT <br> For IPv6 address as string inside [] | | |
+| cm-username | String | Required |	N/A | CentralManager username for the user account                                                                                                                                                                                    | | |
+| credentials-directory | String | Optional | N/A | Directory that contains the CentralManager username, password, or url files.                                                                                                                                                    | | |
+| no-verify-ssl | Boolean | Optional | false | When set to true, enable insecure SSL communication to CentralManager.                                                                                                                                                          | true, false | |
+| trusted-certs-cfgmap | String | Required | N/A | When certificates are provided, adds them to controller trusted certificate store.                                                                                                                                              | | |
+
+
+### Important
+````
+The credentials-directory option is an alternative to using the cm-username, cm-password, or cm-url arguments.
+
+When you use this argument, the controller looks for three files in the specified directory:
+
+“username”, “password”, and “url”
+If any of these files do not exist, the controller falls back to using the CLI arguments as parameters.
+
+Each file should contain only the username, password, and url, respectively. You can create and mount the files as Kubernetes Secrets.
+
+It is important to not project the Secret keys to specific paths, as the controller looks for the “username”, “password”, and “url” files directly within the credentials directory.
+
+````
+
+### Kubernetes
+| Parameter            | Type    | Required  | Default | Description                                                                                                          | Allowed Values                                                                        | Minimum Supported Version |
+|----------------------|---------|-----------|---------|----------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|---------------------------|
+| kubeconfig | String |	Optional |	./config |Path to the kubeconfig file | | |
+| manage-custom-resources | Boolean |	Optional |	true |	Specify whether or not to manage custom resources i.e. transport server |	true, false | |
+| use-node-internal | Boolean | Optional | true | filter Kubernetes InternalIP addresses for pool members	 | true, false | |
+
+
 Prometheus Metrics
 ------------------
 

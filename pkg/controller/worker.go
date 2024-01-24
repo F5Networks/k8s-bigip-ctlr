@@ -2046,7 +2046,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
 		// Skip invalid extended service
-		if !ctlr.checkValidExtendedService(mcs) {
+		if ctlr.checkValidExtendedService(mcs) != nil {
 			continue
 		}
 		// Update pool members for all the multi cluster services specified in the route annotations

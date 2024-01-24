@@ -1809,11 +1809,10 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				ctlr.multiClusterResources.Lock()
 				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
-					if !ctlr.checkValidExtendedService(svc) {
+					err := ctlr.checkValidExtendedService(svc)
+					if err != nil {
 						// In case of invalid extendedServiceReference, just log the error and proceed
-						log.Warningf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s. Some of the mandatory "+
-							"parameters (clusterName/namespace/serviceName/servicePort) are missing or cluster "+
-							"config for the cluster in which it's running is not provided in DeployConfig CR.", svc, route.Name)
+						log.Warningf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s: %v", svc, route.Name, err)
 						continue
 					}
 				}

@@ -19,7 +19,7 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 	defer ctlr.multiClusterResources.Unlock()
 
 	for _, svc := range clusterSvcs {
-		if !ctlr.checkValidExtendedService(svc) {
+		if ctlr.checkValidExtendedService(svc) != nil {
 			// Skip processing invalid extended service
 			continue
 		}

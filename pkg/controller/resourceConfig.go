@@ -2586,7 +2586,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
 		// cluster credentials must be specified in the DeployConfig CR
-		if !ctlr.checkValidExtendedService(svc) {
+		if ctlr.checkValidExtendedService(svc) != nil {
 			continue
 		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -2688,7 +2688,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
 	// External services
 	for _, svc := range pool.MultiClusterServices {
 		// Skip invalid extended service
-		if !ctlr.checkValidExtendedService(svc) {
+		if ctlr.checkValidExtendedService(svc) != nil {
 			continue
 		}
 		beIdx = beIdx + 1

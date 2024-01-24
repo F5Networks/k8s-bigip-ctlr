@@ -576,3 +576,6 @@ Yes. CIS supports A/B with multiCluster.
 
 ### Is A/B custom persistence supported in all the modes?
 No. A/B persistence is supported in ratio mode and pool member type as cluster.
+
+### Can I specify the services running in CIS HA cluster in extendedServiceReferences/multiClusterServices?
+No. ExtendedServiceReferences/multiClusterServices is only applicable to refer the services running in K8S/Openshift clusters which are not part of the HA cluster(Primary/Secondary Cluster).

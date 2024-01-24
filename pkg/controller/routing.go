@@ -1445,7 +1445,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
 		// cluster credentials must be specified in the extended configmap
-		if !ctlr.checkValidExtendedService(svc) {
+		if ctlr.checkValidExtendedService(svc) != nil {
 			continue
 		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -1531,7 +1531,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// External services
 	for _, svc := range clusterSvcs {
 		// Skip invalid extended service
-		if !ctlr.checkValidExtendedService(svc) {
+		if ctlr.checkValidExtendedService(svc) != nil {
 			continue
 		}
 		beIdx = beIdx + 1

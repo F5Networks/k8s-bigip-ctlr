@@ -9,8 +9,10 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+
 Bug Fixes
 ````````````
+* `Issue 3230 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3230>`_: CRD multicluster configuration triggers Raw response from Big-IP: map[code:422 declarationFullId: message:declaration has duplicate values in rules].
 
 2.15.1
 -------------

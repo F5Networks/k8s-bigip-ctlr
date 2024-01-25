@@ -132,9 +132,9 @@ type AlternateBackend struct {
 
 type MultiClusterServiceReference struct {
 	ClusterName string             `json:"clusterName"`
-	SvcName     string             `json:"serviceName"`
+	SvcName     string             `json:"service"`
 	Namespace   string             `json:"namespace"`
-	ServicePort intstr.IntOrString `json:"port"`
+	ServicePort intstr.IntOrString `json:"servicePort"`
 	Weight      *int               `json:"weight,omitempty"`
 }
 

@@ -19,10 +19,10 @@ spec:
       timeout: 10
     extendedServiceReferences:
     - clusterName: cluster2
-      serviceName: svc-1
+      service: svc-1
       namespace: ns1
-      port: 8181
+      servicePort: 8181
     - clusterName: cluster3
-      serviceName: svc-ext-1
+      service: svc-ext-1
       namespace: ns2
-      port: 8282
+      servicePort: 8282

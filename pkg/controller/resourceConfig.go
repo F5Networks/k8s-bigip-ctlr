@@ -225,7 +225,7 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string) string {
+func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string) string {
 	poolName := pool.Name
 	if poolName == "" {
 		targetPort := pool.ServicePort
@@ -258,7 +258,7 @@ func (ctlr *Controller) framePoolNameForDefaultPool(ns string, pool cisapiv1.Def
 	return poolName
 }
 
-func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.Pool, host string, cxt SvcBackendCxt) string {
+func (ctlr *Controller) framePoolNameForVs(ns string, pool cisapiv1.VSPool, host string, cxt SvcBackendCxt) string {
 	poolName := pool.Name
 	if poolName == "" || pool.AlternateBackends != nil {
 		targetPort := pool.ServicePort
@@ -1860,7 +1860,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	vs *cisapiv1.TransportServer,
 ) error {
 
-	poolName := ctlr.framePoolName(
+	poolName := ctlr.framePoolNameForTS(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
 		"",
@@ -2488,7 +2488,7 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 }
 
 // return the services associated with a virtualserver pool (svc names + weight)
-func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.Pool) []SvcBackendCxt {
+func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	var sbcs []SvcBackendCxt
 	defaultWeight := 100
 	if ctlr.haModeType != Ratio {

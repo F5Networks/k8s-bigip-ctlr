@@ -2743,7 +2743,7 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				"default",
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
 						{
 							Path:             "/foo",
 							Service:          "svc1",
@@ -2856,7 +2856,7 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				"SampleTS",
 				"default",
 				cisapiv1.TransportServerSpec{
-					Pool: cisapiv1.Pool{
+					Pool: cisapiv1.TSPool{
 						Service:          "svc1",
 						ServicePort:      intstr.IntOrString{IntVal: 80},
 						ServiceNamespace: "test",

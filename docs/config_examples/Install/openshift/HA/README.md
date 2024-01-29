@@ -117,7 +117,7 @@ args: [
         "--bigip-url=<BIGIP_ADDRESS>",
         # Replace with the name of the BIG-IP partition you want to manage
         "--bigip-partition=<PARTITION_CREATED_ABOVE>",
-        "--pool-member-type=<cluster|nodeport>",
+        "--pool-member-type=<cluster|nodeport|auto>",
         # Replace with the path to the BIG-IP VXLAN connected to the
         # OpenShift HostSubnet
         "--openshift-sdn-name=<HOST_SUBNET>",

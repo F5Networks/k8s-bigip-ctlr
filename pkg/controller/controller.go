@@ -122,6 +122,7 @@ const (
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
 	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
 	NodePortLocal    = "nodeportlocal"
+	Auto             = "auto"
 
 	// AS3 Related constants
 	as3SupportedVersion = 3.18
@@ -187,7 +188,7 @@ func NewController(params Params) *Controller {
 	ctlr.globalExtendedCMKey = params.GlobalExtendedSpecConfigmap
 
 	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
-	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
+	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal || ctlr.PoolMemberType == Auto {
 		ctlr.shareNodes = true
 	}
 

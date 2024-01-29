@@ -156,7 +156,7 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 		)
 	}
 	// enable endpoint informer in the cluster and nextGen routes mode only
-	if ctlr.PoolMemberType == Cluster {
+	if ctlr.PoolMemberType == Cluster || ctlr.PoolMemberType == Auto {
 		comInf.epsInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,

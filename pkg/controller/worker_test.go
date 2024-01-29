@@ -817,19 +817,22 @@ var _ = Describe("Worker Tests", func() {
 			var nodePort int32 = 30000
 			members := []PoolMember{
 				{
-					Address: "10.10.10.1",
-					Port:    nodePort,
-					Session: "user-enabled",
+					Address:    "10.10.10.1",
+					Port:       nodePort,
+					Session:    "user-enabled",
+					MemberType: "nodeport",
 				},
 				{
-					Address: "10.10.10.2",
-					Port:    nodePort,
-					Session: "user-enabled",
+					Address:    "10.10.10.2",
+					Port:       nodePort,
+					Session:    "user-enabled",
+					MemberType: "nodeport",
 				},
 				{
-					Address: "10.10.10.3",
-					Port:    nodePort,
-					Session: "user-enabled",
+					Address:    "10.10.10.3",
+					Port:       nodePort,
+					Session:    "user-enabled",
+					MemberType: "nodeport",
 				},
 			}
 

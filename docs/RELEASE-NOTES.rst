@@ -13,6 +13,7 @@ Added Functionality
       * Support for mix of k8s Secret and bigip reference in TLSProfile.
       * Support for setting sslProfile with https monitor in virtualServer and nextgen routes.
       * Support for Host Persistence to configure Persist session in VS Policy Rule action based on host in VirtualServer.
+    * Support for pool-member-type auto for CRD, NextGen Routes and multiCluster mode
 
 Bug Fixes
 ````````````

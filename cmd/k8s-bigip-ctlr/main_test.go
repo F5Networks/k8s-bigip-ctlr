@@ -824,6 +824,65 @@ var _ = Describe("Main Tests", func() {
 			Expect(len(appMngr.WatchedNS.NamespaceLabel)).NotTo(Equal(0))
 
 		})
+
+		It("Verify pool member type auto", func() {
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--pool-member-type=auto",
+			}
+
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).ToNot(BeNil())
+
+			Expect(len(vxlanMode)).To(Equal(0), "Mode variable should not be set.")
+			Expect(len(*openshiftSDNName)).To(Equal(0),
+				"Openshift sdn name variable should not be set.")
+			Expect(len(*flannelName)).To(Equal(0), "Flannel name variable should not be set.")
+			Expect(len(*ciliumTunnelName)).To(Equal(0), "Cilium name variable should not be set.")
+
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--openshift-sdn-name=vxlan500",
+				"--custom-resource-mode=true",
+				"--pool-member-type=auto",
+			}
+
+			flags.Parse(os.Args)
+			err = verifyArgs()
+			Expect(err).To(BeNil())
+
+			Expect(vxlanMode).To(Equal("maintain"))
+			Expect(*openshiftSDNName).To(Equal("vxlan500"))
+
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--bigip-partition=velcro1",
+				"--bigip-partition=velcro2",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--openshift-sdn-name=vxlan500",
+				"--cilium-name=vxlan500",
+			}
+
+			flags.Parse(os.Args)
+			err = verifyArgs()
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(Equal("Cannot have openshift-sdn-name,cilium-name specified"))
+		})
 	})
 
 	Describe("Mock driver subprocess tests", func() {

@@ -345,7 +345,8 @@ func _init() {
 			"'nodeport' will use k8s service NodePort. "+
 			"'cluster' will use service endpoints. "+
 			"The BIG-IP must be able access the cluster network"+
-			"'nodeportlocal' only supported with antrea cni")
+			"'nodeportlocal' only supported with antrea cni"+
+			"'auto' will learn service type(ClusterIP/NodePort/LoadBalancer) automatically")
 	inCluster = kubeFlags.Bool("running-in-cluster", true,
 		"Optional, if this controller is running in a kubernetes cluster,"+
 			"use the pod secrets for creating a Kubernetes client.")
@@ -537,6 +538,10 @@ func verifyArgs() error {
 		return fmt.Errorf("missing pool member type")
 	}
 
+	if controller.Auto == *poolMemberType && (!*customResourceMode && *controllerMode == "") {
+		return fmt.Errorf("--pool-member-type auto is supported in CRD/NextGen routes mode only")
+	}
+
 	if len(*bigIPPartitions) == 0 {
 		return fmt.Errorf("missing a BIG-IP partition")
 	} else if len(*bigIPPartitions) > 0 {
@@ -561,7 +566,7 @@ func verifyArgs() error {
 		watchAllNamespaces = false
 	}
 
-	if *poolMemberType == "nodeport" {
+	if *poolMemberType == "nodeport" || *poolMemberType == controller.Auto {
 		isNodePort = true
 	} else if *poolMemberType == "cluster" || *poolMemberType == "nodeportlocal" {
 		isNodePort = false
@@ -592,7 +597,7 @@ func verifyArgs() error {
 	}
 
 	if *staticRoutingMode == true {
-		if isNodePort || *poolMemberType == "nodeportlocal" {
+		if (isNodePort || *poolMemberType == "nodeportlocal") && *poolMemberType != controller.Auto {
 			return fmt.Errorf("Cannot run NodePort mode or nodeportlocal mode while supplying static-routing-mode true " +
 				"Must be in Cluster mode if using static route configuration.")
 		}
@@ -611,7 +616,7 @@ func verifyArgs() error {
 		if len(*openshiftSDNName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter openshift-sdn-name")
 		}
-		if isNodePort {
+		if isNodePort && *poolMemberType != controller.Auto {
 			return fmt.Errorf("Cannot run NodePort mode while supplying openshift-sdn-name. " +
 				"Must be in Cluster mode if using VXLAN.")
 		}
@@ -624,7 +629,7 @@ func verifyArgs() error {
 		if flags.Changed("cilium-name") && len(*ciliumTunnelName) == 0 && *staticRoutingMode == false {
 			return fmt.Errorf("Missing required parameter cilium-name")
 		}
-		if isNodePort {
+		if *poolMemberType != controller.Auto && isNodePort {
 			return fmt.Errorf("Cannot run NodePort mode while supplying cilium-name or flannel-name. " +
 				"Must be in Cluster mode if using VXLAN.")
 		}
@@ -1424,7 +1429,7 @@ func getUserAgentInfo() string {
 
 func getSDNType(config *rest.Config) string {
 	var sdnType string
-	if isNodePort {
+	if isNodePort && *poolMemberType != controller.Auto {
 		sdnType = "nodeport-mode"
 	} else {
 		if *poolMemberType == "nodeportlocal" {
@@ -1447,8 +1452,14 @@ func getSDNType(config *rest.Config) string {
 			sdnType = "cilium"
 		} else if len(*flannelName) > 0 {
 			sdnType = "flannel"
+		} else if *staticRoutingMode {
+			sdnType = "staticRoutingMode"
 		} else {
 			sdnType = "other"
+		}
+
+		if *poolMemberType == controller.Auto {
+			sdnType = "auto - " + sdnType
 		}
 	}
 	return sdnType

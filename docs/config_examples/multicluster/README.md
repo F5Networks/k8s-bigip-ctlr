@@ -709,3 +709,6 @@ extendedServiceReferences is a field in Virtual Server CR or Transport Server CR
 where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, port is the port of the service and serviceName is the name of the service.
 where cluster3 and cluster4 are the external clusters apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS
+
+### Can I specify the services running in CIS HA cluster in extendedServiceReferences/multiClusterServices?
+No. ExtendedServiceReferences/multiClusterServices is only applicable to refer the services running in K8S/Openshift clusters which are not part of the HA cluster(Primary/Secondary Cluster).

@@ -1,0 +1,19 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: coffee-virtual-server
+  namespace: default
+spec:
+  tlsProfileName: reencrypt-tls-coffee
+  host: coffee.example.com
+  httpMrfRoutingEnabled: true # This is required for HTTP/2 full proxy support
+  profiles:
+    http2:
+      server: /Common/http2 # server http2 profile corresponds to egress profileHTTP2 on the BIG-IP
+  pools:
+    - path: /lattee
+      service: svc
+      servicePort: 80
+  virtualServerAddress: 172.16.3.5

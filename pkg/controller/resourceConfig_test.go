@@ -1356,6 +1356,37 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
 
+		It("Verifies hybrid profile reference is set properly for tlsProfile", func() {
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.nsInformers = make(map[string]*NSInformer)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = Hybrid
+			tlsProf.Spec.TLS.ClientSSLParams.ProfileReference = Secret
+			tlsProf.Spec.TLS.ServerSSLParams.ProfileReference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
+			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
+
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+
+			clSecret := test.NewSecret(
+				"clientsecret",
+				namespace,
+				"### cert ###",
+				"#### key ####",
+			)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(clSecret)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientsecret"), "profile name is not set properly")
+			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeFalse(), "profile context is not set properly")
+			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("serverssl"), "profile name is not set properly")
+			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeTrue(), "profile context is not set properly")
+		})
+
 		It("VS with TLS and default pool", func() {
 			vs.Spec.TLSProfileName = "SampleTLS"
 			vs.Spec.DefaultPool = cisapiv1.DefaultPool{

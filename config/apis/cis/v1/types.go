@@ -191,12 +191,14 @@ type TLS struct {
 
 // ClientSSLParams contains required fields for Client SSL
 type ClientSSLParams struct {
-	RenegotiationEnabled *bool `json:"renegotiationEnabled,omitempty"`
+	RenegotiationEnabled *bool  `json:"renegotiationEnabled,omitempty"`
+	ProfileReference     string `json:"profileReference,omitempty"`
 }
 
 // ServerSSLParams contains required fields for Server SSL
 type ServerSSLParams struct {
-	RenegotiationEnabled *bool `json:"renegotiationEnabled,omitempty"`
+	RenegotiationEnabled *bool  `json:"renegotiationEnabled,omitempty"`
+	ProfileReference     string `json:"profileReference,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

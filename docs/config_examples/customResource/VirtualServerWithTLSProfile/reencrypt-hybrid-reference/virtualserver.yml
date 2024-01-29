@@ -1,0 +1,22 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-foo
+spec:
+  host: foo.com
+  httpTraffic: redirect
+  pools:
+    - monitor:
+        interval: 20
+        recv: a
+        send: /
+        timeout: 10
+        type: http
+      path: /foo
+      service: pytest-svc-1
+      servicePort: 80
+  snat: auto
+  tlsProfileName: reencrypt-tls
+  virtualServerAddress: 10.8.3.11

@@ -442,19 +442,25 @@ spec:
                         pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
                     reference:
                       type: string
-                      enum: [bigip, secret]
+                      enum: [bigip, secret, hybrid]
                     clientSSLParams:
                       type: object
                       properties:
                         renegotiationEnabled:
                           type: boolean
                           default: true
+                        profileReference:
+                          type: string
+                          enum: [ bigip, secret ]
                     serverSSLParams:
                       type: object
                       properties:
                         renegotiationEnabled:
                           type: boolean
                           default: true
+                        profileReference:
+                          type: string
+                          enum: [ bigip, secret ]
                   required:
                     - termination
 

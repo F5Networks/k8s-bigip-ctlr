@@ -108,6 +108,8 @@ const (
 	BIGIP = "bigip"
 	// reference for profiles stores as secrets in k8s cluster
 	Secret = "secret"
+	// refrence for profiles stored a mix of secret and bigip
+	Hybrid = "hybrid"
 	// reference for routes
 	Certificate = "certificate"
 	// reference for service“
@@ -1007,7 +1009,90 @@ func (ctlr *Controller) handleTLS(
 						}
 					}
 				}
+			case Hybrid:
+				// Process sslProfiles stored as either secret or bigip refrence
+				var namespace string
+				if ctlr.watchingAllNamespaces() {
+					namespace = ""
+				} else {
+					namespace = tlsContext.namespace
+				}
+				if len(clientSSL) > 0 {
+					if tlsContext.bigIPSSLProfiles.clientSSlParams.ProfileReference != "" {
+						switch tlsContext.bigIPSSLProfiles.clientSSlParams.ProfileReference {
+						case BIGIP:
+							// Process referenced BIG-IP clientSSL
+							for _, profile := range clientSSL {
+								clientProfRef := ConvertStringToProfileRef(
+									profile, CustomProfileClient, tlsContext.namespace)
+								rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+							}
+						case Secret:
+							// Process ClientSSL stored as kubernetes secret
+							var secrets []*v1.Secret
+							for _, secretName := range clientSSL {
+								secretKey := tlsContext.namespace + "/" + secretName
+								if _, ok := ctlr.comInformers[namespace]; !ok {
+									return false
+								}
+								obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+								if err != nil || !found {
+									log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+										clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+									return false
+								}
+								secrets = append(secrets, obj.(*v1.Secret))
+							}
+							err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient, tlsContext.bigIPSSLProfiles.clientSSlParams.RenegotiationEnabled)
+							if err != nil {
+								log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
+									err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+								return false
+							}
+						}
 
+					} else {
+						log.Errorf("profileRefrence in clientSSLParams is mandatory for hybrid mode '%s' '%s'/'%s'", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					}
+				}
+				if len(serverSSL) > 0 {
+					if tlsContext.bigIPSSLProfiles.serverSSlParams.ProfileReference != "" {
+						switch tlsContext.bigIPSSLProfiles.serverSSlParams.ProfileReference {
+						case BIGIP:
+							// Process referenced BIG-IP serverSSL
+							for _, profile := range serverSSL {
+								serverProfRef := ConvertStringToProfileRef(
+									profile, CustomProfileServer, tlsContext.namespace)
+								rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+							}
+						case Secret:
+							// Process ServerSSL stored as kubernetes secret
+							var secrets []*v1.Secret
+							for _, secret := range serverSSL {
+								secretKey := tlsContext.namespace + "/" + secret
+								if _, ok := ctlr.comInformers[namespace]; !ok {
+									return false
+								}
+								obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+								if err != nil || !found {
+									log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+										serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+									return false
+								}
+								secrets = append(secrets, obj.(*v1.Secret))
+								err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
+								if err != nil {
+									log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+										err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+									return false
+								}
+							}
+						}
+
+					} else {
+						log.Errorf("profileRefrence in clientSSLParams is mandatory for hybrid mode '%s' '%s'/'%s'", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					}
+				}
 			case Certificate:
 				// Prepare SSL Transient Context
 				if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
@@ -1059,7 +1144,7 @@ func (ctlr *Controller) handleTLS(
 						sslPath := hostname + poolPathRef.path
 						sslPath = strings.TrimSuffix(sslPath, "/")
 						if len(serverSSL) > 0 {
-							if tlsContext.referenceType == BIGIP {
+							if tlsContext.referenceType == BIGIP || (tlsContext.referenceType == Hybrid && tlsContext.bigIPSSLProfiles.serverSSlParams.ProfileReference == BIGIP) {
 								// for bigip referenced profiles we need to add entries for all profiles
 								for _, profileName := range serverSSL {
 									updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),

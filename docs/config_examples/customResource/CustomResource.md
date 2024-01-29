@@ -174,28 +174,33 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 
 **TLSProfile Components**
 
-| PARAMETER       | TYPE           | REQUIRED | DEFAULT | DESCRIPTION                                                                                                    |
-|-----------------|----------------|----------|---------|----------------------------------------------------------------------------------------------------------------|
-| termination     | String         | Required | NA      | Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough]                       |
-| clientSSL       | String         | Required | NA      | Single ClientSSL Profile on the BIG-IP OR a kubernetes secret.                                                 |
-| clientSSLs      | List of string | Required | NA      | Multiple ClientSSL Profiles on the BIG-IP OR list of kubernetes secrets.                                       |
-| serverSSL       | String         | Optional | NA      | Single ServerSSL Profile on the BIG-IP OR a kubernetes secret.                                                 |
-| serverSSLs      | List of string | Optional | NA      | Multiple ServerSSL Profiles on the BIG-IP OR list of kubernetes secrets.                                       |
-| reference       | String         | Required | NA      | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only            |
-| clientSSLParams | Object         | Optional | NA      | List of settings that needs to be applied to clientSSL custom profiles created by CIS through reference secret |
-| serverSSLParams | Object         | Optional | NA      | List of settings that needs to be applied to serverSSL custom profiles created by CIS through reference secret |
+| PARAMETER       | TYPE           | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                                   |
+|-----------------|----------------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| termination     | String         | Required | NA      | Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough]                                                                      |
+| clientSSL       | String         | Required | NA      | Single ClientSSL Profile on the BIG-IP OR a kubernetes secret.                                                                                                |
+| clientSSLs      | List of string | Required | NA      | Multiple ClientSSL Profiles on the BIG-IP OR list of kubernetes secrets.                                                                                      |
+| serverSSL       | String         | Optional | NA      | Single ServerSSL Profile on the BIG-IP OR a kubernetes secret.                                                                                                |
+| serverSSLs      | List of string | Optional | NA      | Multiple ServerSSL Profiles on the BIG-IP OR list of kubernetes secrets.                                                                                      |
+| reference       | String         | Required | NA      | Describes the location of profile, BIG-IP,k8s Secrets or mix of serverssl from bigip refernce and clientssl from secret.Allowed values: [bigip,secret,hybrid] |
+| clientSSLParams | Object         | Optional | NA      | List of settings that needs to be applied to clientSSL custom profiles created by CIS through reference secret                                                |
+| serverSSLParams | Object         | Optional | NA      | List of settings that needs to be applied to serverSSL custom profiles created by CIS through reference secret                                                |
+
+**Note**:
+* If reference in tls spec is set to hybrid, profileReference in clientSSLParams and serverSSLParams are used to define profile reference for clientSSL and serverSSL respectively.
 
 **ClientSSLParams**
 
-| PARAMETER            | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                               |
-|----------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------------------|
-| renegotiationEnabled | Boolean | Optional | true    | If false, disables renegotiation on the custom clientssl profile created by CIS through reference secret. |
+| PARAMETER            | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                  |
+|----------------------|---------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| renegotiationEnabled | Boolean | Optional | true    | If false, disables renegotiation on the custom clientssl profile created by CIS through reference secret.                                    |
+| profileReference     | String  | Optional | NA      | Allowed values: [bigip, secret]. If reference in tls spec is set to hybrid, this parameter is used to define profile reference for clientSSL |
 
 **ServerSSLParams**
 
-| PARAMETER            | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                               |
-|----------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------------------|
-| renegotiationEnabled | Boolean | Optional | true    | If false, disables renegotiation on the custom serverssl profile created by CIS through reference secret. |
+| PARAMETER            | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                  |
+|----------------------|---------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| renegotiationEnabled | Boolean | Optional | true    | If false, disables renegotiation on the custom serverssl profile created by CIS through reference secret.                                    |
+| profileReference     | String  | Optional | NA      | Allowed values: [bigip, secret]. If reference in tls spec is set to hybrid, this parameter is used to define profile reference for serverSSL |
 
 **Note**:
 * CIS has a 1:1 mapping for a domain(CommonName) and BIG-IP-VirtualServer.

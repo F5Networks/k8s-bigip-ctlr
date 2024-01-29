@@ -371,9 +371,9 @@ virtual-server.f5.com/multiClusterServices:
 '[
      {
          "clusterName": "cluster2", 
-         "serviceName": "svc-pytest-foo-1-com",
+         "service": "svc-pytest-foo-1-com",
          "namespace": "foo", 
-         "port": 80,
+         "servicePort": 80,
          "weight": 30,
      }
 ]'
@@ -436,12 +436,12 @@ Services running in any other OpenShift/Kubernetes clusters, apart from the HA c
     extendedServiceReferences:
     - clusterName: cluster2
       namespace: ns1
-      port: 8080
-      serviceName: svc-1
+      servicePort: 8080
+      service: svc-1
     - clusterName: cluster3
       namespace: ns2
-      port: 80
-      serviceName: svc-ext-1
+      servicePort: 80
+      service: svc-ext-1
 ```
 
 ### Transport Server Pool with Multi-ClusterServices
@@ -452,13 +452,13 @@ Services running in any other OpenShift/Kubernetes clusters, apart from the HA c
     servicePort: 8181
     extendedServiceReferences:
     - clusterName: cluster2
-      serviceName: svc-1
+      service: svc-1
       namespace: ns1
-      port: 8181
+      servicePort: 8181
     - clusterName: cluster3
-      serviceName: svc-ext-1
+      service: svc-ext-1
       namespace: ns2
-      port: 8282
+      servicePort: 8282
 ```
 
 ## Static Routing Mode
@@ -509,13 +509,13 @@ Following is the sample deployment for primary CIS deployment:
 
 #### Route Annotation / VS or TS MultiClusterServices Parameters
 
-| Parameter   | Type       | Required   | Description                                             | Default | Examples |
-|-------------|------------|------------|---------------------------------------------------------|---------|----------|
-| clusterName | String     | Mandatory  | Name of the cluster                                     | -       | cluster1 |
-| serviceName | String     | Mandatory  | Name of the service                                     | -       | svc-1    |
-| namespace   | String     | Mandatory  | Namespace where the service is created                  | -       | test     |
-| port        | String/Int | Mandatory  | port of the service  (for named port use string value ) | -       | 80       |
-| weight      | Int        | Optional   | weight to be used for traffic splitting                 | 0       | 20       |
+| Parameter     | Type       | Required   | Description                                             | Default | Examples |
+|---------------|------------|------------|---------------------------------------------------------|---------|----------|
+| clusterName   | String     | Mandatory  | Name of the cluster                                     | -       | cluster1 |
+| service       | String     | Mandatory  | Name of the service                                     | -       | svc-1    |
+| namespace     | String     | Mandatory  | Namespace where the service is created                  | -       | test     |
+| servicePort   | String/Int | Mandatory  | port of the service  (for named port use string value ) | -       | 80       |
+| weight        | Int        | Optional   | weight to be used for traffic splitting                 | 0       | 20       |
 
 ### Cluster wise Ratio for traffic distribution
 CIS supports distribution of traffic across clusters as per the ratio configured for each cluster in the extended ConfigMap.<br>
@@ -677,14 +677,14 @@ virtual-server.f5.com/multiClusterServices:
 '[
      {
          "clusterName": "cluster2",
-         "serviceName": "svc-pytest-foo-1-com",
+         "service": "svc-pytest-foo-1-com",
          "namespace": "foo",
-         "port": 80,
+         "servicePort": 80,
          "weight": 30,
      }
 ]'
 ```
-where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, port is the port of the service and serviceName is the name of the service.
+where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, servicePort is the port of the service and service is the name of the service.
 where cluster2 is the external cluster apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS
 
@@ -699,13 +699,13 @@ extendedServiceReferences is a field in Virtual Server CR or Transport Server CR
     extendedServiceReferences:
     - clusterName: cluster3
       namespace: ns1
-      port: 8080
-      serviceName: svc-1
+      servicePort: 8080
+      service: svc-1
     - clusterName: cluster4
       namespace: ns2
-      port: 80
-      serviceName: svc-ext-1
+      servicePort: 80
+      service: svc-ext-1
 ```
-where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, port is the port of the service and serviceName is the name of the service.
+where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, servicePort is the port of the service and service is the name of the service.
 where cluster3 and cluster4 are the external clusters apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS

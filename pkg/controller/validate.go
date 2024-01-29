@@ -72,7 +72,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 			if !ctlr.checkValidExtendedService(mcs) {
 				// In case of invalid extendedServiceReference, just log the error and proceed
 				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s. Some of the mandatory "+
-					"parameters (clusterName/namespace/serviceName/port) are missing or cluster "+
+					"parameters (clusterName/namespace/service/servicePort) are missing or cluster "+
 					"config for the cluster in which it's running is not provided in extended configmap.", mcs, vsName)
 				continue
 			}
@@ -130,7 +130,7 @@ func (ctlr *Controller) checkValidTransportServer(
 			if !ctlr.checkValidExtendedService(mcs) {
 				// In case of invalid extendedServiceReference, just log the error and proceed
 				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s. Some of the mandatory "+
-					"parameters (clusterName/namespace/serviceName/port) are missing or cluster "+
+					"parameters (clusterName/namespace/service/servicePort) are missing or cluster "+
 					"config for the cluster in which it's running is not provided in extended configmap.", mcs, vsName)
 				continue
 			}

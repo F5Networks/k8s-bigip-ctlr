@@ -148,6 +148,7 @@ type Monitor struct {
 	TargetPort int32  `json:"targetPort"`
 	Name       string `json:"name,omitempty"`
 	Reference  string `json:"reference,omitempty"`
+	SSLProfile string `json:"sslProfile,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

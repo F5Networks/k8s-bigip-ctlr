@@ -470,6 +470,7 @@ type (
 		TargetPort  int32  `json:"targetPort,omitempty"`
 		Path        string `json:"path,omitempty"`
 		TimeUntilUp *int   `json:"timeUntilUp,omitempty"`
+		SSLProfile  string `json:"sslProfile,omitempty"`
 	}
 	MonitorName struct {
 		Name string `json:"name"`
@@ -1042,19 +1043,20 @@ type (
 	// - Monitor_HTTP
 	// - Monitor_HTTPS
 	as3Monitor struct {
-		Class             string  `json:"class,omitempty"`
-		Interval          int     `json:"interval,omitempty"`
-		MonitorType       string  `json:"monitorType,omitempty"`
-		TargetAddress     *string `json:"targetAddress,omitempty"`
-		Timeout           int     `json:"timeout,omitempty"`
-		TimeUnitilUp      *int    `json:"timeUntilUp,omitempty"`
-		Adaptive          *bool   `json:"adaptive,omitempty"`
-		Dscp              *int    `json:"dscp,omitempty"`
-		Receive           string  `json:"receive"`
-		Send              string  `json:"send"`
-		TargetPort        int32   `json:"targetPort,omitempty"`
-		ClientCertificate string  `json:"clientCertificate,omitempty"`
-		Ciphers           string  `json:"ciphers,omitempty"`
+		Class             string             `json:"class,omitempty"`
+		Interval          int                `json:"interval,omitempty"`
+		MonitorType       string             `json:"monitorType,omitempty"`
+		TargetAddress     *string            `json:"targetAddress,omitempty"`
+		Timeout           int                `json:"timeout,omitempty"`
+		TimeUnitilUp      *int               `json:"timeUntilUp,omitempty"`
+		Adaptive          *bool              `json:"adaptive,omitempty"`
+		Dscp              *int               `json:"dscp,omitempty"`
+		Receive           string             `json:"receive"`
+		Send              string             `json:"send"`
+		TargetPort        int32              `json:"targetPort,omitempty"`
+		ClientCertificate string             `json:"clientCertificate,omitempty"`
+		Ciphers           string             `json:"ciphers,omitempty"`
+		ClientTLS         as3ResourcePointer `json:"clientTLS,omitempty"`
 	}
 
 	// as3CABundle maps to CA_Bundle in AS3 Resources

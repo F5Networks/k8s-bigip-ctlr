@@ -1594,6 +1594,9 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			}
 			monitor.Send = v.Send
 			monitor.TimeUnitilUp = v.TimeUntilUp
+			if v.SSLProfile != "" {
+				monitor.ClientTLS = as3ResourcePointer{BigIP: fmt.Sprintf("%v", v.SSLProfile)}
+			}
 		case "tcp", "udp":
 			adaptiveFalse := false
 			monitor.Adaptive = &adaptiveFalse

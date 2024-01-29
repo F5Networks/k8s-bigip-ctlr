@@ -545,6 +545,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 						Timeout:    hm.Timeout,
 						Path:       hm.Path,
 						TargetPort: hm.TargetPort,
+						SSLProfile: hm.SSLProfile,
 					}
 					rsCfg.Monitors = append(
 						rsCfg.Monitors,

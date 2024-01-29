@@ -523,26 +523,33 @@ type (
 
 	// action config for a Rule
 	action struct {
-		Name      string `json:"name"`
-		Pool      string `json:"pool,omitempty"`
-		HTTPHost  bool   `json:"httpHost,omitempty"`
-		HttpReply bool   `json:"httpReply,omitempty"`
-		HTTPURI   bool   `json:"httpUri,omitempty"`
-		Forward   bool   `json:"forward,omitempty"`
-		Location  string `json:"location,omitempty"`
-		Path      string `json:"path,omitempty"`
-		Redirect  bool   `json:"redirect,omitempty"`
-		Replace   bool   `json:"replace,omitempty"`
-		Request   bool   `json:"request,omitempty"`
-		Reset     bool   `json:"reset,omitempty"`
-		Select    bool   `json:"select,omitempty"`
-		Value     string `json:"value,omitempty"`
-		WAF       bool   `json:"waf,omitempty"`
-		Policy    string `json:"policy,omitempty"`
-		Drop      bool   `json:"drop,omitempty"`
-		Enabled   *bool  `json:"enabled,omitempty"`
-		Log       bool   `json:"log,omitempty"`
-		Message   string `json:"message,omitempty"`
+		Name          string `json:"name,omitEmpty"`
+		Key           string `json:"key,omitEmpty"`
+		Netmask       string `json:"netmask,omitEmpty"`
+		Pool          string `json:"pool,omitempty"`
+		HTTPHost      bool   `json:"httpHost,omitempty"`
+		HttpReply     bool   `json:"httpReply,omitempty"`
+		HTTPURI       bool   `json:"httpUri,omitempty"`
+		Forward       bool   `json:"forward,omitempty"`
+		Location      string `json:"location,omitempty"`
+		Path          string `json:"path,omitempty"`
+		Redirect      bool   `json:"redirect,omitempty"`
+		Replace       bool   `json:"replace,omitempty"`
+		Request       bool   `json:"request,omitempty"`
+		Reset         bool   `json:"reset,omitempty"`
+		Select        bool   `json:"select,omitempty"`
+		Value         string `json:"value,omitempty"`
+		WAF           bool   `json:"waf,omitempty"`
+		Policy        string `json:"policy,omitempty"`
+		Drop          bool   `json:"drop,omitempty"`
+		Enabled       *bool  `json:"enabled,omitempty"`
+		Log           bool   `json:"log,omitempty"`
+		Message       string `json:"message,omitempty"`
+		PersistMethod string `json:"method,omitempty"`
+		Timeout       int32  `json:"timeout,omitempty"`
+		Expiry        string `json:"expiry,omitempty"`
+		Length        int32  `json:"length,omitempty"`
+		Offset        int32  `json:"offset,omitempty"`
 	}
 
 	// condition config for a Rule
@@ -895,14 +902,33 @@ type (
 
 	// as3Action maps to Policy_Action in AS3 Resources
 	as3Action struct {
-		Type     string                  `json:"type,omitempty"`
-		Event    string                  `json:"event,omitempty"`
-		Select   *as3ActionForwardSelect `json:"select,omitempty"`
-		Policy   *as3ResourcePointer     `json:"policy,omitempty"`
-		Enabled  *bool                   `json:"enabled,omitempty"`
-		Location string                  `json:"location,omitempty"`
-		Replace  *as3ActionReplaceMap    `json:"replace,omitempty"`
-		Write    *as3LogMessage          `json:"write,omitempty"`
+		Type               string                  `json:"type,omitempty"`
+		Event              string                  `json:"event,omitempty"`
+		Select             *as3ActionForwardSelect `json:"select,omitempty"`
+		Policy             *as3ResourcePointer     `json:"policy,omitempty"`
+		Enabled            *bool                   `json:"enabled,omitempty"`
+		Location           string                  `json:"location,omitempty"`
+		Replace            *as3ActionReplaceMap    `json:"replace,omitempty"`
+		Write              *as3LogMessage          `json:"write,omitempty"`
+		SourceAddress      *PersistMetaData        `json:"sourceAddress,omitempty"`
+		DestinationAddress *PersistMetaData        `json:"destinationAddress,omitempty"`
+		CookieHash         *PersistMetaData        `json:"cookieHash,omitempty"`
+		CookieRewrite      *PersistMetaData        `json:"cookieRewrite,omitempty"`
+		CookieInsert       *PersistMetaData        `json:"cookieInsert,omitempty"`
+		CookiePassive      *PersistMetaData        `json:"cookiePassive,omitempty"`
+		Universal          *PersistMetaData        `json:"universal,omitempty"`
+		Hash               *PersistMetaData        `json:"hash,omitempty"`
+		Carp               *PersistMetaData        `json:"carp,omitempty"`
+	}
+
+	PersistMetaData struct {
+		Name    string `json:"name,omitempty"`
+		Netmask string `json:"netmask,omitempty"`
+		Key     string `json:"key,omitempty"`
+		Timeout int32  `json:"timeout,omitempty"`
+		Expiry  string `json:"expiry,omitempty"`
+		Offset  int32  `json:"offset,omitempty"`
+		Length  int32  `json:"length,omitempty"`
 	}
 
 	as3ActionReplaceMap struct {

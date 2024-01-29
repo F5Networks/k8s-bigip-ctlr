@@ -797,7 +797,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			//Create condition object
 			createRuleCondition(rl, rulesData, port)
 
-			//Creat action object
+			//Create action object
 			createRuleAction(rl, rulesData)
 
 			ep.Rules = append(ep.Rules, rulesData)
@@ -1289,6 +1289,58 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		// Add drop action if specified
 		if v.Drop {
 			action.Type = "drop"
+		}
+
+		if v.PersistMethod != "" {
+			action.Event = "request"
+			action.Type = "persist"
+			if v.PersistMethod == "sourceAddress" {
+				action.SourceAddress = &PersistMetaData{
+					Netmask: v.Netmask,
+					Timeout: v.Timeout,
+				}
+			} else if v.PersistMethod == "destinationAddress" {
+				action.DestinationAddress = &PersistMetaData{
+					Netmask: v.Netmask,
+					Timeout: v.Timeout,
+				}
+			} else if v.PersistMethod == "cookieHash" {
+				action.CookieHash = &PersistMetaData{
+					Timeout: v.Timeout,
+					Offset:  v.Offset,
+					Length:  v.Length,
+					Name:    v.Name,
+				}
+			} else if v.PersistMethod == "cookieInsert" {
+				action.CookieInsert = &PersistMetaData{
+					Name:   v.Name,
+					Expiry: v.Expiry,
+				}
+			} else if v.PersistMethod == "cookiePassive" {
+				action.CookiePassive = &PersistMetaData{
+					Name: v.Name,
+				}
+			} else if v.PersistMethod == "cookieRewrite" {
+				action.CookieRewrite = &PersistMetaData{
+					Name:   v.Name,
+					Expiry: v.Expiry,
+				}
+			} else if v.PersistMethod == "universal" {
+				action.Universal = &PersistMetaData{
+					Key:     v.Key,
+					Timeout: v.Timeout,
+				}
+			} else if v.PersistMethod == "carp" {
+				action.Carp = &PersistMetaData{
+					Key:     v.Key,
+					Timeout: v.Timeout,
+				}
+			} else if v.PersistMethod == "hash" {
+				action.Hash = &PersistMetaData{
+					Key:     v.Key,
+					Timeout: v.Timeout,
+				}
+			}
 		}
 
 		rulesData.Actions = append(rulesData.Actions, action)

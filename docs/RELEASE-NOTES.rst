@@ -8,6 +8,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
+      * Streamline the naming convention for extended service references and multi cluster references annotations.
     * CRD
       * Support for mix of k8s Secret and bigip reference in TLSProfile.
       * Support for setting sslProfile with https monitor in virtualServer and nextgen routes.

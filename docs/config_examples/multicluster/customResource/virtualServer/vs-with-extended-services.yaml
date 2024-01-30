@@ -18,9 +18,9 @@ spec:
     extendedServiceReferences:
     - clusterName: cluster2
       namespace: ns1
-      port: 8080
-      serviceName: svc-1
+      servicePort: 8080
+      service: svc-1
     - clusterName: cluster3
       namespace: ns2
-      port: 80
-      serviceName: svc-ext-1
+      servicePort: 80
+      service: svc-ext-1

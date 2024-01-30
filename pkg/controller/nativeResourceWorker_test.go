@@ -2203,8 +2203,8 @@ extendedRouteSpec:
 			}
 
 			//check with multi cluster service annotation
-			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "serviceName":"svc", "namespace": "default", "port": "8080" },
-{"clusterName": "cluster3", "serviceName":"svc1", "namespace": "default", "port": "8081" }]`
+			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "service":"svc", "namespace": "default", "servicePort": "8080" },
+{"clusterName": "cluster3", "service":"svc1", "namespace": "default", "servicePort": "8081" }]`
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
@@ -2235,7 +2235,7 @@ extendedRouteSpec:
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
-			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "serviceName":"svc1", "namespace": "default", "port": "8081" }]`
+			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "service":"svc1", "namespace": "default", "servicePort": "8081" }]`
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))

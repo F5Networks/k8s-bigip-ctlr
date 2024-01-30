@@ -19,11 +19,11 @@ spec:
       extendedServiceReferences:
         - clusterName: cluster2
           namespace: ns1
-          port: 80
-          serviceName: svc-1
+          servicePort: 80
+          service: svc-1
           weight: 20
         - clusterName: cluster3
           namespace: ns2
-          port: 80
-          serviceName: svc-ext-1
+          servicePort: 80
+          service: svc-ext-1
           weight: 30

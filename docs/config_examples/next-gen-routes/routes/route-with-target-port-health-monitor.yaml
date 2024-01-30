@@ -10,6 +10,8 @@ metadata:
           "interval": 5,
           "timeout": 10,
           "targetPort": 8080,
+          "type": "https",
+          "sslProfile": "/Common/serverssl"
         }
       ]
   labels:

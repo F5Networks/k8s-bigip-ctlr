@@ -15,6 +15,7 @@ spec:
         send: /
         timeout: 10
         type: https
+        sslProfile: /Common/serverssl
       path: /bar
       service: svc-3
       servicePort: 80

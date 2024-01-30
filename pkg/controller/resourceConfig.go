@@ -798,6 +798,7 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 				Recv:       monitor.Recv,
 				Timeout:    monitor.Timeout,
 				TargetPort: monitor.TargetPort,
+				SSLProfile: monitor.SSLProfile,
 			}
 			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 		}

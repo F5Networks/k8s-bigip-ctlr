@@ -10,6 +10,7 @@ Added Functionality
     * Multi Cluster
     * CRD
       * Support for mix of k8s Secret and bigip reference in TLSProfile.
+      * Support for setting sslProfile with https monitor in virtualServer and nextgen routes
 
 Bug Fixes
 ````````````

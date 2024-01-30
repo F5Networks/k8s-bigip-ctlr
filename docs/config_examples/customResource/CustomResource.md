@@ -137,16 +137,17 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 
 **Health Monitor**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                         |
-| ------ | ------ | ------ | ------ |-------------------------------------------------------------------------------------------------------------------------------------|
-| type | String | Required | NA | http, https or tcp                                                                                                                  |
-| send | String | Required | “GET /rn” | HTTP request string to send.                                                                                                        |
-| recv | String | Optional | NA | String or RegEx pattern to match in first 5,120 bytes of backend response.                                                          |
-| interval | Int | Required | 5 | Seconds between health queries                                                                                                      |
-| timeout | Int | Optional | 16 | Seconds before query fails                                                                                                          |
-| targetPort | Int | Optional | 0 | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool. |
-| name | String | Required | NA | Reference to health monitor name existing on bigip                                                                                  |
-| reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip                                                                       |
+| PARAMETER  | TYPE   | REQUIRED | DEFAULT   | DESCRIPTION                                                                                                                         |
+|------------|--------|----------|-----------|-------------------------------------------------------------------------------------------------------------------------------------|
+| type       | String | Required | NA        | http, https or tcp                                                                                                                  |
+| send       | String | Required | “GET /rn” | HTTP request string to send.                                                                                                        |
+| recv       | String | Optional | NA        | String or RegEx pattern to match in first 5,120 bytes of backend response.                                                          |
+| interval   | Int    | Required | 5         | Seconds between health queries                                                                                                      |
+| timeout    | Int    | Optional | 16        | Seconds before query fails                                                                                                          |
+| targetPort | Int    | Optional | 0         | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool. |
+| name       | String | Required | NA        | Reference to health monitor name existing on bigip                                                                                  |
+| reference  | String | Required | NA        | Value should be bigip for referencing custom monitor on bigip                                                                       |
+| sslProfile | String | Optional | NA        | sslProfile to attach to custom https monitor created on BIGIP.Applicable only for type "https" monitor                              |
 
 **TCP Profile Components**
 

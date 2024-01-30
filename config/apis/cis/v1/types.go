@@ -36,7 +36,7 @@ type VirtualServerSpec struct {
 	VirtualServerHTTPPort            int32            `json:"virtualServerHTTPPort,omitempty"`
 	VirtualServerHTTPSPort           int32            `json:"virtualServerHTTPSPort,omitempty"`
 	DefaultPool                      DefaultPool      `json:"defaultPool,omitempty"`
-	Pools                            []Pool           `json:"pools,omitempty"`
+	Pools                            []VSPool         `json:"pools,omitempty"`
 	TLSProfileName                   string           `json:"tlsProfileName,omitempty"`
 	HTTPTraffic                      string           `json:"httpTraffic,omitempty"`
 	SNAT                             string           `json:"snat,omitempty"`
@@ -51,7 +51,7 @@ type VirtualServerSpec struct {
 	ProfileMultiplex                 string           `json:"profileMultiplex,omitempty"`
 	DOS                              string           `json:"dos,omitempty"`
 	BotDefense                       string           `json:"botDefense,omitempty"`
-	Profiles                         ProfileSpec      `json:"profiles,omitempty"`
+	Profiles                         ProfileVSSpec    `json:"profiles,omitempty"`
 	AllowSourceRange                 []string         `json:"allowSourceRange,omitempty"`
 	HttpMrfRoutingEnabled            *bool            `json:"httpMrfRoutingEnabled,omitempty"`
 	Partition                        string           `json:"partition,omitempty"`
@@ -80,8 +80,8 @@ type DefaultPool struct {
 	Reference         string             `json:"reference,omitempty"`
 }
 
-// Pool defines a pool object in BIG-IP.
-type Pool struct {
+// VSPool defines a pool object for Virtual Server in BIG-IP.
+type VSPool struct {
 	Name                 string                         `json:"name,omitempty"`
 	Path                 string                         `json:"path,omitempty"`
 	Service              string                         `json:"service"`
@@ -99,6 +99,26 @@ type Pool struct {
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
 	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends"`
+	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
+}
+
+// TSPool defines a pool object for Transport Server in BIG-IP.
+type TSPool struct {
+	Name                 string                         `json:"name,omitempty"`
+	Path                 string                         `json:"path,omitempty"`
+	Service              string                         `json:"service"`
+	ServicePort          intstr.IntOrString             `json:"servicePort"`
+	NodeMemberLabel      string                         `json:"nodeMemberLabel,omitempty"`
+	Monitor              Monitor                        `json:"monitor"`
+	Monitors             []Monitor                      `json:"monitors"`
+	Rewrite              string                         `json:"rewrite,omitempty"`
+	Balance              string                         `json:"loadBalancingMethod,omitempty"`
+	WAF                  string                         `json:"waf,omitempty"`
+	ServiceNamespace     string                         `json:"serviceNamespace,omitempty"`
+	ReselectTries        int32                          `json:"reselectTries,omitempty"`
+	ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
+	HostRewrite          string                         `json:"hostRewrite,omitempty"`
+	Weight               *int32                         `json:"weight,omitempty"`
 	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
 }
 
@@ -243,7 +263,7 @@ type TransportServerSpec struct {
 	Mode                 string           `json:"mode"`
 	SNAT                 string           `json:"snat"`
 	ConnectionMirroring  string           `json:"connectionMirroring,omitempty"`
-	Pool                 Pool             `json:"pool"`
+	Pool                 TSPool           `json:"pool"`
 	AllowVLANs           []string         `json:"allowVlans,omitempty"`
 	Type                 string           `json:"type,omitempty"`
 	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
@@ -254,7 +274,7 @@ type TransportServerSpec struct {
 	ProfileL4            string           `json:"profileL4,omitempty"`
 	DOS                  string           `json:"dos,omitempty"`
 	BotDefense           string           `json:"botDefense,omitempty"`
-	Profiles             ProfileSpec      `json:"profiles,omitempty"`
+	Profiles             ProfileTSSpec    `json:"profiles,omitempty"`
 	Partition            string           `json:"partition,omitempty"`
 }
 
@@ -375,6 +395,16 @@ type ProfileSpec struct {
 	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
 	ProfileWebSocket      string            `json:"profileWebSocket,omitempty"`
 }
+
+type ProfileVSSpec struct {
+	TCP   ProfileTCP   `json:"tcp,omitempty"`
+	HTTP2 ProfileHTTP2 `json:"http2,omitempty"`
+}
+
+type ProfileTSSpec struct {
+	TCP ProfileTCP `json:"tcp,omitempty"`
+}
+
 type MultiPoolPersistence struct {
 	Method  string `json:"method,omitempty"`
 	TimeOut int32  `json:"timeOut,omitempty"`

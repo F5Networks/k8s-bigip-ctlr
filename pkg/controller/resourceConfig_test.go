@@ -287,7 +287,7 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
 						{
 							Path:             "/foo",
 							Service:          "svc1",
@@ -339,7 +339,7 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
 						{
 							Path:             "/foo",
 							Service:          "svc1",
@@ -380,7 +380,7 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
 						{
 							Path:    "/foo",
 							Service: "svc1",
@@ -540,7 +540,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"SampleTS",
 				namespace,
 				cisapiv1.TransportServerSpec{
-					Pool: cisapiv1.Pool{
+					Pool: cisapiv1.TSPool{
 						Service:          "svc1",
 						ServicePort:      intstr.IntOrString{IntVal: 80},
 						ServiceNamespace: "test",
@@ -562,7 +562,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"SampleTS",
 				namespace,
 				cisapiv1.TransportServerSpec{
-					Pool: cisapiv1.Pool{
+					Pool: cisapiv1.TSPool{
 						Service:          "svc1",
 						ServicePort:      intstr.IntOrString{IntVal: 80},
 						ServiceNamespace: "test",
@@ -585,7 +585,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"SampleTS",
 				namespace,
 				cisapiv1.TransportServerSpec{
-					Pool: cisapiv1.Pool{
+					Pool: cisapiv1.TSPool{
 						Service:     "svc1",
 						ServicePort: intstr.IntOrString{IntVal: 80},
 						Monitors: []cisapiv1.Monitor{
@@ -1147,7 +1147,7 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.VirtualServerSpec{
 					Host: "test.com",
-					Pools: []cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
 						{
 							Path:    "/path",
 							Service: "svc1",
@@ -1417,7 +1417,7 @@ var _ = Describe("Resource Config Tests", func() {
 				cisapiv1.VirtualServerSpec{
 					Host:           "test.com",
 					TLSProfileName: "SampleTLS",
-					Pools: []cisapiv1.Pool{
+					Pools: []cisapiv1.VSPool{
 						{
 							Path:             "/foo",
 							Service:          "svc1",

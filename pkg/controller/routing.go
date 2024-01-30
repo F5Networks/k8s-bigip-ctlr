@@ -1325,15 +1325,15 @@ func isRoutePathBasedABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0 && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 
-func isVSABDeployment(pool *cisapiv1.Pool) bool {
+func isVSABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0
 }
 
-func isVsPathBasedABDeployment(pool *cisapiv1.Pool) bool {
+func isVsPathBasedABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
 
-func isVsPathBasedRatioDeployment(pool *cisapiv1.Pool, mode cisapiv1.HAModeType) bool {
+func isVsPathBasedRatioDeployment(pool *cisapiv1.VSPool, mode cisapiv1.HAModeType) bool {
 	return mode == Ratio && (pool.Path != "" && pool.Path != "/")
 }
 
@@ -1542,7 +1542,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 
 // updateDataGroupForABVirtualServer updates the data group map based on alternativeBackends of route.
 func (ctlr *Controller) updateDataGroupForABVirtualServer(
-	pool *cisapiv1.Pool,
+	pool *cisapiv1.VSPool,
 	dgName string,
 	partition string,
 	namespace string,

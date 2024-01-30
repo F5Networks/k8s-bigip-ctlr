@@ -1293,21 +1293,21 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 
 		if v.PersistMethod != "" {
 			switch v.PersistMethod {
-			case "sourceAddress":
+			case SourceAddress:
 				action.Event = "request"
 				action.Type = "persist"
 				action.SourceAddress = &PersistMetaData{
 					Netmask: v.Netmask,
 					Timeout: v.Timeout,
 				}
-			case "destinationAddress":
+			case DestinationAddress:
 				action.Event = "request"
 				action.Type = "persist"
 				action.DestinationAddress = &PersistMetaData{
 					Netmask: v.Netmask,
 					Timeout: v.Timeout,
 				}
-			case "cookieHash":
+			case CookieHash:
 				action.Event = "request"
 				action.Type = "persist"
 				action.CookieHash = &PersistMetaData{
@@ -1316,41 +1316,41 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 					Length:  v.Length,
 					Name:    v.Name,
 				}
-			case "cookieInsert":
+			case CookieInsert:
 				action.Event = "request"
 				action.Type = "persist"
 				action.CookieInsert = &PersistMetaData{
 					Name:   v.Name,
 					Expiry: v.Expiry,
 				}
-			case "cookieRewrite":
+			case CookieRewrite:
 				action.Event = "request"
 				action.Type = "persist"
 				action.CookieRewrite = &PersistMetaData{
 					Name:   v.Name,
 					Expiry: v.Expiry,
 				}
-			case "cookiePassive":
+			case CookiePassive:
 				action.Event = "request"
 				action.Type = "persist"
 				action.CookiePassive = &PersistMetaData{
 					Name: v.Name,
 				}
-			case "universal":
+			case Universal:
 				action.Event = "request"
 				action.Type = "persist"
 				action.Universal = &PersistMetaData{
 					Key:     v.Key,
 					Timeout: v.Timeout,
 				}
-			case "carp":
+			case Carp:
 				action.Event = "request"
 				action.Type = "persist"
 				action.Carp = &PersistMetaData{
 					Key:     v.Key,
 					Timeout: v.Timeout,
 				}
-			case "hash":
+			case Hash:
 				action.Event = "request"
 				action.Type = "persist"
 				action.Hash = &PersistMetaData{

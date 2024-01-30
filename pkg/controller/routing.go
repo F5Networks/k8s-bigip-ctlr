@@ -356,39 +356,39 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 
 func getHostPersistActions(hostPersistence cisapiv1.HostPersistence) ([]*action, error) {
 	switch hostPersistence.Method {
-	case "sourceAddress":
+	case SourceAddress:
 		if hostPersistence.PersistMetaData.Netmask == "" || hostPersistence.PersistMetaData.Timeout == 0 {
 			return nil, fmt.Errorf("netmask and timeout are required for Source Address persist method")
 		}
-	case "destinationAddress":
+	case DestinationAddress:
 		if hostPersistence.PersistMetaData.Netmask == "" || hostPersistence.PersistMetaData.Timeout == 0 {
 			return nil, fmt.Errorf("netmask and timeout are required for Destination Address persist method")
 		}
-	case "cookieInsert":
+	case CookieInsert:
 		if hostPersistence.PersistMetaData.Name == "" || hostPersistence.PersistMetaData.Expiry == "" {
 			return nil, fmt.Errorf("name and expiry are required for Cookie Insert persist method")
 		}
-	case "cookieRewrite":
+	case CookieRewrite:
 		if hostPersistence.PersistMetaData.Name == "" || hostPersistence.PersistMetaData.Expiry == "" {
 			return nil, fmt.Errorf("name and expiry are required for Cookie Rewrite persist methods")
 		}
-	case "cookiePassive":
+	case CookiePassive:
 		if hostPersistence.PersistMetaData.Name == "" {
 			return nil, fmt.Errorf("name is required for Cookie Passive persist method")
 		}
-	case "cookieHash":
+	case CookieHash:
 		if hostPersistence.PersistMetaData.Name == "" || hostPersistence.PersistMetaData.Timeout == 0 || hostPersistence.PersistMetaData.Offset == 0 || hostPersistence.PersistMetaData.Length == 0 {
 			return nil, fmt.Errorf("name, timeout, offset, and length are required for Cookie Hash persist method")
 		}
-	case "universal":
+	case Universal:
 		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
 			return nil, fmt.Errorf("key and timeout are required for Universal persist method")
 		}
-	case "carp":
+	case Carp:
 		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
 			return nil, fmt.Errorf("key and timeout are required for Carp persist method")
 		}
-	case "hash":
+	case Hash:
 		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
 			return nil, fmt.Errorf("key and timeout are required for Hash persist method")
 		}

@@ -1352,6 +1352,18 @@ const (
 	ServiceEndpoint AutoMonitorType = "service-endpoint"
 )
 
+const (
+	SourceAddress      = "sourceAddress"
+	DestinationAddress = "destinationAddress"
+	CookieRewrite      = "cookieRewrite"
+	CookieInsert       = "cookieInsert"
+	CookiePassive      = "cookiePassive"
+	CookieHash         = "cookieHash"
+	Hash               = "hash"
+	Carp               = "carp"
+	Universal          = "universal"
+)
+
 type (
 	ExternalClusterConfig struct {
 		ClusterName string                    `yaml:"clusterName"`

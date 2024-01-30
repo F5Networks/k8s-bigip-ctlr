@@ -182,7 +182,7 @@ func (ctlr *Controller) checkValidExtendedService(mcs cisapiv1.MultiClusterServi
 	}
 	// Check if all required parameters are specified
 	if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
-		return fmt.Errorf("some of the mandatory parameters (clusterName/namespace/serviceName/port) are missing")
+		return fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")
 	}
 	if mcs.ClusterName != "" {
 		// Check if cluster config is provided for the cluster where the service is running

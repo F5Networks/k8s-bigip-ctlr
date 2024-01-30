@@ -46,19 +46,19 @@ var _ = Describe("Validation Tests", func() {
 				SvcName:     "svc1",
 				Namespace:   "namespace1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/serviceName/port) are missing")))
+			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
 			// Check for missing service name
 			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
 				ClusterName: "cluster1",
 				Namespace:   "namespace1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/serviceName/port) are missing")))
+			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
 			// Check for missing ServicePort
 			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
 				ClusterName: "cluster1",
 				Namespace:   "namespace1",
 				SvcName:     "svc1",
-			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/serviceName/port) are missing")))
+			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
 		})
 
 		It("Validating ExtendedServiceReference running in HA and non-HA cluster", func() {

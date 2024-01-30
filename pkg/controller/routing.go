@@ -127,6 +127,19 @@ func (ctlr *Controller) prepareVirtualServerRules(
 				rl.Actions = append(rl.Actions, rewriteActions...)
 			}
 
+			if vs.Spec.HostPersistence.Method != "" {
+				if vs.Spec.Host == "" {
+					log.Warning("Host Persistence cannot be configured without host")
+				} else {
+					rewriteActions, err := getHostPersistActions(vs.Spec.HostPersistence)
+					if nil != err {
+						log.Errorf("Error while configuring host persistence: %v", err)
+						return nil
+					}
+					rl.Actions = append(rl.Actions, rewriteActions...)
+				}
+			}
+
 			if pl.Path == "/" {
 				redirects = append(redirects, rl)
 			} else if true == strings.HasPrefix(uri, "*.") {
@@ -339,6 +352,60 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 
 	log.Debugf("Configured policy: %v", plcy)
 	return &plcy
+}
+
+func getHostPersistActions(hostPersistence cisapiv1.HostPersistence) ([]*action, error) {
+	switch hostPersistence.Method {
+	case "sourceAddress":
+		if hostPersistence.PersistMetaData.Netmask == "" || hostPersistence.PersistMetaData.Timeout == 0 {
+			return nil, fmt.Errorf("netmask and timeout are required for Source Address persist method")
+		}
+	case "destinationAddress":
+		if hostPersistence.PersistMetaData.Netmask == "" || hostPersistence.PersistMetaData.Timeout == 0 {
+			return nil, fmt.Errorf("netmask and timeout are required for Destination Address persist method")
+		}
+	case "cookieInsert":
+		if hostPersistence.PersistMetaData.Name == "" || hostPersistence.PersistMetaData.Expiry == "" {
+			return nil, fmt.Errorf("name and expiry are required for Cookie Insert persist method")
+		}
+	case "cookieRewrite":
+		if hostPersistence.PersistMetaData.Name == "" || hostPersistence.PersistMetaData.Expiry == "" {
+			return nil, fmt.Errorf("name and expiry are required for Cookie Rewrite persist methods")
+		}
+	case "cookiePassive":
+		if hostPersistence.PersistMetaData.Name == "" {
+			return nil, fmt.Errorf("name is required for Cookie Passive persist method")
+		}
+	case "cookieHash":
+		if hostPersistence.PersistMetaData.Name == "" || hostPersistence.PersistMetaData.Timeout == 0 || hostPersistence.PersistMetaData.Offset == 0 || hostPersistence.PersistMetaData.Length == 0 {
+			return nil, fmt.Errorf("name, timeout, offset, and length are required for Cookie Hash persist method")
+		}
+	case "universal":
+		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
+			return nil, fmt.Errorf("key and timeout are required for Universal persist method")
+		}
+	case "carp":
+		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
+			return nil, fmt.Errorf("key and timeout are required for Carp persist method")
+		}
+	case "hash":
+		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
+			return nil, fmt.Errorf("key and timeout are required for Hash persist method")
+		}
+	default:
+		return nil, fmt.Errorf("provide a persist method value from sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, and carp")
+	}
+
+	return []*action{{
+		PersistMethod: hostPersistence.Method,
+		Name:          hostPersistence.PersistMetaData.Name,
+		Key:           hostPersistence.PersistMetaData.Key,
+		Netmask:       hostPersistence.PersistMetaData.Netmask,
+		Timeout:       hostPersistence.PersistMetaData.Timeout,
+		Length:        hostPersistence.PersistMetaData.Length,
+		Offset:        hostPersistence.PersistMetaData.Offset,
+		Expiry:        hostPersistence.PersistMetaData.Expiry,
+	}}, nil
 }
 
 func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, error) {

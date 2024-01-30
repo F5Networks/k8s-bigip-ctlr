@@ -797,7 +797,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			//Create condition object
 			createRuleCondition(rl, rulesData, port)
 
-			//Creat action object
+			//Create action object
 			createRuleAction(rl, rulesData)
 
 			ep.Rules = append(ep.Rules, rulesData)
@@ -1289,6 +1289,77 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		// Add drop action if specified
 		if v.Drop {
 			action.Type = "drop"
+		}
+
+		if v.PersistMethod != "" {
+			switch v.PersistMethod {
+			case "sourceAddress":
+				action.Event = "request"
+				action.Type = "persist"
+				action.SourceAddress = &PersistMetaData{
+					Netmask: v.Netmask,
+					Timeout: v.Timeout,
+				}
+			case "destinationAddress":
+				action.Event = "request"
+				action.Type = "persist"
+				action.DestinationAddress = &PersistMetaData{
+					Netmask: v.Netmask,
+					Timeout: v.Timeout,
+				}
+			case "cookieHash":
+				action.Event = "request"
+				action.Type = "persist"
+				action.CookieHash = &PersistMetaData{
+					Timeout: v.Timeout,
+					Offset:  v.Offset,
+					Length:  v.Length,
+					Name:    v.Name,
+				}
+			case "cookieInsert":
+				action.Event = "request"
+				action.Type = "persist"
+				action.CookieInsert = &PersistMetaData{
+					Name:   v.Name,
+					Expiry: v.Expiry,
+				}
+			case "cookieRewrite":
+				action.Event = "request"
+				action.Type = "persist"
+				action.CookieRewrite = &PersistMetaData{
+					Name:   v.Name,
+					Expiry: v.Expiry,
+				}
+			case "cookiePassive":
+				action.Event = "request"
+				action.Type = "persist"
+				action.CookiePassive = &PersistMetaData{
+					Name: v.Name,
+				}
+			case "universal":
+				action.Event = "request"
+				action.Type = "persist"
+				action.Universal = &PersistMetaData{
+					Key:     v.Key,
+					Timeout: v.Timeout,
+				}
+			case "carp":
+				action.Event = "request"
+				action.Type = "persist"
+				action.Carp = &PersistMetaData{
+					Key:     v.Key,
+					Timeout: v.Timeout,
+				}
+			case "hash":
+				action.Event = "request"
+				action.Type = "persist"
+				action.Hash = &PersistMetaData{
+					Key:     v.Key,
+					Timeout: v.Timeout,
+				}
+			default:
+				log.Warning("provide a persist method value from sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, and carp")
+			}
 		}
 
 		rulesData.Actions = append(rulesData.Actions, action)

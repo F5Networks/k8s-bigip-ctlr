@@ -56,6 +56,21 @@ type VirtualServerSpec struct {
 	HttpMrfRoutingEnabled            *bool            `json:"httpMrfRoutingEnabled,omitempty"`
 	Partition                        string           `json:"partition,omitempty"`
 	HTMLProfile                      string           `json:"htmlProfile,omitempty"`
+	HostPersistence                  HostPersistence  `json:"hostPersistence,omitempty"`
+}
+
+type HostPersistence struct {
+	Method          string          `json:"method,omitempty"`
+	PersistMetaData PersistMetaData `json:"metaData,omitempty"`
+}
+type PersistMetaData struct {
+	Name    string `json:"name,omitempty"`
+	Netmask string `json:"netmask,omitempty"`
+	Key     string `json:"key,omitempty"`
+	Timeout int32  `json:"timeout,omitempty"`
+	Expiry  string `json:"expiry,omitempty"`
+	Offset  int32  `json:"offset,omitempty"`
+	Length  int32  `json:"length,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).

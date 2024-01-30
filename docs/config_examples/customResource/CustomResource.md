@@ -77,6 +77,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | httpMrfRoutingEnabled            | boolean                       | 	Optional | false   | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.                                                                             |
 | additionalVirtualServerAddresses | List of virtualserver address | Optional  | NA      | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list            |
 | partition                        | String                        | Optional  | NA      | bigip partition                                                                                                                                                                                                  |
+| hostPersistence                  | Object                        | Optional  | NA      | Persist session rule action will be added to the VS Policy based on the host. Allowed values are existing BIG-IP Persist session               |
 
 **Default Pool Components**
 
@@ -159,6 +160,29 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 **Note**:
 * monitor can be a reference to existing helathmonitor on bigip in which case, name and reference are required parameters.
 * For creating health monitor object on bigip with UserInput type, send, interval are required parameters.
+
+**hostPersistence Components**
+| PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                   |
+|------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
+| method           | String  | Required | NA      | Allowed values are existing BIG-IP Persist session values.                                                            |
+| metaData         | Object  | Required | NA      | Attributes to be configured based on the hostPersistence Method.                              |
+
+**hostPersistence metaData Params**
+| PARAMETER        | TYPE    | REQUIRED FOR PERSIST METHODS | DEFAULT | DESCRIPTION                                                                                   |
+|------------------|---------|----------------------|---------|-----------------------------------------------------------------------------------------------|
+| name             | String  | cookieInsert, cookieRewrite, cookiePassive, cookieHash | NA      | Name of cookie                                                            |
+| key              | String  | universal, hash, carp | NA      | The key to use.          |
+| netmask          | String  | sourceAddress, destinationAddress | NA      | Network mask                              |
+| timeout          | Integer | sourceAddress, destinationAddress, universal, carp, hash, cookieHash | NA      | Timeout value in seconds                              |
+| expiry           | String  | cookieInsert, cookieRewrite | NA      | Expiration duration expressed as [Nd][HH:MM[:SS]]                              |
+| offset           | Integer | cookieHash | NA      | Offset into hash                              |
+| length           | Integer | cookieHash | NA      | Substring length                              |
+
+
+**Note**
+  * hostPersistence will be configured when host is present in the Virtual Server CR
+  * MetaData params should be configured as per the Method name
+
 
 ### Examples
 

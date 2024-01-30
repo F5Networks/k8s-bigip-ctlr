@@ -3,8 +3,8 @@ kind: Route
 metadata:
   annotations:
     virtual-server.f5.com/multiClusterServices: '[
-    {"clusterName": "cluster2", "serviceName": "svc1", "namespace": "default", "port": "8080", "weight": 20}, 
-    {"clusterName": "cluster3", "serviceName": "svc2", "namespace": "default", "port": "8080", "weight": 10}
+    {"clusterName": "cluster2", "service": "svc1", "namespace": "default", "servicePort": "8080", "weight": 20}, 
+    {"clusterName": "cluster3", "service": "svc2", "namespace": "default", "servicePort": "8080", "weight": 10}
     ]'
     # you can define either service port or target port in the port value
   labels:

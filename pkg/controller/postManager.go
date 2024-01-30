@@ -210,6 +210,9 @@ func (postMgr *PostManager) updateTenantResponseCode(code int, id string, tenant
 }
 
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) {
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
+	}
 	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
@@ -232,6 +235,10 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
 		return
+	}
+
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
 	}
 
 	if httpResp.StatusCode == http.StatusOK {
@@ -263,6 +270,9 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 }
 
 func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}, id int) {
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
+	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
@@ -485,7 +495,7 @@ func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
 		}
 		responseMap["declaration"] = as3Declaration(decl)
 	}
-	log.Errorf("[AS3]%v Raw response from Big-IP: %v ", postMgr.postManagerPrefix, responseMap)
+	log.Debugf("[AS3]%v Raw response from Big-IP: %v ", postMgr.postManagerPrefix, responseMap)
 }
 
 func (postMgr *PostManager) logAS3Request(cfg string) {

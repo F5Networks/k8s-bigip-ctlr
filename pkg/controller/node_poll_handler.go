@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
@@ -13,6 +14,14 @@ import (
 )
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
+
+	if !ctlr.initState {
+		// external cluster config is not processed in init stage before local node informer state
+		// handle static routes update after external cluster config is processed
+		// So process nodes on updates after init state
+		ctlr.processStaticRouteUpdate()
+	}
+
 	var nodesIntfc []interface{}
 
 	if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
@@ -32,15 +41,6 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}
-	if ctlr.StaticRoutingMode {
-		if !ctlr.initState {
-			// external cluster config is not processed in init stage before local node informer state
-			// handle static routes update after external cluster config is processed
-			// So process nodes on updates after init state
-			clusterNodes := ctlr.getNodesFromAllClusters()
-			ctlr.processStaticRouteUpdate(clusterNodes)
-		}
-	}
 	return nil
 }
 
@@ -56,7 +56,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
 			// Compare last set of nodes with new one
 			if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
-				log.Debugf("%v Processing Node Updates ", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
+				log.Debugf("%v Processing Node Updates %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
 				// Update node cache
 				nodeInf.oldNodes = newNodes
 				if ctlr.multiClusterResources.clusterSvcMap != nil {
@@ -78,7 +78,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 
 func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 	if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-		for svcKey, _ := range svcKeys {
+		for svcKey := range svcKeys {
 			ctlr.updatePoolMembersForService(svcKey, false)
 		}
 		key := &rqKey{
@@ -109,7 +109,7 @@ func (ctlr *Controller) getNodes(
 			fmt.Errorf("poll update unexpected type, interface is not []v1.Node")
 	}
 
-	watchedNodes := []Node{}
+	var watchedNodes []Node
 
 	var addrType v1.NodeAddressType
 	if ctlr.UseNodeInternal {
@@ -179,115 +179,152 @@ func ciliumPodCidr(annotation map[string]string) string {
 	return ""
 }
 
-func (ctlr *Controller) processStaticRouteUpdate(
-	nodes []interface{},
-) {
-	//if static-routing-mode process static routes
-	var addrType v1.NodeAddressType
-	if ctlr.UseNodeInternal {
-		addrType = v1.NodeInternalIP
-	} else {
-		addrType = v1.NodeExternalIP
-	}
-	log.Debugf("Processing Node Updates for static routes")
-	routes := routeSection{}
-	for _, obj := range nodes {
-		node := obj.(*v1.Node)
-		// Ignore the Nodes with status NotReady
-		var notExecutable bool
-		for _, nodeCondition := range node.Status.Conditions {
-			if nodeCondition.Type == v1.NodeReady && nodeCondition.Status != v1.ConditionTrue {
-				notExecutable = true
-				break
-			}
+func (ctlr *Controller) processStaticRouteUpdate() {
+	// Process the nodes networking for static route configuration in clusterIp and auto mode
+	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
+		nodes := ctlr.getNodesFromAllClusters()
+		//if static-routing-mode process static routes
+		var addrType v1.NodeAddressType
+		if ctlr.UseNodeInternal {
+			addrType = v1.NodeInternalIP
+		} else {
+			addrType = v1.NodeExternalIP
 		}
-		if notExecutable == true {
-			continue
-		}
-		route := routeConfig{}
-		// For ovn-k8s get pod subnet and node ip from annotation
-		if ctlr.OrchestrationCNI == OVN_K8S {
-			annotations := node.Annotations
-			if nodeSubnetAnn, ok := annotations[OVNK8sNodeSubnetAnnotation]; !ok {
-				log.Warningf("Node subnet annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
-				continue
-			} else {
-				nodesubnet, err := parseNodeSubnet(nodeSubnetAnn, node.Name)
-				if err != nil {
-					log.Warningf("Node subnet annotation %v not properly configured for node %v:%v", OVNK8sNodeSubnetAnnotation, node.Name, err)
-					continue
+		log.Debugf("Processing Node Updates for static routes")
+		// reset the route store to handle the deleted nodes
+		staticRouteMap := make(map[networkmanager.StaticRouteConfig]networkmanager.L3Forward)
+		for _, obj := range nodes {
+			node := obj.(*v1.Node)
+			// Ignore the Nodes with status NotReady
+			var notExecutable bool
+			for _, nodeCondition := range node.Status.Conditions {
+				if nodeCondition.Type == v1.NodeReady && nodeCondition.Status != v1.ConditionTrue {
+					notExecutable = true
+					break
 				}
-				route.Network = nodesubnet
 			}
-			if ctlr.StaticRouteNodeCIDR != "" {
-				_, nodenetwork, err := net.ParseCIDR(ctlr.StaticRouteNodeCIDR)
-				if err != nil {
-					log.Errorf("Unable to parse cidr %v with error %v", ctlr.StaticRouteNodeCIDR, err)
+			if notExecutable == true {
+				continue
+			}
+			l3Forward := networkmanager.L3Forward{
+				Config: networkmanager.StaticRouteConfig{},
+				VLANs:  []int{},
+			}
+			// For ovn-k8s get pod subnet and node ip from annotation
+			if ctlr.OrchestrationCNI == OVN_K8S {
+				annotations := node.Annotations
+				if nodeSubnetAnn, ok := annotations[OVNK8sNodeSubnetAnnotation]; !ok {
+					log.Warningf("Node subnet annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
 					continue
 				} else {
-					if hostaddresses, ok := annotations[OVNK8sNodeIPAnnotation2]; !ok {
-						log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
+					nodesubnet, err := parseNodeSubnet(nodeSubnetAnn, node.Name)
+					if err != nil {
+						log.Warningf("Node subnet annotation %v not properly configured for node %v:%v", OVNK8sNodeSubnetAnnotation, node.Name, err)
+						continue
+					}
+					l3Forward.Config.Destination = nodesubnet
+				}
+				if ctlr.StaticRouteNodeCIDR != "" {
+					_, nodenetwork, err := net.ParseCIDR(ctlr.StaticRouteNodeCIDR)
+					if err != nil {
+						log.Errorf("Unable to parse cidr %v with error %v", ctlr.StaticRouteNodeCIDR, err)
 						continue
 					} else {
-						nodeIP, err := parseHostAddresses(hostaddresses, nodenetwork)
+						var hostaddresses string
+						var ok bool
+						var nodeIP string
+						var err error
+						if hostaddresses, ok = annotations[OVNK8sNodeIPAnnotation2]; !ok {
+							//For ocp 4.14 and above check for new annotation
+							if hostaddresses, ok = annotations[OvnK8sNodeIPAnnotation3]; !ok {
+								log.Warningf("Host addresses annotation %v not found on node %v static route not added", OVNK8sNodeIPAnnotation2, node.Name)
+								continue
+							} else {
+								nodeIP, err = parseHostCIDRS(hostaddresses, nodenetwork)
+								if err != nil {
+									log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OvnK8sNodeIPAnnotation3, node.Name, err)
+									continue
+								}
+								l3Forward.Config.Gateway = nodeIP
+								l3Forward.Config.L3ForwardType = networkmanager.L3RouteGateway
+								l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, nodeIP)
+							}
+						} else {
+							nodeIP, err = parseHostAddresses(hostaddresses, nodenetwork)
+							if err != nil {
+								log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation2, node.Name, err)
+								continue
+							}
+							l3Forward.Config.Gateway = nodeIP
+							l3Forward.Config.L3ForwardType = networkmanager.L3RouteGateway
+							l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, nodeIP)
+						}
+					}
+				} else {
+					if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
+						log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+						continue
+					} else {
+						nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
 						if err != nil {
-							log.Errorf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation2, node.Name, err)
+							log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
 							continue
 						}
-						route.Gateway = nodeIP
-						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+						l3Forward.Config.Gateway = nodeIP
+						l3Forward.Config.L3ForwardType = networkmanager.L3RouteGateway
+						l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, nodeIP)
 					}
 				}
-			} else {
-				if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
-					log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+			} else if ctlr.OrchestrationCNI == CILIUM_Static {
+				nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
+				if nodesubnet == "" {
+					log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
 					continue
 				} else {
-					nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
-					if err != nil {
-						log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
-						continue
+					l3Forward.Config.Destination = nodesubnet
+					nodeAddrs := node.Status.Addresses
+					for _, addr := range nodeAddrs {
+						if addr.Type == addrType {
+							l3Forward.Config.Gateway = addr.Address
+							l3Forward.Config.L3ForwardType = networkmanager.L3RouteGateway
+							l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, addr.Address)
+						}
 					}
-					route.Gateway = nodeIP
-					route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
-				}
-			}
-		} else if ctlr.OrchestrationCNI == CILIUM_K8S {
-			nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
-			if nodesubnet == "" {
-				log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
-				continue
-			} else {
-				route.Network = nodesubnet
-				nodeAddrs := node.Status.Addresses
-				for _, addr := range nodeAddrs {
-					if addr.Type == addrType {
-						route.Gateway = addr.Address
-						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
-					}
-				}
 
-			}
-		} else {
-			//For k8s CNI like flannel, antrea etc we can get subnet from node spec
-			podCIDR := node.Spec.PodCIDR
-			if podCIDR != "" {
-				route.Network = podCIDR
-				nodeAddrs := node.Status.Addresses
-				for _, addr := range nodeAddrs {
-					if addr.Type == addrType {
-						route.Gateway = addr.Address
-						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
-					}
 				}
 			} else {
-				log.Debugf("podCIDR is not found on node %v so not adding the static route for node", node.Name)
-				continue
+				//For k8s CNI like flannel, antrea etc we can get subnet from node spec
+				podCIDR := node.Spec.PodCIDR
+				if podCIDR != "" {
+					l3Forward.Config.Destination = podCIDR
+					nodeAddrs := node.Status.Addresses
+					for _, addr := range nodeAddrs {
+						if addr.Type == addrType {
+							l3Forward.Config.Gateway = addr.Address
+							l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, addr.Address)
+						}
+					}
+				} else {
+					log.Debugf("podCIDR is not found on node %v so not adding the static route for node", node.Name)
+					continue
+				}
 			}
+			staticRouteMap[l3Forward.Config] = l3Forward
 		}
-		routes.Entries = append(routes.Entries, route)
+		if len(staticRouteMap) > 0 {
+			routeStore := make(networkmanager.RouteStore)
+			for bigIpKey, bigIpConfig := range ctlr.resources.bigIpMap {
+				if len(bigIpConfig.ltmConfig) > 0 {
+					if instanceId, ok := ctlr.networkManager.DeviceMap[bigIpKey.BigIpAddress]; ok {
+						routeStore[instanceId] = staticRouteMap
+					} else {
+						log.Warningf("Unable to find instanceId for bigip %v", bigIpKey.BigIpAddress)
+					}
+				}
+			}
+			ctlr.networkManager.NetworkRequestHandler(routeStore)
+		}
 	}
-
 }
 
 func parseNodeSubnet(ann, nodeName string) (string, error) {
@@ -343,5 +380,22 @@ func parseHostAddresses(ann string, nodenetwork *net.IPNet) (string, error) {
 		}
 	}
 	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OVNK8sNodeIPAnnotation2, nodenetwork)
+	return "", err
+}
+
+func parseHostCIDRS(ann string, nodenetwork *net.IPNet) (string, error) {
+	var hostcidrs []string
+	json.Unmarshal([]byte(ann), &hostcidrs)
+	for _, cidr := range hostcidrs {
+		ip, _, err := net.ParseCIDR(cidr)
+		if err != nil {
+			log.Errorf("Unable to parse cidr %v with error %v", cidr, err)
+		} else {
+			if nodenetwork.Contains(ip) {
+				return ip.String(), nil
+			}
+		}
+	}
+	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OvnK8sNodeIPAnnotation3, nodenetwork)
 	return "", err
 }

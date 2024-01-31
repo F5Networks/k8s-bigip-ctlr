@@ -61,8 +61,8 @@ func (tm *TokenManager) GetToken() string {
 	return token
 }
 
-// fetchToken retrieves a new token from the CM.
-func (tm *TokenManager) fetchToken() error {
+// FetchToken retrieves a new token from the CM.
+func (tm *TokenManager) FetchToken() error {
 	// Prepare the request payload
 	payload, err := json.Marshal(tm.credentials)
 	if err != nil {
@@ -143,8 +143,6 @@ func (tm *TokenManager) fetchToken() error {
 func (tm *TokenManager) SyncToken(stopCh chan struct{}) {
 	// retryInterval is the time to wait before retrying to fetch token on the event of failure
 	retryInterval := time.Duration(10)
-	// Immediately fetch token for the first time
-	tm.syncTokenHelper(retryInterval)
 	// Set ticker to 1 minute less than token expiry time to ensure token is refreshed on time
 	tokenUpdateTicker := time.Tick(CMAccessTokenExpiration - 1*time.Minute)
 	for {
@@ -160,20 +158,15 @@ func (tm *TokenManager) SyncToken(stopCh chan struct{}) {
 
 // syncTokenHelper is a helper function to fetch token and retry on failure
 func (tm *TokenManager) syncTokenHelper(retryInterval time.Duration) {
-	err := tm.fetchToken()
-	if err != nil {
-		log.Errorf("[Token Manager] Error fetching token from Central Manager: %s", err)
-		log.Debugf("[Token Manager] Retrying to fetch token in %d seconds", retryInterval)
-		for {
-			time.Sleep(retryInterval * time.Second)
-			err = tm.fetchToken()
-			if err != nil {
-				log.Errorf("[Token Manager] Error fetching token from Central Manager: %s", err)
-				log.Debugf("[Token Manager] Retrying to fetch token in %d seconds", retryInterval)
-			} else {
-				log.Debugf("[Token Manager] Successfully fetched token from Central Manager")
-				break
-			}
+	for {
+		time.Sleep(retryInterval * time.Second)
+		err := tm.FetchToken()
+		if err != nil {
+			log.Errorf("[Token Manager] Error fetching token from Central Manager: %s", err)
+			log.Debugf("[Token Manager] Retrying to fetch token in %d seconds", retryInterval)
+		} else {
+			log.Debugf("[Token Manager] Successfully fetched token from Central Manager")
+			break
 		}
 	}
 }

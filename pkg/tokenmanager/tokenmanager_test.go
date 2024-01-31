@@ -37,7 +37,7 @@ var _ = Describe("Token Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCode, response),
 					))
-				err := tokenManager.fetchToken()
+				err := tokenManager.FetchToken()
 				Expect(err).NotTo(BeNil(), "Error should not be nil")
 				token := tokenManager.GetToken()
 				Expect(token).To(BeEmpty(), "Token should be empty")
@@ -53,7 +53,7 @@ var _ = Describe("Token Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCode, response),
 					))
-				err := tokenManager.fetchToken()
+				err := tokenManager.FetchToken()
 				Expect(err).To(BeNil(), "Error should be nil")
 				token := tokenManager.GetToken()
 				Expect(token).To(Equal(response.AccessToken), "Token should not be nil")

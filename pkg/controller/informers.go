@@ -483,7 +483,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		),
 	}
 	// Skipping endpoint informer creation for namespace in non cluster mode when extended cm is not provided
-	if ctlr.PoolMemberType != Cluster && ctlr.multiClusterMode != "" {
+	if ctlr.PoolMemberType != Cluster && ctlr.PoolMemberType != Auto && ctlr.multiClusterMode != "" {
 		log.Debugf("[Multicluster] Skipping endpoint informer creation for namespace %v in %v mode", namespace, ctlr.mode)
 	} else {
 		comInf.epsInformer = cache.NewSharedIndexInformer(

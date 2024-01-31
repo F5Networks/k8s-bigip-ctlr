@@ -1148,6 +1148,7 @@ type (
 	PoolMember struct {
 		Address         string `json:"address"`
 		Port            int32  `json:"port"`
+		MemberType      string `json:"memberType"`
 		SvcPort         int32  `json:"svcPort,omitempty"`
 		Session         string `json:"session,omitempty"`
 		AdminState      string `json:"adminState,omitempty"`

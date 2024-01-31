@@ -383,10 +383,12 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	var allPoolMems []rsc.Member
 
 	for _, poolMem := range allPoolMembers {
-		allPoolMems = append(
-			allPoolMems,
-			rsc.Member(poolMem),
-		)
+		if poolMem.MemberType != NodePort {
+			allPoolMems = append(
+				allPoolMems,
+				rsc.Member(poolMem),
+			)
+		}
 	}
 	if agent.EventChan != nil {
 		select {
@@ -827,7 +829,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
-			if shareNodes {
+			if shareNodes && val.MemberType == NodePort {
 				member.ShareNodes = shareNodes
 			}
 			if val.AdminState != "" {

@@ -2136,8 +2136,13 @@ func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKe
 func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
 	var poolMembers []PoolMember
 	poolMemInfo, _ := ctlr.resources.poolMemCache[mSvcKey]
-	switch ctlr.PoolMemberType {
-	case NodePort:
+	var poolMemType = ctlr.PoolMemberType
+	if poolMemType == Auto {
+		poolMemType = string(poolMemInfo.svcType)
+	}
+
+	switch poolMemType {
+	case string(v1.ServiceTypeNodePort), NodePort, string(v1.ServiceTypeLoadBalancer):
 		if !(poolMemInfo.svcType == v1.ServiceTypeNodePort ||
 			poolMemInfo.svcType == v1.ServiceTypeLoadBalancer) {
 			log.Errorf("Requested service backend %s not of NodePort or LoadBalancer type",
@@ -2160,7 +2165,7 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 				poolMembers = append(poolMembers, mems...)
 			}
 		}
-	case Cluster:
+	case Cluster, string(v1.ServiceTypeClusterIP):
 		return ctlr.getPoolMembersForEndpoints(mSvcKey, servicePort)
 	case NodePortLocal:
 		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
@@ -2210,9 +2215,10 @@ func (ctlr *Controller) getEndpointsForNodePort(
 	var members []PoolMember
 	for _, v := range nodes {
 		member := PoolMember{
-			Address: v.Addr,
-			Port:    nodePort,
-			Session: "user-enabled",
+			MemberType: NodePort,
+			Address:    v.Addr,
+			Port:       nodePort,
+			Session:    "user-enabled",
 		}
 		members = append(members, member)
 	}

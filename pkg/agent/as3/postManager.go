@@ -282,6 +282,9 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 }
 
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) (bool, string) {
+	if postMgr.LogAS3Response {
+		postMgr.logAS3Response(responseMap)
+	}
 	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
@@ -377,7 +380,7 @@ func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
 		}
 		responseMap["declaration"] = as3Declaration(decl)
 	}
-	log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	log.Debugf("[AS3] Raw response from Big-IP: %v ", responseMap)
 }
 
 func (postMgr *PostManager) logAS3Request(cfg string) {

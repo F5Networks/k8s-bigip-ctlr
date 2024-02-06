@@ -20,6 +20,7 @@ Bug Fixes
 * `Issue 3230 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3230>`_: CRD multicluster configuration triggers Raw response from Big-IP: map[code:422 declarationFullId: message:declaration has duplicate values in rules].
 * `Issue 3239 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3239>`_: Support for mix of k8s Secret and bigip reference in TLSProfile.
 * `Issue 3232 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3232>`_: Enhance as3 response add the runtime attribute
+* Fix for wildcard domain with multiple hosts in tls profile
 
 2.15.1
 -------------

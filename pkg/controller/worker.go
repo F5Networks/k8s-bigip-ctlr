@@ -890,6 +890,16 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 					found = true
 					break
 				}
+				// check for wildcard match
+				if strings.HasPrefix(host, "*") {
+					host = strings.TrimPrefix(host, "*")
+					if strings.HasSuffix(vs.Spec.Host, host) {
+						// TLSProfile Object
+						result = append(result, vs)
+						found = true
+						break
+					}
+				}
 			}
 			if !found {
 				log.Errorf("TLSProfile hostname is not same as virtual host %s for profile %s", vs.Spec.Host, vs.Spec.TLSProfileName)

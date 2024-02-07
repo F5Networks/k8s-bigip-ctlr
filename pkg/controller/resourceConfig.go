@@ -1328,7 +1328,9 @@ func (ctlr *Controller) handleVirtualServerTLS(
 				vs.Spec.Host,
 				backend,
 			)
-			if len(tls.Spec.Hosts) > 1 {
+			if len(tls.Spec.Hosts) > 1 && !hasWildcardHost(tls.Spec.Hosts) {
+				//For wildcard certificates, multiple hosts may be mapped to different subdomains
+				//of the same domain. In this case, we need to create a poolPathRef for vs host matched.
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
 			} else {
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
@@ -2915,4 +2917,13 @@ func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, clu
 		}
 	}
 	return monitorName
+}
+
+func hasWildcardHost(hosts []string) bool {
+	for _, host := range hosts {
+		if strings.HasPrefix(host, "*") {
+			return true
+		}
+	}
+	return false
 }

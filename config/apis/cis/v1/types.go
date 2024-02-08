@@ -481,10 +481,11 @@ type NetworkConfig struct {
 }
 
 type CNIConfigMeta struct {
-	PoolMemberType string `json:"poolMemberType,omitempty"`
-	TunnelName     string `json:"tunnelName,omitempty"`
-	Shared         bool   `json:"shared,omitempty"`
-	NetworkCIDR    string `json:"networkCIDR,omitempty"`
+	PoolMemberType    string `json:"poolMemberType,omitempty"`
+	TunnelName        string `json:"tunnelName,omitempty"`
+	Shared            bool   `json:"shared,omitempty"`
+	NetworkCIDR       string `json:"networkCIDR,omitempty"`
+	StaticRoutingMode bool   `json:"staticRoutingMode,omitempty"`
 }
 
 type AS3Config struct {

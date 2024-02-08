@@ -12,11 +12,12 @@ spec:
     nodeLabel: controller=cis
     controllerIdentifier: cluster-1
   networkConfig:
-    orchestrationCNI: ovn-static
+    orchestrationCNI: ovn-k8s
     metaData:
       poolMemberType: cluster
       sharedRouteMode: true
       networkCIDR: "10.1.0.0/16"
+      staticRoutingMode: true
   as3Config:
     debugAS3: true
     postDelayAS3: 10

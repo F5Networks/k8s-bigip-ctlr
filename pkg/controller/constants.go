@@ -115,9 +115,14 @@ const (
 	OvnK8sNodeIPAnnotation3 = "k8s.ovn.org/host-cidrs"
 
 	//Cilium CNI
-	CILIUM_Static                   = "cilium-static"
+	CILIUM                          = "cilium"
 	CiliumK8sNodeSubnetAnnotation12 = "io.cilium.network.ipv4-pod-cidr"
 	CiliumK8sNodeSubnetAnnotation13 = "network.cilium.io/ipv4-pod-cidr"
+
+	//CNI plugin
+	FLANNEL      = "flannel"
+	ANTREA       = "antrea"
+	OPENSHIFTSDN = "OpenShiftSDN"
 
 	F5VsWAFPolicy                      = "virtual-server.f5.com/waf"
 	F5VsAllowSourceRangeAnnotation     = "virtual-server.f5.com/allow-source-range"

@@ -275,7 +275,7 @@ func (ctlr *Controller) processStaticRouteUpdate() {
 						l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, nodeIP)
 					}
 				}
-			} else if ctlr.OrchestrationCNI == CILIUM_Static {
+			} else if ctlr.OrchestrationCNI == CILIUM {
 				nodesubnet := ciliumPodCidr(node.ObjectMeta.Annotations)
 				if nodesubnet == "" {
 					log.Warningf("Cilium node podCIDR annotation not found on node %v, node has spec.podCIDR ?", node.Name)
@@ -301,6 +301,7 @@ func (ctlr *Controller) processStaticRouteUpdate() {
 					for _, addr := range nodeAddrs {
 						if addr.Type == addrType {
 							l3Forward.Config.Gateway = addr.Address
+							l3Forward.Config.L3ForwardType = networkmanager.L3RouteGateway
 							l3Forward.Name = fmt.Sprintf("%v/%v/%v", ctlr.ControllerIdentifier, node.Name, addr.Address)
 						}
 					}

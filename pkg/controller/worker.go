@@ -882,10 +882,17 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 	tlsNamespace := tls.ObjectMeta.Namespace
 
 	for _, vs := range allVirtuals {
+		hostsMap := make(map[string]struct{})
+		if vs.Spec.Host != "" {
+			hostsMap[vs.Spec.Host] = struct{}{}
+		}
+		for _, host := range vs.Spec.HostAliases {
+			hostsMap[host] = struct{}{}
+		}
 		if vs.ObjectMeta.Namespace == tlsNamespace && vs.Spec.TLSProfileName == tlsName {
 			found := false
 			for _, host := range tls.Spec.Hosts {
-				if vs.Spec.Host == host {
+				if _, ok := hostsMap[host]; ok {
 					result = append(result, vs)
 					found = true
 					break
@@ -902,7 +909,7 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 				}
 			}
 			if !found {
-				log.Errorf("TLSProfile hostname is not same as virtual host %s for profile %s", vs.Spec.Host, vs.Spec.TLSProfileName)
+				log.Errorf("TLSProfile hostname is not same as virtual host(s) %v for profile %s", reflect.ValueOf(hostsMap).MapKeys(), vs.Spec.TLSProfileName)
 			}
 		}
 	}

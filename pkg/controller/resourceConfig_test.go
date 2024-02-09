@@ -322,6 +322,68 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 
+		It("Prepare Resource Config from a VirtualServer with HostAliases", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:        "test.com",
+					HostAliases: []string{"test1.com", "test2.com"},
+					Pools: []cisapiv1.VSPool{
+						{
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+							Rewrite:         "/bar",
+							MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
+						},
+						{
+							Path:            "/",
+							Service:         "svc2",
+							MinimumMonitors: intstr.IntOrString{Type: 1, StrVal: "all"},
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+						},
+					},
+					RewriteAppRoot: "/home",
+					WAF:            "/Common/WAF",
+					IRules:         []string{"SampleIRule"},
+				},
+			)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+			Expect(rsCfg.Pools[0].MinimumMonitors).To(Equal(intstr.IntOrString{Type: 0, IntVal: 1}), "Incorrect minimum monitors defined for pool 0")
+			Expect(rsCfg.Pools[1].MinimumMonitors).To(Equal(intstr.IntOrString{Type: 1, StrVal: "all"}), "Incorrect minimum monitors defined for pool 1")
+			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(10))
+			//urisInRules := make(map[string]struct{})
+			urisInRules := map[string]struct{}{"test.com": struct{}{}, "test.com/": struct{}{}, "test1.com/": struct{}{},
+				"test2.com/": struct{}{}, "test.com/home": struct{}{}, "test1.com/home": struct{}{},
+				"test2.com/home": struct{}{}, "test.com/foo": struct{}{}, "test1.com/foo": struct{}{}, "test2.com/foo": struct{}{}}
+			for _, rule := range rsCfg.Policies[0].Rules {
+				_, ok := urisInRules[rule.FullURI]
+				Expect(ok).To(BeTrue(), "Incorrect rules defined for VirtualServer with hostAliases")
+			}
+		})
+
 		It("Validate Resource Config from a AB Deployment VirtualServer", func() {
 			rsCfg.MetaData.ResourceType = VirtualServer
 			rsCfg.Virtual.Enabled = true
@@ -1669,6 +1731,56 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Pools[1].ReselectTries).To(Equal(plc.Spec.PoolSettings.ReselectTries), "ReselectTries should be set to 10")
 			Expect(rsCfg.Pools[1].ServiceDownAction).To(Equal(plc.Spec.PoolSettings.ServiceDownAction), "ServiceDownAction should be set to reset")
 			Expect(rsCfg.Pools[1].SlowRampTime).To(Equal(plc.Spec.PoolSettings.SlowRampTime), "SlowRampTime should be set to 300")
+		})
+	})
+
+	Describe("Verify helper functions", func() {
+		vs := test.NewVirtualServer(
+			"SampleVS",
+			namespace,
+			cisapiv1.VirtualServerSpec{
+				Host: "test.com",
+				Pools: []cisapiv1.VSPool{
+					{
+						Path:             "/foo",
+						Service:          "svc1",
+						ServiceNamespace: "test",
+						Monitor: cisapiv1.Monitor{
+							Type:     "http",
+							Send:     "GET /health",
+							Interval: 15,
+							Timeout:  10,
+						},
+						Rewrite:         "/bar",
+						MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
+					},
+					{
+						Path:            "/",
+						Service:         "svc2",
+						MinimumMonitors: intstr.IntOrString{Type: 1, StrVal: "all"},
+						Monitor: cisapiv1.Monitor{
+							Type:     "http",
+							Send:     "GET /health",
+							Interval: 15,
+							Timeout:  10,
+						},
+					},
+				},
+				RewriteAppRoot: "/home",
+				WAF:            "/Common/WAF",
+				IRules:         []string{"SampleIRule"},
+			},
+		)
+		It("Verifies getUniqueHosts", func() {
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{vs.Spec.Host}), "Incorrect unique hosts")
+			vs.Spec.Host = ""
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(BeNil(), "Incorrect unique hosts")
+			vs.Spec.HostAliases = []string{"test1.com", "test2.com", "test1.com", "test1.com", "test2.com"}
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test1.com", "test2.com"}), "Incorrect unique hosts")
+			vs.Spec.Host = "test.com"
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test.com", "test1.com", "test2.com"}), "Incorrect unique hosts")
+			vs.Spec.Host = "test1.com"
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test1.com", "test2.com"}), "Incorrect unique hosts")
 		})
 	})
 })

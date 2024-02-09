@@ -46,116 +46,124 @@ func (ctlr *Controller) prepareVirtualServerRules(
 
 	appRoot := "/"
 
+	// Consider the primary host as well as the host aliases
+	hosts := getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)
+
 	if vs.Spec.RewriteAppRoot != "" {
-		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "redirectto", vs.Spec.RewriteAppRoot)
-		rl, err := createRedirectRule(vs.Spec.Host+appRoot, vs.Spec.RewriteAppRoot, ruleName, rsCfg.Virtual.AllowSourceRange)
-		if nil != err {
-			log.Errorf("Error configuring redirect rule: %v", err)
-			return nil
+		for _, host := range hosts {
+			ruleName := formatVirtualServerRuleName(host, vs.Spec.HostGroup, "redirectto", vs.Spec.RewriteAppRoot)
+			rl, err := createRedirectRule(host+appRoot, vs.Spec.RewriteAppRoot, ruleName, rsCfg.Virtual.AllowSourceRange)
+			if nil != err {
+				log.Errorf("Error configuring redirect rule: %v", err)
+				return nil
+			}
+			redirects = append(redirects, rl)
 		}
-		redirects = append(redirects, rl)
 
 	}
 
 	for _, pl := range vs.Spec.Pools {
-		// Service cannot be empty
-		if pl.Service == "" {
-			continue
-		}
-		// If not using WAF from policy CR, use Pool Based WAF from VS
-		wafPolicy := ""
-		if rsCfg.Virtual.WAF == "" {
-			wafPolicy = pl.WAF
-		}
-
-		uri := vs.Spec.Host + pl.Path
-
-		path := pl.Path
-		var tls *cisapiv1.TLSProfile
-		if vs.Spec.TLSProfileName != "" {
-			tls = ctlr.getTLSProfileForVirtualServer(vs, vs.Namespace)
-
-			if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
-				path = "/"
+		// Create a rule for each host including host aliases and path combination
+		for _, host := range hosts {
+			// Service cannot be empty
+			if pl.Service == "" {
+				continue
 			}
-		}
-
-		if pl.Path == "/" {
-			uri = vs.Spec.Host + vs.Spec.RewriteAppRoot
-			path = vs.Spec.RewriteAppRoot
-		}
-		poolBackends := ctlr.GetPoolBackends(&pl)
-		skipPool := false
-		if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.haModeType == Ratio {
-			skipPool = true
-		}
-		for _, backend := range poolBackends {
-			poolName := ctlr.framePoolNameForVS(
-				vs.ObjectMeta.Namespace,
-				pl,
-				vs.Spec.Host,
-				backend,
-			)
-			ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
-			var err error
-			rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, skipPool)
-			if nil != err {
-				log.Errorf("Error configuring rule: %v", err)
-				return nil
-			}
-			if pl.HostRewrite != "" {
-				hostRewriteActions, err := getHostRewriteActions(
-					pl.HostRewrite,
-					len(rl.Actions),
-				)
-				if nil != err {
-					log.Errorf("Error configuring rule: %v", err)
-					return nil
-				}
-				rl.Actions = append(rl.Actions, hostRewriteActions...)
-			}
-			if pl.Rewrite != "" {
-				rewriteActions, err := getRewriteActions(
-					path,
-					pl.Rewrite,
-					len(rl.Actions),
-				)
-				if nil != err {
-					log.Errorf("Error configuring rule: %v", err)
-					return nil
-				}
-				rl.Actions = append(rl.Actions, rewriteActions...)
+			// If not using WAF from policy CR, use Pool Based WAF from VS
+			wafPolicy := ""
+			if rsCfg.Virtual.WAF == "" {
+				wafPolicy = pl.WAF
 			}
 
-			if vs.Spec.HostPersistence.Method != "" {
-				if vs.Spec.Host == "" {
-					log.Warning("Host Persistence cannot be configured without host")
-				} else {
-					rewriteActions, err := getHostPersistActions(vs.Spec.HostPersistence)
-					if nil != err {
-						log.Errorf("Error while configuring host persistence: %v", err)
-						return nil
-					}
-					rl.Actions = append(rl.Actions, rewriteActions...)
+			uri := host + pl.Path
+
+			path := pl.Path
+			var tls *cisapiv1.TLSProfile
+			if vs.Spec.TLSProfileName != "" {
+				tls = ctlr.getTLSProfileForVirtualServer(vs, vs.Namespace)
+
+				if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
+					path = "/"
 				}
 			}
 
 			if pl.Path == "/" {
-				redirects = append(redirects, rl)
-			} else if true == strings.HasPrefix(uri, "*.") {
-				wildcards[uri] = rl
-			} else {
-				rlMap[uri] = rl
+				uri = host + vs.Spec.RewriteAppRoot
+				path = vs.Spec.RewriteAppRoot
+			}
+			poolBackends := ctlr.GetPoolBackends(&pl)
+			skipPool := false
+			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.haModeType == Ratio {
+				skipPool = true
+			}
+			for _, backend := range poolBackends {
+				poolName := ctlr.framePoolNameForVS(
+					vs.ObjectMeta.Namespace,
+					pl,
+					vs.Spec.Host,
+					backend,
+				)
+				ruleName := formatVirtualServerRuleName(host, vs.Spec.HostGroup, path, poolName)
+				var err error
+				rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, skipPool)
+				if nil != err {
+					log.Errorf("Error configuring rule: %v", err)
+					return nil
+				}
+				if pl.HostRewrite != "" {
+					hostRewriteActions, err := getHostRewriteActions(
+						pl.HostRewrite,
+						len(rl.Actions),
+					)
+					if nil != err {
+						log.Errorf("Error configuring rule: %v", err)
+						return nil
+					}
+					rl.Actions = append(rl.Actions, hostRewriteActions...)
+				}
+				if pl.Rewrite != "" {
+					rewriteActions, err := getRewriteActions(
+						path,
+						pl.Rewrite,
+						len(rl.Actions),
+					)
+					if nil != err {
+						log.Errorf("Error configuring rule: %v", err)
+						return nil
+					}
+					rl.Actions = append(rl.Actions, rewriteActions...)
+				}
+
+				if vs.Spec.HostPersistence.Method != "" {
+					if host == "" {
+						log.Warning("Host Persistence cannot be configured without host")
+					} else {
+						rewriteActions, err := getHostPersistActions(vs.Spec.HostPersistence)
+						if nil != err {
+							log.Errorf("Error while configuring host persistence: %v", err)
+							return nil
+						}
+						rl.Actions = append(rl.Actions, rewriteActions...)
+					}
+				}
+
+				if pl.Path == "/" {
+					redirects = append(redirects, rl)
+				} else if true == strings.HasPrefix(uri, "*.") {
+					wildcards[uri] = rl
+				} else {
+					rlMap[uri] = rl
+				}
 			}
 		}
 	}
 
-	if vs.Spec.RewriteAppRoot != "" && len(redirects) != 2 {
+	if vs.Spec.RewriteAppRoot != "" && len(redirects) != len(hosts)*2 {
 		log.Error("AppRoot path not found for rewriting")
 		return nil
 	}
 
-	if rlMap[vs.Spec.Host] == nil && len(redirects) == 2 {
+	if rlMap[vs.Spec.Host] == nil && len(hosts) != 0 && len(redirects) == 2*len(hosts) {
 		rl := &Rule{
 			Name:    formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "", redirects[1].Actions[0].Pool),
 			FullURI: vs.Spec.Host,
@@ -1625,6 +1633,7 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 	host string,
+	hostAliases []string,
 	termination string,
 ) {
 	if !isVSABDeployment(pool) && ctlr.haModeType != Ratio {
@@ -1689,5 +1698,11 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 		value := strings.Join(entries, ";")
 		updateDataGroup(dgMap, dgName,
 			partition, namespace, key, value, "string")
+		// Update data group for hostAliases
+		for _, host := range hostAliases {
+			key := host + path
+			updateDataGroup(dgMap, dgName,
+				partition, namespace, key, value, "string")
+		}
 	}
 }

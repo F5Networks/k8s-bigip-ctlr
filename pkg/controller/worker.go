@@ -1144,7 +1144,12 @@ func (ctlr *Controller) processVirtualServers(
 	for _, portS := range portStructs {
 		// TODO: Add Route Domain
 		var rsName string
-		if virtual.Spec.VirtualServerName != "" {
+		if virtual.Spec.HostGroup != "" && virtual.Spec.HostGroupVirtualServerName != "" {
+			rsName = formatCustomVirtualServerName(
+				virtual.Spec.HostGroupVirtualServerName,
+				portS.port,
+			)
+		} else if virtual.Spec.VirtualServerName != "" {
 			if virtual.Spec.HostGroup != "" {
 				//Ignore virtualServerName if hostgroup is configured on virtual
 				log.Warningf("virtualServerName is ignored as hostgroup is configured on virtualserver %v", virtual.Name)
@@ -1382,6 +1387,11 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		// skip the virtuals in other HostGroups
 		if vrt.Spec.HostGroup != currentVS.Spec.HostGroup {
 			continue
+		}
+
+		if currentVS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentVS.Spec.HostGroup && vrt.Spec.HostGroupVirtualServerName != currentVS.Spec.HostGroupVirtualServerName {
+			log.Errorf("Same host %v is configured with different HostGroupVirtualServerNames : %v ", vrt.Spec.HostGroup, vrt.Spec.HostGroupVirtualServerName)
+			return nil
 		}
 
 		if currentVS.Spec.HostGroup == "" {

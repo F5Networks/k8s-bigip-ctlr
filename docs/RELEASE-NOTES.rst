@@ -12,7 +12,8 @@ Added Functionality
     * CRD
       * Support for mix of k8s Secret and bigip reference in TLSProfile.
       * Support for setting sslProfile with https monitor in virtualServer and nextgen routes.
-      * Support for Host Persistence to configure Persist session in VS Policy Rule action based on host in VirtualServer.
+      * `Issue 3225 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3225>`_:Support for Host Persistence to configure Persist session in VS Policy Rule action based on host in VirtualServer.
+      * `Issue 3263 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3263>`_: Support for Host group virtual server name in virtual server to customise the virtual server name when Host Group is provided.
     * Support for pool-member-type auto for CRD, NextGen Routes and multiCluster mode
 
 Bug Fixes

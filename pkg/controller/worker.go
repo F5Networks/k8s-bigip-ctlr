@@ -1986,6 +1986,19 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 										_ = ctlr.processTransportServers(virtual, false)
 									}
 									return
+								case IngressLink:
+									var item interface{}
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									item, _, _ = inf.ilInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
+									if item == nil {
+										// This case won't arise
+										continue
+									}
+									il, found := item.(*cisapiv1.IngressLink)
+									if found {
+										_ = ctlr.processIngressLink(il, false)
+									}
+									return
 								}
 							}
 							ctlr.updatePoolMembersForResources(&pool)
@@ -3274,7 +3287,7 @@ func (ctlr *Controller) processIngressLink(
 		return nil
 	}
 	targetPort := nginxMonitorPort
-	if ctlr.PoolMemberType == NodePort {
+	if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
 		targetPort = getNodeport(svc, nginxMonitorPort)
 		if targetPort == 0 {
 			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)

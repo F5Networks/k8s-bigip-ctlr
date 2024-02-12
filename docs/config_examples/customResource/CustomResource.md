@@ -64,6 +64,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | httpTraffic                      | String                        | Optional  | allow   | Configure behavior of HTTP Virtual Server. The allowed values are: allow: allow HTTP (default), none: only HTTPs, redirect: redirect HTTP to HTTPS.                                                              |
 | allowVlans                       | List of Vlans                 | Optional  | NA      | list of Vlan objects to allow traffic from                                                                                                                                                                       |  
 | hostGroup                        | String                        | Optional  | NA      | Label to group virtualservers with different host names into one in BIG-IP.                                                                                                                                      |
+| hostGroupVirtualServerName       | String                        | Optional  | NA      | Custom name of BIG-IP Virtual Server when hostGroup exists.                                                                                                                                     |
 | persistenceProfile               | String                        | Optional  | cookie  | CIS uses the AS3 default persistence profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP Persistence profiles.                                              |
 | htmlProfile                      | String                        | Optional  | NA      | Pathname of existing BIG-IP HTML profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP HTML profiles.                                                         |
 | dos                              | String                        | Optional  | NA      | Pathname of existing BIG-IP DoS policy.                                                                                                                                                                          |
@@ -78,6 +79,9 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | additionalVirtualServerAddresses | List of virtualserver address | Optional  | NA      | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list            |
 | partition                        | String                        | Optional  | NA      | bigip partition                                                                                                                                                                                                  |
 | hostPersistence                  | Object                        | Optional  | NA      | Persist session rule action will be added to the VS Policy based on the host. Allowed values are existing BIG-IP Persist session               |
+
+**Note**:
+   * **hostGroupVirtualServerName** will be considered only when the hostGroup is provided in the Virtual Server. If you want to set the hostGroupVirtualServerName for the existing Virtual Servers, please clear those Virtual Servers from the BIG-IPs and re-apply the Virtual Servers with the hostGroupVirtualServerName. And also please make sure that hostGroupVirtualServerName is same across a hostGroup in Virtual Servers.
 
 **Default Pool Components**
 
@@ -116,7 +120,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | weight              | Integer                             | Optional | NA          | weight allocated to service A in AB deployment                                                                                          |
 | alternateBackends   | List of backends for A/B deployment | Optional | NA          | List of alternate backends for AB deployment                                                                                            |
 
-Note: **monitors** take priority over **monitor** if both are provided in VS spec.
+**Note**: **monitors** take priority over **monitor** if both are provided in VS spec.
 
 **alternateBackends Components**
 
@@ -287,7 +291,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | reselectTries | Integer | Optional | 0       | Maximum number of attempts to find a responsive member for a connection                                                                 |
 | serviceNamespace | String  | Optional | NA      | Namespace of service, define it if service is present in a namespace other than the one where transport Server Custom Resource is present |
 
-Note: **monitors** take priority over **monitor** if both are provided in TS spec.
+**Note**: **monitors** take priority over **monitor** if both are provided in TS spec.
 
 **Service_Address Components**
 

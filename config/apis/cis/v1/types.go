@@ -29,6 +29,7 @@ type VirtualServerStatus struct {
 type VirtualServerSpec struct {
 	Host                             string           `json:"host,omitempty"`
 	HostGroup                        string           `json:"hostGroup,omitempty"`
+	HostGroupVirtualServerName       string           `json:"hostGroupVirtualServerName,omitempty"`
 	VirtualServerAddress             string           `json:"virtualServerAddress,omitempty"`
 	AdditionalVirtualServerAddresses []string         `json:"additionalVirtualServerAddresses,omitempty"`
 	IPAMLabel                        string           `json:"ipamLabel,omitempty"`

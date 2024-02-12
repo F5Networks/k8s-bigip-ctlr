@@ -32,6 +32,9 @@ spec:
                 hostGroup:
                   type: string
                   pattern: '^[a-zA-Z]+[-A-z0-9_.:]*[A-z0-9]*$'
+                hostGroupVirtualServerName:
+                  type: string
+                  pattern: '^[a-zA-Z]+([A-z0-9-_+])*([A-z0-9])$'
                 httpTraffic:
                   type: string
                   enum: [allow, none, redirect]

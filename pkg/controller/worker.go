@@ -3845,39 +3845,31 @@ func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 
 	ctlr.OrchestrationCNI = configCR.Spec.NetworkConfig.OrchestrationCNI
 	ctlr.PoolMemberType = configCR.Spec.NetworkConfig.MetaData.PoolMemberType
+	ctlr.StaticRoutingMode = configCR.Spec.NetworkConfig.MetaData.StaticRoutingMode
 	if ctlr.PoolMemberType == "" {
 		ctlr.PoolMemberType = NodePort
 	}
 
 	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
 		ctlr.shareNodes = true
-		if ctlr.isStaticRouteCNI() {
+		if ctlr.StaticRoutingMode {
 			log.Errorf("static route CNI: %v not supported with nodeport/nodeportlocal mode. Only supported with cluster mode", ctlr.OrchestrationCNI)
 			os.Exit(1)
 		}
 	} else if ctlr.PoolMemberType == Cluster {
-		if ctlr.OrchestrationCNI == "flannel" || ctlr.OrchestrationCNI == "cilium" ||
-			ctlr.OrchestrationCNI == "openshift-sdn" {
+		if ctlr.StaticRoutingMode {
+			ctlr.StaticRouteNodeCIDR = configCR.Spec.NetworkConfig.MetaData.NetworkCIDR
+		} else if ctlr.OrchestrationCNI == FLANNEL || ctlr.OrchestrationCNI == CILIUM ||
+			ctlr.OrchestrationCNI == OPENSHIFTSDN {
 			if configCR.Spec.NetworkConfig.MetaData.TunnelName == "" {
 				log.Errorf("tunnelName is not set in CIS Config CR")
 				os.Exit(1)
 			}
-		} else if ctlr.isStaticRouteCNI() {
-			ctlr.StaticRoutingMode = true
-			ctlr.StaticRouteNodeCIDR = configCR.Spec.NetworkConfig.MetaData.NetworkCIDR
 		} else {
 			log.Errorf("invalid CNI: %v configured in Config CR", ctlr.OrchestrationCNI)
 			os.Exit(1)
 		}
 	}
-}
-
-func (ctlr *Controller) isStaticRouteCNI() bool {
-	if ctlr.OrchestrationCNI == "flannel-static" || ctlr.OrchestrationCNI == CILIUM_Static ||
-		ctlr.OrchestrationCNI == "ovn-static" || ctlr.OrchestrationCNI == "antrea-static" {
-		return true
-	}
-	return false
 }
 
 func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelete bool) (error, bool) {

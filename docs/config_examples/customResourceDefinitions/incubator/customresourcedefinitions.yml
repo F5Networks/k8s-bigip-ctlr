@@ -1118,24 +1118,31 @@ spec:
                   properties:
                     debugAS3:
                       type: boolean
+                      description: "Debug AS3 is used to enable or disable logging AS3 declaration being sent to BIG-IP"
                     postDelayAS3:
                       type: integer
+                      description: "time (in seconds) that CIS waits to post the available AS3 declaration to BIG-IP"
                     documentAPI:
                       type: boolean
+                      description: "documentAPI is used to enable or disable using centralmanager's two step deployment for AS3"
                   type: object
+                  description: AS3 Configuration for CIS
                 baseConfig:
                   properties:
                     controllerIdentifier:
                       type: string
+                      description: "Controller identifier is used to uniquely identify the CIS controller deployed in the cluster"
                       x-kubernetes-validations:
                         - message: "Controller identifier can not be changed. Please delete and recreate the CIS controller and deploy config CR."
                           rule: self == oldSelf
                     namespaceLabel:
                       type: string
                       pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      description: "CIS watches namespaces with this label"
                     nodeLabel:
                       type: string
                       pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      description: "CIS watches nodes only with this label, if not provided, CIS watches all nodes"
                   type: object
                   required:
                     - controllerIdentifier
@@ -1143,19 +1150,28 @@ spec:
                   properties:
                     orchestrationCNI:
                       type: string
+                      enum: [ovn-k8s,cilium,flannel,antrea]
+                      description: "Orchestration CNI is used to specify the CNI plugin used in the cluster"
                     metaData:
                       type: object
                       properties:
                         poolMemberType:
                           type: string
                           enum: [cluster, nodeport, nodeportlocal]
+                          description: "Pool member type is used to specify the type of pool member used in the cluster"
+                        staticRoutingMode:
+                          type: boolean
+                          description: "Static routing mode is used to enable or disable configuration of static routes on bigip for pod network subnets"
                         tunnelName:
                           type: string
+                          description: "Tunnel name is used to specify the tunnel name configured on the BIG-IP for cluster mode routing"
                         sharedRouteMode:
                           type: boolean
+                          description: "Shared route mode is used to enable or disable creating static routes on the BIG-IP shared partition Common"
                         networkCIDR:
                           type: string
                           pattern: '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){2}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(3[0-2]|[12]?[0-9])$'
+                          description: "flag to specify node network cidr to be used for static routing when node has multiple interfaces.This is supported only with CNI ovn-k8s"
                   type: object
                 bigIpConfig:
                   items:
@@ -1163,13 +1179,17 @@ spec:
                       bigIpAddress:
                         type: string
                         pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$'
+                        description: "IP address of BIG-IP"
                       bigIpLabel:
                         type: string
+                        description: "To uniquely identify bigip ha pair"
                       haBigIpAddress:
                         type: string
                         pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$'
+                        description: "IP address of bigip HA instance"
                       defaultPartition:
                         type: string
+                        description: "partition for the Big-IP kubernetes objects"
                     required:
                       - bigIpAddress
                       - bigIpLabel

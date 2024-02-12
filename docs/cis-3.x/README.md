@@ -34,7 +34,7 @@ kubectl create -f ./docs/config_examples/customResourceDefinitions/incubator/cus
 Step 4: Install CIS Deploy config CR
 
 ```shell
-kubectl create -f ./docs/cis-3.x/cis-deploy-config-cr.yaml
+kubectl create -f ./docs/cis-3.x/deploy-config/cis-deploy-config-cr.yaml
 ```
 
 Step 5: Create the kubernetes secret for Central Manager credentials

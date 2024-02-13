@@ -46,7 +46,8 @@ type (
 
 	// L3ForwardStore static route config store for each instance key is the instance id
 	L3ForwardStore struct {
-		InstanceStaticRoutes map[string]StaticRouteMap
+		InstanceStaticRoutes       map[string]StaticRouteMap
+		CachedInstanceStaticRoutes map[string]map[StaticRouteConfig]struct{}
 		sync.RWMutex
 	}
 
@@ -102,6 +103,7 @@ func NewNetworkManager(tm *tokenmanager.TokenManager, clusterName string) *Netwo
 	}
 	routeStore := L3ForwardStore{
 		make(map[string]StaticRouteMap),
+		make(map[string]map[StaticRouteConfig]struct{}),
 		sync.RWMutex{},
 	}
 	return &NetworkManager{
@@ -180,6 +182,7 @@ func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig) er
 									return nil
 								}
 								nm.L3ForwardStore.InstanceStaticRoutes[id] = staticRouteMap
+								nm.L3ForwardStore.CachedInstanceStaticRoutes[id] = map[StaticRouteConfig]struct{}{}
 							}
 							nm.L3ForwardStore.Unlock()
 						}
@@ -491,6 +494,13 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 			log.Debugf("%v l3 forward already exists hence skipping the creation: %v", networkManagerPrefix, l3Forward)
 			return
 		}
+
+		// check if the entry is present in the cache
+		// if present(true) means event is in progress - skip the processing of event
+		// if not(false) means this is a new event and will be processed further
+		if nm.L3ForwardStore.checkL3ForwardEntryInCache(req.BigIpInstanceId, req.retryTimeout, *l3Forward) {
+			return
+		}
 		// create the l3 forward
 		err := nm.PostL3Forward(nm.CMTokenManager.ServerURL+InstancesURI+req.BigIpInstanceId+L3Forwards, nm.CMTokenManager.GetToken(), l3Forward)
 		if err != nil {
@@ -502,7 +512,10 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 		}
 		log.Debugf("%v successfully created l3 forward %v", networkManagerPrefix, l3Forward)
 		nm.L3ForwardStore.addL3ForwardEntry(req.BigIpInstanceId, *l3Forward)
+		// once event is processed remove entry from cache
+		nm.L3ForwardStore.removeL3ForwardEntryFromCache(req.BigIpInstanceId, *l3Forward)
 	case Delete:
+		log.Warningf("delete event")
 		// check if the l3 forward already exists
 		if !nm.L3ForwardStore.getL3ForwardEntry(req.BigIpInstanceId, *l3Forward) {
 			log.Debugf("%v l3 forward does not exist hence skipping the deletion: %v", networkManagerPrefix, l3Forward)
@@ -539,6 +552,33 @@ func (fs *L3ForwardStore) getL3ForwardEntry(instanceId string, l3Forward L3Forwa
 		}
 	}
 	return false
+}
+
+func (fs *L3ForwardStore) checkL3ForwardEntryInCache(bigIpInstanceId string, retryTimeOut int, l3Forward L3Forward) bool {
+	fs.Lock()
+	defer fs.Unlock()
+	// if retryTimeOut >0, means it's a retry scenario
+	if retryTimeOut > 0 {
+		return false
+	}
+	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId]; !ok {
+		fs.CachedInstanceStaticRoutes[bigIpInstanceId] = map[StaticRouteConfig]struct{}{}
+	}
+	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config]; !ok {
+		fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config] = struct{}{}
+		return false
+	}
+	return true
+}
+
+func (fs *L3ForwardStore) removeL3ForwardEntryFromCache(bigIpInstanceId string, l3Forward L3Forward) {
+	fs.Lock()
+	defer fs.Unlock()
+	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId]; ok {
+		if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config]; ok {
+			delete(fs.CachedInstanceStaticRoutes[bigIpInstanceId], l3Forward.Config)
+		}
+	}
 }
 
 func (fs *L3ForwardStore) addL3ForwardEntry(instanceId string, l3Forward L3Forward) {

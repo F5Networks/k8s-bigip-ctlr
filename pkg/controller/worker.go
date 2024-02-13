@@ -3993,7 +3993,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 	bigipconfig := configCR.Spec.BigIpConfig
 	ctlr.handleBigipConfigUpdates(bigipconfig)
 	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
-		err := ctlr.networkManager.SetInstanceIds(configCR.Spec.BigIpConfig)
+		err := ctlr.networkManager.SetInstanceIds(configCR.Spec.BigIpConfig, ctlr.ControllerIdentifier)
 		if err != nil {
 			log.Errorf("%v", err)
 			os.Exit(1)

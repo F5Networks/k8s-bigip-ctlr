@@ -1,0 +1,15 @@
+apiVersion: cis.f5.com/v1
+kind: TLSProfile
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-tls-foo-svc-1
+  namespace: default
+spec:
+  hosts:
+    - foo.com
+    - dr.foo.com
+  tls:
+    clientSSL: foo-secret
+    reference: secret
+    termination: edge

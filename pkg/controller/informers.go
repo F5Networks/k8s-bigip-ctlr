@@ -785,6 +785,7 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.Host != newVS.Spec.Host ||
+		!reflect.DeepEqual(oldVS.Spec.HostAliases, newVS.Spec.HostAliases) ||
 		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
 		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
 		oldVSPartition != newVSPartition {

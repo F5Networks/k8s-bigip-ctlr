@@ -630,6 +630,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						rsCfg.IntDgMap,
 						pl.ServicePort,
 						vs.Spec.Host,
+						vs.Spec.HostAliases,
 						tlsTermination,
 					)
 					//path based AB deployment/Cluster ratio not supported for passthrough
@@ -653,6 +654,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						rsCfg.IntDgMap,
 						pl.ServicePort,
 						vs.Spec.Host,
+						vs.Spec.HostAliases,
 						tlsTermination,
 					)
 					// Handle AB path based IRules for insecure virtualserver
@@ -757,8 +759,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 
 	// Append all the hosts from a host group/ single host
+	hosts := getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)
 	if vs.Spec.Host != "" {
-		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, vs.Spec.Host)
+		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, hosts...)
 	}
 	return nil
 }
@@ -1333,7 +1336,8 @@ func (ctlr *Controller) handleVirtualServerTLS(
 				//of the same domain. In this case, we need to create a poolPathRef for vs host matched.
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
 			} else {
-				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
+				hosts := getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)
+				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, hosts})
 			}
 		}
 	}
@@ -2926,4 +2930,20 @@ func hasWildcardHost(hosts []string) bool {
 		}
 	}
 	return false
+}
+
+// getUniqueHosts returns unique hosts from host and hostAliases
+func getUniqueHosts(host string, hostAliases []string) []string {
+	uniqueHostsMap := make(map[string]struct{})
+	if host != "" {
+		uniqueHostsMap[host] = struct{}{}
+	}
+	for _, host := range hostAliases {
+		uniqueHostsMap[host] = struct{}{}
+	}
+	var uniqueHosts []string
+	for host := range uniqueHostsMap {
+		uniqueHosts = append(uniqueHosts, host)
+	}
+	return uniqueHosts
 }

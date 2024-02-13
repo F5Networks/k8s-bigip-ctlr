@@ -63,7 +63,6 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 		mockCtlr.CISConfigCRKey = cmNamespace + "/" + cmName
 		mockCtlr.comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace)
 		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
-		mockCtlr.resources = NewResourceStore()
 		extConfig := `
 {
     "baseRouteSpec": {

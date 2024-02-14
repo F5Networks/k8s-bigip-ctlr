@@ -1,6 +1,8 @@
 package controller
 
 import (
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -10,6 +12,7 @@ import (
 
 var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
+	var networkManager *networkmanager.NetworkManager
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
@@ -85,223 +88,253 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(nodes).To(BeNil(), "Failed to Validate Nodes with Label")
 	})
 
-	//It("Nodes Update processing", func() {
-	//	nodeInf := mockCtlr.getNodeInformer("")
-	//	mockCtlr.nodeInformer = &nodeInf
-	//	mockCtlr.addNodeEventUpdateHandler(mockCtlr.nodeInformer)
-	//	mockCtlr.UseNodeInternal = true
-	//	namespace := "default"
-	//	mockCtlr.namespaces = make(map[string]bool)
-	//	mockCtlr.namespaces[namespace] = true
-	//	mockCtlr.addNamespacedInformers(namespace, false)
-	//
-	//	// Static routes with Node taints
-	//	nodeAddr1 := v1.NodeAddress{
-	//		Type:    v1.NodeInternalIP,
-	//		Address: "10.244.1.1",
-	//	}
-	//	nodeObjs := []v1.Node{
-	//		*test.NewNode("worker1", "1", false,
-	//			[]v1.NodeAddress{nodeAddr1}, nil, nil),
-	//	}
-	//	for _, node := range nodeObjs {
-	//		mockCtlr.addNode(&node)
-	//	}
-	//	mockCtlr.StaticRoutingMode = true
-	//	mockCtlr.SetupNodeProcessing("")
-	//	mockWriter, ok := mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// Nodes without taints, CNI flannel, no podCIDR
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Spec.Taints = []v1.Taint{}
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// Nodes without taints, CNI flannel, with podCIDR, InternalNodeIP
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Spec.PodCIDR = "10.244.0.0/28"
-	//		nodeObjs[i].Status.Addresses = []v1.NodeAddress{
-	//			{Type: v1.NodeInternalIP, Address: "1.2.3.4"},
-	//		}
-	//		mockCtlr.updateStatusNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	expectedRouteSection := L3ForwardStore{
-	//		routes: []routeConfig{
-	//			{
-	//				Name:    "k8s-worker1-1.2.3.4",
-	//				Network: "10.244.0.0/28",
-	//				Gateway: "1.2.3.4",
-	//			},
-	//		},
-	//	}
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-	//
-	//	// OrchestrationCNI = OVN_K8S no OVN annotation on node
-	//	mockCtlr.OrchestrationCNI = OVN_K8S
-	//	mockCtlr.UseNodeInternal = true
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// OrchestrationCNI = OVN_K8S with incorrect OVN annotation on node
-	//	mockCtlr.OrchestrationCNI = OVN_K8S
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Annotations = make(map[string]string)
-	//		nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"invalid\":\"invalid\"}"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node but no k8s.ovn.org/node-primary-ifaddr annotation
-	//	mockCtlr.OrchestrationCNI = OVN_K8S
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Annotations = make(map[string]string)
-	//		nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":\"10.244.0.0/28\"}"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
-	//	mockCtlr.OrchestrationCNI = OVN_K8S
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"invalid\":\"invalid\"}"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// OrchestrationCNI = OVN_K8S with correct OVN annotation on node valid k8s.ovn.org/node-primary-ifaddr annotation
-	//	mockCtlr.OrchestrationCNI = OVN_K8S
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"ipv4\":\"10.244.0.0/28\"}"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	expectedRouteSection = L3ForwardStore{
-	//		routes: []routeConfig{
-	//			{
-	//				Name:    "k8s-worker1-10.244.0.0",
-	//				Network: "10.244.0.0/28",
-	//				Gateway: "10.244.0.0",
-	//			},
-	//		},
-	//	}
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-	//	// OrchestrationCNI = ovn_k8s and node network CIDR
-	//	mockCtlr.OrchestrationCNI = OVN_K8S
-	//	mockCtlr.UseNodeInternal = true
-	//	mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Annotations["k8s.ovn.org/host-addresses"] = "[\"10.244.0.0\"]"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	expectedRouteSection = L3ForwardStore{
-	//		routes: []routeConfig{
-	//			{
-	//				Name:    "k8s-worker1-10.244.0.0",
-	//				Network: "10.244.0.0/28",
-	//				Gateway: "10.244.0.0",
-	//			},
-	//		},
-	//	}
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-	//	// OrchestrationCNI = CILIUM_Static with no valid cilium-k8s annotation
-	//	mockCtlr.OrchestrationCNI = CILIUM_Static
-	//	mockCtlr.UseNodeInternal = true
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(L3ForwardStore{}))
-	//
-	//	// OrchestrationCNI = CILIUM_Static with network.cilium.io/ipv4-pod-cidr annotation
-	//	mockCtlr.OrchestrationCNI = CILIUM_Static
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		nodeObjs[i].Annotations["network.cilium.io/ipv4-pod-cidr"] = "10.244.0.0/28"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	expectedRouteSection = L3ForwardStore{
-	//		routes: []routeConfig{
-	//			{
-	//				Name:    "k8s-worker1-1.2.3.4",
-	//				Network: "10.244.0.0/28",
-	//				Gateway: "1.2.3.4",
-	//			},
-	//		},
-	//	}
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-	//
-	//	// OrchestrationCNI = CILIUM_Static with io.cilium.network.ipv4-pod-cidr annotation
-	//	mockCtlr.OrchestrationCNI = CILIUM_Static
-	//	mockCtlr.UseNodeInternal = true
-	//	for i, _ := range nodeObjs {
-	//		delete(nodeObjs[i].Annotations, "network.cilium.io/ipv4-pod-cidr")
-	//		nodeObjs[i].Annotations["io.cilium.network.ipv4-pod-cidr"] = "10.244.0.0/28"
-	//		mockCtlr.updateNode(&nodeObjs[i], namespace)
-	//	}
-	//	mockCtlr.SetupNodeProcessing("")
-	//	Expect(ok).To(Equal(true))
-	//	Expect(len(mockWriter.Sections)).To(Equal(1))
-	//	Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
-	//
-	//})
+	It("Nodes Update processing", func() {
+		nodeInf := mockCtlr.getNodeInformer("")
+		mockCtlr.multiClusterNodeInformers[""] = &nodeInf
+		mockCtlr.addNodeEventUpdateHandler(&nodeInf)
+		mockCtlr.UseNodeInternal = true
+		namespace := "default"
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces[namespace] = true
+		mockCtlr.addNamespacedInformers(namespace, false)
+		networkManager = networkmanager.NewNetworkManager(mockCtlr.CMTokenManager, "")
+		networkManager.DeviceMap["10.8.3.11"] = "dummy-id"
+		networkManager.L3ForwardStore.InstanceStaticRoutes["dummy-id"] = networkmanager.StaticRouteMap{}
+		mockCtlr.networkManager = networkManager
+		mockCtlr.resources = NewResourceStore()
+		bigipconfig := cisapiv1.BigIpConfig{
+			BigIpLabel:       "bigip1",
+			BigIpAddress:     "10.8.3.11",
+			DefaultPartition: "test",
+		}
+		mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
+		ltmConfig := make(map[string]*PartitionConfig, 0)
+		ltmConfig["test"] = &PartitionConfig{}
+		mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: ltmConfig, gtmConfig: make(GTMConfig)}
 
-	//TODO fix this unit testcase for new node-update logic
+		// Static routes with Node taints, CNI flannel, no podCIDR
+		nodeAddr1 := v1.NodeAddress{
+			Type:    v1.NodeInternalIP,
+			Address: "10.244.1.1",
+		}
+		nodeObjs := []v1.Node{
+			*test.NewNode("worker1", "1", false,
+				[]v1.NodeAddress{nodeAddr1}, []v1.Taint{
+					{Key: "node-role.kubernetes.io/master", Effect: "NoSchedule"},
+				},
+				nil),
+		}
+		for _, node := range nodeObjs {
+			mockCtlr.addNode(&node)
+		}
+		mockCtlr.StaticRoutingMode = true
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// Nodes without taints, CNI flannel, no podCIDR
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Spec.Taints = []v1.Taint{}
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// Nodes without taints, CNI flannel, with podCIDR, InternalNodeIP
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Spec.PodCIDR = "10.244.0.0/28"
+			nodeObjs[i].Status.Addresses = []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "1.2.3.4"},
+			}
+			mockCtlr.updateStatusNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(1))
+		req, ok := <-networkManager.NetworkChan
+		Expect(ok).To(Equal(true))
+		Expect(req.Action).To(Equal(networkmanager.Create))
+		l3Forward := req.NetworkConfig.(networkmanager.L3Forward)
+		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
+		Expect(l3Forward.Config.Gateway).To(Equal("1.2.3.4"))
+
+		// OrchestrationCNI = OVN_K8S no OVN annotation on node
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+		// OrchestrationCNI = OVN_K8S with incorrect OVN annotation on node
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations = make(map[string]string)
+			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"invalid\":\"invalid\"}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		//TODO add logic to test the below
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node but no k8s.ovn.org/node-primary-ifaddr annotation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations = make(map[string]string)
+			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":\"10.244.0.0/28\"}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"invalid\":\"invalid\"}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		//TODO add logic to test the below
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// OrchestrationCNI = OVN_K8S with correct OVN annotation on node valid k8s.ovn.org/node-primary-ifaddr annotation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations[OVNK8sNodeIPAnnotation] = "{\"ipv4\":\"10.244.0.0/28\"}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		//TODO add logic to test the below
+		Expect(len(networkManager.NetworkChan)).To(Equal(1))
+		req, ok = <-networkManager.NetworkChan
+		Expect(ok).To(Equal(true))
+		Expect(req.Action).To(Equal(networkmanager.Create))
+		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
+		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
+		Expect(l3Forward.Config.Gateway).To(Equal("10.244.0.0"))
+
+		// OrchestrationCNI = ovn_k8s and node network CIDR
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations[OVNK8sNodeIPAnnotation2] = "[\"10.244.0.10\"]"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(1))
+		req, ok = <-networkManager.NetworkChan
+		Expect(ok).To(Equal(true))
+		Expect(req.Action).To(Equal(networkmanager.Create))
+		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
+		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
+		Expect(l3Forward.Config.Gateway).To(Equal("10.244.0.10"))
+
+		// OrchestrationCNI = ovn_k8s without annotations
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			delete(nodeObjs[i].Annotations, OVNK8sNodeIPAnnotation2)
+			delete(nodeObjs[i].Annotations, OVNK8sNodeIPAnnotation)
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// OrchestrationCNI = ovn_k8s and valid node network CIDRs
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			delete(nodeObjs[i].Annotations, OVNK8sNodeIPAnnotation2)
+			nodeObjs[i].Annotations[OvnK8sNodeIPAnnotation3] = "[\"10.244.0.12/28\"]"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(1))
+		req, ok = <-networkManager.NetworkChan
+		Expect(ok).To(Equal(true))
+		Expect(req.Action).To(Equal(networkmanager.Create))
+		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
+		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
+		Expect(l3Forward.Config.Gateway).To(Equal("10.244.0.12"))
+
+		// OrchestrationCNI = ovn_k8s and node network CIDRs with invalid ip
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations[OvnK8sNodeIPAnnotation3] = "[\"1.2.3.4/28\"]"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// OrchestrationCNI = ovn_k8s and invalid node network CIDRs
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations[OvnK8sNodeIPAnnotation3] = "[{\"ipv4\":\"10.244.0.11/28\"}]"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+
+		// OrchestrationCNI = CILIUM_Static with no valid cilium-k8s annotation
+		mockCtlr.OrchestrationCNI = CILIUM
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.SetupNodeProcessing("")
+		//TODO add logic to test the below
+		Expect(len(networkManager.NetworkChan)).To(Equal(0))
+		// OrchestrationCNI = CILIUM_Static with network.cilium.io/ipv4-pod-cidr annotation
+		mockCtlr.OrchestrationCNI = CILIUM
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations["network.cilium.io/ipv4-pod-cidr"] = "10.244.0.0/28"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(1))
+		req, ok = <-networkManager.NetworkChan
+		Expect(ok).To(Equal(true))
+		Expect(req.Action).To(Equal(networkmanager.Create))
+		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
+		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
+		Expect(l3Forward.Config.Gateway).To(Equal("1.2.3.4"))
+
+		// OrchestrationCNI = CILIUM_Static with io.cilium.network.ipv4-pod-cidr annotation
+		mockCtlr.OrchestrationCNI = CILIUM
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			delete(nodeObjs[i].Annotations, "network.cilium.io/ipv4-pod-cidr")
+			nodeObjs[i].Annotations["io.cilium.network.ipv4-pod-cidr"] = "10.244.0.0/28"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		Expect(len(networkManager.NetworkChan)).To(Equal(1))
+		req, ok = <-networkManager.NetworkChan
+		Expect(ok).To(Equal(true))
+		Expect(req.Action).To(Equal(networkmanager.Create))
+		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
+		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
+		Expect(l3Forward.Config.Gateway).To(Equal("1.2.3.4"))
+	})
+
 	//Describe("Processes CIS monitored resources on node update", func() {
 	//	BeforeEach(func() {
-	//		namespace := ""
 	//		mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
 	//		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
-	//		mockCtlr.mode = CustomResourceMode
 	//		mockCtlr.PoolMemberType = NodePort
 	//		mockCtlr.crInformers = make(map[string]*CRInformer)
 	//		mockCtlr.comInformers = make(map[string]*CommonInformer)
-	//		_ = mockCtlr.addNamespacedInformers("", false)
-	//		mockCtlr.resources = NewResourceStore()
-	//		mockCtlr.crInformers[""].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-	//			mockCtlr.clientsets.kubeCRClient,
-	//			namespace,
-	//			0,
-	//			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	//			func(options *metav1.ListOptions) {
-	//				options.LabelSelector = mockCtlr.resourceSelectorConfig.nativeResourceSelector.String()
-	//			},
-	//		)
+	//		mockCtlr.managedResources.ManageCustomResources = true
+	//		mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	//		mockCtlr.crInformers[""] = mockCtlr.newNamespacedCustomResourceInformer("")
 	//		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 	//			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
-	//
+	//		mockCtlr.resources = NewResourceStore()
 	//	})
 	//
 	//	AfterEach(func() {
@@ -363,16 +396,13 @@ var _ = Describe("Node Poller Handler", func() {
 	//		}
 	//		nodeObjs := []v1.Node{
 	//			*test.NewNode("worker1", "1", false,
-	//				[]v1.NodeAddress{nodeAddr1}, nil),
+	//				[]v1.NodeAddress{nodeAddr1}, nil, nil),
 	//			*test.NewNode("worker2", "1", false,
-	//				[]v1.NodeAddress{nodeAddr2}, nil),
+	//				[]v1.NodeAddress{nodeAddr2}, nil, nil),
 	//		}
-	//		mockCtlr.oldNodes, err = mockCtlr.getNodes(nodeObjs)
-	//		Expect(err).To(BeNil(), "Failed to get a list of node addresses")
-	//
 	//		// Add the new K8S node and verify
 	//		nodeObjs = append(nodeObjs, *test.NewNode("worker3", "1", false,
-	//			[]v1.NodeAddress{nodeAddr3}, nil))
+	//			[]v1.NodeAddress{nodeAddr3}, nil, nil))
 	//		tempNodeObjs := nodeObjs
 	//
 	//		mockCtlr.ProcessNodeUpdate(nil, "")
@@ -384,7 +414,6 @@ var _ = Describe("Node Poller Handler", func() {
 	//		Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
 	//		mockCtlr.initState = false
 	//		nodeObjs = tempNodeObjs
-	//		mockCtlr.oldNodes = nil
 	//		// Process Node update and verify that ingressLink is added to the resource queue for processing
 	//		mockCtlr.ProcessNodeUpdate(nodeObjs, "")
 	//		Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),

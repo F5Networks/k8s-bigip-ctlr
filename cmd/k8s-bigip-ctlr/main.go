@@ -57,7 +57,6 @@ const (
 	versionPathOpenshiftv3 = "/version/openshift"
 	versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
 	versionPathk8s         = "/version"
-	poolMemberMode         = "nodeport"
 )
 
 var (

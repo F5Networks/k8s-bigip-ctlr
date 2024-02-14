@@ -15,18 +15,6 @@ func (req *RequestHandler) startRequestHandler() {
 	go req.requestHandler()
 }
 
-func (req *RequestHandler) stopRequestHandler() {
-	log.Debug("Stopping requestHandler")
-	if req.reqChan != nil {
-		close(req.reqChan)
-	}
-	req.PostManagers.Lock()
-	for key := range req.PostManagers.PostManagerMap {
-		req.stopPostManager(key)
-	}
-	req.PostManagers.Unlock()
-}
-
 func (req *RequestHandler) stopPostManager(key BigIpKey) {
 	//stop post manager
 	if pm, ok := req.PostManagers.PostManagerMap[key]; ok {

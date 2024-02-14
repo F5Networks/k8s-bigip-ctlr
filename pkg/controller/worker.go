@@ -3650,7 +3650,7 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 }
 
 // Update virtual server status with virtual server address
-func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
+/*func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
 	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, StatusOk: statusOk}
 	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", vsStatus, vs.Name, vs.Namespace)
@@ -3662,7 +3662,7 @@ func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
 		return
 	}
-}
+}*/
 
 // Update Transport server status with virtual server address
 func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {

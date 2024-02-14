@@ -2331,7 +2331,11 @@ var _ = Describe("Worker Tests", func() {
 
 				_, status = mockCtlr.requestIP("test", "", key)
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
-
+				mockCtlr.firstPostResponse = false
+				mockCtlr.removeUnusedIPAMEntries(TransportServer)
+				//check cache is not updated
+				ipamCR = mockCtlr.getIPAMCR()
+				Expect(len(ipamCR.Status.IPStatus)).To(Equal(1), "IPAM cache not updated")
 				mockCtlr.ipamCli = nil
 				mockCtlr.addTransportServer(ts)
 				mockCtlr.processResources()

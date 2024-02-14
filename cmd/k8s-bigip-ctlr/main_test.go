@@ -17,9 +17,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/spf13/pflag"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 	"os"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -216,7 +221,6 @@ var _ = Describe("Main Tests", func() {
 			Expect(*cmURL).To(Equal("https://cm.example.com"))
 			Expect(*cmUsername).To(Equal("user"))
 			Expect(*cmPassword).To(Equal("pass"))
-
 			// Test url variations
 			os.Args[4] = "--cm-url=fail://cm.example.com"
 			flags.Parse(os.Args)
@@ -240,6 +244,7 @@ var _ = Describe("Main Tests", func() {
 				"--cm-username=cli-user",
 				"--cm-password=cli-pass",
 				"--deploy-config-cr=default/testcr",
+				"--trusted-certs-cfgmap=default/foomap",
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
@@ -253,7 +258,28 @@ var _ = Describe("Main Tests", func() {
 			Expect(*cmURL).To(Equal("https://cm.example.com"))
 			Expect(*cmUsername).To(Equal("user"))
 			Expect(*cmPassword).To(Equal("pass"))
-
+			kubeClient = fake.NewSimpleClientset()
+			cfgFoo := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "foomap", Namespace: "default"}, Data: map[string]string{"data": "foo"}}
+			_, err = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cfgFoo, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			cfgFoo, err = getConfigMapUsingNamespaceAndName("default", "foomap")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfgFoo.Data["data"]).To(Equal("foo"))
+			//check for invlaid configmap
+			_, err = getConfigMapUsingNamespaceAndName("default", "invalid")
+			Expect(err).ToNot(BeNil())
+			//check for valid bigip trusted certs
+			out := getBIGIPTrustedCerts()
+			Expect(strings.TrimSpace(out)).To(Equal("foo"))
+			//check for invalid bigip trusted certs
+			os.Args[6] = "--trusted-certs-cfgmap= "
+			flags.Parse(os.Args)
+			out = getBIGIPTrustedCerts()
+			Expect(out).To(Equal(""))
+			os.Args[6] = "--trusted-certs-cfgmap=default"
+			flags.Parse(os.Args)
+			out = getBIGIPTrustedCerts()
+			Expect(out).To(Equal(""))
 		})
 	})
 })

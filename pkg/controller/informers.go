@@ -447,13 +447,30 @@ func (ctlr *Controller) addNodeEventUpdateHandler(nodeInformer *NodeInformer) {
 	if nodeInformer.nodeInformer != nil {
 		nodeInformer.nodeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+				AddFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) {
+					if ctlr.isValidNodeUpdate(obj.(*corev1.Node), cur.(*corev1.Node)) {
+						ctlr.SetupNodeProcessing(nodeInformer.clusterName)
+					}
+				},
 				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing(nodeInformer.clusterName) },
 			},
 		)
 		nodeInformer.nodeInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(NodeUpdate, nodeInformer.clusterName))
 	}
+}
+
+func (ctlr *Controller) isValidNodeUpdate(oldNodeObj *corev1.Node, newNodeObj *corev1.Node) bool {
+	// only skip the processing of node updates when status/ManagedFields are changed
+	// if metadata/spec are changed process the node update
+	if reflect.DeepEqual(oldNodeObj.Annotations, newNodeObj.Annotations) &&
+		reflect.DeepEqual(oldNodeObj.Labels, newNodeObj.Labels) &&
+		reflect.DeepEqual(oldNodeObj.Spec, newNodeObj.Spec) &&
+		(!reflect.DeepEqual(oldNodeObj.Status, newNodeObj.Status) ||
+			!reflect.DeepEqual(oldNodeObj.ObjectMeta.ManagedFields, newNodeObj.ManagedFields)) {
+		return false
+	}
+	return true
 }
 
 func (ctlr *Controller) newNamespacedCommonResourceInformer(

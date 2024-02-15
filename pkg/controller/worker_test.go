@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
@@ -3490,7 +3491,7 @@ extendedRouteSpec:
 				route1.Spec.Host = "test.com"
 				delete(route1.Annotations, resource.F5ClientSslProfileAnnotation)
 
-				checkCertificateHost(route1.Spec.Host, []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
+				checkCertificateHost(route1.Spec.Host, Route, fmt.Sprintf("%s/%s", route1.Namespace, route1.Name), []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
 
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup

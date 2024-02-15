@@ -78,14 +78,6 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			uri := host + pl.Path
 
 			path := pl.Path
-			var tls *cisapiv1.TLSProfile
-			if vs.Spec.TLSProfileName != "" {
-				tls = ctlr.getTLSProfileForVirtualServer(vs, vs.Namespace)
-
-				if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
-					path = "/"
-				}
-			}
 
 			if pl.Path == "/" {
 				uri = host + vs.Spec.RewriteAppRoot

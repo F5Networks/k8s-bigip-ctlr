@@ -1559,22 +1559,22 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 		}
 		Admitted := false
 		now := metaV1.Now().Rfc3339Copy()
+		var routeStatusIngress []routeapi.RouteIngress
 		for _, routeIngress := range route.Status.Ingress {
 			if routeIngress.RouterName == F5RouterName {
 				for _, condition := range routeIngress.Conditions {
 					if condition.Status == status {
 						Admitted = true
-					} else {
-						// remove all multiple route admit status submitted earlier
-						ctlr.eraseRouteAdmitStatus(rscKey)
 					}
 				}
+			} else {
+				routeStatusIngress = append(routeStatusIngress, routeIngress)
 			}
 		}
 		if Admitted {
 			return
 		}
-		route.Status.Ingress = append(route.Status.Ingress, routeapi.RouteIngress{
+		routeStatusIngress = append(routeStatusIngress, routeapi.RouteIngress{
 			RouterName: F5RouterName,
 			Host:       route.Spec.Host,
 			Conditions: []routeapi.RouteIngressCondition{{
@@ -1585,9 +1585,11 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 				LastTransitionTime: &now,
 			}},
 		})
+		// updating to the new status
+		route.Status.Ingress = routeStatusIngress
 		_, err := ctlr.clientsets.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
 		if err == nil {
-			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+			log.Infof("Admitted Route -  %v", route.ObjectMeta.Name)
 			return
 		}
 		log.Errorf("Error while Updating Route Admit Status: %v\n", err)

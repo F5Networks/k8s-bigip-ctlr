@@ -1690,6 +1690,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
 	var key string
+	routeKey := fmt.Sprintf("%s/%s", route.Namespace, route.Name)
 	if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
 		key = route.Spec.Host + "/"
 	} else {
@@ -1701,7 +1702,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			message := fmt.Sprintf("Discarding route %v as other route already exposes URI %v%v and is older ", route.Name, route.Spec.Host, route.Spec.Path)
 			log.Warningf(message)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "HostAlreadyClaimed", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "HostAlreadyClaimed", message, v1.ConditionFalse)
 			return false
 		}
 	}
@@ -1712,43 +1713,43 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	case PolicySSLOption:
 		if len(plcSSLProfiles.serverSSLs) == 0 && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile in the policy %v/%v", plcSSLProfiles.plcNamespace, plcSSLProfiles.plcName)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
 	case AnnotationSSLOption:
 		if _, ok := route.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile in the annotation")
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
 	case RouteCertificateSSLOption:
 		// Validate vsHostname if certificate is not provided in SSL annotations
-		ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
+		ok := checkCertificateHost(route.Spec.Host, Route, routeKey, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
 		if !ok {
 			//Invalid certificate and key
 			message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
 	case DefaultSSLOption:
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
 			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigCR - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigCR - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
 	default:
 		message := fmt.Sprintf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
-		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+		go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 		prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 		return false
 	}
@@ -1758,14 +1759,14 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if appRootPath == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, F5VsAppRootAnnotation)
 			log.Warningf(message)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
 		if route.Spec.Path != "" && route.Spec.Path != "/" {
 			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", F5VsAppRootAnnotation, appRootPath, route.Name)
 			log.Warningf(message)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
@@ -1776,7 +1777,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if wafPolicy == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, F5VsWAFPolicy)
 			log.Warningf(message)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
@@ -1797,7 +1798,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name,
 				F5VsAllowSourceRangeAnnotation)
 			log.Warningf(message)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false
 		}
@@ -1821,7 +1822,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			} else {
 				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", MultiClusterServicesAnnotation, route.Name, route.Namespace)
 				log.Warningf(message)
-				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+				go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 				prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 				return false
 			}
@@ -1833,7 +1834,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
 				route.Name)
 			log.Warningf(message)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
+			go ctlr.updateRouteAdmitStatus(routeKey,
 				"ServiceNotFound", message, v1.ConditionFalse)
 			prometheus.ConfigurationWarnings.WithLabelValues(Route, route.ObjectMeta.Namespace, route.ObjectMeta.Name, message).Set(1)
 			return false

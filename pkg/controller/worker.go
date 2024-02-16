@@ -917,18 +917,38 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 	return result
 }
 
-func (ctlr *Controller) getTLSProfileForVirtualServer(
-	vs *cisapiv1.VirtualServer,
-	namespace string) *cisapiv1.TLSProfile {
-	tlsName := vs.Spec.TLSProfileName
-	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
+func (ctlr *Controller) getTerminationFromTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer) string {
+	if vs.Spec.TLSProfileName == "" {
+		return ""
+	}
+	// get TLSProfile for VirtualServer
+	tlsProfile, err := ctlr.getTLSProfile(vs.Spec.TLSProfileName, vs.Namespace)
+	if err != nil {
+		log.Errorf("Error fetching TLSProfile %s: %v", vs.Spec.TLSProfileName, err)
+		return ""
+	}
+	return tlsProfile.Spec.TLS.Termination
+}
 
+func (ctlr *Controller) getTLSProfile(tlsName string, namespace string) (*cisapiv1.TLSProfile, error) {
+	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
 	// Initialize CustomResource Informer for required namespace
 	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
-		return nil
+		return nil, fmt.Errorf("Informer not found for namespace: %v", namespace)
 	}
+	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
+	if !tlsFound {
+		return nil, fmt.Errorf("TLSProfile %s does not exist", tlsName)
+	}
+	return obj.(*cisapiv1.TLSProfile), nil
+}
+
+func (ctlr *Controller) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer) *cisapiv1.TLSProfile {
+	tlsName := vs.Spec.TLSProfileName
+	namespace := vs.Namespace
+	vsKey := fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
+	// Initialize CustomResource Informer for required namespace
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
 		log.Errorf("Common Informer not found for namespace: %v", namespace)
@@ -936,19 +956,17 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 	}
 	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
 	// Check if the TLSProfile exists and valid for us.
-	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
-	if !tlsFound {
-		log.Errorf("TLSProfile %s does not exist", tlsName)
+	tlsProfile, err := ctlr.getTLSProfile(tlsName, namespace)
+	if err != nil {
+		log.Errorf("Error fetching TLSProfile %s: %v", tlsName, err)
 		return nil
 	}
 
 	// validate TLSProfile
-	validation := validateTLSProfile(obj.(*cisapiv1.TLSProfile))
+	validation := validateTLSProfile(tlsProfile)
 	if validation == false {
 		return nil
 	}
-
-	tlsProfile := obj.(*cisapiv1.TLSProfile)
 
 	if tlsProfile.Spec.TLS.Reference == "secret" {
 		var match bool
@@ -961,7 +979,7 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 				}
 				clientSecret := clientSecretobj.(*v1.Secret)
 				//validate at least one clientSSL certificates matches the VS hostname
-				if checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"]) {
+				if checkCertificateHost(vs.Spec.Host, VirtualServer, vsKey, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"]) {
 					match = true
 					break
 				}
@@ -975,7 +993,7 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 			}
 			clientSecret := clientSecretobj.(*v1.Secret)
 			//validate clientSSL certificates and hostname
-			match = checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
+			match = checkCertificateHost(vs.Spec.Host, VirtualServer, vsKey, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
 		}
 		if match == false {
 			return nil
@@ -1240,7 +1258,7 @@ func (ctlr *Controller) processVirtualServers(
 			var tlsTermination string
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				tlsProf = ctlr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
+				tlsProf = ctlr.getTLSProfileForVirtualServer(vrt)
 				if tlsProf == nil {
 					// Processing failed
 					// Stop processing further virtuals
@@ -1405,10 +1423,10 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			// in the absence of HostGroup, skip the virtuals with other host name if tls terminations are also same
 			if vrt.Spec.Host != currentVS.Spec.Host {
 				if vrt.Spec.TLSProfileName != "" && currentVS.Spec.TLSProfileName != "" {
-					vrtTLS := ctlr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
-					currentVSTLS := ctlr.getTLSProfileForVirtualServer(currentVS, currentVS.Namespace)
+					vrtTLSTermination := ctlr.getTerminationFromTLSProfileForVirtualServer(vrt)
+					currentVSTLSTermination := ctlr.getTerminationFromTLSProfileForVirtualServer(currentVS)
 					// Skip VS if terminations are different
-					if (vrtTLS == nil || currentVSTLS == nil) || vrtTLS.Spec.TLS.Termination == currentVSTLS.Spec.TLS.Termination {
+					if (vrtTLSTermination == "" || currentVSTLSTermination == "") || vrtTLSTermination == currentVSTLSTermination {
 						continue
 					}
 					// In case the terminations are different then consider the VS in the this group
@@ -3015,7 +3033,7 @@ func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
 }
 
 // Validate certificate hostname
-func checkCertificateHost(host string, certificate []byte, key []byte) bool {
+func checkCertificateHost(host, kind, rkey string, certificate []byte, key []byte) bool {
 	cert, certErr := tls.X509KeyPair(certificate, key)
 	if certErr != nil {
 		log.Errorf("Failed to validate TLS cert and key: %v", certErr)
@@ -3029,11 +3047,11 @@ func checkCertificateHost(host string, certificate []byte, key []byte) bool {
 	if len(x509cert.DNSNames) > 0 {
 		ok := x509cert.VerifyHostname(host)
 		if ok != nil {
-			log.Debugf("Error: Hostname in virtualserver does not match with certificate hostname: %v", ok)
+			log.Warningf("Hostname in %v %v does not match with certificate hostname: %v", kind, rkey, ok)
 			return false
 		}
 	} else {
-		log.Debugf("Error: SAN is empty on the certificate. So skipping Hostname validation on cert")
+		log.Debugf("SAN is empty on the certificate for %v %v. Hence skipping hostname validation on cert", kind, rkey)
 	}
 	return true
 }

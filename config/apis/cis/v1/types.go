@@ -62,8 +62,9 @@ type VirtualServerSpec struct {
 }
 
 type HostPersistence struct {
-	Method          string          `json:"method,omitempty"`
-	PersistMetaData PersistMetaData `json:"metaData,omitempty"`
+	Method             string          `json:"method,omitempty"`
+	PersistMetaData    PersistMetaData `json:"metaData,omitempty"`
+	DisablePersistence bool            `json:"disablePersistence,omitempty"`
 }
 type PersistMetaData struct {
 	Name    string `json:"name,omitempty"`

@@ -1362,6 +1362,10 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 			default:
 				log.Warning("provide a persist method value from sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, and carp")
 			}
+		} else if v.DisablePersist {
+			action.Event = "request"
+			action.Type = "persist"
+			action.Disable = &PersistMetaData{}
 		}
 
 		rulesData.Actions = append(rulesData.Actions, action)

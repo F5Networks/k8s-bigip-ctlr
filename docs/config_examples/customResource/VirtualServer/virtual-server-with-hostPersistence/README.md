@@ -17,3 +17,6 @@ hostPersistence:
 By deploying this yaml file in your cluster, CIS will create a VS with persist session rule action in VS Policy on BIG-IP.
 
 This is optional to use.
+
+## vs-with-hostPersistence-disable.yaml
+By deploying this yaml file in your cluster, the persistence will be disabled for the specified host inside the VS.

@@ -127,8 +127,11 @@ func (ctlr *Controller) prepareVirtualServerRules(
 				}
 
 				if vs.Spec.HostPersistence.Method != "" {
-					if host == "" {
-						log.Warning("Host Persistence cannot be configured without host")
+					if vs.Spec.HostPersistence.DisablePersistence {
+						log.Errorf("Method and Disable persistence cannot be used at once")
+						return nil
+					} else if host == "" {
+						log.Warning("Host Persistence cannot be configured without hosts")
 					} else {
 						rewriteActions, err := getHostPersistActions(vs.Spec.HostPersistence)
 						if nil != err {
@@ -136,6 +139,15 @@ func (ctlr *Controller) prepareVirtualServerRules(
 							return nil
 						}
 						rl.Actions = append(rl.Actions, rewriteActions...)
+					}
+				}
+				if vs.Spec.HostPersistence.DisablePersistence {
+					if host == "" {
+						log.Warning("Persistence cannot be disabled without hosts")
+					} else {
+						rl.Actions = append(rl.Actions, []*action{{
+							DisablePersist: true,
+						}}...)
 					}
 				}
 

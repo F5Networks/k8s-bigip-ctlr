@@ -81,7 +81,8 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | hostPersistence                  | Object                        | Optional  | NA      | Persist session rule action will be added to the VS Policy based on the host. Allowed values are existing BIG-IP Persist session               |
 
 **Note**:
-   * **hostGroupVirtualServerName** will be considered only when the hostGroup is provided in the Virtual Server. If you want to set the hostGroupVirtualServerName for the existing Virtual Servers, please clear those Virtual Servers from the BIG-IPs and re-apply the Virtual Servers with the hostGroupVirtualServerName. And also please make sure that hostGroupVirtualServerName is same across a hostGroup in Virtual Servers.
+   * **hostGroupVirtualServerName** is valid for Virtual Servers configured with hostGroup. hostGroupVirtualServerName is same in all Virtual Servers definitions in a hostGroup. To update existing hostGrouped Virtual servers with hostGroupVirtualServerName, delete the existing Virtual Servers with that hostGroup and apply after adding hostGroupVirtualServerName to the Virtual Server.
+
 
 **Default Pool Components**
 
@@ -168,8 +169,11 @@ This page is created to document the behaviour of CIS in CRD Mode.
 **hostPersistence Components**
 | PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                   |
 |------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
-| method           | String  | Required | NA      | Allowed values are existing BIG-IP Persist session values.                                                            |
-| metaData         | Object  | Required | NA      | Attributes to be configured based on the hostPersistence Method.                              |
+| method             | String  | Optional | NA      | Allowed values are existing BIG-IP Persist session values.                                  |
+| metaData           | Object  | Optional | NA      | Attributes to be configured based on the hostPersistence Method.                            |
+| disablePersistence |boolean  | Optional | NA      | Disables the persistence for the hosts.                                                     |
+**Note**
+   * **method** and **disablePersistence** cannot be used together.
 
 **hostPersistence metaData Params**
 | PARAMETER        | TYPE    | REQUIRED FOR PERSIST METHODS | DEFAULT | DESCRIPTION                                                                                   |

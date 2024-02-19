@@ -8,13 +8,11 @@ spec:
   # This is an insecure virtual, Please use TLSProfile to secure the virtual
   # check out tls examples to understand more.
   host: coffee.example.com
-  #disables the persistence across the VS host group
-  disablePersistence: true
   hostGroup: "cafe"
   ipamLabel: "Dev"
   # Method and Disable persistence cannot be used at once
   hostPersistence:
-    disablePersistence: true
+    method: none
   pools:
   - path: /mocha
     service: svc-2

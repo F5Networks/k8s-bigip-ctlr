@@ -171,9 +171,6 @@ This page is created to document the behaviour of CIS in CRD Mode.
 |------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
 | method             | String  | Optional | NA      | Allowed values are existing BIG-IP Persist session values.                                  |
 | metaData           | Object  | Optional | NA      | Attributes to be configured based on the hostPersistence Method.                            |
-| disablePersistence |boolean  | Optional | NA      | Disables the persistence for the hosts.                                                     |
-**Note**
-   * **method** and **disablePersistence** cannot be used together.
 
 **hostPersistence metaData Params**
 | PARAMETER        | TYPE    | REQUIRED FOR PERSIST METHODS | DEFAULT | DESCRIPTION                                                                                   |
@@ -188,8 +185,9 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 
 **Note**
-  * hostPersistence will be configured when host is present in the Virtual Server CR
-  * MetaData params should be configured as per the Method name
+  * hostPersistence will be configured when host is present in the Virtual Server CR.
+  * method value none will disable the persistence for the respective host.
+  * MetaData params should be configured as per the Method name.
 
 
 ### Examples

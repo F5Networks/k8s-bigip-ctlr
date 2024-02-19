@@ -61,11 +61,9 @@ spec:
                 hostPersistence:
                   type: object
                   properties:
-                    disablePersistence:
-                      type: boolean
                     method:
                       type: string
-                      enum: [ sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, carp ]
+                      enum: [ sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, carp, none ]
                     metaData:
                       type: object
                       properties:
@@ -91,7 +89,8 @@ spec:
                         expiry:
                           type: string
                           pattern: '^((?:(?:[0-9]+d))|(?:(?:[0-9]+d)?((?:[01]?[0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?)))$'
-
+                  required:
+                    - method
                 htmlProfile:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'

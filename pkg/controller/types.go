@@ -1365,6 +1365,7 @@ const (
 	Hash               = "hash"
 	Carp               = "carp"
 	Universal          = "universal"
+	Disable            = "none"
 )
 
 type (

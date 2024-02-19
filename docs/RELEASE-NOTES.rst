@@ -24,6 +24,7 @@ Bug Fixes
 * `Issue 3232 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3232>`_: Enhance as3 response add the runtime attribute
 * `Issue 3266 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3266>`_: Improve log when admitting next gen routes
 * `Issue 3267 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3267>`_: Improve log for certificate host name validation
+* `Issue 3277 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3277>`_: Additional PoolMember properties in ConfigMap not preserved for NodePortLocal mode.
 * Fix for wildcard domain with multiple hosts in tls profile
 
 2.15.1

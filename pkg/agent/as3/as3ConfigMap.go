@@ -2,7 +2,6 @@ package as3
 
 import (
 	"encoding/json"
-
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
@@ -210,13 +209,18 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
 							members = append(members, v)
 							ips = append(ips, v.Address)
+							//copy poolMem to poolMember to preserve all other fields defined on the pool member
 							poolMember := make(map[string]interface{})
+							for key, value := range poolMem {
+								poolMember[key] = value
+							}
 							poolMember["serverAddresses"] = ips
-							poolMember["servicePort"] = v.Port
+							poolMember["servicePort"] = float64(v.Port)
 							poolMember["shareNodes"] = poolMem["shareNodes"]
 							poolMembers = append(poolMembers, poolMember)
 						}
 					}
+
 					poolObj["members"] = poolMembers
 				} else {
 					var ips []string

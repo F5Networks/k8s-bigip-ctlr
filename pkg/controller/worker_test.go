@@ -3491,8 +3491,15 @@ extendedRouteSpec:
 				route1.Spec.Host = "test.com"
 				delete(route1.Annotations, resource.F5ClientSslProfileAnnotation)
 
-				checkCertificateHost(route1.Spec.Host, Route, fmt.Sprintf("%s/%s", route1.Namespace, route1.Name), []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
+				ok := checkCertificateHost(route1.Spec.Host, Route, fmt.Sprintf("%s/%s", route1.Namespace, route1.Name), []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
+				Expect(ok).To(BeTrue(), "Certificate host check failed")
 
+				Expect(verifyCertificateCommonName("foo.com", "foo.com")).To(BeTrue(), "Certificate common name check failed")
+				Expect(verifyCertificateCommonName("foo.com", "*.foo.com")).To(BeFalse(), "Certificate common name check failed")
+				Expect(verifyCertificateCommonName("*.foo.com", "foo.com")).To(BeFalse(), "Certificate common name check failed")
+				Expect(verifyCertificateCommonName("foo.com", "bar_foo.com")).To(BeFalse(), "Certificate common name check failed")
+				Expect(verifyCertificateCommonName("foo.com", "foo?.com")).To(BeFalse(), "Certificate common name check failed")
+				Expect(verifyCertificateCommonName("foo", "foo")).To(BeTrue(), "Certificate common name check failed")
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
@@ -3581,7 +3588,7 @@ extendedRouteSpec:
 				mockCtlr.enqueueDeletedNamespace(ns)
 				mockCtlr.processResources()
 
-				_, ok := mockCtlr.nsInformers[namespace]
+				_, ok = mockCtlr.nsInformers[namespace]
 				Expect(ok).To(Equal(false), "Namespace not deleted")
 
 				// mockCtlr.Agent.retryFailedTenant()

@@ -621,7 +621,7 @@ func (ctlr *Controller) prepareABRouteLTMRules(
 	uri := route.Spec.Host + route.Spec.Path
 	path := route.Spec.Path
 	appRoot := "/"
-	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
+	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName, false)
 	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy, true)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
@@ -681,7 +681,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	// Handle app-root annotation
 	appRootPath, appRootOk := route.Annotations[resource.F5VsAppRootAnnotation]
 	if appRootOk {
-		ruleName := formatVirtualServerRuleName(route.Spec.Host, "", "redirectto", appRootPath)
+		ruleName := formatVirtualServerRuleName(route.Spec.Host, "", "redirectto", appRootPath, false)
 		rl, err := createRedirectRule(route.Spec.Host+appRoot, appRootPath, ruleName, allowSourceRange)
 		if nil != err {
 			log.Errorf("Error configuring redirect rule: %v", err)
@@ -694,7 +694,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 		}
 	}
 
-	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
+	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName, false)
 	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy, false)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
@@ -730,7 +730,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	if rlMap[route.Spec.Host] == nil && len(redirects) == 2 {
 		rl := &Rule{
-			Name:    formatVirtualServerRuleName(route.Spec.Host, route.Namespace, "", redirects[1].Actions[0].Pool),
+			Name:    formatVirtualServerRuleName(route.Spec.Host, route.Namespace, "", redirects[1].Actions[0].Pool, false),
 			FullURI: route.Spec.Host,
 			Actions: redirects[1].Actions,
 			Conditions: []*condition{

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -119,11 +120,11 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
-			name := formatVirtualServerRuleName("test.com", "", "", "sample_pool")
+			name := formatVirtualServerRuleName("test.com", "", "", "sample_pool", false)
 			Expect(name).To(Equal("vs_test_com_sample_pool"))
-			name = formatVirtualServerRuleName("test.com", "exams.com", "", "sample_pool")
+			name = formatVirtualServerRuleName("test.com", "exams.com", "", "sample_pool", false)
 			Expect(name).To(Equal("vs_exams_com_sample_pool"))
-			name = formatVirtualServerRuleName("test.com", "", "/foo", "sample_pool")
+			name = formatVirtualServerRuleName("test.com", "", "/foo", "sample_pool", false)
 			Expect(name).To(Equal("vs_test_com_foo_sample_pool"))
 
 		})
@@ -335,6 +336,7 @@ var _ = Describe("Resource Config Tests", func() {
 				cisapiv1.VirtualServerSpec{
 					Host:        "test.com",
 					HostAliases: []string{"test1.com", "test2.com"},
+					HostGroup:   "hg1",
 					Pools: []cisapiv1.VSPool{
 						{
 							Path:             "/foo",
@@ -381,6 +383,11 @@ var _ = Describe("Resource Config Tests", func() {
 			for _, rule := range rsCfg.Policies[0].Rules {
 				_, ok := urisInRules[rule.FullURI]
 				Expect(ok).To(BeTrue(), "Incorrect rules defined for VirtualServer with hostAliases")
+				// Verify correct ruleName is generated in case HostGroup is defined along with hostAliases
+				uriArray := strings.Split(rule.FullURI, "/")
+				Expect(len(uriArray)).To(BeNumerically(">=", 1), "Incorrect rules defined for VirtualServer with hostAliases")
+				formatedUri := strings.ReplaceAll(uriArray[0], ".", "_")
+				Expect(rule.Name).To(ContainSubstring("vs_hg1_"+formatedUri), "Incorrect rules defined for VirtualServer with hostAliases")
 			}
 		})
 

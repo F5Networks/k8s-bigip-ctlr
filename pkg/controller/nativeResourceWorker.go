@@ -163,7 +163,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 					break
 				}
 
-				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
+				log.Debugf("Updated Route %s with TLS", rt.ObjectMeta.Name)
 			} else {
 				// handle ab deployment for insecure routes
 				if isRouteABDeployment(rt) || ctlr.haModeType == Ratio {

@@ -1723,7 +1723,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		ok := checkCertificateHost(route.Spec.Host, Route, routeKey, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
 		if !ok {
 			//Invalid certificate and key
-			message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+			message := fmt.Sprintf("Invalid certificate or key for %v in route: %v", route.Spec.Host, route.ObjectMeta.Name)
 			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}

@@ -3044,15 +3044,100 @@ func checkCertificateHost(host, kind, rkey string, certificate []byte, key []byt
 		log.Errorf("failed to parse certificate; %s", err)
 		return false
 	}
+
 	if len(x509cert.DNSNames) > 0 {
 		ok := x509cert.VerifyHostname(host)
 		if ok != nil {
 			log.Warningf("Hostname in %v %v does not match with certificate hostname: %v", kind, rkey, ok)
 			return false
 		}
-	} else {
-		log.Debugf("SAN is empty on the certificate for %v %v. Hence skipping hostname validation on cert", kind, rkey)
+	} else if !verifyCertificateCommonName(strings.ToLower(x509cert.Subject.CommonName), strings.ToLower(host)) {
+		log.Warningf("Hostname %v in %v %v does not match with certificate hostname: %v", host, kind, rkey, x509cert.Subject.CommonName)
+		return false
 	}
+	return true
+}
+
+func verifyCertificateCommonName(certCommonName, hostname string) bool {
+	if validHostname(hostname, false) && validHostname(hostname, true) {
+		if matchHostnames(certCommonName, hostname) {
+			return true
+		}
+	} else {
+		if certCommonName == hostname {
+			return true
+		}
+	}
+	return false
+}
+
+func matchHostnames(pattern, host string) bool {
+	host = strings.TrimSuffix(host, ".")
+
+	if len(pattern) == 0 || len(host) == 0 {
+		return false
+	}
+
+	patternParts := strings.Split(pattern, ".")
+	hostParts := strings.Split(host, ".")
+
+	if len(patternParts) != len(hostParts) {
+		return false
+	}
+
+	for i, patternPart := range patternParts {
+		if i == 0 && patternPart == "*" {
+			continue
+		}
+		if patternPart != hostParts[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func validHostname(host string, isPattern bool) bool {
+	if !isPattern {
+		host = strings.TrimSuffix(host, ".")
+	}
+	if len(host) == 0 {
+		return false
+	}
+
+	for i, part := range strings.Split(host, ".") {
+		if part == "" {
+			// Empty label.
+			return false
+		}
+		if isPattern && i == 0 && part == "*" {
+			// Only allow full left-most wildcards, as those are the only ones
+			// we match, and matching literal '*' characters is probably never
+			// the expected behavior.
+			continue
+		}
+		for j, c := range part {
+			if 'a' <= c && c <= 'z' {
+				continue
+			}
+			if '0' <= c && c <= '9' {
+				continue
+			}
+			if 'A' <= c && c <= 'Z' {
+				continue
+			}
+			if c == '-' && j != 0 {
+				continue
+			}
+			if c == '_' {
+				// Not a valid character in hostnames, but commonly
+				// found in deployments outside the WebPKI.
+				continue
+			}
+			return false
+		}
+	}
+
 	return true
 }
 

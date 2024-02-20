@@ -2309,6 +2309,7 @@ func (ctlr *Controller) handleRouteTLS(
 	sslProfileOption := ctlr.getSSLProfileOption(route, policySSLProfiles)
 	switch sslProfileOption {
 	case "":
+		log.Infof("Either TLS spec is not provided for route %v/%v or it's passthrough termination", route.Namespace, route.Name)
 		break
 	case PolicySSLOption:
 		tlsReferenceType = BIGIP
@@ -2321,6 +2322,7 @@ func (ctlr *Controller) handleRouteTLS(
 			}
 			bigIPSSLProfiles.serverSSLs = policySSLProfiles.serverSSLs
 		}
+		log.Infof("Policy SSL profiles are given highest priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
 	case AnnotationSSLOption:
 		if clientSSL, ok := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]; ok {
 			if len(strings.Split(clientSSL, "/")) > 1 {
@@ -2336,7 +2338,7 @@ func (ctlr *Controller) handleRouteTLS(
 				}
 				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, serverSSL)
 			}
-
+			log.Infof("Route annotation are given second priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
 		}
 	case RouteCertificateSSLOption:
 		tlsReferenceType = Certificate
@@ -2352,6 +2354,7 @@ func (ctlr *Controller) handleRouteTLS(
 		if route.Spec.TLS.DestinationCACertificate != "" {
 			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
 		}
+		log.Infof("Route spec certs are given third priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (cisapiv1.BaseRouteConfig{}) {
 			//set for default routegroup
@@ -2383,6 +2386,7 @@ func (ctlr *Controller) handleRouteTLS(
 			}
 			bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
 		}
+		log.Infof("Default SSL defined in extended configMap are given least priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (cisapiv1.BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers

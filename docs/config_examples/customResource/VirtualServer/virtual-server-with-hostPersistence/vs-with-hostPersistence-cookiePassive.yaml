@@ -1,0 +1,26 @@
+apiVersion: "cis.f5.com/v1"
+kind: VirtualServer
+metadata:
+  name: coffee-virtual-server
+  namespace: coffee
+  labels:
+    f5cr: "true"
+spec:
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
+  host: coffee.example.com
+  ipamLabel: "Dev"
+  hostPersistence:
+    # Supported values for method are sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, and carp
+    method: cookiePassive
+    # If method is sourceAddress or destinationAddress then netmask and timeout are required in metaData
+    # If method is cookieInsert or cookieRewrite then name and expiry are required in metaData
+    # If method is carp or universal or hash then key and timeout are required in metaData
+    # If method is cookieHash then name, timeout, offset, and length are required in metaData
+    # If method is cookiePassive then name is required in metaData
+    metaData:
+      name: CookiePassive
+  pools:
+    - path: /mocha
+      service: svc-2
+      servicePort: 80

@@ -3274,6 +3274,7 @@ func containsNode(nodes []Node, name string) bool {
 
 type byTimestamp []v1.Service
 type NodeList []v1.Node
+type PodList []*v1.Pod
 
 // sort services by timestamp
 func (slice byTimestamp) Len() int {
@@ -3301,6 +3302,19 @@ func (nodes NodeList) Less(i, j int) bool {
 
 func (nodes NodeList) Swap(i, j int) {
 	nodes[i], nodes[j] = nodes[j], nodes[i]
+}
+
+// sort pods by Name
+func (pods PodList) Len() int {
+	return len(pods)
+}
+
+func (pods PodList) Less(i, j int) bool {
+	return pods[i].Name < pods[j].Name
+}
+
+func (pods PodList) Swap(i, j int) {
+	pods[i], pods[j] = pods[j], pods[i]
 }
 
 func createLabel(label string) (labels.Selector, error) {
@@ -3617,6 +3631,7 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) ([]*v1.P
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
 		return nil, err
 	}
+	sort.Sort(PodList(podList))
 	return podList, nil
 }
 

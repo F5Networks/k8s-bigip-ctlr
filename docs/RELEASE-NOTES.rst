@@ -12,7 +12,7 @@ Added Functionality
     * CRD
       * Support for mix of k8s Secret and bigip reference in TLSProfile.
       * Support for setting sslProfile with https monitor in virtualServer and nextgen routes.
-      * `Issue 3225 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3225>`_:Support for Host Persistence to configure Persist session in VS Policy Rule action based on host in VirtualServer.
+      * `Issue 3225 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3225>`_: Support for Host Persistence to configure and disable the Persistence in VS Policy Rule action based on host in VirtualServer.
       * `Issue 3263 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3263>`_: Support for Host group virtual server name in virtual server to customise the virtual server name when Host Group exists.
       * `Issue 3262 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3262>`_: Support for Host Aliases to allow defining multiple hosts in VS CRD. `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer>`_
     * Support for pool-member-type auto for CRD, NextGen Routes and multiCluster mode
@@ -24,6 +24,7 @@ Bug Fixes
 * `Issue 3232 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3232>`_: Enhance as3 response add the runtime attribute
 * `Issue 3266 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3266>`_: Improve log when admitting next gen routes
 * `Issue 3267 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3267>`_: Improve log for certificate host name validation
+* `Issue 3277 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3277>`_: Additional PoolMember properties in ConfigMap not preserved for NodePortLocal mode.
 * Fix for wildcard domain with multiple hosts in tls profile
 
 2.15.1

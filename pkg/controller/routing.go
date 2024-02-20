@@ -128,7 +128,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 
 				if vs.Spec.HostPersistence.Method != "" {
 					if host == "" {
-						log.Warning("Host Persistence cannot be configured without host")
+						log.Warning("Host Persistence cannot be configured without hosts")
 					} else {
 						rewriteActions, err := getHostPersistActions(vs.Spec.HostPersistence)
 						if nil != err {
@@ -391,6 +391,10 @@ func getHostPersistActions(hostPersistence cisapiv1.HostPersistence) ([]*action,
 	case Hash:
 		if hostPersistence.PersistMetaData.Key == "" || hostPersistence.PersistMetaData.Timeout == 0 {
 			return nil, fmt.Errorf("key and timeout are required for Hash persist method")
+		}
+	case Disable:
+		if hostPersistence.PersistMetaData != (cisapiv1.PersistMetaData{}) {
+			return nil, fmt.Errorf("Metadata is not required for none method")
 		}
 	default:
 		return nil, fmt.Errorf("provide a persist method value from sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, and carp")

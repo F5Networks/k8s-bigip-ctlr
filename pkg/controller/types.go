@@ -524,33 +524,34 @@ type (
 
 	// action config for a Rule
 	action struct {
-		Name          string `json:"name,omitEmpty"`
-		Key           string `json:"key,omitEmpty"`
-		Netmask       string `json:"netmask,omitEmpty"`
-		Pool          string `json:"pool,omitempty"`
-		HTTPHost      bool   `json:"httpHost,omitempty"`
-		HttpReply     bool   `json:"httpReply,omitempty"`
-		HTTPURI       bool   `json:"httpUri,omitempty"`
-		Forward       bool   `json:"forward,omitempty"`
-		Location      string `json:"location,omitempty"`
-		Path          string `json:"path,omitempty"`
-		Redirect      bool   `json:"redirect,omitempty"`
-		Replace       bool   `json:"replace,omitempty"`
-		Request       bool   `json:"request,omitempty"`
-		Reset         bool   `json:"reset,omitempty"`
-		Select        bool   `json:"select,omitempty"`
-		Value         string `json:"value,omitempty"`
-		WAF           bool   `json:"waf,omitempty"`
-		Policy        string `json:"policy,omitempty"`
-		Drop          bool   `json:"drop,omitempty"`
-		Enabled       *bool  `json:"enabled,omitempty"`
-		Log           bool   `json:"log,omitempty"`
-		Message       string `json:"message,omitempty"`
-		PersistMethod string `json:"method,omitempty"`
-		Timeout       int32  `json:"timeout,omitempty"`
-		Expiry        string `json:"expiry,omitempty"`
-		Length        int32  `json:"length,omitempty"`
-		Offset        int32  `json:"offset,omitempty"`
+		Name           string `json:"name,omitEmpty"`
+		Key            string `json:"key,omitEmpty"`
+		Netmask        string `json:"netmask,omitEmpty"`
+		Pool           string `json:"pool,omitempty"`
+		HTTPHost       bool   `json:"httpHost,omitempty"`
+		HttpReply      bool   `json:"httpReply,omitempty"`
+		HTTPURI        bool   `json:"httpUri,omitempty"`
+		Forward        bool   `json:"forward,omitempty"`
+		Location       string `json:"location,omitempty"`
+		Path           string `json:"path,omitempty"`
+		Redirect       bool   `json:"redirect,omitempty"`
+		Replace        bool   `json:"replace,omitempty"`
+		Request        bool   `json:"request,omitempty"`
+		Reset          bool   `json:"reset,omitempty"`
+		Select         bool   `json:"select,omitempty"`
+		Value          string `json:"value,omitempty"`
+		WAF            bool   `json:"waf,omitempty"`
+		Policy         string `json:"policy,omitempty"`
+		Drop           bool   `json:"drop,omitempty"`
+		Enabled        *bool  `json:"enabled,omitempty"`
+		Log            bool   `json:"log,omitempty"`
+		Message        string `json:"message,omitempty"`
+		PersistMethod  string `json:"method,omitempty"`
+		Timeout        int32  `json:"timeout,omitempty"`
+		Expiry         string `json:"expiry,omitempty"`
+		Length         int32  `json:"length,omitempty"`
+		Offset         int32  `json:"offset,omitempty"`
+		DisablePersist bool   `json:"disablePersist,omitempty"`
 	}
 
 	// condition config for a Rule
@@ -920,6 +921,7 @@ type (
 		Universal          *PersistMetaData        `json:"universal,omitempty"`
 		Hash               *PersistMetaData        `json:"hash,omitempty"`
 		Carp               *PersistMetaData        `json:"carp,omitempty"`
+		Disable            *PersistMetaData        `json:"disable,omitempty"`
 	}
 
 	PersistMetaData struct {
@@ -1363,6 +1365,7 @@ const (
 	Hash               = "hash"
 	Carp               = "carp"
 	Universal          = "universal"
+	Disable            = "none"
 )
 
 type (

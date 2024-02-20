@@ -65,10 +65,11 @@ var (
 	buildInfo string
 
 	// Flag sets and supported flags
-	flags       *pflag.FlagSet
-	globalFlags *pflag.FlagSet
-	cmIPFlags   *pflag.FlagSet
-	kubeFlags   *pflag.FlagSet
+	flags             *pflag.FlagSet
+	globalFlags       *pflag.FlagSet
+	cmIPFlags         *pflag.FlagSet
+	kubeFlags         *pflag.FlagSet
+	multiClusterFlags *pflag.FlagSet
 
 	logLevel        *string
 	logFile         *string
@@ -91,8 +92,9 @@ var (
 	httpAddress *string
 
 	// package variables
-	kubeClient    kubernetes.Interface
-	userAgentInfo string
+	kubeClient       kubernetes.Interface
+	userAgentInfo    string
+	multiClusterMode *string
 )
 
 func _init() {
@@ -100,6 +102,7 @@ func _init() {
 	globalFlags = pflag.NewFlagSet("Global", pflag.PanicOnError)
 	cmIPFlags = pflag.NewFlagSet("CentralManager", pflag.PanicOnError)
 	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.PanicOnError)
+	multiClusterFlags = pflag.NewFlagSet("MultiCluster", pflag.PanicOnError)
 
 	// Flag wrapping
 	var err error
@@ -158,15 +161,21 @@ func _init() {
 	manageCustomResources = kubeFlags.Bool("manage-custom-resources", true,
 		"Optional, specify whether or not to manage custom resources i.e. transportserver")
 
+	// MultiCluster Flags
+	multiClusterMode = multiClusterFlags.String("multi-cluster-mode", "",
+		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
+
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(cmIPFlags)
 	flags.AddFlagSet(kubeFlags)
+	flags.AddFlagSet(multiClusterFlags)
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
 		cmIPFlags.Usage()
 		kubeFlags.Usage()
 		globalFlags.Usage()
+		multiClusterFlags.Usage()
 	}
 }
 
@@ -212,6 +221,12 @@ func verifyArgs() error {
 			return fmt.Errorf("invalid value provided for --deploy-config-cr" +
 				"Usage: --deploy-config-cr=<namespace>/<CR-name>")
 		}
+	}
+
+	if *multiClusterMode != "standalone" && *multiClusterMode != "primary" && *multiClusterMode != "secondary" && *multiClusterMode != "" {
+		return fmt.Errorf("'%v' is not a valid multi cluster mode, allowed values are: standalone/primary/secondary", *multiClusterMode)
+	} else if *multiClusterMode != "" {
+		log.Infof("[MultiCluster] CIS running with multi-cluster-mode: %s", *multiClusterMode)
 	}
 
 	return nil
@@ -345,6 +360,7 @@ func initController(
 			HttpAddress:           *httpAddress,
 			ManageCustomResources: *manageCustomResources,
 			UseNodeInternal:       *useNodeInternal,
+			MultiClusterMode:      *multiClusterMode,
 		},
 	)
 

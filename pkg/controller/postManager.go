@@ -78,8 +78,9 @@ func (postMgr *PostManager) postManager() {
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		postMgr.pollTenantStatus(&config.as3Config)
-
+		if !postMgr.AS3Config.DocumentAPI {
+			postMgr.pollTenantStatus(&config.as3Config)
+		}
 		// notify resourceStatusUpdate response handler on successful tenant update
 		postMgr.respChan <- &config
 	}

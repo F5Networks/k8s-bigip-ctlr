@@ -1196,5 +1196,59 @@ spec:
                       - defaultPartition
                     type: object
                   type: array
+                extendedSpec:
+                  properties:
+                    externalClustersConfig:
+                      items:
+                        properties:
+                          adminState:
+                            type: string
+                          clusterName:
+                            type: string
+                          ratio:
+                            type: integer
+                          secret:
+                            type: string
+                        type: object
+                      type: array
+                    highAvailabilityCIS:
+                      properties:
+                        primaryCluster:
+                          properties:
+                            adminState:
+                              type: string
+                            clusterName:
+                              type: string
+                            ratio:
+                              type: integer
+                            secret:
+                              type: string
+                          type: object
+                        primaryEndPoint:
+                          description: HAMode
+                          type: string
+                        probeInterval:
+                          type: integer
+                        retryInterval:
+                          type: integer
+                        secondaryCluster:
+                          properties:
+                            adminState:
+                              type: string
+                            clusterName:
+                              type: string
+                            ratio:
+                              type: integer
+                            secret:
+                              type: string
+                          type: object
+                      type: object
+                    localClusterAdminState:
+                      type: string
+                    localClusterRatio:
+                      type: integer
+                    mode:
+                      type: string
+                  type: object
               type: object
           type: object

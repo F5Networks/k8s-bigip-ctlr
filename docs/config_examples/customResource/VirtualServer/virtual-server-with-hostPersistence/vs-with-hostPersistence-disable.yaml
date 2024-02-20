@@ -10,7 +10,6 @@ spec:
   host: coffee.example.com
   hostGroup: "cafe"
   ipamLabel: "Dev"
-  # Method and Disable persistence cannot be used at once
   hostPersistence:
     method: none
   pools:

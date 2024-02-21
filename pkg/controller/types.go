@@ -391,6 +391,7 @@ type (
 		bigIpKey            BigIpKey
 		bigIpResourceConfig BigIpResourceConfig
 		reqMeta             requestMeta
+		poolMemberType      string
 	}
 
 	// BigIpMap Where key is the BigIP structure and value is the bigip-next configuration
@@ -1068,6 +1069,7 @@ type (
 	PoolMember struct {
 		Address         string `json:"address"`
 		Port            int32  `json:"port"`
+		MemberType      string `json:"memberType"`
 		SvcPort         int32  `json:"svcPort,omitempty"`
 		Session         string `json:"session,omitempty"`
 		AdminState      string `json:"adminState,omitempty"`

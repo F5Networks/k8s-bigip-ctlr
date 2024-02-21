@@ -119,7 +119,8 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 }
 
 // Process for AS3 Resource
-func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string, documentAPI bool) {
+func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string, documentAPI bool,
+	poolMemberType string) {
 	for _, cfg := range rsMap {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
@@ -128,7 +129,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 		createMonitorDecl(cfg, sharedApp)
 
 		//Create pools
-		createPoolDecl(cfg, sharedApp, shareNodes, tenant)
+		createPoolDecl(cfg, sharedApp, shareNodes, tenant, poolMemberType)
 
 		switch cfg.MetaData.ResourceType {
 		case VirtualServer:
@@ -170,7 +171,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Pools for CRD
-func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant string) {
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
 		if v.Balance == "fastest-app-response" || v.Balance == "least-connections-member" ||
@@ -200,7 +201,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
-			if shareNodes {
+			if shareNodes || (poolMemberType == Auto && val.MemberType == NodePort) {
 				member.ShareNodes = shareNodes
 			}
 			if val.AdminState != "" {
@@ -1073,7 +1074,8 @@ func (req *RequestHandler) createAS3Config(rsConfig ResourceConfigRequest, pm *P
 		failedTenants:         make(map[string]struct{}),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 	}
-	for tenant, cfg := range pm.AS3PostManager.createAS3BIGIPConfig(rsConfig.bigIpResourceConfig, pm.defaultPartition, pm.cachedTenantDeclMap) {
+	for tenant, cfg := range pm.AS3PostManager.createAS3BIGIPConfig(rsConfig.bigIpResourceConfig, pm.defaultPartition, pm.cachedTenantDeclMap,
+		rsConfig.poolMemberType) {
 		if !reflect.DeepEqual(cfg, pm.cachedTenantDeclMap[tenant]) ||
 			(req.PrimaryClusterHealthProbeParams.EndPoint != "" && req.PrimaryClusterHealthProbeParams.statusChanged) {
 			as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
@@ -1089,12 +1091,14 @@ func (req *RequestHandler) createAS3Config(rsConfig ResourceConfigRequest, pm *P
 	return as3cfg
 }
 
-func (as3PM *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
-	adc := as3PM.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap)
+func (as3PM *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant,
+	poolMemberType string) as3ADC {
+	adc := as3PM.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap, poolMemberType)
 	return adc
 }
 
-func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant) as3ADC {
+func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant,
+	poolMemberType string) as3ADC {
 	adc := as3ADC{}
 	cisLabel := partition
 
@@ -1117,7 +1121,8 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 		sharedApp["template"] = "shared"
 
 		// Process rscfg to create AS3 Resources
-		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName, postMgr.AS3Config.DocumentAPI)
+		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName,
+			postMgr.AS3Config.DocumentAPI, poolMemberType)
 
 		// Process CustomProfiles
 		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, postMgr.bigIPAS3Version)

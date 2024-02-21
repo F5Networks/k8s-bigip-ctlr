@@ -689,6 +689,7 @@ func (ctlr *Controller) processResources() bool {
 			go ctlr.TeemData.PostTeemsData()
 		}
 		config.reqId = ctlr.enqueueReq(config)
+		config.poolMemberType = ctlr.PoolMemberType
 		if rKey.kind == HACIS {
 			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqId, strings.ToTitle(Update))
 		} else if rKey.clusterName == "" {

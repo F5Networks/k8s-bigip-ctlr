@@ -188,7 +188,7 @@ func NewController(params Params) *Controller {
 	ctlr.globalExtendedCMKey = params.GlobalExtendedSpecConfigmap
 
 	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
-	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal || ctlr.PoolMemberType == Auto {
+	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
 		ctlr.shareNodes = true
 	}
 

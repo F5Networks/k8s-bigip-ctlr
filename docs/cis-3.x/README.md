@@ -130,3 +130,8 @@ Prometheus Metrics
 | k8s_bigip_ctlr_configuration_warnings    | Gauge | Enabled        | The total number of configuration warnings by the CIS Controller          | ["kind" ,"namespace", "name", "warning"] |
 | k8s_bigip_ctlr_managed_bigips            | Gauge | Enabled        | The total number of bigips where the CIS Controller posts the declaration | -                                        |
 | k8s_bigip_ctlr_monitored_nodes           | Gauge | Enabled        | The total number of monitored nodes by the CIS Controller                 | ["nodeselector"]                         |
+
+
+## Recommendations
+* Never change the controllerIdentifier parameter in the deploy config CR for a CIS instance. ControllerIdentifier is a unique identifier for the CIS instance. CIS uses it for uniquely creating static routes configured on Big-IP Next. Changing it may render some static routes out of sync in case CIS is running in staticRoutingMode.
+

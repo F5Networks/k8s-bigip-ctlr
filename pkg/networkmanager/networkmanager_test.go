@@ -104,7 +104,7 @@ var _ = Describe("Network Manager Tests", func() {
 				bigIPConfig = []cisapiv1.BigIpConfig{{
 					BigIpAddress: BigIPAddress,
 				}}
-				networkManager.SetInstanceIds(bigIPConfig)
+				networkManager.SetInstanceIds(bigIPConfig, "")
 				go networkManager.NetworkConfigHandler()
 			})
 			AfterEach(func() {
@@ -442,7 +442,7 @@ var _ = Describe("Network Manager Tests", func() {
 			It("Initialize the network controller when l3forwards are present on server", func() {
 				isr, _ := networkManager.L3ForwardStore.InstanceStaticRoutes[BigIpId]
 				Expect(len(isr)).To(BeZero())
-				networkManager.SetInstanceIds(bigIPConfig)
+				networkManager.SetInstanceIds(bigIPConfig, "cluster-1")
 				isr, _ = networkManager.L3ForwardStore.InstanceStaticRoutes[BigIpId]
 				Expect(len(isr)).ToNot(BeZero())
 				// test retry timeout increment

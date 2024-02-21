@@ -117,7 +117,7 @@ func NewNetworkManager(tm *tokenmanager.TokenManager, clusterName string) *Netwo
 }
 
 // SetInstanceIds performs an HTTP GET request to the API, extracts address and ID mappings, and stores them
-func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig) error {
+func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig, controllerID string) error {
 
 	// initialize the device map
 	nm.DeviceMap = make(map[string]string)
@@ -175,7 +175,7 @@ func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig) er
 							nm.DeviceMap[address] = id
 							nm.L3ForwardStore.Lock()
 							if _, ok := nm.L3ForwardStore.InstanceStaticRoutes[id]; !ok {
-								staticRouteMap, err := nm.GetL3ForwardsFromInstance(id)
+								staticRouteMap, err := nm.GetL3ForwardsFromInstance(id, controllerID)
 								if err != nil {
 									log.Errorf("%v Error getting static routes for instance %v: %v", networkManagerPrefix, id, err)
 									nm.L3ForwardStore.Unlock()
@@ -195,7 +195,7 @@ func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig) er
 }
 
 // GetL3ForwardsFromInstance performs an HTTP GET request to the API, extracts name and route information, and stores them
-func (nm *NetworkManager) GetL3ForwardsFromInstance(instanceId string) (StaticRouteMap, error) {
+func (nm *NetworkManager) GetL3ForwardsFromInstance(instanceId string, controllerID string) (StaticRouteMap, error) {
 
 	// Create request
 	req, err := http.NewRequest("GET", nm.CMTokenManager.ServerURL+InstancesURI+instanceId+L3Forwards, nil)
@@ -228,8 +228,16 @@ func (nm *NetworkManager) GetL3ForwardsFromInstance(instanceId string) (StaticRo
 		if l3ForwardsArray, ok := embedded["l3forwards"].([]interface{}); ok {
 			for _, l3ForwardData := range l3ForwardsArray {
 				if l3Forward, ok := l3ForwardData.(map[string]interface{}); ok {
-					id, idOk := l3Forward["id"].(string)
 					name, nameOk := l3Forward["payload"].(map[string]interface{})["name"].(string)
+					if nameOk {
+						routeNameArray := strings.Split(name, "/")
+						if len(routeNameArray) == 0 || routeNameArray[0] != controllerID {
+							// ControllerID is not present or not matching in the l3Forward name, so skip this L3Forward
+							// as it's not be created by this CIS
+							continue
+						}
+					}
+					id, idOk := l3Forward["id"].(string)
 
 					configData, configOk := l3Forward["payload"].(map[string]interface{})["config"].(map[string]interface{})
 					config := StaticRouteConfig{}

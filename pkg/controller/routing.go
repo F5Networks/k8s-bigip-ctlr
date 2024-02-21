@@ -1452,51 +1452,38 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	}
 	// Prepare backends for Ratio mode
 	/*
-				Effective weight for a service(S) = Ws/Wt * Rc/Rt
-				Ws => Weight specified for the service S
-				Wt => Sum of weights of all services (Route service + Alternate backends + External services)
-				Rc => Ratio specified for the cluster on which the service is running
-				Rt => Sum of all the ratios of the clusters excluding those cluster ratios which don't contribute to this route services
+					Effective weight for a service(S) = Ws/Wt * Rc/Rt
+					Ws => Weight specified for the service S
+					Wt => Sum of weights of all services (Route service + Alternate backends + External services)
+					Rc => Ratio specified for the cluster on which the service is running
+					Rt => Sum of all the ratios of the clusters excluding those cluster ratios which don't contribute to this route services
 
-				For example:
-					Route(P) (Route in primary cluster)=> Associated services are (Rs(P), ABs1(P), ABs2(P), Svc1 and Svc2)
-					Route(S) (Route in secondary cluster)=> Associated services are (Rs(S), ABs1(S), ABs2(S), Svc1 and Svc2)
-					* Where (P) and (S) stand for primary and secondary cluster
+					For example:
+						Route(P) (Route in primary cluster)=> Associated services are (Rs(P), ABs1(P), ABs2(P), Svc1 and Svc2)
+						Route(S) (Route in secondary cluster)=> Associated services are (Rs(S), ABs1(S), ABs2(S), Svc1 and Svc2)
+						* Where (P) and (S) stand for primary and secondary cluster
 
-					If there are 4 clusters CL1, CL2, CL3, CL4 and ratios defined for these clusters along with the services' weights are
-					CL1(Primary)   => Ratio: 4 ([Route service Rs(P) => weight 30 ] + Alternate backend services [ ABs1(P) => weight:10, ABs2(P) => weight:20 ])
-					CL2(Secondary) => Ratio: 3 ([Route service Rs(S) => weight 30 ] + Alternate backend services [ ABs1(S) => weight:10, ABs2(S) => weight:20 ])
-					CL3 		   => Ratio: 2 ([Svc1 => weight 20], [svc2 => weight 10])
-					CL4 		   => Ratio: 1 (No services )
+						If there are 4 clusters CL1, CL2, CL3, CL4 and ratios defined for these clusters along with the services' weights are
+						CL1(Primary)   => Ratio: 4 ([Route service Rs(P) => weight 30 ] + Alternate backend services [ ABs1(P) => weight:10, ABs2(P) => weight:20 ])
+						CL2(Secondary) => Ratio: 3 ([Route service Rs(S) => weight 30 ] + Alternate backend services [ ABs1(S) => weight:10, ABs2(S) => weight:20 ])
+						CL3 		   => Ratio: 2 ([Svc1 => weight 20], [svc2 => weight 10])
+						CL4 		   => Ratio: 1 (No services )
 
-					Effective weight calculation considering the service weights as well as the cluster ratio:
-					Total Weight(Wt) = 30[Rs(P)] + 30[Rs(S)]  + 10[ABs1(P)] + 10[ABs1(S)] + 20[ABs2(P)] + 20[ABs2(S)] + 20(Svc1) + 10(Svc2) = 150
-					Total Ratio(Rt) = 4(CL1) + 3(CL2) + 2(CL3) = 9 [Excluded CL4 ratio as it doesn't contribute to the Route's services]
-					-------------------------------------------------------------------------------------------
-					Effective weight for service Rs(P)  : 30(Ws)/150(Wt) * 4(Rc)/9(Rt) = 3/15 * 4/9 = 0.088
-					Effective weight for service Rs(S)  : 30(Ws)/150(Wt) * 3(Rc)/9(Rt) = 3/15 * 3/9 = 0.066
-					Effective weight for service ABs1(P): 10(Ws)/150(Wt) * 4(Rc)/9(Rt) = 1/15 * 4/9 = 0.029
-					Effective weight for service ABs1(S): 10(Ws)/150(Wt) * 3(Rc)/9(Rt) = 1/15 * 3/9 = 0.022
-					Effective weight for service ABs2(P): 20(Ws)/150(Wt) * 4(Rc)/9(Rt) = 2/15 * 4/9 = 0.059
-			 		Effective weight for service ABs2(S): 20(Ws)/150(Wt) * 3(Rc)/9(Rt) = 2/15 * 3/9 = 0.044
-					Effective weight for service Svc1   : 20(Ws)/150(Wt) * 2(Rc)/9(Rt) = 2/15 * 2/9 = 0.029
-					Effective weight for service Svc2   : 10(Ws)/150(Wt) * 2(Rc)/9(Rt) = 1/15 * 2/9 = 0.014
-		            -------------------------------------------------------------------------------------------
+						Effective weight calculation considering the service weights as well as the cluster ratio:
+						Total Weight(Wt) = 30[Rs(P)] + 30[Rs(S)]  + 10[ABs1(P)] + 10[ABs1(S)] + 20[ABs2(P)] + 20[ABs2(S)] + 20(Svc1) + 10(Svc2) = 150
+						Total Ratio(Rt) = 4(CL1) + 3(CL2) + 2(CL3) = 9 [Excluded CL4 ratio as it doesn't contribute to the Route's services]
+						-------------------------------------------------------------------------------------------
+						Effective weight for service Rs(P)  : 30(Ws)/150(Wt) * 4(Rc)/9(Rt) = 3/15 * 4/9 = 0.088
+						Effective weight for service Rs(S)  : 30(Ws)/150(Wt) * 3(Rc)/9(Rt) = 3/15 * 3/9 = 0.066
+						Effective weight for service ABs1(P): 10(Ws)/150(Wt) * 4(Rc)/9(Rt) = 1/15 * 4/9 = 0.029
+						Effective weight for service ABs1(S): 10(Ws)/150(Wt) * 3(Rc)/9(Rt) = 1/15 * 3/9 = 0.022
+						Effective weight for service ABs2(P): 20(Ws)/150(Wt) * 4(Rc)/9(Rt) = 2/15 * 4/9 = 0.059
+				 		Effective weight for service ABs2(S): 20(Ws)/150(Wt) * 3(Rc)/9(Rt) = 2/15 * 3/9 = 0.044
+						Effective weight for service Svc1   : 20(Ws)/150(Wt) * 2(Rc)/9(Rt) = 2/15 * 2/9 = 0.029
+						Effective weight for service Svc2   : 10(Ws)/150(Wt) * 2(Rc)/9(Rt) = 1/15 * 2/9 = 0.014
+			            -------------------------------------------------------------------------------------------
+		            Note: Local as well as HA peer cluster services are excluded if localClusterServicePoolDisabled is set to true
 	*/
-	// If this is an HA setup, consider services linked to the route from both the clusters which are part of this
-	// HA setup
-	factor := 1 // factor is used to ensure the secondary cluster services associated with the Route are also considered
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		factor = 2
-	}
-	// Default service weight is 100 as per openshift route documentation
-	// https://docs.openshift.com/container-platform/4.12/applications/deployments/route-based-deployment-strategies.html
-	defaultWeight := 100
-	if route.Spec.To.Weight == nil {
-		// Older versions of openshift do not have a weight field
-		// so we will basically ignore it.
-		defaultWeight = 0
-	}
 	// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
 	// with the route running in that cluster
 	clusterSvcMap := make(map[string]struct{})
@@ -1504,14 +1491,12 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// totalClusterRatio stores the sum total of all the ratio of clusters contributing services to this route
 	totalClusterRatio := float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
 	// totalSvcWeights stores the sum total of all the weights of services associated with this route
-	totalSvcWeights := float64(*(route.Spec.To.Weight)) * float64(factor)
-	// count of valid external multiCluster services
-	validExtSvcCount := 0
-	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
-	}
-	// Process multiCluster services
+	totalSvcWeights := 0.0
+	// Default service weight is 100 as per openshift route documentation
+	// https://docs.openshift.com/container-platform/4.12/applications/deployments/route-based-deployment-strategies.html
+	defaultWeight := 100
+
+	// First process multiCluster services associated with the route
 	for i, svc := range clusterSvcs {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
@@ -1537,85 +1522,112 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 			clusterSvcs[i].Weight = &defaultWeight
 		}
 		totalSvcWeights += float64(*clusterSvcs[i].Weight)
-		validExtSvcCount++
 	}
-	numOfBackends := factor + validExtSvcCount
-	if route.Spec.AlternateBackends != nil {
-		numOfBackends += len(route.Spec.AlternateBackends) * factor
-		for _, svc := range route.Spec.AlternateBackends {
-			totalSvcWeights += float64(*svc.Weight) * float64(factor)
-		}
-	}
-	rbcs = make([]RouteBackendCxt, numOfBackends)
-	// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0
-	if totalSvcWeights == 0 {
-		totalSvcWeights = 1
-	}
-	if totalClusterRatio == 0 {
-		totalClusterRatio = 1
-	}
-	// Process route spec primary service
-	beIdx := 0
-	rbcs[beIdx].Name = route.Spec.To.Name
-	if route.Spec.To.Weight != nil {
-		// Route backend service in local cluster
-		rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-			(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
-		// Route backend service in HA partner cluster
+
+	// Exclude local cluster or HA cluster services if localClusterServicePoolDisabled is set to true
+	if !ctlr.localClusterServicePoolDisabled {
+		// If this is an HA setup, consider services linked to the route from both the clusters which are part of this
+		// HA setup
+		factor := 1 // factor is used to ensure the secondary cluster services associated with the Route are also considered
 		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-			beIdx++
-			rbcs[beIdx].Name = route.Spec.To.Name
-			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+			factor = 2
 		}
-	} else {
-		// Older versions of openshift do not have a weight field
-		// so we will basically ignore it.
-		// local cluster
-		rbcs[beIdx].Weight = 0.0
-		// HA partner cluster
+
+		if route.Spec.To.Weight == nil {
+			// Older versions of openshift do not have a weight field
+			// so we will basically ignore it.
+			defaultWeight = 0
+		}
+
+		totalSvcWeights += float64(*(route.Spec.To.Weight)) * float64(factor)
+		// Include HA partner cluster ratio in the totalClusterRatio calculation
 		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-			beIdx++
-			rbcs[beIdx].Name = route.Spec.To.Name
-			rbcs[beIdx].Weight = 0.0
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
 		}
-	}
-	// Process Alternate backends
-	if route.Spec.AlternateBackends != nil {
-		for _, svc := range route.Spec.AlternateBackends {
-			beIdx = beIdx + 1
-			rbcs[beIdx].Name = svc.Name
-			rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
+
+		// Process AlternateBackends
+		if route.Spec.AlternateBackends != nil {
+			for _, svc := range route.Spec.AlternateBackends {
+				totalSvcWeights += float64(*svc.Weight) * float64(factor)
+			}
+		}
+		// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0
+		if totalSvcWeights == 0 {
+			totalSvcWeights = 1
+		}
+		if totalClusterRatio == 0 {
+			totalClusterRatio = 1
+		}
+		// Process route spec primary service
+		routeBackendCxt := RouteBackendCxt{}
+		routeBackendCxt.Name = route.Spec.To.Name
+		if route.Spec.To.Weight != nil {
+			// Route backend service in local cluster
+			routeBackendCxt.Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
 				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+			rbcs = append(rbcs, routeBackendCxt)
+			// Route backend service in HA partner cluster
+			if ctlr.multiClusterConfigs.HAPairClusterName != "" {
+				routeBackendCxt = RouteBackendCxt{}
+				routeBackendCxt.Name = route.Spec.To.Name
+				routeBackendCxt.Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+				routeBackendCxt.Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				rbcs = append(rbcs, routeBackendCxt)
+			}
+		} else {
+			// Older versions of openshift do not have a weight field
+			// so we will basically ignore it.
+			// local cluster
+			routeBackendCxt.Weight = 0.0
+			rbcs = append(rbcs, routeBackendCxt)
 			// HA partner cluster
 			if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-				beIdx = beIdx + 1
-				rbcs[beIdx].Name = svc.Name
-				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
-				rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				routeBackendCxt = RouteBackendCxt{}
+				routeBackendCxt.Name = route.Spec.To.Name
+				routeBackendCxt.Weight = 0.0
+				routeBackendCxt.Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				rbcs = append(rbcs, routeBackendCxt)
+			}
+		}
+		// Process Alternate backends
+		if route.Spec.AlternateBackends != nil {
+			for _, svc := range route.Spec.AlternateBackends {
+				routeBackendCxt = RouteBackendCxt{}
+				routeBackendCxt.Name = svc.Name
+				routeBackendCxt.Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				rbcs = append(rbcs, routeBackendCxt)
+				// HA partner cluster
+				if ctlr.multiClusterConfigs.HAPairClusterName != "" {
+					routeBackendCxt = RouteBackendCxt{}
+					routeBackendCxt.Name = svc.Name
+					routeBackendCxt.Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+					routeBackendCxt.Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+					rbcs = append(rbcs, routeBackendCxt)
+				}
 			}
 		}
 	}
-	// External services
+	// Add all the valid External/remotely monitored services to the final route backends list
 	for _, svc := range clusterSvcs {
 		// Skip invalid extended service
 		if ctlr.checkValidExtendedService(svc) != nil {
 			continue
 		}
-		beIdx = beIdx + 1
-		rbcs[beIdx].Name = svc.SvcName
+		routeBackendCxt := RouteBackendCxt{}
+		routeBackendCxt.Name = svc.SvcName
 		if r, ok := ctlr.clusterRatio[svc.ClusterName]; ok {
-			rbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
+			routeBackendCxt.Weight = (float64(*svc.Weight) / totalSvcWeights) *
 				(float64(*r) / totalClusterRatio)
 		} else {
 			// Service is from unknown cluster, so set weight to zero which is already set
-			rbcs[beIdx].Weight = 0
+			routeBackendCxt.Weight = 0
 		}
-		rbcs[beIdx].Cluster = svc.ClusterName
-		rbcs[beIdx].SvcNamespace = svc.Namespace
+		routeBackendCxt.Cluster = svc.ClusterName
+		routeBackendCxt.SvcNamespace = svc.Namespace
+		rbcs = append(rbcs, routeBackendCxt)
 	}
 	return rbcs
 }

@@ -2092,8 +2092,8 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 // updatePoolMembersForResources updates the pool members for service present in the provided Pool
 func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	var poolMembers []PoolMember
-	// for local cluster
-	if pool.Cluster == "" {
+	// update pool members for local cluster, in case of multiCluster mode skip if localClusterServicePoolDisabled is disabled
+	if pool.Cluster == "" && (ctlr.multiClusterMode == "" || !ctlr.localClusterServicePoolDisabled) {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, "", pool.ConnectionLimit)...)
@@ -2103,8 +2103,8 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		}
 	}
 
-	// for HA cluster pair service
-	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+	// update pool members for HA peer cluster service, skip if localClusterServicePoolDisabled is disabled
+	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" && !ctlr.localClusterServicePoolDisabled {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)...)
@@ -4051,6 +4051,13 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 					"values (enable, disable, offline). Defaulting to enable", es.LocalClusterAdminState)
 				ctlr.clusterAdminState[""] = clustermanager.Enable
 			}
+		}
+		// Update local cluster state if localClusterServicePoolDisabled is updated
+		if ctlr.localClusterServicePoolDisabled != es.LocalClusterServicePoolDisabled {
+			// set clusterConfigUpdated to true to trigger reprocessing of all resources as it impacts all resources
+			clusterConfigUpdated = true
+			// store the updated localClusterServicePoolDisabled value
+			ctlr.localClusterServicePoolDisabled = es.LocalClusterServicePoolDisabled
 		}
 		// Read multi-cluster config from extended CM
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)

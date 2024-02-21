@@ -1,0 +1,26 @@
+# localClusterServicePoolDisabled tells CIS not to create service pools for the local cluster.
+# This is useful when the local cluster is not hosting any services, and you want to avoid unnecessary pool creation.
+# By default, localClusterServicePoolDisabled is set to false and local cluster service pool is created.
+# This feature is supported in both HA and non-HA CIS environment.
+#  * If used in HA CIS environment then CIS won't create service pool for both the HA CIS clusters as CIS assumes both the CIS HA clusters to have same configurations.
+#  * Any service weights specified for local cluster or CIS HA clusters(Primary and Secondary) will be ignored if localClusterServicePoolDisabled is set to true.
+#  * Similarly, cluster ratio and adminState specified for local cluster or CIS HA clusters(Primary and Secondary) will be ignored if localClusterServicePoolDisabled is set to true.
+# Supported resources are as follows: Route, VirtualServer CRD and TransportServer CRD resources.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    f5nr: "true"
+  name: extended-spec-config
+  namespace: kube-system
+data:
+  extendedSpec: |
+    mode: ratio
+    localClusterServicePoolDisabled: true
+    externalClustersConfig:
+    - clusterName: cluster2
+      secret: default/kubeconfig2
+      ratio: 2
+    - clusterName: cluster3
+      secret: default/kubeconfig3
+      ratio: 3

@@ -52,49 +52,50 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode                   ControllerMode
-		resources              *ResourceStore
-		kubeCRClient           versioned.Interface
-		kubeClient             kubernetes.Interface
-		kubeAPIClient          *extClient.Clientset
-		eventNotifier          *apm.EventNotifier
-		nativeResourceSelector labels.Selector
-		customResourceSelector labels.Selector
-		namespacesMutex        sync.Mutex
-		namespaces             map[string]bool
-		nodeLabelSelector      string
-		ciliumTunnelName       string
-		vxlanMgr               *vxlan.VxlanMgr
-		initialResourceCount   int
-		resourceQueue          workqueue.RateLimitingInterface
-		Partition              string
-		Agent                  *Agent
-		PoolMemberType         string
-		nodePoller             pollers.Poller
-		oldNodes               []Node
-		UseNodeInternal        bool
-		initState              bool
-		firstPostResponse      bool
-		dgPath                 string
-		shareNodes             bool
-		ipamCli                *ipammachinery.IPAMClient
-		ipamClusterLabel       string
-		ipamCR                 string
-		defaultRouteDomain     int
-		TeemData               *teem.TeemsData
-		requestQueue           *requestQueue
-		namespaceLabel         string
-		ipamHostSpecEmpty      bool
-		StaticRoutingMode      bool
-		OrchestrationCNI       string
-		StaticRouteNodeCIDR    string
-		cacheIPAMHostSpecs     CacheIPAM
-		multiClusterConfigs    *clustermanager.MultiClusterConfig
-		multiClusterResources  *MultiClusterResourceStore
-		multiClusterMode       string
-		haModeType             HAModeType
-		clusterRatio           map[string]*int
-		clusterAdminState      map[string]clustermanager.AdminState
+		mode                            ControllerMode
+		resources                       *ResourceStore
+		kubeCRClient                    versioned.Interface
+		kubeClient                      kubernetes.Interface
+		kubeAPIClient                   *extClient.Clientset
+		eventNotifier                   *apm.EventNotifier
+		nativeResourceSelector          labels.Selector
+		customResourceSelector          labels.Selector
+		namespacesMutex                 sync.Mutex
+		namespaces                      map[string]bool
+		nodeLabelSelector               string
+		ciliumTunnelName                string
+		vxlanMgr                        *vxlan.VxlanMgr
+		initialResourceCount            int
+		resourceQueue                   workqueue.RateLimitingInterface
+		Partition                       string
+		Agent                           *Agent
+		PoolMemberType                  string
+		nodePoller                      pollers.Poller
+		oldNodes                        []Node
+		UseNodeInternal                 bool
+		initState                       bool
+		firstPostResponse               bool
+		dgPath                          string
+		shareNodes                      bool
+		ipamCli                         *ipammachinery.IPAMClient
+		ipamClusterLabel                string
+		ipamCR                          string
+		defaultRouteDomain              int
+		TeemData                        *teem.TeemsData
+		requestQueue                    *requestQueue
+		namespaceLabel                  string
+		ipamHostSpecEmpty               bool
+		StaticRoutingMode               bool
+		OrchestrationCNI                string
+		StaticRouteNodeCIDR             string
+		cacheIPAMHostSpecs              CacheIPAM
+		multiClusterConfigs             *clustermanager.MultiClusterConfig
+		multiClusterResources           *MultiClusterResourceStore
+		multiClusterMode                string
+		haModeType                      HAModeType
+		clusterRatio                    map[string]*int
+		clusterAdminState               map[string]clustermanager.AdminState
+		localClusterServicePoolDisabled bool
 		resourceContext
 	}
 	resourceContext struct {
@@ -1279,13 +1280,14 @@ type (
 
 type (
 	extendedSpec struct {
-		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
-		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
-		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType                `yaml:"mode"`
-		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
-		LocalClusterAdminState    clustermanager.AdminState `yaml:"localClusterAdminState"`
+		ExtendedRouteGroupConfigs       []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
+		BaseRouteConfig                 `yaml:"baseRouteSpec"`
+		ExternalClustersConfig          []ExternalClusterConfig   `yaml:"externalClustersConfig"`
+		HAClusterConfig                 HAClusterConfig           `yaml:"highAvailabilityCIS"`
+		HAMode                          HAModeType                `yaml:"mode"`
+		LocalClusterRatio               *int                      `yaml:"localClusterRatio"`
+		LocalClusterServicePoolDisabled bool                      `yaml:"localClusterServicePoolDisabled"`
+		LocalClusterAdminState          clustermanager.AdminState `yaml:"localClusterAdminState"`
 	}
 
 	ExtendedRouteGroupConfig struct {

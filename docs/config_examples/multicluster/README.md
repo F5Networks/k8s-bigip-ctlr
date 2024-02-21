@@ -246,6 +246,29 @@ Below is the sample Multi-Cluster Configs with standalone CIS and cluster AdminS
 ```
 **Note**: localClusterAdminState is only applicable in case of standalone CIS. It's ignored if specified in HA CIS mode. 
 
+Below is the sample Multi-Cluster Configs with standalone CIS and localClusterServicePoolDisabled parameter in Extended ConfigMap.
+```
+  extendedSpec: |
+    localClusterServicePoolDisabled: true  ----------------------| local cluster service pool disabled|
+    externalClustersConfig:    ----------------------------------|----------------------------|
+    - clusterName: cluster3                                      |                            |
+      secret: default/kubeconfig3                                |---> Cluster configs for    |
+    - clusterName: cluster4                                      |     all other clusters     |
+      secret: default/kubeconfig4                                |     except HA clusters     |
+    - clusterName: cluster5                                      |                            |
+      secret: default/kubeconfig5  ------------------------------|----------------------------|
+    extendedRouteSpec:
+    - namespace: foo   -------------------------------------|
+      vserverAddr: 10.8.0.4                                 |
+      vserverName: nextgenroutes                            |----------------> RouteGroup with namespace
+      allowOverride: true                                   |
+      bigIpPartition: MultiTenant                           |
+      policyCR: default/sample-policy  _____________________|
+    - namespace: bar -------------------------------------|
+      vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
+      allowOverride: false           _____________________|
+```
+**Note**: localClusterServicePoolDisabled can be used along with HA CIS as well. 
 
 ## Configuration
 
@@ -331,6 +354,19 @@ Specifies whether the CIS HA cluster is configured with active-active mode, acti
 |------------------------|------|-----------|-----------------------------------------------------------------------------------------------------------|---------|----------|
 | localClusterRatio      | Int  | Optional  | Ratio for the local cluster where CIS is running(specify only when using ratio in CIS non-HA environment) | 1       | 3        |
 **Note:** It is not needed in case of using ratio in CIS HA environment, as ratio of Primary cluster does the same thing. If specified in this scenario then it will be ignored.
+
+#### Local cluster service pool (Optional parameter)
+| Parameter                       | Type | Required  | Description                                                                                                    | Default | Examples |
+|---------------------------------|------|-----------|----------------------------------------------------------------------------------------------------------------|---------|----------|
+| localClusterServicePoolDisabled | Bool | Optional  | If set to true, CIS doesn't create service pool for the local cluster(Both HA CIS clusters in case of HA mode) | false   | true     |
+* localClusterServicePoolDisabled tells CIS not to create service pools for the local cluster. This is useful when the local cluster is not hosting any services, and you want to avoid unnecessary pool creation.
+* By default, localClusterServicePoolDisabled is set to false and local cluster service pool is created.
+* This feature is supported in both HA and non-HA CIS environment.
+  * If used in HA CIS environment then CIS won't create service pool for both the HA CIS clusters as CIS assumes both the CIS HA clusters to have same configurations.
+  * Any service weights specified for local cluster or CIS HA clusters(Primary and Secondary) will be ignored if localClusterServicePoolDisabled is set to true.
+  * Similarly, cluster ratio and adminState specified for local cluster or CIS HA clusters(Primary and Secondary) will be ignored if localClusterServicePoolDisabled is set to true.
+* Supported resources are as follows: Route, VirtualServer CRD and TransportServer CRD resources.
+
 
 #### highAvailabilityCIS Parameters
 

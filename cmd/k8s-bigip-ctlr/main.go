@@ -895,10 +895,10 @@ func initController(
 		MultiClusterMode:   *multiClusterMode,
 	}
 
-	// When CIS is configured in OCP cluster mode disable ARP in globalSection
-	// ARP not required for nodeport mode
-	if *openshiftSDNName != "" || *staticRoutingMode == true || *ciliumTunnelName != "" || *poolMemberType == "nodeport" || *poolMemberType == "nodeportlocal" {
-		agentParams.DisableARP = true
+	agentParams.DisableARP = true
+	// enable arp only for flannel CNI
+	if *flannelName != "" {
+		agentParams.DisableARP = false
 	}
 
 	agent := controller.NewAgent(agentParams)

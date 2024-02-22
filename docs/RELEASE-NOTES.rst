@@ -9,6 +9,7 @@ Added Functionality
 **What's new:**
     * Multi Cluster
       * Streamline the naming convention for extended service references and multi cluster references annotations.
+      * `Issue 3284 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3284>`_: Add support to avoid service pool creation for clusters under maintenance
     * CRD
       * Support for mix of k8s Secret and bigip reference in TLSProfile.
       * Support for setting sslProfile with https monitor in virtualServer and nextgen routes.

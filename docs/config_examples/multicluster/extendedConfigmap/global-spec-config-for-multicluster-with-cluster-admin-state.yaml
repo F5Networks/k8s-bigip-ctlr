@@ -4,6 +4,8 @@
 # adminState: enable, all new connections are allowed to the pool members from the cluster.
 # adminState: disable, all new connections except those which match an existing persistence session are not allowed for the pool members from the cluster.
 # adminState: offline, no new connections are allowed to the pool members from the cluster, even if they match an existing persistence session.
+# adminState: in ratio mode, a service pool is not created for the affected cluster. For all other modes, pool members from the cluster are not added to the service pool. This configuration is helpful when we don't want to add pool or pool members from a particular cluster due to any reasons(for example cluster is under maintenance).
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,7 +35,7 @@ data:
       secret: default/kubeconfig4
     - clusterName: cluster5
       secret: default/kubeconfig5
-      adminState: enable
+      adminState: no-pool
     extendedRouteSpec:
     - allowOverride: false
       namespace: foo

@@ -3910,4 +3910,32 @@ extendedRouteSpec:
 
 		})
 	})
+
+	Describe("Verify helper functions", func() {
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+		})
+		It("Verify isAddingPoolRestricted is correctly checking whether to add pool or not", func() {
+			// Don't skip pool addition in non-multiCluster mode
+			Expect(mockCtlr.isAddingPoolRestricted("")).To(BeFalse(),
+				"Always pool should be added in non-multiCluster mode")
+			Expect(mockCtlr.isAddingPoolRestricted("cluster1")).To(BeFalse(),
+				"Always pool should be added in non-multiCluster mode")
+			// Skip pool addition in multiCluster mode if adminState is set to no-pool for a cluster
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
+			mockCtlr.clusterAdminState[""] = clustermanager.NoPool
+			Expect(mockCtlr.isAddingPoolRestricted("")).To(BeTrue(),
+				"Pool should be skipped in multiCluster mode if adminState is set to no-pool for a cluster")
+			Expect(mockCtlr.isAddingPoolRestricted("cluster1")).To(BeFalse(),
+				"Pool should be not skipped in multiCluster mode if adminState is set to no-pool for a cluster")
+			mockCtlr.clusterAdminState["cluster2"] = clustermanager.Offline
+			Expect(mockCtlr.isAddingPoolRestricted("cluster2")).To(BeFalse(),
+				"Pool should be not skipped in multiCluster mode if adminState is not set to no-pool for a cluster")
+			mockCtlr.clusterAdminState["cluster3"] = clustermanager.NoPool
+			Expect(mockCtlr.isAddingPoolRestricted("")).To(BeTrue(),
+				"Pool should be skipped in multiCluster mode if adminState is set to no-pool for a cluster")
+
+		})
+	})
 })

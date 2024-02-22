@@ -1483,11 +1483,24 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 					Effective weight for service Svc2   : 10(Ws)/150(Wt) * 2(Rc)/9(Rt) = 1/15 * 2/9 = 0.014
 		            -------------------------------------------------------------------------------------------
 	*/
-	// If this is an HA setup, consider services linked to the route from both the clusters which are part of this
-	// HA setup
-	factor := 1 // factor is used to ensure the secondary cluster services associated with the Route are also considered
+
+	// First we calculate the total service weights, total ratio and the total number of backends
+
+	// store the localClusterPool state and HA peer cluster pool state in advance for further processing
+	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+	hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
+	// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
 	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		factor = 2
+		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+	}
+	// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
+	// them have to be considered( this is based on multiCluster mode and cluster pool state)
+	factor := 0
+	if !localClusterPoolRestricted {
+		factor++ // it ensures local cluster services associated with the route are considered
+	}
+	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		factor++ // it ensures HA peer cluster services associated with the route are considered
 	}
 	// Default service weight is 100 as per openshift route documentation
 	// https://docs.openshift.com/container-platform/4.12/applications/deployments/route-based-deployment-strategies.html
@@ -1501,22 +1514,32 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// with the route running in that cluster
 	clusterSvcMap := make(map[string]struct{})
 	clusterSvcMap[""] = struct{}{} // "" is used as key for the local cluster where this CIS is running
+
 	// totalClusterRatio stores the sum total of all the ratio of clusters contributing services to this route
-	totalClusterRatio := float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+	totalClusterRatio := 0.0
 	// totalSvcWeights stores the sum total of all the weights of services associated with this route
-	totalSvcWeights := float64(*(route.Spec.To.Weight)) * float64(factor)
+	totalSvcWeights := 0.0
 	// count of valid external multiCluster services
 	validExtSvcCount := 0
+	// Include local cluster ratio in the totalClusterRatio calculation
+	if !localClusterPoolRestricted {
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+	}
 	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
+	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
 	}
+	// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
+	if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
+		totalSvcWeights += float64(*(route.Spec.To.Weight)) * float64(factor)
+	}
+
 	// Process multiCluster services
 	for i, svc := range clusterSvcs {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
 		// cluster credentials must be specified in the extended configmap
-		if ctlr.checkValidExtendedService(svc) != nil {
+		if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -1540,12 +1563,15 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		validExtSvcCount++
 	}
 	numOfBackends := factor + validExtSvcCount
-	if route.Spec.AlternateBackends != nil {
+	if route.Spec.AlternateBackends != nil && (!localClusterPoolRestricted || !hAPeerClusterPoolRestricted) {
 		numOfBackends += len(route.Spec.AlternateBackends) * factor
 		for _, svc := range route.Spec.AlternateBackends {
 			totalSvcWeights += float64(*svc.Weight) * float64(factor)
 		}
 	}
+
+	// Now start creating the list of all the backends
+
 	rbcs = make([]RouteBackendCxt, numOfBackends)
 	// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0
 	if totalSvcWeights == 0 {
@@ -1555,42 +1581,49 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		totalClusterRatio = 1
 	}
 	// Process route spec primary service
-	beIdx := 0
-	rbcs[beIdx].Name = route.Spec.To.Name
-	if route.Spec.To.Weight != nil {
-		// Route backend service in local cluster
-		rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-			(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
-		// Route backend service in HA partner cluster
-		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-			beIdx++
-			rbcs[beIdx].Name = route.Spec.To.Name
+	beIdx := -1
+	// Route backend service in local cluster
+	if !localClusterPoolRestricted {
+		beIdx++
+		rbcs[beIdx].Name = route.Spec.To.Name
+		if route.Spec.To.Weight != nil {
+			// Route backend service in local cluster
+			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+		} else {
+			// Older versions of openshift do not have a weight field
+			// so we will basically ignore it.
+			rbcs[beIdx].Weight = 0.0
+		}
+	}
+	// Route backend service in HA partner cluster
+	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		beIdx++
+		rbcs[beIdx].Name = route.Spec.To.Name
+		if route.Spec.To.Weight != nil {
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
 				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
 			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
-		}
-	} else {
-		// Older versions of openshift do not have a weight field
-		// so we will basically ignore it.
-		// local cluster
-		rbcs[beIdx].Weight = 0.0
-		// HA partner cluster
-		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-			beIdx++
-			rbcs[beIdx].Name = route.Spec.To.Name
+
+		} else {
+			// Older versions of openshift do not have a weight field
+			// so we will basically ignore it.
 			rbcs[beIdx].Weight = 0.0
 			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
 		}
 	}
+
 	// Process Alternate backends
-	if route.Spec.AlternateBackends != nil {
+	if route.Spec.AlternateBackends != nil && (!localClusterPoolRestricted || !hAPeerClusterPoolRestricted) {
 		for _, svc := range route.Spec.AlternateBackends {
-			beIdx = beIdx + 1
-			rbcs[beIdx].Name = svc.Name
-			rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+			if !localClusterPoolRestricted {
+				beIdx = beIdx + 1
+				rbcs[beIdx].Name = svc.Name
+				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+			}
 			// HA partner cluster
-			if ctlr.multiClusterConfigs.HAPairClusterName != "" {
+			if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
@@ -1602,7 +1635,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// External services
 	for _, svc := range clusterSvcs {
 		// Skip invalid extended service
-		if ctlr.checkValidExtendedService(svc) != nil {
+		if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		beIdx = beIdx + 1

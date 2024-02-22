@@ -2094,7 +2094,8 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	var poolMembers []PoolMember
 	// for local cluster
-	if pool.Cluster == "" {
+	// Skip adding the pool members if adding pool member is restricted for local cluster in multi cluster mode
+	if pool.Cluster == "" && !ctlr.isAddingPoolRestricted(pool.Cluster) {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, "", pool.ConnectionLimit)...)
@@ -2105,7 +2106,9 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 
 	// for HA cluster pair service
-	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
+	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
+		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)...)
@@ -2123,8 +2126,8 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
-		// Skip invalid extended service
-		if ctlr.checkValidExtendedService(mcs) != nil {
+		// Skip invalid extended service or if adding pool member is restricted for the cluster
+		if ctlr.checkValidExtendedService(mcs) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) {
 			continue
 		}
 		// Update pool members for all the multi cluster services specified in the route annotations
@@ -4045,11 +4048,12 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			if es.LocalClusterAdminState == "" {
 				ctlr.clusterAdminState[""] = clustermanager.Enable
 			} else if es.LocalClusterAdminState == clustermanager.Enable ||
-				es.LocalClusterAdminState == clustermanager.Disable || es.LocalClusterAdminState == clustermanager.Offline {
+				es.LocalClusterAdminState == clustermanager.Disable || es.LocalClusterAdminState == clustermanager.Offline ||
+				es.LocalClusterAdminState == clustermanager.NoPool {
 				ctlr.clusterAdminState[""] = es.LocalClusterAdminState
 			} else {
 				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for local cluster, supported "+
-					"values (enable, disable, offline). Defaulting to enable", es.LocalClusterAdminState)
+					"values (enable, disable, offline, no-pool). Defaulting to enable", es.LocalClusterAdminState)
 				ctlr.clusterAdminState[""] = clustermanager.Enable
 			}
 		}
@@ -4379,4 +4383,16 @@ func (ctlr *Controller) getResourceServicePort(ns string,
 		return ctlr.getSvcPortFromHACluster(ns, svcName, portName, rscType)
 	}
 	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
+}
+
+func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
+	// Always populate pool members in case of non-multiCluster mode
+	if ctlr.multiClusterMode == "" {
+		return false
+	}
+	// In case of multiCluster mode, populate pool members only if adminState is not set to NoPool
+	if adminState, ok := ctlr.clusterAdminState[cluster]; ok && adminState == clustermanager.NoPool {
+		return true
+	}
+	return false
 }

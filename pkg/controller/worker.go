@@ -657,6 +657,7 @@ func (ctlr *Controller) processResources() bool {
 					config := ResourceConfigRequest{
 						bigIpKey:            bigIpKey,
 						bigIpResourceConfig: bigipConfig,
+						poolMemberType:      ctlr.PoolMemberType,
 					}
 					config.reqMeta = ctlr.enqueueReq(bigipConfig, bigIpKey)
 					ctlr.RequestHandler.EnqueueRequestConfig(config)
@@ -1974,6 +1975,19 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 										_ = ctlr.processTransportServers(virtual, false)
 									}
 									return
+								case IngressLink:
+									var item interface{}
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									item, _, _ = inf.ilInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
+									if item == nil {
+										// This case won't arise
+										continue
+									}
+									il, found := item.(*cisapiv1.IngressLink)
+									if found {
+										_ = ctlr.processIngressLink(il, false)
+									}
+									return
 								}
 							}
 							ctlr.updatePoolMembersForResources(&pool)
@@ -2133,8 +2147,12 @@ func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKe
 func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
 	var poolMembers []PoolMember
 	poolMemInfo, _ := ctlr.resources.poolMemCache[mSvcKey]
-	switch ctlr.PoolMemberType {
-	case NodePort:
+	var poolMemType = ctlr.PoolMemberType
+	if poolMemType == Auto {
+		poolMemType = string(poolMemInfo.svcType)
+	}
+	switch poolMemType {
+	case string(v1.ServiceTypeNodePort), NodePort, string(v1.ServiceTypeLoadBalancer):
 		if !(poolMemInfo.svcType == v1.ServiceTypeNodePort ||
 			poolMemInfo.svcType == v1.ServiceTypeLoadBalancer) {
 			log.Errorf("Requested service backend %s not of NodePort or LoadBalancer type",
@@ -2157,7 +2175,7 @@ func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey,
 				poolMembers = append(poolMembers, mems...)
 			}
 		}
-	case Cluster:
+	case Cluster, string(v1.ServiceTypeClusterIP):
 		return ctlr.getPoolMembersForEndpoints(mSvcKey, servicePort)
 	case NodePortLocal:
 		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
@@ -2207,9 +2225,10 @@ func (ctlr *Controller) getEndpointsForNodePort(
 	var members []PoolMember
 	for _, v := range nodes {
 		member := PoolMember{
-			Address: v.Addr,
-			Port:    nodePort,
-			Session: "user-enabled",
+			MemberType: NodePort,
+			Address:    v.Addr,
+			Port:       nodePort,
+			Session:    "user-enabled",
 		}
 		members = append(members, member)
 	}
@@ -3372,7 +3391,7 @@ func (ctlr *Controller) processIngressLink(
 		return nil
 	}
 	targetPort := nginxMonitorPort
-	if ctlr.PoolMemberType == NodePort {
+	if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
 		targetPort = getNodeport(svc, nginxMonitorPort)
 		if targetPort == 0 {
 			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
@@ -3955,11 +3974,11 @@ func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 
 	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
 		ctlr.shareNodes = true
-		if ctlr.StaticRoutingMode {
+		if ctlr.StaticRoutingMode && ctlr.PoolMemberType != Auto {
 			log.Errorf("static route CNI: %v not supported with nodeport/nodeportlocal mode. Only supported with cluster mode", ctlr.OrchestrationCNI)
 			os.Exit(1)
 		}
-	} else if ctlr.PoolMemberType == Cluster {
+	} else if ctlr.PoolMemberType == Cluster || ctlr.PoolMemberType == Auto {
 		if ctlr.StaticRoutingMode {
 			ctlr.StaticRouteNodeCIDR = configCR.Spec.NetworkConfig.MetaData.NetworkCIDR
 		} else if ctlr.OrchestrationCNI == FLANNEL || ctlr.OrchestrationCNI == CILIUM ||

@@ -1157,7 +1157,7 @@ spec:
                       properties:
                         poolMemberType:
                           type: string
-                          enum: [cluster, nodeport, nodeportlocal]
+                          enum: [cluster, nodeport, nodeportlocal, auto]
                           description: "Pool member type is used to specify the type of pool member used in the cluster"
                         staticRoutingMode:
                           type: boolean

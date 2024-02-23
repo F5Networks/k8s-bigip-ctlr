@@ -396,6 +396,7 @@ type (
 		gtmConfig          GTMConfig
 		defaultRouteDomain int
 		reqId              int
+		poolMemberType     string
 	}
 
 	resourceStatusMeta struct {

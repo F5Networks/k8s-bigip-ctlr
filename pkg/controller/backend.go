@@ -383,7 +383,8 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	var allPoolMems []rsc.Member
 
 	for _, poolMem := range allPoolMembers {
-		if poolMem.MemberType != NodePort {
+		if rsConfig.poolMemberType != Auto ||
+			(rsConfig.poolMemberType == Auto && poolMem.MemberType != NodePort) {
 			allPoolMems = append(
 				allPoolMems,
 				rsc.Member(poolMem),
@@ -662,7 +663,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		sharedApp["template"] = "shared"
 
 		// Process rscfg to create AS3 Resources
-		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName)
+		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName, config.poolMemberType)
 
 		// Process CustomProfiles
 		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, agent.bigIPAS3Version)
@@ -759,7 +760,7 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 }
 
 // Process for AS3 Resource
-func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string) {
+func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
 	for _, cfg := range rsMap {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
@@ -768,7 +769,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 		createMonitorDecl(cfg, sharedApp)
 
 		//Create pools
-		createPoolDecl(cfg, sharedApp, shareNodes, tenant)
+		createPoolDecl(cfg, sharedApp, shareNodes, tenant, poolMemberType)
 
 		switch cfg.MetaData.ResourceType {
 		case VirtualServer:
@@ -810,7 +811,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Pools for CRD
-func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant string) {
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
 		pool.LoadBalancingMode = v.Balance
@@ -829,8 +830,8 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
-			if shareNodes && val.MemberType == NodePort {
-				member.ShareNodes = shareNodes
+			if shareNodes || (poolMemberType == Auto && val.MemberType == NodePort) {
+				member.ShareNodes = true
 			}
 			if val.AdminState != "" {
 				member.AdminState = val.AdminState

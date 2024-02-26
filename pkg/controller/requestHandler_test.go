@@ -545,7 +545,7 @@ var _ = Describe("Backend Tests", func() {
 
 			server.AppendHandlers(
 				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/mgmt/shared/appsvcs/info"),
+					ghttp.VerifyRequest("GET", CmDeclareInfoApi),
 					ghttp.RespondWithJSONEncoded(statusCode, map1),
 				))
 		})

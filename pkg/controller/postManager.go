@@ -128,14 +128,14 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 	}
 }
 
-func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
+func (postMgr *PostManager) getAS3APIURL(bigipAddress string) string {
 	// TODO: Add tenant filtering when support is added in Central Manger AS3
-	//apiURL := postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/declare/" + strings.Join(tenants, ",")
+	//apiURL := postMgr.tokenManager.ServerURL + CmDeclareApi + strings.Join(tenants, ",")
 	var apiURL string
 	if !postMgr.AS3Config.DocumentAPI {
-		apiURL = postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/declare/"
+		apiURL = postMgr.tokenManager.ServerURL + CmDeclareApi
 	} else {
-		apiURL = postMgr.tokenManager.ServerURL + CM_DECLARE_API
+		apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi + "?target_address=" + bigipAddress
 	}
 	return apiURL
 }
@@ -143,13 +143,13 @@ func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
 func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
 	var apiURL string
 	if !postMgr.AS3Config.DocumentAPI {
-		apiURL = postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/task/" + taskId
+		apiURL = postMgr.tokenManager.ServerURL + CmDeclareTaskApi + taskId
 	} else {
 		ids := strings.Split(taskId, "/")
 		if len(ids) != 2 {
 			return ""
 		}
-		apiURL = postMgr.tokenManager.ServerURL + CM_DECLARE_API + ids[0] + "/deployments/" + ids[1]
+		apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi + ids[0] + "/deployments/" + ids[1]
 	}
 	return apiURL
 }
@@ -185,7 +185,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 			}
 		}
 	}
-	cfg.as3APIURL = postMgr.getAS3APIURL(tenants)
+	cfg.as3APIURL = postMgr.getAS3APIURL(cfg.targetAddress)
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("%v[AS3]%v Creating new HTTP request error: %v ", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err)
@@ -252,7 +252,7 @@ func (postMgr *PostManager) postConfigUsingDocumentAPI(cfg *as3Config) {
 	if len(tenants) == 0 {
 		tenants = append(tenants, postMgr.defaultPartition)
 	}
-	cfg.as3APIURL = postMgr.getAS3APIURL(tenants)
+	cfg.as3APIURL = postMgr.getAS3APIURL(cfg.targetAddress)
 	method := "POST"
 	declarationID := postMgr.tenantDeclarationIDMap[tenants[0]]
 	if declarationID != "" {
@@ -714,7 +714,7 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 }
 
 func (postMgr *PostManager) GetAS3DeclarationFromBigIP() (map[string]interface{}, error) {
-	url := postMgr.getAS3APIURL([]string{})
+	url := postMgr.getAS3APIURL("")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
@@ -769,7 +769,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 }
 
 func (postMgr *PostManager) getAS3VersionURL() string {
-	apiURL := postMgr.tokenManager.ServerURL + "/mgmt/shared/appsvcs/info"
+	apiURL := postMgr.tokenManager.ServerURL + CmDeclareInfoApi
 	return apiURL
 }
 

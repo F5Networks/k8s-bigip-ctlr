@@ -236,4 +236,10 @@ const AbDeploymentDgName = "ab_deployment_dg"
 
 const BigIPLabel = ""
 
-const CM_DECLARE_API = "/api/v1/spaces/default/appsvcs/documents/"
+const CmDocumentApi = "/api/v1/spaces/default/appsvcs/documents/"
+
+const CmDeclareApi = "/api/v1/spaces/default/appsvcs/declare/"
+
+const CmDeclareTaskApi = "/api/v1/spaces/default/appsvcs/task/"
+
+const CmDeclareInfoApi = "/api/v1/spaces/default/appsvcs/info"

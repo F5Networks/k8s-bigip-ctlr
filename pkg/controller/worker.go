@@ -3975,8 +3975,7 @@ func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
 		ctlr.shareNodes = true
 		if ctlr.StaticRoutingMode && ctlr.PoolMemberType != Auto {
-			log.Errorf("static route CNI: %v not supported with nodeport/nodeportlocal mode. Only supported with cluster mode", ctlr.OrchestrationCNI)
-			os.Exit(1)
+			log.Warningf("static route CNI: %v not supported with nodeport/nodeportlocal mode. Only supported with cluster mode", ctlr.OrchestrationCNI)
 		}
 	} else if ctlr.PoolMemberType == Cluster || ctlr.PoolMemberType == Auto {
 		if ctlr.StaticRoutingMode {
@@ -3984,7 +3983,7 @@ func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 		} else if ctlr.OrchestrationCNI == FLANNEL || ctlr.OrchestrationCNI == CILIUM ||
 			ctlr.OrchestrationCNI == OPENSHIFTSDN {
 			if configCR.Spec.NetworkConfig.MetaData.TunnelName == "" {
-				log.Errorf("tunnelName is not set in CIS Config CR")
+				log.Errorf("tunnelName is required for CIS cluster mode with CNI: %v", ctlr.OrchestrationCNI)
 				os.Exit(1)
 			}
 		} else {

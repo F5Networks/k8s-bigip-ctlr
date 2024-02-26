@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent, targetAddress string) as3Declaration {
+func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
 	var as3Config map[string]interface{}
 	var adc map[string]interface{}
 	var baseAS3ConfigTemplate string
@@ -19,10 +19,6 @@ func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3
 			postMgr.AS3VersionInfo.as3Release)
 		_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
 		adc = as3Config["declaration"].(map[string]interface{})
-		// Set the target address for ADC
-		adc["target"] = as3Target{
-			"address": targetAddress,
-		}
 	} else {
 		baseAS3ConfigTemplate = baseAS3Config2
 		_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
@@ -100,7 +96,7 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 						dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
 					}
 					// sort above create dgMap records.
-					sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
+					sort.Slice(dgMap.Records, func(i, j int) bool { return dgMap.Records[i].Key < dgMap.Records[j].Key })
 					sharedApp[dg.Name] = dgMap
 				} else {
 					for _, record := range dg.Records {
@@ -137,7 +133,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 			createServiceDecl(cfg, sharedApp, tenant)
 		case TransportServer:
 			//Create AS3 Service for transport virtual server
-			createTransportServiceDecl(cfg, sharedApp, tenant, documentAPI)
+			createTransportServiceDecl(cfg, sharedApp, tenant)
 		}
 	}
 }
@@ -510,7 +506,7 @@ func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 		if c.Host {
 			condition.Name = "host"
 			var values []string
-			// For ports other then 80 and 443, attaching port number to host.
+			// For ports other than 80 and 443, attaching port number to host.
 			// Ex. example.com:8080
 			if port != 80 && port != 443 {
 				for i := range c.Values {
@@ -682,7 +678,7 @@ func processProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 }
 
 func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName string) {
-	// lets discard BIGIP profile creation when there exists a custom profile.
+	// let's discard BIGIP profile creation when there exists a custom profile.
 	as3ClientSuffix := "_tls_client"
 	as3ServerSuffix := "_tls_server"
 	var clientProfiles []as3MultiTypeParam
@@ -767,7 +763,7 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as
 	if as3Version < 3.44 {
 		return
 	}
-	for svcName, _ := range svcNameMap {
+	for svcName := range svcNameMap {
 		if _, ok := sharedApp[svcName].(*as3Service); ok {
 			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
 			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
@@ -892,7 +888,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 transport Service for CRD
-func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string, documentAPI bool) {
+func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
 	svc := &as3Service{}
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
@@ -991,13 +987,9 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 		as3SharedApplication,
 		ps[len(ps)-1],
 	)
-	if !documentAPI {
-		var poolPointer as3ResourcePointer
-		poolPointer.Use = poolValue
-		svc.Pool = &poolPointer
-	} else {
-		svc.Pool = poolValue
-	}
+
+	svc.Pool = poolValue
+
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
@@ -1087,7 +1079,7 @@ func (req *RequestHandler) createAS3Config(rsConfig ResourceConfigRequest, pm *P
 			}
 		}
 	}
-	as3cfg.data = string(pm.AS3PostManager.createAS3Declaration(as3cfg.incomingTenantDeclMap, req.userAgent, rsConfig.bigIpKey.BigIpAddress))
+	as3cfg.data = string(pm.AS3PostManager.createAS3Declaration(as3cfg.incomingTenantDeclMap, req.userAgent))
 	return as3cfg
 }
 

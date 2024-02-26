@@ -180,6 +180,10 @@ func ciliumPodCidr(annotation map[string]string) string {
 }
 
 func (ctlr *Controller) processStaticRouteUpdate() {
+	// skip if CIS is running in secondary mode and primary cluster is running
+	if ctlr.multiClusterMode == SecondaryCIS && ctlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning {
+		return
+	}
 	// Process the nodes networking for static route configuration in clusterIp and auto mode
 	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
 		nodes := ctlr.getNodesFromAllClusters()

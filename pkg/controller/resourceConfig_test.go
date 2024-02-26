@@ -1651,6 +1651,27 @@ var _ = Describe("Resource Config Tests", func() {
 
 		})
 
+		It("verify defaultPool is set from policy", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			plc.Spec.DefaultPool = cisapiv1.DefaultPool{
+				Reference:   ServiceRef,
+				Service:     "svc1",
+				ServicePort: intstr.IntOrString{IntVal: 80},
+			}
+			rsRef := resourceRef{
+				name:      "test-vs",
+				namespace: "default",
+				kind:      VirtualServer,
+			}
+			mockCtlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "test.com", "allow", true)
+			Expect(rsCfg.Virtual.PoolName).To(Equal("svc1_80_default_test_com"), "Failed to set default pool from policy")
+			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to process default pool for VirtualServer")
+		})
+
 		It("Verifies SNAT whether is set properly for TransportServer", func() {
 			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")

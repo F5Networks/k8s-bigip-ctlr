@@ -150,6 +150,20 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 						break
 					}
 				}
+				if !reflect.DeepEqual(plc.Spec.DefaultPool, cisapiv1.DefaultPool{}) {
+					rsRef := resourceRef{
+						name:      rt.Name,
+						namespace: rt.Namespace,
+						kind:      Route,
+					}
+					var httpTraffic string
+					if isSecureRoute(rt) {
+						if rt.Spec.TLS.InsecureEdgeTerminationPolicy != "" {
+							httpTraffic = strings.ToLower(string(rt.Spec.TLS.InsecureEdgeTerminationPolicy))
+						}
+					}
+					ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "", httpTraffic, isSecureRoute(rt))
+				}
 			}
 			if isSecureRoute(rt) {
 				//TLS Logic

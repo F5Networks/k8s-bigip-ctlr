@@ -1043,6 +1043,67 @@ spec:
                   items:
                     type: string
                     pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                defaultPool:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    service:
+                      type: string
+                      pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                    servicePort:
+                      x-kubernetes-int-or-string: true
+                      anyOf:
+                        - type: integer
+                        - type: string
+                    serviceNamespace:
+                      type: string
+                      pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                    loadBalancingMethod:
+                      type: string
+                      pattern: '^[a-z]+[a-z_-]+[a-z]+$'
+                    nodeMemberLabel:
+                      type: string
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                    monitors:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            enum: [ tcp, udp, http, https ]
+                          interval:
+                            type: integer
+                          timeout:
+                            type: integer
+                          targetPort:
+                            type: integer
+                          name:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          reference:
+                            type: string
+                            enum: [ bigip ]
+                          send:
+                            type: string
+                          recv:
+                            type: string
+                          sslProfile:
+                            type: string
+                            pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    reference:
+                      type: string
+                      enum: [ bigip, service ]
+                    reselectTries:
+                      type: integer
+                      minimum: 0
+                      maximum: 65535
+                    serviceDownAction:
+                      type: string
+                  required:
+                    - reference
                 profiles:
                   type: object
                   properties:

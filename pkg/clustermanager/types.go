@@ -10,6 +10,7 @@ const (
 	Disable AdminState = "disable"
 	Enable  AdminState = "enable"
 	Offline AdminState = "offline"
+	NoPool  AdminState = "no-pool"
 )
 
 type (

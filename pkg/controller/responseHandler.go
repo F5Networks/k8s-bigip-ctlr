@@ -86,9 +86,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								} else {
 									svcNamespace = virtual.Namespace
 								}
-								svc := ctlr.GetService(svcNamespace, pool.Service)
-								if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+								if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
+									svc := ctlr.GetService(svcNamespace, pool.Service)
+									if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+										ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+									}
 								}
 							}
 						}
@@ -122,9 +124,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							} else {
 								svcNamespace = virtual.Namespace
 							}
-							svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
-							if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-								ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
+								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
+								if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+								}
 							}
 						}
 					}

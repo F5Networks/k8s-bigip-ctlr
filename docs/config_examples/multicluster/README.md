@@ -311,7 +311,7 @@ Following is the sample deployment for primary CIS deployment:
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 | ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
-| adminState  | String | Optional  | adminState can be used to disable/enable/offline clusters           | 1       | 3                       |
+| adminState  | String | Optional  | adminState can be used to disable/enable/offline/no-pool clusters         | enable  | disable                 |
 
 
 **Note:** Avoid specifying HA cluster(Primary/Secondary cluster) configs in externalClustersConfig.
@@ -350,7 +350,7 @@ Specifies whether the CIS HA cluster is configured with active-active mode, acti
 | clusterName | String | Mandatory | Name of the cluster                                                       | -       | cluster1                |
 | secret      | String | Mandatory | Name of the secret created for kubeconfig (format: namespace/secret-name) | -       | test/secret-kubeconfig1 |
 | ratio       | int    | Optional  | Ratio at which the traffic has to be distributed over clusters            | 1       | 3                       |
-| adminState  | String | Optional  | adminState can be used to disable/enable/offline clusters           | 1       | 3                       |
+| adminState  | String | Optional  | adminState can be used to disable/enable/offline/no-pool clusters         | enable  | disable                 |
 
 
 **Note**: In order to run CIS in high availability mode, multi-cluster-mode parameter (primary/secondary) needs to be set in the CIS deployment arguments.
@@ -533,11 +533,13 @@ while computing the final ratio.<br>
 
 ### Cluster adminState to enable/disable/offline a cluster
 adminState can be provided for a cluster to dictate the state of a particular cluster.
-Supported values for adminState are [enable, disable, offline]<br>
+Supported values for adminState are [enable, disable, offline, no-pool]<br>
 By default clusters are in enabled state.<br>
 **adminState: enable**, all new connections are allowed to the pool members from the cluster.<br>
 **adminState: disable**, all new connections except those which match an existing persistence session are not allowed for the pool members from the cluster.<br>
 **adminState: offline**, no new connections are allowed to the pool members from the cluster, even if they match an existing persistence session.
+**adminState: no-pool**, in ratio mode, a service pool is not created for the affected cluster. For all other modes, pool members from the cluster are not added to the service pool. This configuration is helpful when we don't want to add pool or pool members from a particular cluster due to any reasons(for example cluster is under maintenance).<br>
+
 
 **Note**:
 * For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.

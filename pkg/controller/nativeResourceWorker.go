@@ -587,8 +587,10 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		if rules == nil {
 			return fmt.Errorf("failed to create LTM Rules")
 		}
-		policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
-		rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
+		if *rules != nil && len(*rules) > 0 {
+			policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
+			rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
+		}
 	}
 	return nil
 }
@@ -2435,11 +2437,11 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 		mcc := cluster.(ExternalClusterConfig)
 		if mcc.AdminState != "" {
 			if mcc.AdminState == clustermanager.Enable || mcc.AdminState == clustermanager.Disable ||
-				mcc.AdminState == clustermanager.Offline {
+				mcc.AdminState == clustermanager.Offline || mcc.AdminState == clustermanager.NoPool {
 				ctlr.clusterAdminState[mcc.ClusterName] = mcc.AdminState
 			} else {
 				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for cluster: %v, supported "+
-					"values (enable, disable, offline). Defaulting to enable", mcc.AdminState, mcc.ClusterName)
+					"values (enable, disable, offline, no-pool). Defaulting to enable", mcc.AdminState, mcc.ClusterName)
 				ctlr.clusterAdminState[mcc.ClusterName] = clustermanager.Enable
 			}
 		} else {
@@ -2455,11 +2457,11 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 		}
 		if clusterData.AdminState != "" {
 			if clusterData.AdminState == clustermanager.Enable || clusterData.AdminState == clustermanager.Disable ||
-				clusterData.AdminState == clustermanager.Offline {
+				clusterData.AdminState == clustermanager.Offline || clusterData.AdminState == clustermanager.NoPool {
 				ctlr.clusterAdminState[clusterNameKey] = clusterData.AdminState
 			} else {
 				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for cluster: %v, supported "+
-					"values (enable, disable, offline). Defaulting to enable", clusterData.AdminState, clusterData.ClusterName)
+					"values (enable, disable, offline, no-pool). Defaulting to enable", clusterData.AdminState, clusterData.ClusterName)
 				ctlr.clusterAdminState[clusterNameKey] = clustermanager.Enable
 			}
 		} else {

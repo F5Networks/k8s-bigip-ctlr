@@ -914,6 +914,82 @@ func (ctlr *Controller) handleDefaultPool(
 	}
 }
 
+// Handle the default pool for virtual server
+func (ctlr *Controller) handleDefaultPoolForPolicy(
+	rsCfg *ResourceConfig,
+	plc *cisapiv1.Policy,
+	rsRef resourceRef,
+	host string,
+	httpTraffic string,
+	isTLS bool,
+) {
+	// if it's an insecure virtual server and vs traffic is redirect or none, we should not add the default pool
+	if rsCfg.MetaData.Protocol == HTTP && isTLS && (httpTraffic == TLSRedirectInsecure || httpTraffic == TLSNoInsecure) {
+		return
+	}
+	if !reflect.DeepEqual(plc.Spec.DefaultPool, cisapiv1.DefaultPool{}) {
+		if plc.Spec.DefaultPool.Reference == BIGIP && plc.Spec.DefaultPool.Name != "" {
+			rsCfg.Virtual.PoolName = plc.Spec.DefaultPool.Name
+			rsCfg.MetaData.defaultPoolType = BIGIP
+		} else if plc.Spec.DefaultPool.Reference == ServiceRef {
+			rsCfg.Virtual.PoolName = ctlr.framePoolNameForDefaultPool(rsRef.namespace, plc.Spec.DefaultPool, host)
+			svcNamespace := rsRef.namespace
+			if plc.Spec.DefaultPool.ServiceNamespace != "" {
+				svcNamespace = plc.Spec.DefaultPool.ServiceNamespace
+			}
+			targetPort := ctlr.fetchTargetPort(svcNamespace, plc.Spec.DefaultPool.Service, plc.Spec.DefaultPool.ServicePort, "")
+			if (intstr.IntOrString{}) == targetPort {
+				targetPort = plc.Spec.DefaultPool.ServicePort
+			}
+			pool := Pool{
+				Name:              rsCfg.Virtual.PoolName,
+				Partition:         rsCfg.Virtual.Partition,
+				ServiceName:       plc.Spec.DefaultPool.Service,
+				ServiceNamespace:  svcNamespace,
+				ServicePort:       targetPort,
+				NodeMemberLabel:   plc.Spec.DefaultPool.NodeMemberLabel,
+				Balance:           plc.Spec.DefaultPool.Balance,
+				ReselectTries:     plc.Spec.DefaultPool.ReselectTries,
+				ServiceDownAction: plc.Spec.DefaultPool.ServiceDownAction,
+			}
+			if plc.Spec.DefaultPool.Monitors != nil {
+				for _, mtr := range plc.Spec.DefaultPool.Monitors {
+					var monitorName string
+					if mtr.Name != "" && mtr.Reference == BIGIP {
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: mtr.Name, Reference: mtr.Reference})
+					} else {
+						var formatPort intstr.IntOrString
+						if mtr.TargetPort != 0 {
+							formatPort = intstr.IntOrString{IntVal: mtr.TargetPort}
+						} else {
+							formatPort = plc.Spec.DefaultPool.ServicePort
+						}
+						if mtr.Name == "" {
+							monitorName = formatMonitorName(svcNamespace, rsCfg.Virtual.PoolName, mtr.Type, formatPort, host, "")
+						}
+						pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+						mntr := Monitor{
+							Name:       monitorName,
+							Partition:  rsCfg.Virtual.Partition,
+							Type:       mtr.Type,
+							Interval:   mtr.Interval,
+							Send:       mtr.Send,
+							Recv:       mtr.Recv,
+							Timeout:    mtr.Timeout,
+							TargetPort: mtr.TargetPort,
+						}
+						rsCfg.Monitors = append(rsCfg.Monitors, mntr)
+					}
+				}
+			}
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, plc.Spec.DefaultPool.Service, "", pool, plc.Spec.DefaultPool.ServicePort, "")
+			// Update the pool Members
+			ctlr.updatePoolMembersForResources(&pool)
+			rsCfg.Pools = append(rsCfg.Pools, pool)
+		}
+	}
+}
+
 func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules *Rules) {
 	// Update the existing policy with rules
 	// Otherwise create new policy and set
@@ -2352,7 +2428,6 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	if plc.Spec.SNAT != "" {
 		rsCfg.Virtual.SNAT = plc.Spec.SNAT
 	}
-
 	return nil
 }
 

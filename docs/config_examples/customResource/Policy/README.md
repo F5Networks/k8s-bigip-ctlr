@@ -18,6 +18,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | snat         | String | Optional | auto    | Reference to SNAT pool on BIG-IP. The other allowed values are: `auto` (default) and `none`. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource. |
 | autoLastHop  | String | Optional | N/A     | Reference to Auto Last Hop on BIG-IP. Allowed values [default, auto, disable]                                                                                                         |
 | poolSettings | Object | Optional | N/A     | Default pool settings to set on virtuals via  Policy CR                                                                                                                               |
+| defaultPool  | Object | Optional | N/A     | Default pool to set on virtuals via Policy CR. VirtualServer CRD resource takes precedence over Policy CRD resource                                                                                                                                       |
 
 ### L7 Policy Components
 
@@ -123,3 +124,19 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | reselectTries     | Integer | Optional | 0       | reselectTries specifies the maximum number of attempts to find a responsive member for a connection |
 | serviceDownAction | String  | Optional | None    | serviceDownAction specifies connection handling when member is non-responsive                       |
 | slowRampTime      | Integer | Optional | 10      | BIG-IP AS3 sets the connection rate to a newly-active member slowly during this interval (seconds)  |
+
+### Default Pool Components
+
+| PARAMETER           | TYPE              | REQUIRED | DEFAULT     | DESCRIPTION                                                                                                                             |
+|---------------------|-------------------|----------|-------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| service             | String            | Required | NA          | Service deployed in kubernetes cluster                                                                                                  |
+| serviceNamespace    | String            | Optional | NA          | Namespace of service, define it if service is present in a namespace other than the one where Virtual Server Custom Resource is present |
+| servicePort         | Integer or String | Required | NA          | Port to access Service.Could be service port, service port name or targetPort of the service                                            |                                                                                |
+| loadBalancingMethod | String            | Optional | round-robin | Allowed values are existing BIG-IP Load Balancing methods for pools.                                                                    |
+| nodeMemberLabel     | String            | Optional | NA          | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
+| monitors            | monitor           | Optional | NA          | Specifies multiple monitors for VS Pool                                                                                                 |
+| serviceDownAction   | String            | Optional | none        | Specifies connection handling when member is non-responsive                                                                             |
+| reselectTries       | Integer           | Optional | 0           | Maximum number of attempts to find a responsive member for a connection                                                                 |
+| reference           | String            | Required | NA          | Allowed values are **bigip** or **service**                                                                                             |
+| name                | String            | Optional | NA          | pool name or reference to the pool name existing on bigip                                                                               |
+

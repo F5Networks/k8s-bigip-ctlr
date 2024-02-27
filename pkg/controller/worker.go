@@ -1295,6 +1295,17 @@ func (ctlr *Controller) processVirtualServers(
 						break
 					}
 				}
+				// handle default pool from policy if not set in virtual
+				if reflect.DeepEqual(virtual.Spec.DefaultPool, cisapiv1.DefaultPool{}) {
+					if !reflect.DeepEqual(plc.Spec.DefaultPool, cisapiv1.DefaultPool{}) {
+						rsRef := resourceRef{
+							name:      virtual.Name,
+							namespace: virtual.Namespace,
+							kind:      VirtualServer,
+						}
+						ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, virtual.Spec.Host, virtual.Spec.HTTPTraffic, isTLSVirtualServer(virtual))
+					}
+				}
 			}
 			if tlsProf != nil {
 				processed := ctlr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip)

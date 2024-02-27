@@ -376,6 +376,7 @@ type PolicySpec struct {
 	SNAT         string           `json:"snat,omitempty"`
 	AutoLastHop  string           `json:"autoLastHop,omitempty"`
 	PoolSettings PoolSettingsSpec `json:"poolSettings,omitempty"`
+	DefaultPool  DefaultPool      `json:"defaultPool,omitempty"`
 }
 
 type PoolSettingsSpec struct {

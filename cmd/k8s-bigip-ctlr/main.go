@@ -859,7 +859,7 @@ func initController(
 		BIGIPPassword:     *bigIPPassword,
 		BIGIPURL:          *bigIPURL,
 		TrustedCerts:      "",
-		SSLInsecure:       true,
+		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
 		LogAS3Response:    *logAS3Response,
 		LogAS3Request:     *logAS3Request,
@@ -871,13 +871,17 @@ func initController(
 		BIGIPPassword:     *gtmBigIPPassword,
 		BIGIPURL:          *gtmBigIPURL,
 		TrustedCerts:      "",
-		SSLInsecure:       true,
+		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
 		LogAS3Response:    *logAS3Response,
 		LogAS3Request:     *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
+	if *trustedCertsCfgmap != "" {
+		postMgrParams.TrustedCerts = getBIGIPTrustedCerts()
+		GtmParams.TrustedCerts = getBIGIPTrustedCerts()
+	}
 	agentParams := controller.AgentParams{
 		PostParams:         postMgrParams,
 		GTMParams:          GtmParams,

@@ -50,9 +50,9 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 			// if informer not found for cluster, setup and start informer
 			_, clusterKeyFound := ctlr.multiClusterPoolInformers[svc.ClusterName]
 			if !clusterKeyFound {
-				ctlr.setupAndStartMultiClusterInformers(svcKey)
+				ctlr.setupAndStartMultiClusterInformers(svcKey, true)
 			} else if _, found := ctlr.multiClusterPoolInformers[svc.ClusterName][svc.Namespace]; !found {
-				ctlr.setupAndStartMultiClusterInformers(svcKey)
+				ctlr.setupAndStartMultiClusterInformers(svcKey, true)
 			}
 		} else {
 			log.Warningf("[MultiCluster] invalid cluster reference found cluster: %v resource:%v", svc.ClusterName, rscKey)
@@ -127,7 +127,7 @@ func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
 		if len(svcs) == 0 && ((ctlr.haModeType == StandAloneCIS || ctlr.haModeType == StandBy) ||
 			ctlr.multiClusterConfigs.HAPairClusterName != clusterName) {
 			delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
-			ctlr.stopMultiClusterInformers(clusterName)
+			ctlr.stopMultiClusterInformers(clusterName, true)
 		}
 	}
 }

@@ -228,12 +228,14 @@ func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
 	return nil
 }
 
-func (ctlr *Controller) stopMultiClusterInformers(clusterName string) error {
+func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInformer bool) error {
 
 	// remove the informers for clusters whose config has been removed
 	if clsSet, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
 		for _, nsPoolInf := range clsSet {
-			nsPoolInf.stop()
+			if stopInformer {
+				nsPoolInf.stop()
+			}
 			delete(ctlr.multiClusterPoolInformers, clusterName)
 		}
 	}
@@ -244,14 +246,14 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string) error {
 }
 
 // setup multi cluster informer
-func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey) error {
+func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
 	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[svcKey.clusterName]; ok {
 		restClient := config.KubeClient.CoreV1().RESTClient()
-		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, true); err != nil {
+		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, startInformer); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
 			return err
 		}
-		err := ctlr.setupMultiClusterNodeInformers(svcKey.clusterName)
+		err := ctlr.setupMultiClusterNodeInformers(svcKey.clusterName, startInformer)
 		if err != nil {
 			return err
 		}
@@ -271,7 +273,7 @@ func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) erro
 			return err
 		}
 	}
-	err := ctlr.setupMultiClusterNodeInformers(clusterName)
+	err := ctlr.setupMultiClusterNodeInformers(clusterName, true)
 	if err != nil {
 		return err
 	}
@@ -279,25 +281,27 @@ func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) erro
 }
 
 // setupMultiClusterNodeInformers sets up and starts node informers for cluster if it hasn't been started
-func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string) error {
+func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, startInformer bool) error {
 	if _, ok := ctlr.multiClusterNodeInformers[clusterName]; !ok {
 		nodeInf := ctlr.getNodeInformer(clusterName)
 		ctlr.addNodeEventUpdateHandler(&nodeInf)
-		nodeInf.start()
-		time.Sleep(100 * time.Millisecond)
 		ctlr.multiClusterNodeInformers[clusterName] = &nodeInf
-		nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
-		var nodesList []corev1.Node
-		for _, obj := range nodesIntfc {
-			node := obj.(*corev1.Node)
-			nodesList = append(nodesList, *node)
+		if startInformer {
+			nodeInf.start()
+			time.Sleep(100 * time.Millisecond)
+			nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
+			var nodesList []corev1.Node
+			for _, obj := range nodesIntfc {
+				node := obj.(*corev1.Node)
+				nodesList = append(nodesList, *node)
+			}
+			sort.Sort(NodeList(nodesList))
+			nodes, err := ctlr.getNodes(nodesList)
+			if err != nil {
+				return err
+			}
+			nodeInf.oldNodes = nodes
 		}
-		sort.Sort(NodeList(nodesList))
-		nodes, err := ctlr.getNodes(nodesList)
-		if err != nil {
-			return err
-		}
-		nodeInf.oldNodes = nodes
 	}
 	return nil
 }

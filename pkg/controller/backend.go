@@ -1806,7 +1806,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 // Process common declaration for VS and TS
 func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 
-	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
+	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" || cfg.Virtual.SNAT == "self" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {
 		svc.SNAT = &as3ResourcePointer{

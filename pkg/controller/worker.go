@@ -3542,39 +3542,6 @@ func (ctlr *Controller) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 	return allIngLinks
 }
 
-// getIngressLinksForService gets the List of ingressLink which are effected
-// by the addition/deletion/updation of service.
-func (ctlr *Controller) getIngressLinksForService(svc *v1.Service) []*cisapiv1.IngressLink {
-	ingLinks := ctlr.getAllIngressLinks(svc.ObjectMeta.Namespace)
-	ctlr.TeemData.Lock()
-	ctlr.TeemData.ResourceType.IngressLink[svc.ObjectMeta.Namespace] = len(ingLinks)
-	ctlr.TeemData.Unlock()
-	if nil == ingLinks {
-		log.Infof("No IngressLink found in namespace %s",
-			svc.ObjectMeta.Namespace)
-		return nil
-	}
-	ingresslinksForService := filterIngressLinkForService(ingLinks, svc)
-
-	if nil == ingresslinksForService {
-		log.Debugf("Change in Service %s does not effect any IngressLink",
-			svc.ObjectMeta.Name)
-		return nil
-	}
-
-	// Output list of all IngressLinks Found.
-	var targetILNames []string
-	for _, il := range ingLinks {
-		targetILNames = append(targetILNames, il.ObjectMeta.Name)
-	}
-	log.Debugf("IngressLinks %v are affected with service %s change",
-		targetILNames, svc.ObjectMeta.Name)
-	// TODO
-	// Remove Duplicate entries in the targetILNames.
-	// or Add only Unique entries into the targetILNames.
-	return ingresslinksForService
-}
-
 // filterIngressLinkForService returns list of ingressLinks that are
 // affected by the service under process.
 func filterIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,

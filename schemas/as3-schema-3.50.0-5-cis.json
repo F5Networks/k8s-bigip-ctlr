@@ -51,57 +51,15 @@
           "title": "Schema version",
           "description": "Version of ADC Declaration schema this declaration uses",
           "type": "string",
-          "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
-          "enum": [
-            "3.48.0",
-            "3.47.0",
-            "3.46.0",
-            "3.45.0",
-            "3.44.0",
-            "3.43.0",
-            "3.42.0",
-            "3.41.0",
-            "3.40.0",
-            "3.39.0",
-            "3.38.0",
-            "3.37.0",
-            "3.36.0",
-            "3.35.0",
-            "3.34.0",
-            "3.33.0",
-            "3.32.0",
-            "3.31.0",
-            "3.30.0",
-            "3.29.0",
-            "3.28.0",
-            "3.27.0",
-            "3.26.0",
-            "3.25.0",
-            "3.24.0",
-            "3.23.0",
-            "3.22.0",
-            "3.21.0",
-            "3.20.0",
-            "3.19.0",
-            "3.18.0",
-            "3.17.0",
-            "3.16.0",
-            "3.15.0",
-            "3.14.0",
-            "3.13.0",
-            "3.12.0",
-            "3.11.0",
-            "3.10.0",
-            "3.9.0",
-            "3.8.0",
-            "3.7.0",
-            "3.6.0",
-            "3.5.0",
-            "3.4.0",
-            "3.3.0",
-            "3.2.0",
-            "3.1.0",
-            "3.0.0"
+          "anyOf": [
+            {
+              "description": "Any version of AS3.",
+              "pattern": "^3[.]([0-9]|[1234][0-9]|5[0])($|[.][0-9]+$)"
+            },
+            {
+              "description": "The current version of AS3.",
+              "const": "3.50.0"
+            }
           ]
         },
         "id": {
@@ -741,8 +699,6 @@
               "Service_Generic",
               "Service_Forwarding",
               "Service_Address",
-              "SNAT_Pool",
-              "SNAT_Translation",
               "WAF_Policy",
               "Persist",
               "Pool",
@@ -832,6 +788,8 @@
               "Log_Destination",
               "Log_Publisher",
               "Monitor",
+              "SNAT_Pool",
+              "SNAT_Translation",
               "UDP_Profile"
             ]
           }
@@ -943,30 +901,6 @@
             },
             "then": {
               "$ref": "#/definitions/Service_Address"
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "class": {
-                  "const": "SNAT_Pool"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/SNAT_Pool"
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "class": {
-                  "const": "SNAT_Translation"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/SNAT_Translation"
             }
           },
           {
@@ -2035,6 +1969,30 @@
             },
             "then": {
               "$ref": "#/definitions/Monitor"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "SNAT_Pool"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/SNAT_Pool"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "SNAT_Translation"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/SNAT_Translation"
             }
           },
           {
@@ -4859,148 +4817,6 @@
       ],
       "additionalProperties": false
     },
-    "SNAT_Pool": {
-      "title": "SNAT_Pool",
-      "description": "Declares a list of SNAT addresses",
-      "type": "object",
-      "properties": {
-        "class": {
-          "title": "Class",
-          "type": "string",
-          "const": "SNAT_Pool"
-        },
-        "label": {
-          "$ref": "#/definitions/Label"
-        },
-        "remark": {
-          "$ref": "#/definitions/Remark"
-        },
-        "snatAddresses": {
-          "title": "SNAT addresses",
-          "description": "List of SNAT addresses-- may include both IPv4 and IPv6",
-          "type": "array",
-          "items": {
-            "title": "SNAT address",
-            "type": "string",
-            "format": "f5ip"
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "class",
-        "snatAddresses"
-      ]
-    },
-    "SNAT_Translation": {
-      "title": "SNAT_Translation",
-      "description": "Configures explicit secure network address translation (SNAT) address",
-      "type": "object",
-      "properties": {
-        "class": {
-          "title": "Class",
-          "type": "string",
-          "const": "SNAT_Translation"
-        },
-        "label": {
-          "$ref": "#/definitions/Label"
-        },
-        "remark": {
-          "$ref": "#/definitions/Remark"
-        },
-        "address": {
-          "title": "Address",
-          "description": "The IP address of the SNAT translation",
-          "type": "string",
-          "format": "f5ip"
-        },
-        "adminState": {
-          "title": "Administration State",
-          "description": "Specifies the state of the SNAT translation",
-          "type": "string",
-          "enum": [
-            "enable",
-            "disable"
-          ],
-          "default": "enable"
-        },
-        "arpEnabled": {
-          "title": "Enable ARP",
-          "description": "Specifies that the NAT sends ARP requests",
-          "type": "boolean",
-          "default": true
-        },
-        "ipIdleTimeout": {
-          "title": "IP Idle Timeout",
-          "description": "Specifies time in seconds that connections to an IP address initiated using a SNAT address are allowed to remain idle before being automatically disconnected. Specifying 'indefinite' prevents the connection from timing out.",
-          "oneOf": [
-            {
-              "type": "integer",
-              "maximum": 4294967295,
-              "minimum": 1
-            },
-            {
-              "type": "string",
-              "const": "indefinite"
-            }
-          ],
-          "default": "indefinite"
-        },
-        "maxConnections": {
-          "title": "Maximum Connections",
-          "description": "Specifies a limit on the number of connections a translation address must reach before it no longer initiates a connection. A value of 0 indicates the setting is disabled.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4294967295,
-          "default": 0
-        },
-        "tcpIdleTimeout": {
-          "title": "TCP Idle Timeout",
-          "description": "Specifies time in seconds that TCP connections initiated using a SNAT address are allowed to remain idle before being automatically disconnected. Specifying 'indefinite' prevents the connection from timing out.",
-          "oneOf": [
-            {
-              "type": "integer",
-              "maximum": 4294967295,
-              "minimum": 1
-            },
-            {
-              "type": "string",
-              "const": "indefinite"
-            }
-          ],
-          "default": "indefinite"
-        },
-        "trafficGroup": {
-          "title": "Traffic Group",
-          "description": "Specifies the traffic group which the SNAT_Translation belongs",
-          "type": "string",
-          "default": "default"
-        },
-        "udpIdleTimeout": {
-          "title": "UDP Idle Timeout",
-          "description": "Specifies time in seconds that UDP connections initiated using a SNAT address are allowed to remain idle before being automatically disconnected. Specifying 'indefinite' prevents the connection from timing out.",
-          "oneOf": [
-            {
-              "type": "integer",
-              "maximum": 4294967295,
-              "minimum": 1
-            },
-            {
-              "type": "string",
-              "const": "indefinite"
-            }
-          ],
-          "default": "indefinite"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "class",
-        "address"
-      ]
-    },
     "WAF_Policy": {
       "title": "WAF_Policy",
       "description": "A Web Application Firewall Policy. Supports both traditional and advanced WAF policies. Advanced WAF policies require TMOS version 16.0 or newer.",
@@ -7396,6 +7212,22 @@
             "sha384"
           ],
           "default": "any"
+        },
+        "handshakeTimeout": {
+          "title": "Handshake Timeout",
+          "description": "Specifies the handshake timeout in seconds.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "string",
+              "const": "indefinite"
+            }
+          ],
+          "default": 10
         }
       },
       "additionalProperties": false,
@@ -7922,6 +7754,22 @@
             "sha384"
           ],
           "default": "any"
+        },
+        "handshakeTimeout": {
+          "title": "Handshake Timeout",
+          "description": "Specifies the handshake timeout in seconds.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "string",
+              "const": "indefinite"
+            }
+          ],
+          "default": 10
         }
       },
       "allOf": [
@@ -9817,8 +9665,11 @@
       "required": [
         "class"
       ],
-      "f5aliases": {
-        "synCookieAllowlist": "synCookieWhitelist"
+      "f5PostProcess": {
+        "tag": "aliases",
+        "data": {
+          "synCookieAllowlist": "synCookieWhitelist"
+        }
       }
     },
     "Classification_Profile": {
@@ -11691,6 +11542,17 @@
             "else": {
               "$ref": "#/definitions/Firewall_Rule"
             }
+          }
+        },
+        "routeDomainEnforcement": {
+          "description": "Specifies Route Domains to enforce this policy on. Rules of this policy will be enforced on the Route Domains. If setting this property, the Firewall_Policy must be defined in /Common/Shared.",
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/Pointer_Route_Domain"
+              }
+            ]
           }
         }
       },
@@ -14336,13 +14198,6 @@
       "title": "DOS_Profile",
       "description": "Configures a Denial of Service (DOS) profile",
       "type": "object",
-      "f5PostProcess": {
-        "tag": "modules",
-        "data": [
-          "afm",
-          "asm"
-        ]
-      },
       "properties": {
         "class": {
           "title": "Class",
@@ -14469,10 +14324,26 @@
         }
       },
       "additionalProperties": false,
-      "f5aliases": {
-        "allowlist": "whitelist",
-        "applicationAllowlist": "applicationWhitelist"
-      }
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "modules",
+            "data": [
+              "afm",
+              "asm"
+            ]
+          }
+        },
+        {
+          "f5PostProcess": {
+            "tag": "aliases",
+            "data": {
+              "allowlist": "whitelist",
+              "applicationAllowlist": "applicationWhitelist"
+            }
+          }
+        }
+      ]
     },
     "DOS_Auto_Denylist_Settings": {
       "description": "Adds the source IP address to the denylist category assigned to the Denial-of-Service (DoS) vector",
@@ -14681,8 +14552,11 @@
           }
         }
       },
-      "f5aliases": {
-        "urlAllowlist": "urlWhitelist"
+      "f5PostProcess": {
+        "tag": "aliases",
+        "data": {
+          "urlAllowlist": "urlWhitelist"
+        }
       },
       "dependencies": {
         "issueCaptchaChallenge": {
@@ -15516,9 +15390,12 @@
         }
       },
       "additionalProperties": false,
-      "f5aliases": {
-        "allowlistedGeolocations": "whitelistedGeolocations",
-        "denylistedGeolocations": "blacklistedGeolocations"
+      "f5PostProcess": {
+        "tag": "aliases",
+        "data": {
+          "allowlistedGeolocations": "whitelistedGeolocations",
+          "denylistedGeolocations": "blacklistedGeolocations"
+        }
       }
     },
     "DOS_Profile_Network_Dynamic_Signatures": {
@@ -15715,8 +15592,11 @@
         }
       },
       "additionalProperties": false,
-      "f5aliases": {
-        "autoDenylistSettings": "autoBlacklistSettings"
+      "f5PostProcess": {
+        "tag": "aliases",
+        "data": {
+          "autoDenylistSettings": "autoBlacklistSettings"
+        }
       }
     },
     "DOS_Profile_Protocol_DNS": {
@@ -15849,8 +15729,11 @@
       "required": [
         "type"
       ],
-      "f5aliases": {
-        "autoDenylistSettings": "autoBlacklistSettings"
+      "f5PostProcess": {
+        "tag": "aliases",
+        "data": {
+          "autoDenylistSettings": "autoBlacklistSettings"
+        }
       }
     },
     "DOS_Profile_Protocol_SIP": {
@@ -15981,8 +15864,11 @@
       "required": [
         "type"
       ],
-      "f5aliases": {
-        "autoDenylistSettings": "autoBlacklistSettings"
+      "f5PostProcess": {
+        "tag": "aliases",
+        "data": {
+          "autoDenylistSettings": "autoBlacklistSettings"
+        }
       }
     },
     "Enum_ISP": {
@@ -16464,6 +16350,33 @@
           "type": "boolean",
           "default": true
         },
+        "failureRcode": {
+          "title": "Failure RCODE",
+          "description": "Specifies the DNS RCODE used when failure-rcode-response is enabled",
+          "type": "string",
+          "enum": [
+            "formerr",
+            "noerror",
+            "notimpl",
+            "nxdomain",
+            "refused",
+            "servfail"
+          ],
+          "default": "noerror"
+        },
+        "failureRcodeResponse": {
+          "title": "Return Code On Failure",
+          "description": "Specifies whether RCODE responses are enabled",
+          "type": "boolean",
+          "default": false
+        },
+        "failureRcodeTtl": {
+          "title": "Return Code On Failure's TTL",
+          "description": "Specifies the negative caching TTL of the SOA for the RCODE response",
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
         "resourceRecordType": {
           "title": "Resource Record (RR) Type",
           "description": "Specifies the type of resource records for this domain",
@@ -16472,7 +16385,8 @@
             "A",
             "AAAA",
             "CNAME",
-            "MX"
+            "MX",
+            "NAPTR"
           ]
         },
         "pools": {
@@ -16554,8 +16468,25 @@
             "A",
             "AAAA",
             "CNAME",
-            "MX"
+            "MX",
+            "NAPTR"
           ]
+        },
+        "loadBalancingDecisionLogVerbosity": {
+          "title": "Load Balancing Decision Log Verbosity",
+          "description": "Specifies the amount of detail logged when making load balancing decisions. This is used for debugging purposes only. Performance will be affected if any value is set. Please reset after debugging is finished.",
+          "type": "array",
+          "items": {
+            "title": "Verbosity Selection",
+            "type": "string",
+            "enum": [
+              "pool-selection",
+              "pool-traversal",
+              "pool-member-selection",
+              "pool-member-traversal"
+            ]
+          },
+          "uniqueItems": true
         },
         "iRules": {
           "title": "iRules",
@@ -16715,6 +16646,14 @@
     },
     "GSLB_Domain_MX": {
       "description": "Configures GSLB (Global Server Load Balancing) settings for MX domain.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/GSLB_Domain"
+        }
+      ]
+    },
+    "GSLB_Domain_NAPTR": {
+      "description": "Configures GSLB (Global Server Load Balancing) settings for NAPTR domain.",
       "allOf": [
         {
           "$ref": "#/definitions/GSLB_Domain"
@@ -17006,6 +16945,20 @@
             "tag": "expand"
           }
         },
+        "receiveStatusCodes": {
+          "title": "Receive Status Codes",
+          "description": "Specifies the status codes that the monitor looks for in the returned resource",
+          "type": "array",
+          "items": {
+            "title": "Receive Status Code",
+            "type": "integer"
+          },
+          "uniqueItems": true,
+          "f5PostProcess": {
+            "tag": "minVersion",
+            "data": "15.1"
+          }
+        },
         "transparent": {
           "title": "Transparent",
           "description": "Enables monitoring of pool members through firewalls. The default value is false (disabled)",
@@ -17043,6 +16996,15 @@
                     "class"
                   ]
                 }
+              }
+            },
+            "sniServerName": {
+              "title": "SNI Server Name",
+              "description": "Server Name Indication (SNI) property for HTTPS monitor",
+              "type": "string",
+              "f5PostProcess": {
+                "tag": "minVersion",
+                "data": "16.1"
               }
             }
           }
@@ -17182,8 +17144,15 @@
             "A",
             "AAAA",
             "CNAME",
-            "MX"
+            "MX",
+            "NAPTR"
           ]
+        },
+        "dynamicRatioEnabled": {
+          "title": "Dynamic Ratio Enabled",
+          "description": "Specifies whether the system applies a dynamic ratio to the load balancing algorithms for this pool. When enabled, the system treats QOS scores as ratios, and it uses each server or virtual server in proportion to the ratio determined by the QOS calculation.",
+          "type": "boolean",
+          "default": false
         },
         "enabled": {
           "title": "Enabled",
@@ -17288,11 +17257,36 @@
       "allOf": [
         {
           "if": {
-            "properties": {
-              "resourceRecordType": {
-                "const": "MX"
+            "anyOf": [
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "A"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "AAAA"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "MX"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "NAPTR"
+                  }
+                }
               }
-            }
+            ]
           },
           "then": {
             "properties": {
@@ -17303,13 +17297,84 @@
                 "minimum": 1,
                 "default": 1,
                 "maximum": 500
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "A"
+                  }
+                }
               },
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "AAAA"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "resourceRecordType": {
+                    "const": "MX"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "fallbackIP": {
+                "title": "Fallback IP",
+                "description": "Specifies the IP address of the server to which the system directs requests when it cannot use one of its pools to do so. Note that the system uses the fallback IP only if you select a fallback load balancing method",
+                "type": "string",
+                "format": "f5ip"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "resourceRecordType": {
+                "const": "MX"
+              }
+            }
+          },
+          "then": {
+            "properties": {
               "members": {
                 "title": "Members",
                 "description": "Specifies the members of this pool",
                 "type": "array",
                 "items": {
                   "$ref": "#/definitions/GSLB_Pool_Member_MX"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "resourceRecordType": {
+                "const": "NAPTR"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "members": {
+                "title": "Members",
+                "description": "Specifies the members of this pool",
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/GSLB_Pool_Member_NAPTR"
                 }
               }
             }
@@ -17358,14 +17423,6 @@
           },
           "then": {
             "properties": {
-              "maxAnswersReturned": {
-                "title": "Maximum Number of Answers Returned",
-                "description": "Specifies the maximum number of available virtual servers that the system lists in a response",
-                "type": "integer",
-                "minimum": 1,
-                "default": 1,
-                "maximum": 500
-              },
               "members": {
                 "title": "Members",
                 "description": "Specifies the members of this pool",
@@ -17387,14 +17444,6 @@
           },
           "then": {
             "properties": {
-              "maxAnswersReturned": {
-                "title": "Maximum Number of Answers Returned",
-                "description": "Specifies the maximum number of available virtual servers the system lists in a response",
-                "type": "integer",
-                "minimum": 1,
-                "default": 1,
-                "maximum": 500
-              },
               "members": {
                 "title": "Members",
                 "description": "Specifies the members of this pool",
@@ -17434,12 +17483,6 @@
                 "items": {
                   "$ref": "#/definitions/Pointer_GSLB_Monitor"
                 }
-              },
-              "fallbackIP": {
-                "title": "Fallback IP",
-                "description": "Specifies the IP address of the server to which the system directs requests when it cannot use one of its pools to do so. Note that the system uses the fallback IP only if you select a Fallback load balancing method",
-                "type": "string",
-                "format": "f5ip"
               },
               "bpsLimit": {
                 "title": "Maximum Bits Per Second",
@@ -17577,7 +17620,7 @@
       ]
     },
     "GSLB_Pool_Member_A": {
-      "title": "GSLB A rrType Pool Member",
+      "title": "GSLB Resource Record Type A Pool Member",
       "description": "Declares member of the GSLB pool",
       "type": "object",
       "properties": {
@@ -17603,7 +17646,7 @@
         },
         "ratio": {
           "title": "Ratio",
-          "description": "Specifies the ratio weight assigned to the pool member. This weight determines the frequency at which the pool member is selected for load balancing",
+          "description": "Specifies the ratio weight assigned to the pool member. This weight determines the frequency at which the pool member is selected for load balancing.",
           "type": "integer",
           "default": 1,
           "minimum": 0,
@@ -17643,7 +17686,7 @@
       ]
     },
     "GSLB_Pool_Member_AAAA": {
-      "title": "GSLB AAAA rrType Pool Member",
+      "title": "GSLB Resource Record Type AAAA Pool Member",
       "description": "Declares member of the GSLB pool",
       "type": "object",
       "properties": {
@@ -17709,7 +17752,7 @@
       ]
     },
     "GSLB_Pool_Member_CNAME": {
-      "title": "GSLB CNAME rrType Pool Member",
+      "title": "GSLB Resource Record Type CNAME Pool Member",
       "description": "Declares member of the GSLB pool",
       "type": "object",
       "properties": {
@@ -17751,6 +17794,9 @@
             },
             {
               "$ref": "#/definitions/Pointer_GSLB_Domain_MX"
+            },
+            {
+              "$ref": "#/definitions/Pointer_GSLB_Domain_NAPTR"
             }
           ]
         },
@@ -17767,7 +17813,7 @@
       ]
     },
     "GSLB_Pool_Member_MX": {
-      "title": "GSLB MX rrType Pool Member",
+      "title": "GSLB Resource Record Type MX Pool Member",
       "description": "Declares member of the GSLB pool",
       "type": "object",
       "properties": {
@@ -17815,6 +17861,71 @@
       "additionalProperties": false,
       "required": [
         "domainName"
+      ]
+    },
+    "GSLB_Pool_Member_NAPTR": {
+      "title": "GSLB Resource Record Type MX Pool Member",
+      "description": "Declares member of the GSLB pool",
+      "type": "object",
+      "properties": {
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "domainName": {
+          "title": "Domain Name",
+          "description": "Specifies the domain name for this pool member",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Pointer_GSLB_Domain_A"
+            },
+            {
+              "$ref": "#/definitions/Pointer_GSLB_Domain_AAAA"
+            }
+          ]
+        },
+        "enabled": {
+          "title": "Enabled",
+          "description": "When true (default), the system can use the pool member and its resources for load balancing requests",
+          "type": "boolean",
+          "default": true
+        },
+        "order": {
+          "title": "Order",
+          "description": "Specifies the response resource record's order RDATA field value when this member is picked.",
+          "type": "integer",
+          "default": 10,
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "preference": {
+          "title": "Preference",
+          "description": "Specifies the response resource record's preference RDATA field value when this member is picked.",
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "ratio": {
+          "title": "Ratio",
+          "description": "Specifies the ratio weight assigned to the pool member. This weight determines the frequency at which the pool member is selected for load balancing",
+          "type": "integer",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "service": {
+          "title": "Service",
+          "description": "Specifies the response resource record's service RDATA field value when this member is picked.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "domainName",
+        "service"
       ]
     },
     "GSLB_Server": {
@@ -27754,6 +27865,50 @@
         }
       ]
     },
+    "Pointer_GSLB_Domain_NAPTR": {
+      "description": "Reference to a GSLB domain",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to GSLB domain declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "GSLB_Domain"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP GSLB domain",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query gtm wideip naptr"
+            ]
+          }
+        }
+      ]
+    },
     "Pointer_GSLB_Monitor": {
       "description": "Reference to a GSLB monitor",
       "type": "object",
@@ -27871,7 +28026,8 @@
               "query gtm pool a",
               "query gtm pool aaaa",
               "query gtm pool cname",
-              "query gtm pool mx"
+              "query gtm pool mx",
+              "query gtm pool naptr"
             ]
           }
         }
@@ -29528,94 +29684,6 @@
         }
       ]
     },
-    "Pointer_SNAT_Pool": {
-      "description": "Reference to a snat pool",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to snat pool declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5PostProcess": {
-            "tag": "pointer",
-            "data": {
-              "properties": {
-                "class": {
-                  "enum": [
-                    "SNAT_Pool"
-                  ]
-                }
-              },
-              "required": [
-                "class"
-              ]
-            }
-          }
-        },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP snat pool",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
-        {
-          "f5PostProcess": {
-            "tag": "bigComponent",
-            "data": [
-              "query ltm snatpool"
-            ]
-          }
-        }
-      ]
-    },
-    "Pointer_SNAT_Translation": {
-      "description": "Reference to a snat translation",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to snat translation declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5PostProcess": {
-            "tag": "pointer",
-            "data": {
-              "properties": {
-                "class": {
-                  "enum": [
-                    "SNAT_Translation"
-                  ]
-                }
-              },
-              "required": [
-                "class"
-              ]
-            }
-          }
-        },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP snat translation",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
-        {
-          "f5PostProcess": {
-            "tag": "bigComponent",
-            "data": [
-              "query ltm snat-translation"
-            ]
-          }
-        }
-      ]
-    },
     "Pointer_SOCKS_Profile": {
       "description": "Reference to a SOCKS profile",
       "type": "object",
@@ -30286,7 +30354,8 @@
             "title": "URL",
             "type": "string",
             "f5PostProcess": {
-              "tag": "expand"
+              "tag": "expand",
+              "errSchemaPath": "#/definitions/Analytics_Profile/properties/urlsForStatCollection/items"
             }
           },
           "uniqueItems": true
@@ -30342,7 +30411,8 @@
         "tag": "modules",
         "data": [
           "avr"
-        ]
+        ],
+        "errSchemaPath": "#/definitions/Analytics_Profile"
       }
     },
     "Analytics_TCP_Profile": {
@@ -30444,7 +30514,8 @@
         "tag": "modules",
         "data": [
           "avr"
-        ]
+        ],
+        "errSchemaPath": "#/definitions/Analytics_TCP_Profile"
       }
     },
     "Basic_Auth": {
@@ -30479,7 +30550,8 @@
             {
               "f5PostProcess": {
                 "data": "object",
-                "tag": "fetch"
+                "tag": "fetch",
+                "errSchemaPath": "#/definitions/Basic_Auth/properties/passphrase/allOf/1"
               }
             }
           ]
@@ -30508,36 +30580,7 @@
           ]
         },
         {
-          "type": "object",
-          "description": "Name or path to monitor",
-          "properties": {
-            "bigip": {
-              "title": "BIG-IP monitor",
-              "description": "Pathname of existing BIG-IP monitor",
-              "type": "string",
-              "format": "f5bigip"
-            },
-            "use": {
-              "title": "Use",
-              "description": "BIG-IP AS3 pointer to monitor declaration",
-              "type": "string",
-              "minLength": 1,
-              "f5PostProcess": {
-                "tag": "pointer",
-                "data": {
-                  "properties": {
-                    "class": {
-                      "const": "Monitor"
-                    }
-                  },
-                  "required": [
-                    "class"
-                  ]
-                }
-              }
-            }
-          },
-          "additionalProperties": false
+          "$ref": "#/definitions/Pointer_Monitor"
         }
       ]
     },
@@ -30574,7 +30617,8 @@
             }
           ],
           "f5PostProcess": {
-            "tag": "longSecret"
+            "tag": "longSecret",
+            "errSchemaPath": "#/definitions/Bearer_Token/properties/token"
           }
         }
       },
@@ -30609,7 +30653,8 @@
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "pki-cert"
+                "data": "pki-cert",
+                "errSchemaPath": "#/definitions/CA_Bundle/properties/bundle/allOf/1"
               }
             },
             {
@@ -30617,7 +30662,8 @@
                 "tag": "bigComponent",
                 "data": [
                   "query sys file ssl-cert"
-                ]
+                ],
+                "errSchemaPath": "#/definitions/CA_Bundle/properties/bundle/allOf/2"
               }
             }
           ]
@@ -30755,7 +30801,8 @@
             "title": "URL",
             "type": "string",
             "f5PostProcess": {
-              "tag": "expand"
+              "tag": "expand",
+              "errSchemaPath": "#/definitions/Capture_Filter/properties/urlPathPrefixes/items"
             }
           },
           "maxItems": 10,
@@ -30770,7 +30817,8 @@
             "title": "User Agent Substring",
             "type": "string",
             "f5PostProcess": {
-              "tag": "expand"
+              "tag": "expand",
+              "errSchemaPath": "#/definitions/Capture_Filter/properties/userAgentSubstrings/items"
             }
           },
           "maxItems": 10,
@@ -30867,12 +30915,13 @@
           "description": "X.509 public-key certificate",
           "allOf": [
             {
-              "$ref": "#/definitions/Pointer_F5_String_Or_BIGIP"
+              "$ref": "#/definitions/Pointer_System_All_Or_F5_String"
             },
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "pki-cert"
+                "data": "pki-cert",
+                "errSchemaPath": "#/definitions/Certificate/properties/certificate/allOf/1"
               }
             },
             {
@@ -30880,7 +30929,8 @@
                 "tag": "bigComponent",
                 "data": [
                   "query sys file ssl-cert"
-                ]
+                ],
+                "errSchemaPath": "#/definitions/Certificate/properties/certificate/allOf/2"
               }
             }
           ]
@@ -30890,12 +30940,13 @@
           "description": "Private key matching certificate's public key (optional)",
           "allOf": [
             {
-              "$ref": "#/definitions/Pointer_F5_String_Or_BIGIP"
+              "$ref": "#/definitions/Pointer_System_All_Or_F5_String"
             },
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "pki-key"
+                "data": "pki-key",
+                "errSchemaPath": "#/definitions/Certificate/properties/privateKey/allOf/1"
               }
             },
             {
@@ -30903,7 +30954,8 @@
                 "tag": "bigComponent",
                 "data": [
                   "query sys file ssl-key"
-                ]
+                ],
+                "errSchemaPath": "#/definitions/Certificate/properties/privateKey/allOf/2"
               }
             }
           ]
@@ -30927,7 +30979,8 @@
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "pki-bundle"
+                "data": "pki-bundle",
+                "errSchemaPath": "#/definitions/Certificate/properties/chainCA/allOf/0"
               }
             },
             {
@@ -30935,7 +30988,8 @@
                 "tag": "bigComponent",
                 "data": [
                   "query sys file ssl-cert"
-                ]
+                ],
+                "errSchemaPath": "#/definitions/Certificate/properties/chainCA/allOf/1"
               }
             }
           ]
@@ -30957,7 +31011,8 @@
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "object"
+                "data": "object",
+                "errSchemaPath": "#/definitions/Certificate/properties/passphrase/allOf/1"
               }
             }
           ],
@@ -30973,12 +31028,14 @@
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "pkcs12"
+                "data": "pkcs12",
+                "errSchemaPath": "#/definitions/Certificate/properties/pkcs12/allOf/1"
               }
             },
             {
               "f5PostProcess": {
-                "tag": "certExtract"
+                "tag": "certExtract",
+                "errSchemaPath": "#/definitions/Certificate/properties/pkcs12/allOf/2"
               }
             }
           ]
@@ -31960,7 +32017,8 @@
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "object"
+                "data": "object",
+                "errSchemaPath": "#/definitions/HTTP_Profile/properties/cookiePassphrase/allOf/1"
               }
             }
           ],
@@ -32037,24 +32095,26 @@
         },
         "requestChunking": {
           "title": "Request chunking",
-          "description": "Controls handling of HTTP payload chunking in requests from clients (default is 'preserve'). Note: 'selective' and 'preserve' will be translated to 'sustain' when TMOS version is 15.0 or newer",
+          "description": "Controls handling of HTTP payload chunking in requests from clients (default is 'preserve'). Note: 'selective' and 'preserve' will be translated to 'sustain' when TMOS version is 15.0 or newer and 'sustain' will be translated to 'preserve' on older TMOS versions.",
           "type": "string",
           "enum": [
             "selective",
             "preserve",
-            "rechunk"
+            "rechunk",
+            "sustain"
           ],
           "default": "preserve"
         },
         "responseChunking": {
           "title": "Response chunking",
-          "description": "Controls handling of HTTP payload chunking in responses from pool members (default 'selective' adapts to most situations). Note: 'selective' and 'preserve' will be translated to 'sustain' when TMOS version is 15.0 or newer",
+          "description": "Controls handling of HTTP payload chunking in responses from pool members (default 'selective' adapts to most situations). Note: 'selective' and 'preserve' will be translated to 'sustain' when TMOS version is 15.0 or newer and 'sustain' will be translated to 'selective' on older TMOS versions.",
           "type": "string",
           "enum": [
             "selective",
             "preserve",
             "unchunk",
-            "rechunk"
+            "rechunk",
+            "sustain"
           ],
           "default": "selective"
         },
@@ -32502,7 +32562,8 @@
             "tag": "bigComponent",
             "data": [
               "query net dns-resolver"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/HTTP_Profile_Explicit/properties/resolver"
           }
         },
         "doNotProxyHosts": {
@@ -32537,7 +32598,8 @@
             "tag": "bigComponent",
             "data": [
               "query net tunnels tunnel"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/HTTP_Profile_Explicit/properties/tunnelName"
           }
         },
         "defaultConnectAction": {
@@ -32568,7 +32630,8 @@
             "tag": "bigComponent",
             "data": [
               "query net route-domain"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/HTTP_Profile_Explicit/properties/routeDomain"
           }
         },
         "connectErrorMessage": {
@@ -32853,13 +32916,15 @@
             "tag": "expand",
             "data": {
               "when": "1/expand"
-            }
+            },
+            "errSchemaPath": "#/definitions/IRule_Core/allOf/1"
           }
         },
         {
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "string"
+            "data": "string",
+            "errSchemaPath": "#/definitions/IRule_Core/allOf/2"
           }
         }
       ]
@@ -32935,9 +33000,9 @@
         },
         "idleTimeout": {
           "title": "Idle timeout",
-          "description": "Number of seconds (default 300; may not be 0) connection may remain idle before it becomes eligible for deletion. Value -1 (not recommended) means infinite",
           "type": "integer",
           "default": 300,
+          "description": "Number of seconds (default 300; may not be 0) connection may remain idle before it becomes eligible for deletion. Value -1 (not recommended) means infinite",
           "anyOf": [
             {
               "maximum": 86400,
@@ -32957,15 +33022,11 @@
           "minimum": 0
         },
         "looseClose": {
-          "title": "Loose close",
-          "description": "When true, system closes a loosely-initiated connection when the system receives the first FIN packet from either the client or the server (default false).",
-          "type": "boolean",
+          "$ref": "#/definitions/Property_Loose_Close",
           "default": false
         },
         "looseInitialization": {
-          "title": "Loose initialization",
-          "description": "When true, system initializes a connection when it receives any TCP packet, rather than requiring a SYN packet for connection initiation (default false).",
-          "type": "boolean",
+          "$ref": "#/definitions/Property_Loose_Initialization",
           "default": false
         },
         "maxSegmentSize": {
@@ -32984,9 +33045,7 @@
           ]
         },
         "resetOnTimeout": {
-          "title": "Reset on timeout",
-          "description": "If true (default), connections which time out will be reset (that is, the system sends an RST packet to the peer) before the system expunges them",
-          "type": "boolean",
+          "$ref": "#/definitions/Property_Reset_On_Timeout",
           "default": true
         },
         "synCookieAllowlist": {
@@ -33002,20 +33061,12 @@
           "default": true
         },
         "tcpCloseTimeout": {
-          "title": "TCP Close timeout",
-          "description": "Specifies an TCP close timeout in seconds. Value -1 means indefinite (not recommended)",
-          "type": "integer",
-          "default": 5,
-          "maximum": 86400,
-          "minimum": -1
+          "$ref": "#/definitions/Property_TCP_Close_Timeout",
+          "default": 5
         },
         "tcpHandshakeTimeout": {
-          "title": "TCP Handshake timeout",
-          "description": "Specifies a TCP handshake timeout in seconds. The default value is 5 seconds. Value -1 means indefinite (not recommended)",
-          "type": "integer",
-          "maximum": 86400,
-          "default": 5,
-          "minimum": -1
+          "$ref": "#/definitions/Property_TCP_Handshake_Timeout",
+          "default": 5
         }
       },
       "required": [
@@ -33221,6 +33272,7 @@
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "use": {
                   "description": "BIG-IP AS3 pointer to remote high speed log declaration",
@@ -33228,6 +33280,7 @@
                   "f5PostProcess": {
                     "tag": "pointer",
                     "data": {
+                      "type": "object",
                       "properties": {
                         "class": {
                           "const": "Log_Destination"
@@ -33239,7 +33292,8 @@
                       "required": [
                         "class"
                       ]
-                    }
+                    },
+                    "errSchemaPath": "#/definitions/Log_Destination_Remote_Syslog/properties/remoteHighSpeedLog/allOf/1/properties/use"
                   }
                 },
                 "bigip": {
@@ -33251,7 +33305,8 @@
                 "tag": "bigComponent",
                 "data": [
                   "query sys log-config destination remote-high-speed-log"
-                ]
+                ],
+                "errSchemaPath": "#/definitions/Log_Destination_Remote_Syslog/properties/remoteHighSpeedLog/allOf/1"
               }
             }
           ],
@@ -33733,7 +33788,6 @@
           "default": 0
         }
       },
-      "additionalProperties": false,
       "allOf": [
         {
           "if": {
@@ -33818,7 +33872,8 @@
       ],
       "required": [
         "queryName"
-      ]
+      ],
+      "additionalProperties": true
     },
     "Monitor_External": {
       "title": "Monitor External",
@@ -33842,7 +33897,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_External/properties/arguments"
           }
         },
         "environmentVariables": {
@@ -33878,7 +33934,8 @@
           "type": "string",
           "minLength": 2,
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_External/properties/pathname"
           }
         },
         "script": {
@@ -33893,13 +33950,15 @@
                 "tag": "expand",
                 "data": {
                   "when": "1/expand"
-                }
+                },
+                "errSchemaPath": "#/definitions/Monitor_External/properties/script/allOf/1"
               }
             },
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "string"
+                "data": "string",
+                "errSchemaPath": "#/definitions/Monitor_External/properties/script/allOf/2"
               }
             }
           ]
@@ -33944,7 +34003,6 @@
           "default": 0
         }
       },
-      "additionalProperties": false,
       "anyOf": [
         {
           "required": [
@@ -33969,7 +34027,8 @@
           ]
         },
         "errorMessage": "can only have either 'pathname' or 'script', not both. Also check property types along with minimum and maximum property values"
-      }
+      },
+      "additionalProperties": true
     },
     "Monitor_FTP": {
       "title": "Monitor FTP",
@@ -34028,7 +34087,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_FTP/properties/passphrase"
           },
           "allOf": [
             {
@@ -34081,7 +34141,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_HTTP": {
       "title": "Monitor HTTP",
@@ -34186,7 +34246,8 @@
               },
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "object"
+                "data": "object",
+                "errSchemaPath": "#/definitions/Monitor_HTTP/properties/passphrase/allOf/1"
               }
             }
           ]
@@ -34197,7 +34258,8 @@
           "type": "string",
           "default": "HTTP/1.",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTP/properties/receive"
           }
         },
         "receiveDown": {
@@ -34206,7 +34268,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTP/properties/receiveDown"
           }
         },
         "reverse": {
@@ -34221,7 +34284,8 @@
           "type": "string",
           "default": "HEAD / HTTP/1.0\\r\\n\\r\\n",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTP/properties/send"
           }
         },
         "targetAddress": {
@@ -34275,7 +34339,6 @@
           "type": "string"
         }
       },
-      "additionalProperties": false,
       "dependencies": {
         "reverse": {
           "if": {
@@ -34293,7 +34356,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": true
     },
     "Monitor_HTTP2": {
       "title": "Monitor HTTP2",
@@ -34362,6 +34426,7 @@
         "clientTLS": {
           "title": "Client TLS",
           "description": "BIG-IP AS3 pointer to client TLS Profile",
+          "type": "object",
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_TLS_Client"
@@ -34402,7 +34467,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_HTTP2/properties/passphrase"
           },
           "allOf": [
             {
@@ -34416,7 +34482,8 @@
           "type": "string",
           "default": "HTTP/2.",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTP2/properties/receive"
           }
         },
         "receiveDown": {
@@ -34425,7 +34492,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTP2/properties/receiveDown"
           }
         },
         "reverse": {
@@ -34440,7 +34508,8 @@
           "type": "string",
           "default": "GET /\\r\\n\\r\\n",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTP2/properties/send"
           }
         },
         "targetAddress": {
@@ -34494,7 +34563,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_HTTPS": {
       "title": "Monitor HTTPS",
@@ -34574,6 +34643,7 @@
           "f5PostProcess": {
             "tag": "pointer",
             "data": {
+              "type": "object",
               "properties": {
                 "class": {
                   "const": "Certificate"
@@ -34582,7 +34652,8 @@
               "required": [
                 "class"
               ]
-            }
+            },
+            "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/clientCertificate"
           }
         },
         "clientTLS": {
@@ -34628,7 +34699,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/passphrase"
           },
           "allOf": [
             {
@@ -34642,7 +34714,8 @@
           "type": "string",
           "default": "HTTP/1.",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/receive"
           }
         },
         "receiveDown": {
@@ -34651,7 +34724,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/receiveDown"
           }
         },
         "reverse": {
@@ -34666,7 +34740,8 @@
           "type": "string",
           "default": "HEAD / HTTP/1.0\\r\\n\\r\\n",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/send"
           }
         },
         "targetAddress": {
@@ -34720,7 +34795,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_ICMP": {
       "title": "Monitor ICMP",
@@ -34806,6 +34881,14 @@
           "format": "f5ip",
           "default": ""
         },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
         "timeout": {
           "title": "Timeout",
           "description": "Time limit for node to respond (seconds)",
@@ -34837,7 +34920,7 @@
           "default": 0
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_Inband": {
       "title": "Monitor Inband",
@@ -34893,7 +34976,7 @@
           "minimum": 0
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_LDAP": {
       "title": "Monitor LDAP",
@@ -34959,7 +35042,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_LDAP/properties/passphrase"
           },
           "allOf": [
             {
@@ -35023,7 +35107,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_MySQL": {
       "title": "Monitor MySQL",
@@ -35080,7 +35164,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_MySQL/properties/passphrase"
           },
           "allOf": [
             {
@@ -35093,7 +35178,8 @@
           "description": "Mark node up upon receipt of this (backquote-expanded) string",
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_MySQL/properties/receive"
           }
         },
         "receiveColumn": {
@@ -35115,7 +35201,8 @@
           "description": "Send this (backquote-expanded) string to query node",
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_MySQL/properties/send"
           }
         },
         "targetAddress": {
@@ -35163,7 +35250,6 @@
           "type": "string"
         }
       },
-      "additionalProperties": false,
       "dependencies": {
         "receiveColumn": {
           "required": [
@@ -35177,7 +35263,8 @@
             "receive"
           ]
         }
-      }
+      },
+      "additionalProperties": true
     },
     "Monitor_PostgreSQL": {
       "title": "Monitor PostgreSQL",
@@ -35226,7 +35313,8 @@
           "description": "Mark node up upon receipt of this (backquote-expanded) string",
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_PostgreSQL/properties/receive"
           }
         },
         "receiveColumn": {
@@ -35256,7 +35344,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_PostgreSQL/properties/passphrase"
           },
           "allOf": [
             {
@@ -35269,7 +35358,8 @@
           "description": "Send this (backquote-expanded) string to query node",
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_PostgreSQL/properties/send"
           }
         },
         "targetAddress": {
@@ -35317,7 +35407,6 @@
           "type": "string"
         }
       },
-      "additionalProperties": false,
       "dependencies": {
         "receiveColumn": {
           "required": [
@@ -35331,7 +35420,8 @@
             "receive"
           ]
         }
-      }
+      },
+      "additionalProperties": true
     },
     "Monitor_RADIUS": {
       "title": "Monitor RADIUS",
@@ -35381,7 +35471,8 @@
           },
           "f5PostProcess": {
             "tag": "fetch",
-            "data": "object"
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_RADIUS/properties/passphrase"
           },
           "allOf": [
             {
@@ -35407,12 +35498,14 @@
             {
               "f5PostProcess": {
                 "tag": "fetch",
-                "data": "object"
+                "data": "object",
+                "errSchemaPath": "#/definitions/Monitor_RADIUS/properties/secret/allOf/1"
               }
             },
             {
               "f5PostProcess": {
-                "tag": "secret"
+                "tag": "secret",
+                "errSchemaPath": "#/definitions/Monitor_RADIUS/properties/secret/allOf/2"
               }
             }
           ]
@@ -35462,7 +35555,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_SIP": {
       "title": "Monitor SIP",
@@ -35494,6 +35587,7 @@
           "f5PostProcess": {
             "tag": "pointer",
             "data": {
+              "type": "object",
               "properties": {
                 "class": {
                   "const": "Certificate"
@@ -35502,7 +35596,8 @@
               "required": [
                 "class"
               ]
-            }
+            },
+            "errSchemaPath": "#/definitions/Monitor_SIP/properties/clientCertificate"
           }
         },
         "codesDown": {
@@ -35533,7 +35628,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_SIP/properties/headers"
           }
         },
         "interval": {
@@ -35607,7 +35703,6 @@
           "default": 0
         }
       },
-      "additionalProperties": false,
       "dependencies": {
         "clientCertificate": {
           "properties": {
@@ -35619,7 +35714,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": true
     },
     "Monitor_SMTP": {
       "title": "Monitor SMTP",
@@ -35644,7 +35740,8 @@
           "format": "hostname",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_SMTP/properties/domain"
           }
         },
         "interval": {
@@ -35700,7 +35797,7 @@
           "default": 0
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_TCP": {
       "title": "Monitor TCP",
@@ -35793,7 +35890,8 @@
           "type": "string",
           "default": "none",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_TCP/properties/receive"
           }
         },
         "receiveDown": {
@@ -35802,7 +35900,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_TCP/properties/receiveDown"
           }
         },
         "reverse": {
@@ -35817,7 +35916,8 @@
           "type": "string",
           "default": "none",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_TCP/properties/send"
           }
         },
         "targetAddress": {
@@ -35866,7 +35966,6 @@
           "default": 0
         }
       },
-      "additionalProperties": false,
       "dependencies": {
         "reverse": {
           "if": {
@@ -35885,7 +35984,8 @@
             "errorMessage": "if reverse is true, receiveDown must be empty"
           }
         }
-      }
+      },
+      "additionalProperties": true
     },
     "Monitor_TCP_Half_Open": {
       "title": "Monitor TCP Half Open",
@@ -35962,7 +36062,7 @@
           "default": 0
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "Monitor_UDP": {
       "title": "Monitor UDP",
@@ -36046,7 +36146,8 @@
           "description": "Mark node up upon receipt of this (backquote-expanded) string",
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_UDP/properties/receive"
           },
           "default": "none"
         },
@@ -36056,7 +36157,8 @@
           "type": "string",
           "default": "",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_UDP/properties/receiveDown"
           }
         },
         "reverse": {
@@ -36070,7 +36172,8 @@
           "description": "Send this (backquote-expanded) string to node",
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_UDP/properties/send"
           },
           "default": "default send string"
         },
@@ -36120,7 +36223,6 @@
           "default": 0
         }
       },
-      "additionalProperties": false,
       "dependencies": {
         "reverse": {
           "if": {
@@ -36139,7 +36241,8 @@
             "errorMessage": "if reverse is true, receiveDown must be empty"
           }
         }
-      }
+      },
+      "additionalProperties": true
     },
     "Pointer_BIGIP": {
       "title": "Pointer BIG-IP",
@@ -36194,24 +36297,30 @@
           "type": "string"
         },
         "use": {
-          "description": "BIG-IP AS3 pointer to Ca Bundle declaration",
-          "minLength": 1,
-          "type": "string",
-          "f5PostProcess": {
-            "data": {
-              "properties": {
-                "class": {
-                  "enum": [
-                    "CA_Bundle"
-                  ]
-                }
-              },
-              "required": [
-                "class"
-              ]
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Use"
             },
-            "tag": "pointer"
-          }
+            {
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "enum": [
+                        "CA_Bundle"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                },
+                "errSchemaPath": "#/definitions/Pointer_CA_Bundle/properties/use/allOf/1"
+              }
+            }
+          ]
         }
       },
       "type": "object",
@@ -36221,7 +36330,8 @@
             "data": [
               "query sys file ssl-cert"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_CA_Bundle/allOf/0"
           }
         }
       ]
@@ -36236,7 +36346,8 @@
             "data": [
               "query sys crypto cert-validator ocsp"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_Certificate_Validator_OCSP/allOf/0"
           }
         }
       ],
@@ -36252,6 +36363,7 @@
           "description": "BIG-IP AS3 pointer to OCSP Cert Validator declaration",
           "f5PostProcess": {
             "data": {
+              "type": "object",
               "properties": {
                 "class": {
                   "enum": [
@@ -36263,7 +36375,8 @@
                 "class"
               ]
             },
-            "tag": "pointer"
+            "tag": "pointer",
+            "errSchemaPath": "#/definitions/Pointer_Certificate_Validator_OCSP/properties/use"
           },
           "minLength": 1,
           "type": "string"
@@ -36286,7 +36399,8 @@
             "data": [
               "query net dns-resolver"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_DNS_Resolver/allOf/0"
           }
         }
       ],
@@ -36334,7 +36448,8 @@
             "data": [
               "query ltm profile web-acceleration"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_HTTP_Acceleration_Profile/allOf/0"
           }
         }
       ],
@@ -36351,6 +36466,7 @@
           "description": "AS3 pointer to HTTP Acceleration Profile declaration",
           "f5PostProcess": {
             "data": {
+              "type": "object",
               "properties": {
                 "class": {
                   "enum": [
@@ -36362,7 +36478,8 @@
                 "class"
               ]
             },
-            "tag": "pointer"
+            "tag": "pointer",
+            "errSchemaPath": "#/definitions/Pointer_HTTP_Acceleration_Profile/properties/use"
           },
           "minLength": 1,
           "type": "string"
@@ -36378,6 +36495,7 @@
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "bigip": {
               "description": "Pathname of existing BIG-IP HTTP Profile",
@@ -36388,6 +36506,7 @@
               "f5PostProcess": {
                 "tag": "pointer",
                 "data": {
+                  "type": "object",
                   "properties": {
                     "class": {
                       "enum": [
@@ -36398,7 +36517,8 @@
                   "required": [
                     "class"
                   ]
-                }
+                },
+                "errSchemaPath": "#/definitions/Pointer_HTTP_Profile/allOf/1/properties/use"
               },
               "minLength": 1
             }
@@ -36407,7 +36527,8 @@
             "tag": "bigComponent",
             "data": [
               "query ltm profile http"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/Pointer_HTTP_Profile/allOf/1"
           }
         }
       ],
@@ -36426,11 +36547,13 @@
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "use": {
               "f5PostProcess": {
                 "tag": "pointer",
                 "data": {
+                  "type": "object",
                   "properties": {
                     "class": {
                       "enum": [
@@ -36441,7 +36564,8 @@
                   "required": [
                     "class"
                   ]
-                }
+                },
+                "errSchemaPath": "#/definitions/Pointer_L4_Profile/allOf/1/properties/use"
               }
             },
             "bigip": {
@@ -36452,7 +36576,8 @@
             "data": [
               "query ltm profile fastl4"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_L4_Profile/allOf/1"
           }
         }
       ]
@@ -36466,11 +36591,13 @@
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "use": {
               "f5PostProcess": {
                 "tag": "pointer",
                 "data": {
+                  "type": "object",
                   "properties": {
                     "class": {
                       "enum": [
@@ -36481,7 +36608,8 @@
                   "required": [
                     "class"
                   ]
-                }
+                },
+                "errSchemaPath": "#/definitions/Pointer_Log_Destination/allOf/1/properties/use"
               }
             },
             "bigip": {
@@ -36500,7 +36628,8 @@
               "query sys log-config destination remote-high-speed-log",
               "query sys log-config destination remote-syslog",
               "query sys log-config destination splunk"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/Pointer_Log_Destination/allOf/1"
           }
         }
       ]
@@ -36514,11 +36643,13 @@
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "use": {
               "f5PostProcess": {
                 "tag": "pointer",
                 "data": {
+                  "type": "object",
                   "properties": {
                     "class": {
                       "enum": [
@@ -36529,7 +36660,8 @@
                   "required": [
                     "class"
                   ]
-                }
+                },
+                "errSchemaPath": "#/definitions/Pointer_Log_Publisher/allOf/1/properties/use"
               }
             },
             "bigip": {
@@ -36540,10 +36672,52 @@
             "tag": "bigComponent",
             "data": [
               "query sys log-config publisher"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/Pointer_Log_Publisher/allOf/1"
           }
         }
       ]
+    },
+    "Pointer_Monitor": {
+      "title": "Pointer Monitor",
+      "type": "object",
+      "description": "Name or path to monitor",
+      "additionalProperties": true,
+      "properties": {
+        "bigip": {
+          "title": "BIG-IP monitor",
+          "description": "Pathname of existing BIG-IP monitor",
+          "type": "string",
+          "format": "f5bigip"
+        },
+        "use": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Use"
+            },
+            {
+              "description": "BIG-IP AS3 pointer to monitor declaration",
+              "type": "string",
+              "minLength": 1,
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "const": "Monitor"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                },
+                "errSchemaPath": "#/definitions/Pointer_Monitor/properties/use/allOf/1"
+              }
+            }
+          ]
+        }
+      }
     },
     "Pointer_Pool": {
       "title": "Pointer Pool",
@@ -36554,11 +36728,13 @@
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "use": {
               "f5PostProcess": {
                 "tag": "pointer",
                 "data": {
+                  "type": "object",
                   "properties": {
                     "class": {
                       "enum": [
@@ -36569,7 +36745,8 @@
                   "required": [
                     "class"
                   ]
-                }
+                },
+                "errSchemaPath": "#/definitions/Pointer_Pool/allOf/1/properties/use"
               }
             },
             "bigip": {
@@ -36581,12 +36758,109 @@
             "tag": "bigComponent",
             "data": [
               "query ltm pool"
-            ]
+            ],
+            "errSchemaPath": "#/definitions/Pointer_Pool/allOf/1"
           }
         }
       ],
       "minProperties": 1,
       "maxProperties": 1
+    },
+    "Pointer_SNAT_Pool": {
+      "title": "Pointer SNAT Pool",
+      "description": "Reference to a snat pool",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to snat pool declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "type": "object",
+              "properties": {
+                "class": {
+                  "enum": [
+                    "SNAT_Pool"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            },
+            "errSchemaPath": "#/definitions/Pointer_SNAT_Pool/properties/use"
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP snat pool",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query ltm snatpool"
+            ],
+            "errSchemaPath": "#/definitions/Pointer_SNAT_Pool/allOf/0"
+          }
+        }
+      ]
+    },
+    "Pointer_SNAT_Translation": {
+      "title": "Pointer SNAT Translation",
+      "description": "Reference to a snat translation",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to snat translation declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "type": "object",
+              "properties": {
+                "class": {
+                  "enum": [
+                    "SNAT_Translation"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            },
+            "errSchemaPath": "#/definitions/Pointer_SNAT_Translation/properties/use"
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP snat translation",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query ltm snat-translation"
+            ],
+            "errSchemaPath": "#/definitions/Pointer_SNAT_Translation/allOf/0"
+          }
+        }
+      ]
     },
     "Pointer_SSL_Certificate": {
       "title": "Pointer SSL Certificate",
@@ -36598,7 +36872,8 @@
             "data": [
               "query sys file ssl-cert"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_SSL_Certificate/allOf/0"
           }
         }
       ],
@@ -36612,6 +36887,7 @@
           "description": "BIG-IP AS3 pointer to SSL certificate declaration",
           "f5PostProcess": {
             "data": {
+              "type": "object",
               "properties": {
                 "class": {
                   "enum": [
@@ -36623,7 +36899,8 @@
                 "class"
               ]
             },
-            "tag": "pointer"
+            "tag": "pointer",
+            "errSchemaPath": "#/definitions/Pointer_SSL_Certificate/properties/use"
           },
           "minLength": 1,
           "type": "string"
@@ -36638,14 +36915,52 @@
       "description": "Reference that is a string",
       "type": "string"
     },
+    "Pointer_System_All": {
+      "title": "All system reference pointers",
+      "description": "All system reference pointers valid for the runtime (bigip, cm, etc.)",
+      "type": "object",
+      "if": {
+        "required": [
+          "bigip"
+        ]
+      },
+      "then": {
+        "$ref": "#/definitions/Pointer_BIGIP"
+      },
+      "else": false
+    },
+    "Pointer_System_All_Condition": {
+      "title": "System reference pointers condition check",
+      "description": "System reference pointers condition check",
+      "type": "object",
+      "oneOf": [
+        {
+          "required": [
+            "bigip"
+          ]
+        }
+      ]
+    },
+    "Pointer_System_All_Or_F5_String": {
+      "title": "System reference pointers or F5 string",
+      "description": "System reference pointers (all valid for the runtime) or F5 string",
+      "if": {
+        "$ref": "#/definitions/Pointer_System_All_Condition"
+      },
+      "then": {
+        "$ref": "#/definitions/Pointer_System_All"
+      },
+      "else": {
+        "$ref": "#/definitions/F5_String"
+      }
+    },
     "Pointer_Use": {
       "title": "Pointer Use",
       "description": "Reference for use property",
       "type": "object",
       "properties": {
         "use": {
-          "description": "Path to object in declaration",
-          "type": "string"
+          "$ref": "#/definitions/Property_Use"
         }
       },
       "required": [
@@ -36662,7 +36977,8 @@
             "data": [
               "query ltm profile websocket"
             ],
-            "tag": "bigComponent"
+            "tag": "bigComponent",
+            "errSchemaPath": "#/definitions/Pointer_WebSocket_Profile/allOf/0"
           }
         }
       ],
@@ -36679,6 +36995,7 @@
           "description": "AS3 pointer to WebSocket Profile declaration",
           "f5PostProcess": {
             "data": {
+              "type": "object",
               "properties": {
                 "class": {
                   "enum": [
@@ -36690,7 +37007,8 @@
                 "class"
               ]
             },
-            "tag": "pointer"
+            "tag": "pointer",
+            "errSchemaPath": "#/definitions/Pointer_WebSocket_Profile/properties/use"
           },
           "minLength": 1,
           "type": "string"
@@ -36707,6 +37025,16 @@
         }
       ]
     },
+    "Property_Loose_Close": {
+      "title": "Loose close",
+      "description": "When true, system closes a loosely-initiated connection when the system receives the first FIN packet from either the client or the server",
+      "type": "boolean"
+    },
+    "Property_Loose_Initialization": {
+      "title": "Loose initialization",
+      "description": "When true, system initializes a connection when it receives any TCP packet, rather than requiring a SYN packet for connection initiation",
+      "type": "boolean"
+    },
     "Property_Passphrase": {
       "title": "Property Passphrase",
       "description": "A passphrase (passphrase property)",
@@ -36716,8 +37044,28 @@
         }
       ],
       "f5PostProcess": {
-        "tag": "secret"
+        "tag": "secret",
+        "errSchemaPath": "#/definitions/Property_Passphrase"
       }
+    },
+    "Property_Reset_On_Timeout": {
+      "title": "Reset On Timeout",
+      "description": "Specifies whether to reset connections on timeout",
+      "type": "boolean"
+    },
+    "Property_TCP_Close_Timeout": {
+      "title": "TCP Close timeout",
+      "description": "Specifies a TCP close timeout in seconds. Value -1 means indefinite (not recommended)",
+      "type": "integer",
+      "maximum": 86400,
+      "minimum": -1
+    },
+    "Property_TCP_Handshake_Timeout": {
+      "title": "TCP Handshake timeout",
+      "description": "Specifies a TCP handshake timeout in seconds. Value -1 means indefinite (not recommended)",
+      "type": "integer",
+      "maximum": 86400,
+      "minimum": -1
     },
     "Property_Text": {
       "title": "Property Text",
@@ -36727,6 +37075,14 @@
           "$ref": "#/definitions/Resource_Text"
         }
       ]
+    },
+    "Property_Use": {
+      "title": "Property Use",
+      "description": "Path to object in declaration",
+      "type": "string",
+      "pattern": "^[A-Za-z-￿/][0-9A-Za-z-￿_./-]*$",
+      "maxLength": 573,
+      "minLength": 1
     },
     "Resource_Base64": {
       "title": "Resource Base64",
@@ -36746,7 +37102,8 @@
         {
           "type": "string",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Resource_URL/oneOf/0"
           },
           "format": "uri"
         },
@@ -36778,7 +37135,8 @@
               "type": "string",
               "description": "URL from which to retrieve value",
               "f5PostProcess": {
-                "tag": "expand"
+                "tag": "expand",
+                "errSchemaPath": "#/definitions/Resource_URL/oneOf/1/properties/url"
               },
               "format": "uri"
             }
@@ -36814,7 +37172,8 @@
                   "required": [
                     "ciphertext"
                   ]
-                }
+                },
+                "errSchemaPath": "#/definitions/Secret/oneOf/0/properties/reuseFrom"
               }
             },
             "url": {
@@ -36863,7 +37222,8 @@
           "type": "string",
           "format": "uri",
           "f5PostProcess": {
-            "tag": "expand"
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Secret_Resource_URL/oneOf/0"
           }
         },
         {
@@ -36874,7 +37234,8 @@
               "type": "string",
               "format": "uri",
               "f5PostProcess": {
-                "tag": "expand"
+                "tag": "expand",
+                "errSchemaPath": "#/definitions/Secret_Resource_URL/oneOf/1/properties/url"
               }
             },
             "skipCertificateCheck": {
@@ -36887,6 +37248,147 @@
             "url"
           ]
         }
+      ]
+    },
+    "SNAT_Pool": {
+      "title": "SNAT Pool",
+      "description": "SNAT pool",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "SNAT_Pool"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "snatAddresses": {
+          "title": "SNAT addresses",
+          "description": "List of SNAT addresses-- may include both IPv4 and IPv6",
+          "type": "array",
+          "items": {
+            "title": "SNAT address",
+            "type": "string",
+            "format": "f5ip"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false
+    },
+    "SNAT_Translation": {
+      "title": "SNAT_Translation",
+      "description": "Configures explicit secure network address translation (SNAT) address",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "SNAT_Translation"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "address": {
+          "title": "Address",
+          "description": "The IP address of the SNAT translation",
+          "type": "string",
+          "format": "f5ip"
+        },
+        "adminState": {
+          "title": "Administration State",
+          "description": "Specifies the state of the SNAT translation",
+          "type": "string",
+          "enum": [
+            "enable",
+            "disable"
+          ],
+          "default": "enable"
+        },
+        "arpEnabled": {
+          "title": "Enable ARP",
+          "description": "Specifies that the NAT sends ARP requests",
+          "type": "boolean",
+          "default": true
+        },
+        "ipIdleTimeout": {
+          "title": "IP Idle Timeout",
+          "description": "Specifies time in seconds that connections to an IP address initiated using a SNAT address are allowed to remain idle before being automatically disconnected. Specifying 'indefinite' prevents the connection from timing out.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "maximum": 4294967295,
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "const": "indefinite"
+            }
+          ],
+          "default": "indefinite"
+        },
+        "maxConnections": {
+          "title": "Maximum Connections",
+          "description": "Specifies a limit on the number of connections a translation address must reach before it no longer initiates a connection. A value of 0 indicates the setting is disabled.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "default": 0
+        },
+        "tcpIdleTimeout": {
+          "title": "TCP Idle Timeout",
+          "description": "Specifies time in seconds that TCP connections initiated using a SNAT address are allowed to remain idle before being automatically disconnected. Specifying 'indefinite' prevents the connection from timing out.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "maximum": 4294967295,
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "const": "indefinite"
+            }
+          ],
+          "default": "indefinite"
+        },
+        "trafficGroup": {
+          "title": "Traffic Group",
+          "description": "Specifies the traffic group which the SNAT_Translation belongs",
+          "type": "string",
+          "default": "default"
+        },
+        "udpIdleTimeout": {
+          "title": "UDP Idle Timeout",
+          "description": "Specifies time in seconds that UDP connections initiated using a SNAT address are allowed to remain idle before being automatically disconnected. Specifying 'indefinite' prevents the connection from timing out.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "maximum": 4294967295,
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "const": "indefinite"
+            }
+          ],
+          "default": "indefinite"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "address"
       ]
     },
     "UDP_Profile": {

@@ -48,10 +48,13 @@ func (ctlr *Controller) prepareVirtualServerRules(
 
 	// Consider the primary host as well as the host aliases
 	hosts := getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)
-
+	hostAliasesUsed := false
+	if len(vs.Spec.HostAliases) > 0 {
+		hostAliasesUsed = true
+	}
 	if vs.Spec.RewriteAppRoot != "" {
 		for _, host := range hosts {
-			ruleName := formatVirtualServerRuleName(host, vs.Spec.HostGroup, "redirectto", vs.Spec.RewriteAppRoot)
+			ruleName := formatVirtualServerRuleName(host, vs.Spec.HostGroup, "redirectto", vs.Spec.RewriteAppRoot, hostAliasesUsed)
 			rl, err := createRedirectRule(host+appRoot, vs.Spec.RewriteAppRoot, ruleName, rsCfg.Virtual.AllowSourceRange)
 			if nil != err {
 				log.Errorf("Error configuring redirect rule: %v", err)
@@ -95,7 +98,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 					vs.Spec.Host,
 					backend,
 				)
-				ruleName := formatVirtualServerRuleName(host, vs.Spec.HostGroup, path, poolName)
+				ruleName := formatVirtualServerRuleName(host, vs.Spec.HostGroup, path, poolName, hostAliasesUsed)
 				var err error
 				rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, skipPool)
 				if nil != err {
@@ -157,7 +160,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 
 	if rlMap[vs.Spec.Host] == nil && len(hosts) != 0 && len(redirects) == 2*len(hosts) {
 		rl := &Rule{
-			Name:    formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "", redirects[1].Actions[0].Pool),
+			Name:    formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "", redirects[1].Actions[0].Pool, hostAliasesUsed),
 			FullURI: vs.Spec.Host,
 			Actions: redirects[1].Actions,
 			Conditions: []*condition{
@@ -198,7 +201,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 }
 
 // format the rule name for VirtualServer
-func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string {
+func formatVirtualServerRuleName(hostname, hostGroup, path, pool string, hostAliases bool) string {
 	var rule string
 	host := hostname
 	//if wildcard vs
@@ -206,7 +209,11 @@ func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string 
 		host = strings.Replace(host, "*", "wildcard", 1)
 	}
 	if hostGroup != "" {
-		host = hostGroup
+		if !hostAliases {
+			host = hostGroup
+		} else {
+			host = hostGroup + "_" + host
+		}
 	}
 	if path == "" {
 		rule = fmt.Sprintf("vs_%s_%s", host, pool)

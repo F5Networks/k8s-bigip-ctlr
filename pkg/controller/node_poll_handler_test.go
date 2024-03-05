@@ -118,7 +118,6 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
-
 		// Nodes without taints, CNI flannel, no podCIDR
 		for i, _ := range nodeObjs {
 			nodeObjs[i].Spec.Taints = []v1.Taint{}
@@ -176,6 +175,19 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+		// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node with interface but no k8s.ovn.org/node-primary-ifaddr annotation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations = make(map[string]string)
+			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":[\"10.244.0.0/28\"]}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
+		Expect(ok).To(Equal(true))
+		Expect(len(mockWriter.Sections)).To(Equal(1))
+		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
 
 		// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node but no k8s.ovn.org/node-primary-ifaddr annotation
 		mockCtlr.OrchestrationCNI = OVN_K8S
@@ -191,9 +203,24 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
 
+		// OrchestrationCNI = OVN_K8S with StaticRouteNodeCIDR and invalid OVN annotation k8s.ovn.org/host-cidrss on node but no k8s.ovn.org/node-primary-ifaddr annotation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations["k8s.ovn.org/host-cidrs"] = "{\"default\":\"10.244.0.0/28\"}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
+		Expect(ok).To(Equal(true))
+		Expect(len(mockWriter.Sections)).To(Equal(1))
+		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
+
 		// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
 		mockCtlr.OrchestrationCNI = OVN_K8S
 		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = ""
 		for i, _ := range nodeObjs {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"invalid\":\"invalid\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
@@ -225,12 +252,48 @@ var _ = Describe("Node Poller Handler", func() {
 			},
 		}
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
+		// OrchestrationCNI = ovn_k8s and invalid hostaddresses annotation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			nodeObjs[i].Annotations["k8s.ovn.org/host-addresses"] = "{\"default\":\"10.244.0.0/28\"}"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
+		Expect(ok).To(Equal(true))
+		Expect(len(mockWriter.Sections)).To(Equal(1))
+		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{}))
 		// OrchestrationCNI = ovn_k8s and node network CIDR
 		mockCtlr.OrchestrationCNI = OVN_K8S
 		mockCtlr.UseNodeInternal = true
 		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
 		for i, _ := range nodeObjs {
 			nodeObjs[i].Annotations["k8s.ovn.org/host-addresses"] = "[\"10.244.0.0\"]"
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+		mockCtlr.SetupNodeProcessing("")
+		mockWriter, ok = mockCtlr.Agent.ConfigWriter.(*test.MockWriter)
+		Expect(ok).To(Equal(true))
+		Expect(len(mockWriter.Sections)).To(Equal(1))
+		expectedRouteSection = routeSection{
+			Entries: []routeConfig{
+				{
+					Name:    "k8s-worker1-10.244.0.0",
+					Network: "10.244.0.0/28",
+					Gateway: "10.244.0.0",
+				},
+			},
+		}
+		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
+		// set valid hostcidrs annoation
+		mockCtlr.OrchestrationCNI = OVN_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRouteNodeCIDR = "10.244.0.0/28"
+		for i, _ := range nodeObjs {
+			delete(nodeObjs[i].Annotations, "k8s.ovn.org/host-addresses")
+			nodeObjs[i].Annotations["k8s.ovn.org/host-cidrs"] = "[\"10.244.0.0/28\"]"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")

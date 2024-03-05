@@ -409,6 +409,11 @@ func (m *mockAppManager) addNode(node *v1.Node, ns string) {
 	m.appMgr.setupNodeProcessing()
 }
 
+func (m *mockAppManager) updateNode(node *v1.Node, ns string) {
+	m.appMgr.nodeInformer.nodeInformer.GetStore().Update(node)
+	m.appMgr.setupNodeProcessing()
+}
+
 func (m *mockAppManager) getFakeEvents(ns string) []FakeEvent {
 	nen := m.appMgr.eventNotifier.GetNotifierForNamespace(ns)
 	if nil != nen {
@@ -2212,6 +2217,190 @@ var _ = Describe("AppManager Tests", func() {
 				DEFAULT_PARTITION = "velcro"
 			})
 
+			It("Process static routes", func() {
+				err := mockMgr.appMgr.AddNodeInformer(0)
+				Expect(err).To(BeNil())
+				mockMgr.appMgr.useNodeInternal = true
+				// Static routes with Node taints
+				nodeAddr1 := v1.NodeAddress{
+					Type:    v1.NodeInternalIP,
+					Address: "10.244.1.1",
+				}
+				nodeObjs := test.NewNode("worker1", "1", false,
+					[]v1.NodeAddress{nodeAddr1}, nil, nil)
+
+				mockMgr.addNode(nodeObjs, namespace)
+				mockMgr.appMgr.staticRoutingMode = true
+				mockMgr.appMgr.configWriter = mw
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				// Nodes without taints, CNI flannel, no podCIDR
+				nodeObjs.Spec.Taints = []v1.Taint{}
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// Nodes without taints, CNI flannel, with podCIDR, InternalNodeIP
+				nodeObjs.Spec.PodCIDR = "10.244.0.0/28"
+				nodeObjs.Status.Addresses = []v1.NodeAddress{
+					{Type: v1.NodeInternalIP, Address: "1.2.3.4"},
+				}
+				mockMgr.updateNode(nodeObjs, namespace)
+
+				mockMgr.appMgr.setupNodeProcessing()
+				expectedRouteSection := routeSection{
+					Entries: []routeConfig{
+						{
+							Name:    "k8s-worker1-1.2.3.4",
+							Network: "10.244.0.0/28",
+							Gateway: "1.2.3.4",
+						},
+					},
+				}
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
+
+				// OrchestrationCNI = OVN_K8S no OVN annotation on node
+				mockMgr.appMgr.orchestrationCNI = OVN_K8S
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// OrchestrationCNI = OVN_K8S with incorrect OVN annotation on node
+				nodeObjs.Annotations = make(map[string]string)
+				nodeObjs.Annotations["k8s.ovn.org/node-subnets"] = "{\"invalid\":\"invalid\"}"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node with interface but no k8s.ovn.org/node-primary-ifaddr annotation
+
+				nodeObjs.Annotations = make(map[string]string)
+				nodeObjs.Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":[\"10.244.0.0/28\"]}"
+				mockMgr.updateNode(nodeObjs, namespace)
+
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node but no k8s.ovn.org/node-primary-ifaddr annotation
+
+				nodeObjs.Annotations = make(map[string]string)
+				nodeObjs.Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":\"10.244.0.0/28\"}"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// OrchestrationCNI = OVN_K8S with StaticRouteNodeCIDR and invalid OVN annotation k8s.ovn.org/host-cidrss on node but no k8s.ovn.org/node-primary-ifaddr annotation
+				mockMgr.appMgr.staticRouteNodeCIDR = "10.244.0.0/28"
+				nodeObjs.Annotations["k8s.ovn.org/host-cidrs"] = "{\"default\":\"10.244.0.0/28\"}"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
+				mockMgr.appMgr.staticRouteNodeCIDR = ""
+
+				nodeObjs.Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"invalid\":\"invalid\"}"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// OrchestrationCNI = OVN_K8S with correct OVN annotation on node valid k8s.ovn.org/node-primary-ifaddr annotation
+
+				nodeObjs.Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"ipv4\":\"10.244.0.0/28\"}"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				expectedRouteSection = routeSection{
+					Entries: []routeConfig{
+						{
+							Name:    "k8s-worker1-10.244.0.0",
+							Network: "10.244.0.0/28",
+							Gateway: "10.244.0.0",
+						},
+					},
+				}
+				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
+				// OrchestrationCNI = ovn_k8s and invalid hostaddresses annotation
+				mockMgr.appMgr.staticRouteNodeCIDR = "10.244.0.0/28"
+
+				nodeObjs.Annotations["k8s.ovn.org/host-addresses"] = "{\"default\":\"10.244.0.0/28\"}"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				// OrchestrationCNI = ovn_k8s and node network CIDR
+
+				nodeObjs.Annotations["k8s.ovn.org/host-addresses"] = "[\"10.244.0.0\"]"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				expectedRouteSection = routeSection{
+					Entries: []routeConfig{
+						{
+							Name:    "k8s-worker1-10.244.0.0",
+							Network: "10.244.0.0/28",
+							Gateway: "10.244.0.0",
+						},
+					},
+				}
+				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
+				// set valid hostcidrs annoation
+
+				delete(nodeObjs.Annotations, "k8s.ovn.org/host-addresses")
+				nodeObjs.Annotations["k8s.ovn.org/host-cidrs"] = "[\"10.244.0.0/28\"]"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				expectedRouteSection = routeSection{
+					Entries: []routeConfig{
+						{
+							Name:    "k8s-worker1-10.244.0.0",
+							Network: "10.244.0.0/28",
+							Gateway: "10.244.0.0",
+						},
+					},
+				}
+				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
+				// OrchestrationCNI = CILIUM_K8S with no valid cilium-k8s annotation
+				mockMgr.appMgr.orchestrationCNI = CILIUM_K8S
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+
+				// OrchestrationCNI = CILIUM_K8S with network.cilium.io/ipv4-pod-cidr annotation
+
+				nodeObjs.Annotations["network.cilium.io/ipv4-pod-cidr"] = "10.244.0.0/28"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				expectedRouteSection = routeSection{
+					Entries: []routeConfig{
+						{
+							Name:    "k8s-worker1-1.2.3.4",
+							Network: "10.244.0.0/28",
+							Gateway: "1.2.3.4",
+						},
+					},
+				}
+				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
+
+				// OrchestrationCNI = CILIUM_K8S with io.cilium.network.ipv4-pod-cidr annotation
+
+				delete(nodeObjs.Annotations, "network.cilium.io/ipv4-pod-cidr")
+				nodeObjs.Annotations["io.cilium.network.ipv4-pod-cidr"] = "10.244.0.0/28"
+				mockMgr.updateNode(nodeObjs, namespace)
+				mockMgr.appMgr.setupNodeProcessing()
+				Expect(len(mw.Sections)).To(Equal(1))
+				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
+			})
+
 			It("configures virtual servers without endpoints", func() {
 				mockMgr.appMgr.isNodePort = false
 				svcName := "foo"
@@ -3698,6 +3887,9 @@ var _ = Describe("AppManager Tests", func() {
 				err = mockMgr.appMgr.AddNamespace("", cfgMapSelector, 0)
 				Expect(err).To(BeNil())
 
+				namespaces := mockMgr.appMgr.GetWatchedNamespaces()
+				Expect(len(namespaces)).To(Equal(1))
+
 				// Try to add "default" namespace, which should fail as it is covered
 				// by the "" namespace.
 				err = mockMgr.appMgr.AddNamespace("default", cfgMapSelector, 0)
@@ -3736,6 +3928,8 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				err = mockMgr.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 				Expect(err).To(BeNil())
+				nsInf := mockMgr.appMgr.GetNamespaceLabelInformer()
+				Expect(nsInf).ToNot(BeNil())
 				//Re-adding it should fail
 				err = mockMgr.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 				Expect(err).ToNot(BeNil())

@@ -651,6 +651,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt2.Spec.HostGroup = "test"
 				vrt3.Spec.HostGroup = "test"
 				vrt3.Spec.Host = "test3.com"
+				vrt4.Spec.VirtualServerAddress = ""
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
@@ -665,6 +666,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.HostGroup = "test"
 				vrt3.Spec.Host = "test3.com"
 				vrt3.Spec.VirtualServerAddress = ""
+				vrt4.Spec.VirtualServerAddress = ""
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},

@@ -1423,19 +1423,19 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 
 		// skip the virtuals in other HostGroups
 		if vrt.Spec.HostGroup != currentVS.Spec.HostGroup {
-			if currentVS.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress {
+			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress {
 				log.Errorf("Multiple Virtual Servers %v, %v are configured with same VirtualServerAddress: %v", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
 				return nil
 			}
 			continue
 		}
 
-		if vrt.Spec.HostGroup == currentVS.Spec.HostGroup {
-			if currentVS.Spec.VirtualServerAddress != vrt.Spec.VirtualServerAddress {
+		if vrt.Spec.HostGroup != "" && currentVS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentVS.Spec.HostGroup {
+			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress != vrt.Spec.VirtualServerAddress {
 				log.Errorf("Multiple Virtual Servers %v, %v are configured with different VirtualServerAddress: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.VirtualServerAddress, vrt.Spec.VirtualServerAddress)
 				return nil
 			}
-			if currentVS.Spec.IPAMLabel != vrt.Spec.IPAMLabel {
+			if currentVS.Spec.IPAMLabel != "" && vrt.Spec.IPAMLabel != "" && currentVS.Spec.IPAMLabel != vrt.Spec.IPAMLabel {
 				log.Errorf("Multiple Virtual Servers %v, %v are configured with different IPAM Labels: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.IPAMLabel, vrt.Spec.IPAMLabel)
 				return nil
 			}

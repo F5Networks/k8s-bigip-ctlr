@@ -940,6 +940,7 @@ func initController(
 			StaticRouteNodeCIDR:         *staticRouteNodeCIDR,
 			MultiClusterMode:            *multiClusterMode,
 		},
+		true,
 	)
 
 	return ctlr

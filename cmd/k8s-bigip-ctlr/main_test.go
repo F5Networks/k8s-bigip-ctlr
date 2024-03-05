@@ -17,15 +17,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
-	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"os"
 	"os/exec"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
@@ -457,12 +460,13 @@ var _ = Describe("Main Tests", func() {
 				"--bigip-partition=velcro1",
 				"--bigip-url=bigip.example.com",
 				"--pool-member-type=nodeport",
+				"--trusted-certs-cfgmap=default/foomap",
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
-			err := ioutil.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
+			err := os.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
 			Expect(err).ToNot(HaveOccurred())
-			err = ioutil.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
+			err = os.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getCredentials()
@@ -470,6 +474,29 @@ var _ = Describe("Main Tests", func() {
 			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
 			Expect(*bigIPUsername).To(Equal("user"))
 			Expect(*bigIPPassword).To(Equal("pass"))
+			kubeClient = fake.NewSimpleClientset()
+			cfgFoo := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "foomap", Namespace: "default"}, Data: map[string]string{"data": "foo"}}
+			_, err = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cfgFoo, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			cfgFoo, err = getConfigMapUsingNamespaceAndName("default", "foomap")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfgFoo.Data["data"]).To(Equal("foo"))
+			//check for invlaid configmap
+			_, err = getConfigMapUsingNamespaceAndName("default", "invalid")
+			Expect(err).ToNot(BeNil())
+			//check for valid bigip trusted certs
+			os.Args[6] = "--trusted-certs-cfgmap=default/foomap"
+			out := getBIGIPTrustedCerts()
+			Expect(strings.TrimSpace(out)).To(Equal("foo"))
+			//check for invalid bigip trusted certs
+			os.Args[6] = "--trusted-certs-cfgmap= "
+			flags.Parse(os.Args)
+			out = getBIGIPTrustedCerts()
+			Expect(out).To(Equal(""))
+			os.Args[6] = "--trusted-certs-cfgmap=default"
+			flags.Parse(os.Args)
+			out = getBIGIPTrustedCerts()
+			Expect(out).To(Equal(""))
 
 			// Test url variations
 			os.Args[4] = "--bigip-url=fail://bigip.example.com"
@@ -503,14 +530,14 @@ var _ = Describe("Main Tests", func() {
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
-			err := ioutil.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
+			err := os.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
 			Expect(err).ToNot(HaveOccurred())
-			err = ioutil.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
+			err = os.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
 			Expect(err).ToNot(HaveOccurred())
 			os.Mkdir("/tmp/k8s-test-gtm-creds", 0755)
-			err = ioutil.WriteFile("/tmp/k8s-test-gtm-creds/username", []byte("user-gtm"), 0755)
+			err = os.WriteFile("/tmp/k8s-test-gtm-creds/username", []byte("user-gtm"), 0755)
 			Expect(err).ToNot(HaveOccurred())
-			err = ioutil.WriteFile("/tmp/k8s-test-gtm-creds/password", []byte("pass-gtm"), 0755)
+			err = os.WriteFile("/tmp/k8s-test-gtm-creds/password", []byte("pass-gtm"), 0755)
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getCredentials()

@@ -135,7 +135,7 @@ const (
 )
 
 // NewController creates a new Controller Instance.
-func NewController(params Params) *Controller {
+func NewController(params Params, startController bool) *Controller {
 
 	ctlr := &Controller{
 		namespaces:            make(map[string]bool),
@@ -192,7 +192,7 @@ func NewController(params Params) *Controller {
 		ctlr.shareNodes = true
 	}
 
-	if err := ctlr.setupClients(params.Config); err != nil {
+	if err := ctlr.setupClients(params.Config, params.IPAM); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 
@@ -260,14 +260,15 @@ func NewController(params Params) *Controller {
 		}
 		ctlr.vxlanMgr = vxlanMgr
 	}
+	if startController {
+		go ctlr.responseHandler(ctlr.Agent.respChan)
 
-	go ctlr.responseHandler(ctlr.Agent.respChan)
+		go ctlr.Start()
 
-	go ctlr.Start()
-
-	go ctlr.setOtherSDNType()
-	// Start the CIS health check
-	go ctlr.CISHealthCheck()
+		go ctlr.setOtherSDNType()
+		// Start the CIS health check
+		go ctlr.CISHealthCheck()
+	}
 
 	return ctlr
 }
@@ -377,7 +378,7 @@ func createLabelSelector(label string) (labels.Selector, error) {
 }
 
 // setupClients sets Kubernetes Clients.
-func (ctlr *Controller) setupClients(config *rest.Config) error {
+func (ctlr *Controller) setupClients(config *rest.Config, ipamClient bool) error {
 	var kubeCRClient *versioned.Clientset
 	var err error
 	kubeCRClient, err = versioned.NewForConfig(config)
@@ -390,13 +391,12 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 		return fmt.Errorf("Failed to create kubeClient: %v", err)
 	}
 
-	var ipamCRConfig *rest.Config
-	if ipamCRConfig, err = rest.InClusterConfig(); err != nil {
-		log.Errorf("error creating client configuration: %v", err)
-	}
-	kubeIPAMClient, err := extClient.NewForConfig(ipamCRConfig)
-	if err != nil {
-		log.Errorf("Failed to create client: %v", err)
+	var kubeIPAMClient *extClient.Clientset
+	if ipamClient {
+		kubeIPAMClient, err = extClient.NewForConfig(config)
+		if err != nil {
+			log.Errorf("Failed to create client: %v", err)
+		}
 	}
 
 	var rclient *routeclient.RouteV1Client

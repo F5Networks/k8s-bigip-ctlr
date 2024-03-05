@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 )
 
 var _ = Describe("OtherSDNType", func() {
@@ -39,5 +40,27 @@ var _ = Describe("OtherSDNType", func() {
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(pod)
 		mockCtlr.setOtherSDNType()
 		Expect(mockCtlr.TeemData.SDNType).To(Equal("other"), "SDNType should be other")
+	})
+	It("Create a new controller object", func() {
+		ctlrOpenShift := NewController(Params{
+			Mode:           OpenShiftMode,
+			PoolMemberType: Cluster,
+			Config:         &rest.Config{},
+			NamespaceLabel: "ctlr=cis",
+			VXLANMode:      "multi-point",
+			VXLANName:      "vxlan0",
+			Agent:          newMockAgent(&test.MockWriter{FailStyle: test.Success}),
+		}, false)
+		Expect(ctlrOpenShift.processedHostPath).NotTo(BeNil(), "processedHostPath object should not be nil")
+		Expect(ctlrOpenShift.shareNodes).To(BeFalse(), "shareNodes should not be enable")
+		Expect(ctlrOpenShift.vxlanMgr).To(BeNil(), "vxlanMgr should be created")
+		ctlrK8s := NewController(Params{
+			Mode:           CustomResourceMode,
+			PoolMemberType: NodePort,
+			Config:         &rest.Config{},
+			IPAM:           true,
+		}, false)
+		Expect(ctlrK8s.processedHostPath).To(BeNil(), "processedHostPath object should be nil")
+		Expect(ctlrK8s.shareNodes).To(BeTrue(), "shareNodes should be enable")
 	})
 })

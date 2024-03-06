@@ -37,7 +37,7 @@ func (am *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
 	// Create Shared as3Application object for Routes
 	adc := as3ADC{}
 	var partitions map[string]struct{}
-	if len(am.Resources.Partitions) == 0 {
+	if len(am.Resources.Partitions) == 0 && !am.disableDefaultPartition {
 		partitions = make(map[string]struct{})
 		partitions[DEFAULT_PARTITION] = struct{}{}
 	} else {

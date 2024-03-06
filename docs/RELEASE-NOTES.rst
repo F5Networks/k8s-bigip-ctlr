@@ -18,7 +18,7 @@ Added Functionality
       * `Issue 3263 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3263>`_: Support for Host group virtual server name in virtual server to customise the virtual server name when Host Group exists.
       * `Issue 3262 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3262>`_: Support for Host Aliases to allow defining multiple hosts in VS CRD. `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer>`_
       * `Issue 3295 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3295>`_: Support for setting the default pool via policy CRD for virtual server and nextgen routes. `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy>`_
-      * `Issue 3295 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3279>`_: Allow default CIS partition to be disabled
+      * `Issue 3295 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3279>`_: Support for disabling default partition in AS3 legacy nodeport mode.
     * Support for pool-member-type auto for CRD, NextGen Routes and multiCluster mode. Please refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/PoolType-Auto/README.md>`.
     * Support for CIS deployment parameters "trusted-certs-cfgmap" && "insecure"  in CRD and NextGen
 

@@ -169,14 +169,15 @@ var (
 	trustedCerts              *string
 	as3PostDelay              *int
 
-	trustedCertsCfgmap     *string
-	agent                  *string
-	ccclGtmAgent           *bool
-	logAS3Response         *bool
-	logAS3Request          *bool
-	shareNodes             *bool
-	overriderAS3CfgmapName *string
-	filterTenants          *bool
+	trustedCertsCfgmap      *string
+	agent                   *string
+	ccclGtmAgent            *bool
+	logAS3Response          *bool
+	logAS3Request           *bool
+	shareNodes              *bool
+	overriderAS3CfgmapName  *string
+	filterTenants           *bool
+	disableDefaultPartition bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -543,7 +544,11 @@ func verifyArgs() error {
 	}
 
 	if len(*bigIPPartitions) == 0 {
-		return fmt.Errorf("missing a BIG-IP partition")
+		if *agent != cisAgent.AS3Agent || !*manageConfigMaps || *manageRoutes || *manageIngress || *customResourceMode || *poolMemberType == "cluster" {
+			return fmt.Errorf("missing a BIG-IP partition")
+		} else {
+			disableDefaultPartition = true
+		}
 	} else if len(*bigIPPartitions) > 0 {
 		err := hasCommonPartition(*bigIPPartitions)
 		if false != err {
@@ -980,7 +985,9 @@ func main() {
 	if len(*routeSpecConfigmap) > 0 && len(*extendedSpecConfigmap) > 0 {
 		log.Warningf("extended-spec-configmap and route-spec-configmap both are present. extended-spec-configmap will be given priority over route-spec-configmap")
 	}
-	resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+	if len(*bigIPPartitions) > 0 {
+		resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+	}
 	dgPath = resource.DEFAULT_PARTITION
 	if strings.ToLower(*agent) == "as3" {
 		*agent = "as3"
@@ -1092,46 +1099,58 @@ func main() {
 		disableARP = true
 	}
 
-	gs := globalSection{
-		LogLevel:          *logLevel,
-		VerifyInterval:    *verifyInterval,
-		VXLANPartition:    vxlanPartition,
-		DisableLTM:        disableLTM,
-		DisableARP:        disableARP,
-		StaticRoutingMode: *staticRoutingMode,
-	}
-	// If AS3DEBUG is set, set log level to DEBUG
-	if gs.LogLevel == "AS3DEBUG" {
-		gs.LogLevel = "DEBUG"
-	}
-	if *ccclLogLevel != "" {
-		gs.LogLevel = *ccclLogLevel
-	}
-	bs := bigIPSection{
-		BigIPUsername:   *bigIPUsername,
-		BigIPPassword:   *bigIPPassword,
-		BigIPURL:        *bigIPURL,
-		BigIPPartitions: *bigIPPartitions,
-	}
-
-	subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *pythonBaseDir)
-	if nil != err {
-		log.Fatalf("Could not initialize subprocess configuration: %v", err)
-	}
-	subPid := <-subPidCh
-	defer func(pid int) {
-		if 0 != pid {
-			var proc *os.Process
-			proc, err = os.FindProcess(pid)
-			if nil != err {
-				log.Warningf("Failed to find sub-process on exit: %v", err)
-			}
-			err = proc.Signal(os.Interrupt)
-			if nil != err {
-				log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
-			}
+	// Python driver disable for the nodeport and nodeportlocal mode
+	if *poolMemberType == "cluster" || !disableLTM {
+		gs := globalSection{
+			LogLevel:          *logLevel,
+			VerifyInterval:    *verifyInterval,
+			VXLANPartition:    vxlanPartition,
+			DisableLTM:        disableLTM,
+			DisableARP:        disableARP,
+			StaticRoutingMode: *staticRoutingMode,
 		}
-	}(subPid)
+		// If AS3DEBUG is set, set log level to DEBUG
+		if gs.LogLevel == "AS3DEBUG" {
+			gs.LogLevel = "DEBUG"
+		}
+		if *ccclLogLevel != "" {
+			gs.LogLevel = *ccclLogLevel
+		}
+		bs := bigIPSection{
+			BigIPUsername:   *bigIPUsername,
+			BigIPPassword:   *bigIPPassword,
+			BigIPURL:        *bigIPURL,
+			BigIPPartitions: *bigIPPartitions,
+		}
+
+		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *pythonBaseDir)
+		if nil != err {
+			log.Fatalf("Could not initialize subprocess configuration: %v", err)
+		}
+		subPid := <-subPidCh
+		defer func(pid int) {
+			if 0 != pid {
+				var proc *os.Process
+				proc, err = os.FindProcess(pid)
+				if nil != err {
+					log.Warningf("Failed to find sub-process on exit: %v", err)
+				}
+				err = proc.Signal(os.Interrupt)
+				if nil != err {
+					log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
+				}
+			}
+		}(subPid)
+
+		// Add health check e.g. is Python process still there?
+		hc := &health.HealthChecker{
+			SubPID: subPid,
+		}
+		http.Handle("/health", hc.HealthCheckHandler())
+	} else { // a new health checker for nodeport and nodeportlocal mode for AS3
+		hc := &health.HealthChecker{}
+		http.Handle("/health", hc.CISHealthCheckHandler(kubeClient))
+	}
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()
@@ -1186,11 +1205,7 @@ func main() {
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
-	// Add health check e.g. is Python process still there?
-	hc := &health.HealthChecker{
-		SubPID: subPid,
-	}
-	http.Handle("/health", hc.HealthCheckHandler())
+
 	bigIPPrometheus.RegisterMetrics(*httpClientMetrics)
 	go func() {
 		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
@@ -1302,6 +1317,7 @@ func getAS3Params() *as3.Params {
 		DefaultRouteDomain:        *defaultRouteDomain,
 		PoolMemberType:            *poolMemberType,
 		HTTPClientMetrics:         *httpClientMetrics,
+		DisableDefaultPartition:   disableDefaultPartition,
 	}
 }
 

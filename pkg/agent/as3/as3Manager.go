@@ -122,6 +122,7 @@ type AS3Manager struct {
 	bigIPAS3Version           float64
 	as3LogLevel               *string
 	as3DeclarationPersistence *bool
+	disableDefaultPartition   bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -158,6 +159,7 @@ type Params struct {
 	DefaultRouteDomain        int
 	PoolMemberType            string
 	HTTPClientMetrics         bool
+	DisableDefaultPartition   bool
 }
 
 type failureContext struct {
@@ -201,6 +203,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 			LogAS3Request:     params.LogAS3Request,
 			HTTPClientMetrics: params.HTTPClientMetrics,
 		}),
+		disableDefaultPartition: params.DisableDefaultPartition,
 	}
 
 	if as3Manager.tls13CipherGroupReference == "" {

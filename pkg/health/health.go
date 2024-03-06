@@ -4,8 +4,9 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"k8s.io/client-go/kubernetes"
+
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"k8s.io/client-go/kubernetes"
 )
 
 const (

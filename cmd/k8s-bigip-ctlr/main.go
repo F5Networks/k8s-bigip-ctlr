@@ -177,7 +177,7 @@ var (
 	shareNodes              *bool
 	overriderAS3CfgmapName  *string
 	filterTenants           *bool
-	disableDefaultPartition *bool
+	disableDefaultPartition bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -547,7 +547,7 @@ func verifyArgs() error {
 		if *agent != cisAgent.AS3Agent || !*manageConfigMaps || *manageRoutes || *manageIngress || *customResourceMode || *poolMemberType == "cluster" {
 			return fmt.Errorf("missing a BIG-IP partition")
 		} else {
-			*disableDefaultPartition = true
+			disableDefaultPartition = true
 		}
 	} else if len(*bigIPPartitions) > 0 {
 		err := hasCommonPartition(*bigIPPartitions)
@@ -1317,7 +1317,7 @@ func getAS3Params() *as3.Params {
 		DefaultRouteDomain:        *defaultRouteDomain,
 		PoolMemberType:            *poolMemberType,
 		HTTPClientMetrics:         *httpClientMetrics,
-		DisableDefaultPartition:   *disableDefaultPartition,
+		DisableDefaultPartition:   disableDefaultPartition,
 	}
 }
 

@@ -61,10 +61,9 @@ func (postMgr *PostManager) postManager() {
 			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", postMgr.AS3PostManager.AS3Config.PostDelayAS3)
 			_ = <-time.After(time.Duration(postMgr.AS3PostManager.AS3Config.PostDelayAS3) * time.Second)
 		}
-		// Set the target address to BIG-IP and docID and acceptedID if two step deployment is enabled
-		if postMgr.AS3Config.DocumentAPI {
-			config.as3Config.targetAddress = config.BigIpKey.BigIpAddress
-		}
+		// Set the target address for the as3 request
+		config.as3Config.targetAddress = config.BigIpKey.BigIpAddress
+
 		//Handle AS3 post
 		postMgr.publishConfig(&config.as3Config)
 		//TODO: L3 post manger handling
@@ -133,9 +132,9 @@ func (postMgr *PostManager) getAS3APIURL(bigipAddress string) string {
 	//apiURL := postMgr.tokenManager.ServerURL + CmDeclareApi + strings.Join(tenants, ",")
 	var apiURL string
 	if !postMgr.AS3Config.DocumentAPI {
-		apiURL = postMgr.tokenManager.ServerURL + CmDeclareApi
+		apiURL = postMgr.tokenManager.ServerURL + CmDeclareApi + "?target_address=" + bigipAddress
 	} else {
-		apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi + "?target_address=" + bigipAddress
+		apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi
 	}
 	return apiURL
 }
@@ -191,8 +190,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 		log.Errorf("%v[AS3]%v Creating new HTTP request error: %v ", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err)
 		return
 	}
-
-	log.Infof("%v[AS3]%v posting request for %v tenants", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, getTenantsFromUri(cfg.as3APIURL))
+	log.Infof("%v[AS3]%v posting request to %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, cfg.as3APIURL)
 	// add authorization header to the req
 	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
 	// add content type header to the req
@@ -888,13 +886,4 @@ func getRequestPrefix(id int) string {
 		return "[Retry]"
 	}
 	return fmt.Sprintf("[Request: %v]", id)
-}
-
-// function for returning the tenants from URI
-func getTenantsFromUri(uri string) string {
-	res := strings.Split(uri, "declare/")
-	if len(res[0]) == 0 {
-		return "all"
-	}
-	return res[1]
 }

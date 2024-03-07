@@ -238,7 +238,7 @@ const BigIPLabel = ""
 
 const CmDocumentApi = "/api/v1/spaces/default/appsvcs/documents/"
 
-const CmDeclareApi = "/api/v1/spaces/default/appsvcs/declare/"
+const CmDeclareApi = "/api/v1/spaces/default/appsvcs/declare"
 
 const CmDeclareTaskApi = "/api/v1/spaces/default/appsvcs/task/"
 

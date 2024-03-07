@@ -981,14 +981,8 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 		svc.VirtualPort = port
 
 	}
-	ps := strings.Split(cfg.Virtual.PoolName, "/")
-	poolValue := fmt.Sprintf("/%s/%s/%s",
-		tenant,
-		as3SharedApplication,
-		ps[len(ps)-1],
-	)
 
-	svc.Pool = poolValue
+	svc.Pool = cfg.Virtual.PoolName
 
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc

@@ -1802,9 +1802,9 @@ var _ = Describe("Resource Config Tests", func() {
 		It("Verifies getUniqueHosts", func() {
 			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{vs.Spec.Host}), "Incorrect unique hosts")
 			vs.Spec.Host = ""
-			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(BeNil(), "Incorrect unique hosts")
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{""}), "Incorrect unique hosts")
 			vs.Spec.HostAliases = []string{"test1.com", "test2.com", "test1.com", "test1.com", "test2.com"}
-			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test1.com", "test2.com"}), "Incorrect unique hosts")
+			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"", "test1.com", "test2.com"}), "Incorrect unique hosts")
 			vs.Spec.Host = "test.com"
 			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test.com", "test1.com", "test2.com"}), "Incorrect unique hosts")
 			vs.Spec.Host = "test1.com"

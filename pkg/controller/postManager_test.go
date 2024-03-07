@@ -25,7 +25,7 @@ var _ = Describe("AS3PostManager Tests", func() {
 		BeforeEach(func() {
 			as3Cfg = as3Config{
 				data:              `{"declaration": {"test": {"Shared": {"class": "application"}}}}`,
-				as3APIURL:         mockPM.getAS3APIURL([]string{"test"}),
+				as3APIURL:         mockPM.getAS3APIURL(as3Cfg.targetAddress),
 				id:                0,
 				tenantResponseMap: make(map[string]tenantResponse),
 			}

@@ -3,9 +3,9 @@ CIS and IPAM Release Upgrade Process
 
 This page shows you how to upgrade from one version of CIS, IPAM. Each section shows you steps for upgrading as well as any behavioral changes. 
 
-Refer to the [Release Notes](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst) for additional information.
+Refer to the [Release Notes](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst) for additional information.
 
-Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR Schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml)
+Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/rbac/clusterrole.yaml) and [CR Schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml)
 
 Compatibility Matrix
 --------------------
@@ -65,33 +65,33 @@ CIS Features and Examples
 |--------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
 | user-defined-as3                     | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#modify-as3-configmap)                                                                                            | Allows users to modify AS3 ConfigMap in CIS                                                                                                              | v2.0.0      |
 | override-as3                         | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#override-as3-configmap)                                                                                          | The Override AS3 ConfigMap hosts a part of AS3 as a configuration to be overridden. Using this ConfigMap, CIS implements the AS3 override functionality. | v2.0.0      |
-| VirtualServer With TLS profile       | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServerWithTLSProfile)                                                             | VirtualServer with TLSProfile is used to specify the TLS termination. TLS termination relies on SNI.                                                     | v2.1.0      |
-| virtualServer insecure               | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/unsecure-virtual-server)                                                   | Allows user to create a Virtual Server on BIG-IP with VIP.  It will load balance the traffic for domain                                                  | v2.1.1      |
-| Health Monitors in EDNS              | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/ExternalDNS/externaldns-tcp-monitor.yaml)                                      | Configure health monitor for GSLB pools in DNS. Heath monitor is supported for each pool members                                                         | v2.2.0      |
-| virtualServer with waf               | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/waf)                                                                       | By deploying this yaml file in your cluster, CIS will create a Virtual Server containing WAF policy on BIG-IP.                                           | v2.2.0      |
-| virtualServer Multiport Services     | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/MultiPortServices)                                                         | Allows to configure multiple port definitions on a Service object.                                                                                       | v2.2.0      |
-| TransportServer with IPAM Label      | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/TransportServer/transport-server-with-ipamLabel/transport-with-ipamLabel.yaml) | ipamLabel definition allows the user manage the virtual server addresss using the F5 IPAM controller.                                                    | v2.4.0      |
-| TransportServer with Service address | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/TransportServer/ts-with-service-address.yaml)                                  | Service address definition allows you to add a number of properties to your (virtual) server address.                                                    | v2.4.0      |
-| IngressLink with IPAM Label          | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/IngressLink/ingressLink-with-ipamLabel/ingresslink-with-ipamLabel.yaml)        | Allows users to create a IngressLink on BIG-IP with virtual server address provided by IPAM controller.                                                  | v2.6.0      |
-| virtualServer with HostGroup         | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup)                                                    | Allows Associated VirutalServers are grouped based on “hostGroup” parameter. MultiHost support for VS CRD is achieved using this parameter.              | v2.7.0      |
-| virtualServer with Wildcard domain   | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-wildcard-domain)                                              | Allows users to create a Virtual Server on BIG-IP with wildcard domain name                                                                              | v2.7.0      |
-| Policy-CRD                           | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/Policy/sample-policy.yaml)                                                     | Policy CRD resource defines the profile configuration for a virtual server in BIG-IP.                                                                    | v2.7.0      |
+| VirtualServer With TLS profile       | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile)                                                             | VirtualServer with TLSProfile is used to specify the TLS termination. TLS termination relies on SNI.                                                     | v2.1.0      |
+| virtualServer insecure               | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/unsecure-virtual-server)                                                   | Allows user to create a Virtual Server on BIG-IP with VIP.  It will load balance the traffic for domain                                                  | v2.1.1      |
+| Health Monitors in EDNS              | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-tcp-monitor.yaml)                                      | Configure health monitor for GSLB pools in DNS. Heath monitor is supported for each pool members                                                         | v2.2.0      |
+| virtualServer with waf               | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/waf)                                                                       | By deploying this yaml file in your cluster, CIS will create a Virtual Server containing WAF policy on BIG-IP.                                           | v2.2.0      |
+| virtualServer Multiport Services     | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/MultiPortServices)                                                         | Allows to configure multiple port definitions on a Service object.                                                                                       | v2.2.0      |
+| TransportServer with IPAM Label      | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/TransportServer/transport-server-with-ipamLabel/transport-with-ipamLabel.yaml) | ipamLabel definition allows the user manage the virtual server addresss using the F5 IPAM controller.                                                    | v2.4.0      |
+| TransportServer with Service address | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/TransportServer/ts-with-service-address.yaml)                                  | Service address definition allows you to add a number of properties to your (virtual) server address.                                                    | v2.4.0      |
+| IngressLink with IPAM Label          | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/IngressLink/ingressLink-with-ipamLabel/ingresslink-with-ipamLabel.yaml)        | Allows users to create a IngressLink on BIG-IP with virtual server address provided by IPAM controller.                                                  | v2.6.0      |
+| virtualServer with HostGroup         | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup)                                                    | Allows Associated VirutalServers are grouped based on “hostGroup” parameter. MultiHost support for VS CRD is achieved using this parameter.              | v2.7.0      |
+| virtualServer with Wildcard domain   | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/virtual-with-wildcard-domain)                                              | Allows users to create a Virtual Server on BIG-IP with wildcard domain name                                                                              | v2.7.0      |
+| Policy-CRD                           | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml)                                                     | Policy CRD resource defines the profile configuration for a virtual server in BIG-IP.                                                                    | v2.7.0      |
 | Filter-Tenants                       | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#filter-tenant-support-for-as3-configmap)                                                                         | Uses tenant filtering API for AS3 declaration. This allows CIS to process each AS3 Tenant separately. Compatible with ConfigMap only.                    | v2.7.0      |
 
 ### **Upgrading from 1.14.to 2.0:**
 
-Refer Release Notes for [CIS v2.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#20)
+Refer Release Notes for [CIS v2.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#20)
 
 **_Functionality Changes:_**
 
 * AS3 is the default agent, Requires AS3 versions>= 3.18 for 2.x releases.
 * User defined AS3 Config Map in CIS watched namespaces. 
 * New RH container registry : [registry.connect.redhat.com/f5networks/cntr-ingress-svcs](http://registry.connect.redhat.com/f5networks/cntr-ingress-svcs) 
-* Custom Resource Definition (CRD) -Alpha available with custom resource virtual-server. [CRD Doc and Examples](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/CustomResource.md).
+* Custom Resource Definition (CRD) -Alpha available with custom resource virtual-server. [CRD Doc and Examples](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/CustomResource.md).
 
 ### **Upgrading from 2.0 to 2.1:**
 
-Refer Release Notes for [CIS v2.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#21)
+Refer Release Notes for [CIS v2.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#21)
 
 **_Functionality Changes:_**
 
@@ -107,7 +107,7 @@ Refer Release Notes for [CIS v2.1](https://github.com/F5Networks/k8s-bigip-ctlr/
 
 ### **Upgrading from 2.1 to 2.1.1:**
 
-Refer Release Notes for [CIS v2.1.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#211)
+Refer Release Notes for [CIS v2.1.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#211)
 
 **_Functionality Changes:_**
 
@@ -116,7 +116,7 @@ Refer Release Notes for [CIS v2.1.1](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.1.1 to 2.2.0:**
 
-Refer Release Notes for [CIS v2.2.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#220)
+Refer Release Notes for [CIS v2.2.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#220)
 
 **_Functionality Changes:_**
 
@@ -125,18 +125,18 @@ Refer Release Notes for [CIS v2.2.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.2.0 to 2.2.1:**
 
-Refer Release Notes for [CIS v2.2.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#221)
+Refer Release Notes for [CIS v2.2.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#221)
 
 **_Functionality Changes:_**
 
 * External DNS CRD – Preview available in CRD mode.
 * ConfigMap not working for 2.2.1 
 * servicePort value in ConfigMap requires the service's nodeport value 
-* CRD schema definition for [External DNS](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) and [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS).
+* CRD schema definition for [External DNS](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) and [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/ExternalDNS).
 
 ### **Upgrading from 2.2.1 to 2.2.2:**
 
-Refer Release Notes for [CIS v2.2.2](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#222)
+Refer Release Notes for [CIS v2.2.2](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#222)
 
 **_Functionality Changes:_**
 
@@ -146,7 +146,7 @@ Refer Release Notes for [CIS v2.2.2](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.2.2 to 2.3.0:**
 
-Refer Release Notes for [CIS v2.3.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#230)
+Refer Release Notes for [CIS v2.3.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#230)
 
 **_Functionality Changes:_**
 
@@ -160,7 +160,7 @@ Refer Release Notes for [CIS v2.3.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.3.0 to 2.4.0:**
 
-Refer Release Notes for [CIS v2.4.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#240)
+Refer Release Notes for [CIS v2.4.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#240)
 
 **_Functionality Changes:_**
 
@@ -169,15 +169,15 @@ Refer Release Notes for [CIS v2.4.0](https://github.com/F5Networks/k8s-bigip-ctl
 * Integrated the IngressLink mode with CRD mode. 
 * Helm Chart Enhancements:
   * Updated the [Custom Resource Definitions](https://raw.githubusercontent.com/F5Networks/charts/gh-pages/example_values/f5-bigip-ctlr/cis-k8s-custom-resource-values.yaml) for VirtualServer and TransportServer resources. 
-  * Updated the [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-clusterrole.yaml) to support service type LoadBalancer.
+  * Updated the [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-clusterrole.yaml) to support service type LoadBalancer.
 
 ### **Upgrading from 2.4.0 to 2.5.0:**
 
-Refer Release Notes for [CIS v2.5.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#250)
+Refer Release Notes for [CIS v2.5.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#250)
 
 **_Functionality Changes:_**
 
-* Moving to CIS > 2.4.1 requires update to RBAC and CR schema definition before upgrade. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
+* Moving to CIS > 2.4.1 requires update to RBAC and CR schema definition before upgrade. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
 * Added support for CIS deployment configuration options:
   * --periodic-sync-interval - Configure the periodic sync of Kubernetes resources.
   * --hubmode - Enable Support for ConfigMaps to monitor services in same and different namespaces. 
@@ -193,17 +193,17 @@ Refer Release Notes for [CIS v2.5.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.5.0 to 2.6.0:**
 
-Refer Release Notes for [CIS v2.6.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#260)
+Refer Release Notes for [CIS v2.6.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#260)
 
 **_Functionality Changes:_**
 
-* CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/IngressLink/ingressLink-with-ipamLabel))
+* CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/IngressLink/ingressLink-with-ipamLabel))
 * CIS supports IPV6 address in bigip-url & gtm-bigip-url parameter 
 * F5 IPAM Controller supports InfoBlox (See [FIC release notes](https://github.com/F5Networks/f5-ipam-controller/blob/main/docs/RELEASE-NOTES.rst))
 
 ### **Upgrading from 2.6.0 to 2.6.1:**
 
-Refer Release Notes for [CIS v2.6.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#261)
+Refer Release Notes for [CIS v2.6.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#261)
 
 **_Functionality Change:_**
 
@@ -211,7 +211,7 @@ Refer Release Notes for [CIS v2.6.1](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.6.0 to 2.7.0:**
 
-Refer Release Notes for [CIS v2.7.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#270)
+Refer Release Notes for [CIS v2.7.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#270)
 
 **_Functionality Change:_**
 
@@ -219,7 +219,7 @@ Refer Release Notes for [CIS v2.7.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.7.0 to 2.7.1:**
 
-Refer Release Notes for [CIS v2.7.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#271)
+Refer Release Notes for [CIS v2.7.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#271)
 
 **_Functionality Change:_**
 
@@ -228,7 +228,7 @@ Refer Release Notes for [CIS v2.7.1](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.7.1 to 2.8.0:**
 
-Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#280)
+Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst#280)
 
 **_Functionality Change:_**
 
@@ -237,7 +237,7 @@ Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.8.1 to 2.9.0:**
 
-Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 **_Functionality Change:_**
 
@@ -246,20 +246,20 @@ Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 **_Configuration Change:_**
 
-* Setting TCP Profile in Policy CRD changed to support TCP Client and Server profiles. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy))
-* Setting pool priority order in EDNS CRD requires a CRD schema update. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS))
+* Setting TCP Profile in Policy CRD changed to support TCP Client and Server profiles. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy))
+* Setting pool priority order in EDNS CRD requires a CRD schema update. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/ExternalDNS))
 
 ### **Upgrading from 2.9.0 to 2.9.1:**
 
-Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.9.1 to 2.10.0:**
 
-Refer Release Notes for [CIS v2.10.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.10.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.10.0 to 2.10.1:**
 
-Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 **_Functionality Change:_**
 
@@ -271,20 +271,20 @@ Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ct
 
 * From 2.11, if TLSProfile has multiple domains in hosts parameter then traffic is handled for all those domains on virtualserver it attached to.  
 
-Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.11.0 to 2.11.1:**
 
-Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 **_Configuration Change:_**
 * Add pattern definition in CR schema to align with F5 BIGIP object naming convention.
 * RBAC changes to read the openshift network config
-* Moving to CIS > 2.11.1 requires an update to RBAC and CR schema definition. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
+* Moving to CIS > 2.11.1 requires an update to RBAC and CR schema definition. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
 
 ### **Upgrading from 2.11.1 to 2.12.0:**
 * Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12.Use networking.k8s.io/v1 API for ingress.
-* Refer [guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md) to migrate to next generation routes.
+* Refer [guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/migration-guide.md) to migrate to next generation routes.
 * Deprecated CommonName support for host certificate verification in secrets, use subject alternative name(SAN) in certificates instead.
 
 ### **Upgrading from 2.12.0 to 2.12.1:**
@@ -318,14 +318,14 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 
 ### **Upgrading from 2.12.1 to 2.13.0:**
 
-* Upgrade the CRD schema using [CRD Update Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/crd_update.md), if you are using custom resources.
+* Upgrade the CRD schema using [CRD Update Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResourceDefinitions/crd_update.md), if you are using custom resources.
 
 * **_Functionality Change:_**
   * In AS3 >= v3.44 & CIS >= 2.13.0, CIS sets the first SSL profile (sorted in alphabetical order of their names) as default profile for SNI if multiple client SSL certificates used for a VS as kubernetes secrets. AS3 used to set the default SNI in earlier version.
 
 * **_Configuration Change:_**
   * CIS extended to leverage server-side http2 profile on virtual Server which requires modification in the existing Policy CRD in case of using http2 functionality.
-    * Please change the PolicyCRD accordingly with this [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml)
+    * Please change the PolicyCRD accordingly with this [example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml)
   * In NextGen route mode CIS supports setting client and server ssl profiles from policy
     * This setting is exclusive for NextGen route mode and not applicable for CRD resources
     * Policy level ssl profiles will have the highest precedence and will override route level profiles
@@ -333,7 +333,7 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 
 ### **Upgrading from 2.13.0 to 2.13.1:**
 
-Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 
 ### **Upgrading from 2.13.1 to 2.14.0:**
@@ -347,10 +347,10 @@ Refer Release Notes for [CIS v2.13.1](https://github.com/F5Networks/k8s-bigip-ct
   | *.foo.com   | abc.foo.com | not matched | 
 
 ### **Upgrading from 2.14.0 to 2.15.0:**
-* Disabled default health monitoring with routes, use autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_
+* Disabled default health monitoring with routes, use autoMonitor support for NextGenRoutes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_
 *  `Issue 777 <https://github.com/F5Networks/f5-appsvcs-extension/issues/777>`_: Cluster adminState in multiCluster mode doesn't work properly with AS3 (v3.47 and v3.48) as updating pool member adminState from enable to offline fails with 422 error with AS3 (v3.47 and v3.48). If customer needs this feature, we recommend to use AS3 v3.46 or lower on BIGIP.
   
-Refer Release Notes for [CIS v2.15](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.15](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.15.0 to 2.15.1:**
 * `Issue 3160 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3160>`_: Support to provide different IPs for the same resources deployed in different clusters for Infoblox IPAM provider only.
@@ -359,7 +359,7 @@ Refer Release Notes for [CIS v2.15](https://github.com/F5Networks/k8s-bigip-ctlr
    eg: kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam
    ```
 
-Refer Release Notes for [CIS v2.15.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+Refer Release Notes for [CIS v2.15.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.15.1 to 2.16.0:**
 

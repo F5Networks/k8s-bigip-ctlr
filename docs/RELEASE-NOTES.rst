@@ -39,7 +39,7 @@ Bug Fixes
 Upgrade notes
 ``````````````
 * From this version, in CRD, the default value of "--insecure" will be false and if "trusted-certs-cfgmap" deployment parameter is not configured, CIS might crash with error "x509: certificate signed by unknown authority".
-* From this version, in multicluster, **serviceName** is replaced with **service** and **port** is replaced with **servicePort** in the **extendedServiceReferences**.
+* From this version, in multicluster, **serviceName** replaced with **service** and **port** replaced with **servicePort** in the **extendedServiceReferences**.
 
 2.15.1
 -------------

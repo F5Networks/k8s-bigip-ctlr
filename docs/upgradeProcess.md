@@ -365,7 +365,7 @@ Refer Release Notes for [CIS v2.15.1](https://github.com/F5Networks/k8s-bigip-ct
 
 **_Functionality Changes:_**
 
-* For Multicluster, the **serviceName** is replaced with **service** and **port** is replaced with **servicePort** in the extendedServiceReferences.
+* For Multicluster, the **serviceName** replaced with **service** and **port** replaced with **servicePort** in the extendedServiceReferences.
 * Until 2.15.1 for CRD,NextGen CIS deploy parameter "--insecure" default value is considered as true. 
 * From 2.16 for CRD,NextGen "--insecure" default value will be considered as false. Which means http client will cross verify the BIGIP server certificate. 
 * This is a breaking change. If "trusted-certs-cfgmap" deployment parameter is not configured, CIS might crash with error "x509: certificate signed by unknown authority". 

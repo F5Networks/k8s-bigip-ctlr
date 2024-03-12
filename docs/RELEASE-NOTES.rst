@@ -21,6 +21,7 @@ Added Functionality
       * `Issue 3295 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3279>`_: Support for disabling default partition in AS3 legacy nodeport mode.
     * Support for pool-member-type auto for CRD, NextGen Routes and multiCluster mode. Please refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/PoolType-Auto/README.md>`.
     * Support for CIS deployment parameters "trusted-certs-cfgmap" && "insecure"  in CRD and NextGen
+    * CIS compatible with AS3 3.50
 
 Bug Fixes
 ````````````

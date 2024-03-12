@@ -369,3 +369,5 @@ Refer Release Notes for [CIS v2.15.1](https://github.com/F5Networks/k8s-bigip-ct
 * From 2.16 for CRD,NextGen "--insecure" default value will be considered as false. Which means http client will cross verify the BIGIP server certificate. 
 * This is a breaking change. If "trusted-certs-cfgmap" deployment parameter is not configured, CIS might crash with error "x509: certificate signed by unknown authority". 
 * Its recommend to configure "trusted-certs-cfgmap". To disable default behaviour, explicitly set "--insecure=true" flag to true in CIS deployment.
+
+Refer Release Notes for [CIS v2.16.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)

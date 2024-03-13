@@ -412,16 +412,16 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 		if ctlr.managedResources.ManageCustomResources {
-			virtuals := ctlr.getVirtualsForCustomPolicy(cp)
-			//Sync Custompolicy for Virtual Servers
-			for _, virtual := range virtuals {
-				err := ctlr.processVirtualServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isRetryableError = true
-				}
-			}
+			//virtuals := ctlr.getVirtualsForCustomPolicy(cp)
+			////Sync Custompolicy for Virtual Servers
+			//for _, virtual := range virtuals {
+			//	err := ctlr.processVirtualServers(virtual, false)
+			//	if err != nil {
+			//		// TODO
+			//		utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			//		isRetryableError = true
+			//	}
+			//}
 			//Sync Custompolicy for Transport Servers
 			tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
 			for _, virtual := range tsVirtuals {

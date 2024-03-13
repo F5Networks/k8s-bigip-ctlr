@@ -3043,15 +3043,14 @@ func hasWildcardHost(hosts []string) bool {
 // getUniqueHosts returns unique hosts from host and hostAliases
 func getUniqueHosts(host string, hostAliases []string) []string {
 	uniqueHostsMap := make(map[string]struct{})
-	if host != "" {
-		uniqueHostsMap[host] = struct{}{}
-	}
-	for _, host := range hostAliases {
-		uniqueHostsMap[host] = struct{}{}
-	}
+	uniqueHostsMap[host] = struct{}{}
 	var uniqueHosts []string
-	for host := range uniqueHostsMap {
-		uniqueHosts = append(uniqueHosts, host)
+	uniqueHosts = append(uniqueHosts, host)
+	for _, host := range hostAliases {
+		if _, ok := uniqueHostsMap[host]; !ok {
+			uniqueHostsMap[host] = struct{}{}
+			uniqueHosts = append(uniqueHosts, host)
+		}
 	}
 	return uniqueHosts
 }

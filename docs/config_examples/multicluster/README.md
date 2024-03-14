@@ -537,7 +537,7 @@ Supported values for adminState are [enable, disable, offline, no-pool]<br>
 By default clusters are in enabled state.<br>
 **adminState: enable**, all new connections are allowed to the pool members from the cluster.<br>
 **adminState: disable**, all new connections except those which match an existing persistence session are not allowed for the pool members from the cluster.<br>
-**adminState: offline**, no new connections are allowed to the pool members from the cluster, even if they match an existing persistence session.
+**adminState: offline**, no new connections are allowed to the pool members from the cluster, even if they match an existing persistence session.<br>
 **adminState: no-pool**, in ratio mode, a service pool is not created for the affected cluster. For all other modes, pool members from the cluster are not added to the service pool. This configuration is helpful when we don't want to add pool or pool members from a particular cluster due to any reasons(for example cluster is under maintenance).<br>
 
 

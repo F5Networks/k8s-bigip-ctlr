@@ -42,104 +42,90 @@ func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3
 	return as3Declaration(decl)
 }
 
-func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string) as3Tenant {
-	if defaultPartition == tenant {
-		// Flush Partition contents
-		sharedApp := as3Application{}
-		sharedApp["class"] = "Application"
-		sharedApp["template"] = "shared"
-		return as3Tenant{
-			"class":              "Tenant",
-			as3SharedApplication: sharedApp,
-			"label":              cisLabel,
-		}
-	}
+func getDeletedTenantDeclaration(cisLabel string) as3Tenant {
 	return as3Tenant{
 		"class": "Tenant",
+		"label": cisLabel,
 	}
 }
 
-func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
-	for _, rsCfg := range rsMap {
-		// Skip processing IRules for "None" value
-		for _, v := range rsCfg.Virtual.IRules {
-			if v == "none" {
-				continue
-			}
+func processIRulesForAS3(rsCfg *ResourceConfig, app as3Application) {
+	// Skip processing IRules for "None" value
+	for _, v := range rsCfg.Virtual.IRules {
+		if v == "none" {
+			continue
 		}
-		// Create irule declaration
-		for _, v := range rsCfg.IRulesMap {
-			iRule := &as3IRules{}
-			iRule.Class = "iRule"
-			iRule.IRule = v.Code
-			sharedApp[v.Name] = iRule
-		}
+	}
+	// Create irule declaration
+	for _, v := range rsCfg.IRulesMap {
+		iRule := &as3IRules{}
+		iRule.Class = "iRule"
+		iRule.IRule = v.Code
+		app[v.Name] = iRule
 	}
 }
 
-func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
-	for _, rsCfg := range rsMap {
-		// Skip processing DataGroup for "None" iRule value
-		for _, v := range rsCfg.Virtual.IRules {
-			if v == "none" {
-				continue
-			}
+func processDataGroupForAS3(rsCfg *ResourceConfig, app as3Application) {
+	// Skip processing DataGroup for "None" iRule value
+	for _, v := range rsCfg.Virtual.IRules {
+		if v == "none" {
+			continue
 		}
-		for _, idg := range rsCfg.IntDgMap {
-			for _, dg := range idg {
-				dataGroupRecord, found := sharedApp[dg.Name]
-				if !found {
-					dgMap := &as3DataGroup{}
-					dgMap.Class = "Data_Group"
-					dgMap.KeyDataType = dg.Type
-					for _, record := range dg.Records {
-						dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
-					}
-					// sort above create dgMap records.
-					sort.Slice(dgMap.Records, func(i, j int) bool { return dgMap.Records[i].Key < dgMap.Records[j].Key })
-					sharedApp[dg.Name] = dgMap
-				} else {
-					for _, record := range dg.Records {
-						sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, as3Record{Key: record.Name, Value: record.Data})
-					}
-					// sort above created
-					sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
-						func(i, j int) bool {
-							return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
-								sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
-						})
+	}
+	for _, idg := range rsCfg.IntDgMap {
+		for _, dg := range idg {
+			dataGroupRecord, found := app[dg.Name]
+			if !found {
+				dgMap := &as3DataGroup{}
+				dgMap.Class = "Data_Group"
+				dgMap.KeyDataType = dg.Type
+				for _, record := range dg.Records {
+					dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
 				}
+				// sort above create dgMap records.
+				sort.Slice(dgMap.Records, func(i, j int) bool { return dgMap.Records[i].Key < dgMap.Records[j].Key })
+				app[dg.Name] = dgMap
+			} else {
+				for _, record := range dg.Records {
+					app[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, as3Record{Key: record.Name, Value: record.Data})
+				}
+				// sort above created
+				sort.Slice(app[dg.Name].(*as3DataGroup).Records,
+					func(i, j int) bool {
+						return (app[dg.Name].(*as3DataGroup).Records[i].Key <
+							app[dg.Name].(*as3DataGroup).Records[j].Key)
+					})
 			}
 		}
 	}
 }
 
 // Process for AS3 Resource
-func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string, documentAPI bool,
+func processResourcesForAS3(cfg *ResourceConfig, app as3Application, shareNodes bool, tenant string, documentAPI bool,
 	poolMemberType string) {
-	for _, cfg := range rsMap {
-		//Create policies
-		createPoliciesDecl(cfg, sharedApp)
 
-		//Create health monitor declaration
-		createMonitorDecl(cfg, sharedApp)
+	//Create policies
+	createPoliciesDecl(cfg, app)
 
-		//Create pools
-		createPoolDecl(cfg, sharedApp, shareNodes, tenant, poolMemberType)
+	//Create health monitor declaration
+	createMonitorDecl(cfg, app)
 
-		switch cfg.MetaData.ResourceType {
-		case VirtualServer:
-			//Create AS3 Service for virtual server
-			createServiceDecl(cfg, sharedApp, tenant)
-		case TransportServer:
-			//Create AS3 Service for transport virtual server
-			createTransportServiceDecl(cfg, sharedApp, tenant)
-		}
+	//Create pools
+	createPoolDecl(cfg, app, shareNodes, tenant, poolMemberType)
+
+	switch cfg.MetaData.ResourceType {
+	case VirtualServer:
+		//Create AS3 Service for virtual server
+		createServiceDecl(cfg, app, tenant)
+	case TransportServer:
+		//Create AS3 Service for transport virtual server
+		createTransportServiceDecl(cfg, app, tenant)
 	}
+
 }
 
 // Create policy declaration
-func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
+func createPoliciesDecl(cfg *ResourceConfig, app as3Application) {
 	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	for _, pl := range cfg.Policies {
 		//Create EndpointPolicy
@@ -162,12 +148,12 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			ep.Rules = append(ep.Rules, rulesData)
 		}
 		//Setting Endpoint_Policy Name
-		sharedApp[pl.Name] = ep
+		app[pl.Name] = ep
 	}
 }
 
 // Create AS3 Pools for CRD
-func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
+func createPoolDecl(cfg *ResourceConfig, app as3Application, shareNodes bool, tenant, poolMemberType string) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
 		if v.Balance == "fastest-app-response" || v.Balance == "least-connections-member" ||
@@ -217,7 +203,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 				use := strings.Split(val.Name, "/")
 				monitor.Use = fmt.Sprintf("/%s/%s/%s",
 					tenant,
-					as3SharedApplication,
+					cfg.Virtual.Name,
 					use[len(use)-1],
 				)
 				pool.Monitors = append(pool.Monitors, monitor)
@@ -228,7 +214,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 				log.Warningf("[AS3] virtualServer: %v, pool: %v, MinimumMonitors feature is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name)
 			}
 		}
-		sharedApp[v.Name] = pool
+		app[v.Name] = pool
 	}
 }
 
@@ -273,7 +259,7 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 }
 
 // Create AS3 Service for CRD
-func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+func createServiceDecl(cfg *ResourceConfig, app as3Application, tenant string) {
 	svc := &as3Service{}
 	numPolicies := len(cfg.Virtual.Policies)
 	switch {
@@ -281,7 +267,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		policyName := cfg.Virtual.Policies[0].Name
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
 			tenant,
-			as3SharedApplication,
+			cfg.Virtual.Name,
 			policyName)
 	case numPolicies > 1:
 		var peps []as3ResourcePointer
@@ -291,7 +277,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 				as3ResourcePointer{
 					Use: fmt.Sprintf("/%s/%s/%s",
 						tenant,
-						as3SharedApplication,
+						cfg.Virtual.Name,
 						pep.Name,
 					),
 				},
@@ -308,7 +294,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			ps := strings.Split(cfg.Virtual.PoolName, "/")
 			poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
 				tenant,
-				as3SharedApplication,
+				cfg.Virtual.Name,
 				ps[len(ps)-1],
 			)
 		}
@@ -439,7 +425,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			svc.VirtualPort = port
 		} else {
 			//Attach Service Address
-			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, app)
 			sa := &as3ResourcePointer{
 				Use: serviceAddressName,
 			}
@@ -447,7 +433,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
 				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
 					//Attach Service Address
-					serviceAddressName := createServiceAddressDecl(cfg, val, sharedApp)
+					serviceAddressName := createServiceAddressDecl(cfg, val, app)
 					//handle additional service addresses
 					asa := &as3ResourcePointer{
 						Use: serviceAddressName,
@@ -477,11 +463,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		log.Warningf("[AS3] virtualServer: %v, ProfileWebSocket feature is not supported with BIG-IP Next", cfg.Virtual.Name)
 	}
 	processCommonDecl(cfg, svc)
-	sharedApp[cfg.Virtual.Name] = svc
+	app[cfg.Virtual.Name] = svc
 }
 
 // Create AS3 Service Address for Virtual Server Address
-func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, sharedApp as3Application) string {
+func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, app as3Application) string {
 	var name string
 	for _, sa := range cfg.ServiceAddress {
 		serviceAddress := &as3ServiceAddress{}
@@ -493,7 +479,7 @@ func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, shared
 		serviceAddress.TrafficGroup = sa.TrafficGroup
 		serviceAddress.VirtualAddress = virtualAddress
 		name = "crd_service_address_" + AS3NameFormatter(virtualAddress)
-		sharedApp[name] = serviceAddress
+		app[name] = serviceAddress
 	}
 	return name
 }
@@ -669,11 +655,9 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 	return reflect.DeepEqual(o1, o2)
 }
 
-func processProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
-	for _, cfg := range rsMap {
-		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
-			processTLSProfilesForAS3(&cfg.Virtual, svc, cfg.Virtual.Name)
-		}
+func processProfilesForAS3(cfg *ResourceConfig, app as3Application) {
+	if svc, ok := app[cfg.Virtual.Name].(*as3Service); ok {
+		processTLSProfilesForAS3(&cfg.Virtual, svc, cfg.Virtual.Name)
 	}
 }
 
@@ -690,7 +674,7 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 			if !profile.BigIPProfile {
 				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
 				svc.ServerTLS = fmt.Sprintf("/%v/%v/%v%v", virtual.Partition,
-					as3SharedApplication, profileName, as3ServerSuffix)
+					virtual.Name, profileName, as3ServerSuffix)
 
 			} else {
 				// Profile is a BIG-IP reference
@@ -705,7 +689,7 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 			if !profile.BigIPProfile {
 				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
 				svc.ClientTLS = fmt.Sprintf("/%v/%v/%v%v", virtual.Partition,
-					as3SharedApplication, profileName, as3ClientSuffix)
+					virtual.Name, profileName, as3ClientSuffix)
 			} else {
 				// Profile is a BIG-IP reference
 				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
@@ -724,49 +708,49 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 	}
 }
 
-func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as3Version float64) {
+func processCustomProfilesForAS3(rsCfg *ResourceConfig, app as3Application, as3Version float64) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
 	svcNameMap := make(map[string]struct{})
 	// TLS Certificates are available in CustomProfiles
-	for _, rsCfg := range rsMap {
-		// Sort customProfiles so that they are processed in orderly manner
-		keys := getSortedCustomProfileKeys(rsCfg.customProfiles)
 
-		for _, key := range keys {
-			prof := rsCfg.customProfiles[key]
-			// Create TLSServer and Certificate for each profile
-			svcName := key.ResourceName
-			if svcName == "" {
-				continue
+	// Sort customProfiles so that they are processed in orderly manner
+	keys := getSortedCustomProfileKeys(rsCfg.customProfiles)
+
+	for _, key := range keys {
+		prof := rsCfg.customProfiles[key]
+		// Create TLSServer and Certificate for each profile
+		svcName := key.ResourceName
+		if svcName == "" {
+			continue
+		}
+		if ok := createUpdateTLSServer(prof, svcName, app); ok {
+			// Create Certificate only if the corresponding TLSServer is created
+			createCertificateDecl(prof, app)
+			svcNameMap[svcName] = struct{}{}
+		} else {
+			createUpdateCABundle(prof, caBundleName, app)
+			tlsClient = createTLSClient(prof, svcName, caBundleName, app)
+
+			skey := SecretKey{
+				Name: prof.Name + "-ca",
 			}
-			if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
-				// Create Certificate only if the corresponding TLSServer is created
-				createCertificateDecl(prof, sharedApp)
-				svcNameMap[svcName] = struct{}{}
-			} else {
-				createUpdateCABundle(prof, caBundleName, sharedApp)
-				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
-
-				skey := SecretKey{
-					Name: prof.Name + "-ca",
-				}
-				if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
-					// If a profile exist in customProfiles with key as created above
-					// then it indicates that secure-serverssl needs to be added
-					tlsClient.ValidateCertificate = true
-				}
+			if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
+				// If a profile exist in customProfiles with key as created above
+				// then it indicates that secure-serverssl needs to be added
+				tlsClient.ValidateCertificate = true
 			}
 		}
 	}
+
 	// if AS3 version on bigIP is lower than 3.44 then don't enable sniDefault, as it's only supported from AS3 v3.44 onwards
 	if as3Version < 3.44 {
 		return
 	}
 	for svcName := range svcNameMap {
-		if _, ok := sharedApp[svcName].(*as3Service); ok {
+		if _, ok := app[svcName].(*as3Service); ok {
 			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
-			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+			tlsServer, ok := app[tlsServerName].(*as3TLSServer)
 			if !ok {
 				continue
 			}
@@ -778,14 +762,14 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as
 }
 
 // createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
-func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
+func createUpdateTLSServer(prof CustomProfile, svcName string, app as3Application) bool {
 	if len(prof.Certificates) > 0 {
-		if sharedApp[svcName] == nil {
+		if app[svcName] == nil {
 			return false
 		}
-		svc := sharedApp[svcName].(*as3Service)
+		svc := app[svcName].(*as3Service)
 		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
-		tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+		tlsServer, ok := app[tlsServerName].(*as3TLSServer)
 		if !ok {
 			tlsServer = &as3TLSServer{
 				Class:        "TLS_Server",
@@ -798,7 +782,7 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 				tlsServer.Ciphers = prof.Ciphers
 			}
 
-			sharedApp[tlsServerName] = tlsServer
+			app[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
 			updateVirtualToHTTPS(svc)
 		}
@@ -821,7 +805,7 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 	return false
 }
 
-func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
+func createCertificateDecl(prof CustomProfile, app as3Application) {
 	for index, certificate := range prof.Certificates {
 		if len(certificate.Cert) > 0 && len(certificate.Key) > 0 {
 			cert := &as3Certificate{
@@ -830,23 +814,23 @@ func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 				PrivateKey:  certificate.Key,
 				ChainCA:     prof.CAFile,
 			}
-			sharedApp[fmt.Sprintf("%s_%d", prof.Name, index)] = cert
+			app[fmt.Sprintf("%s_%d", prof.Name, index)] = cert
 		}
 	}
 }
 
-func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3Application) {
+func createUpdateCABundle(prof CustomProfile, caBundleName string, app as3Application) {
 	for _, cert := range prof.Certificates {
 		// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
 		if len(cert.Cert) > 0 && len(cert.Key) == 0 {
-			caBundle, ok := sharedApp[caBundleName].(*as3CABundle)
+			caBundle, ok := app[caBundleName].(*as3CABundle)
 
 			if !ok {
 				caBundle = &as3CABundle{
 					Class:  "CA_Bundle",
 					Bundle: "",
 				}
-				sharedApp[caBundleName] = caBundle
+				app[caBundleName] = caBundle
 			}
 			caBundle.Bundle += "\n" + cert.Cert
 		}
@@ -854,7 +838,7 @@ func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3
 }
 
 // Create health monitor declaration
-func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
+func createMonitorDecl(cfg *ResourceConfig, app as3Application) {
 
 	for _, v := range cfg.Monitors {
 		monitor := &as3Monitor{}
@@ -882,13 +866,13 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			monitor.Receive = v.Recv
 			monitor.Send = v.Send
 		}
-		sharedApp[v.Name] = monitor
+		app[v.Name] = monitor
 	}
 
 }
 
 // Create AS3 transport Service for CRD
-func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+func createTransportServiceDecl(cfg *ResourceConfig, app as3Application, tenant string) {
 	svc := &as3Service{}
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
@@ -985,7 +969,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 	svc.Pool = cfg.Virtual.PoolName
 
 	processCommonDecl(cfg, svc)
-	sharedApp[cfg.Virtual.Name] = svc
+	app[cfg.Virtual.Name] = svc
 }
 
 // Process common declaration for VS and TS
@@ -1091,40 +1075,40 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 	for tenant := range cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok {
 			// Remove partition
-			adc[tenant] = getDeletedTenantDeclaration(partition, tenant, cisLabel)
+			adc[tenant] = getDeletedTenantDeclaration(cisLabel)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
-
 		if len(partitionConfig.ResourceMap) == 0 {
 			// Remove partition
-			adc[tenantName] = getDeletedTenantDeclaration(partition, tenantName, cisLabel)
+			adc[tenantName] = getDeletedTenantDeclaration(cisLabel)
 			continue
 		}
-		// Create Shared as3Application object
-		sharedApp := as3Application{}
-		sharedApp["class"] = "Application"
-		sharedApp["template"] = "shared"
-
-		// Process rscfg to create AS3 Resources
-		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName,
-			postMgr.AS3Config.DocumentAPI, poolMemberType)
-
-		// Process CustomProfiles
-		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, postMgr.bigIPAS3Version)
-
-		// Process Profiles
-		processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		processIRulesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		processDataGroupForAS3(partitionConfig.ResourceMap, sharedApp)
-
 		// Create AS3 Tenant
 		tenantDecl := as3Tenant{
-			"class":              "Tenant",
-			as3SharedApplication: sharedApp,
-			"label":              cisLabel,
+			"class": "Tenant",
+			"label": cisLabel,
+		}
+		for _, resourceConfig := range partitionConfig.ResourceMap {
+			// Create Shared as3Application object
+			app := as3Application{}
+			app["class"] = "Application"
+			app["template"] = "shared"
+
+			// Process rscfg to create AS3 Resources
+			processResourcesForAS3(resourceConfig, app, config.shareNodes, tenantName,
+				postMgr.AS3Config.DocumentAPI, poolMemberType)
+
+			// Process CustomProfiles
+			processCustomProfilesForAS3(resourceConfig, app, postMgr.bigIPAS3Version)
+
+			// Process Profiles
+			processProfilesForAS3(resourceConfig, app)
+
+			processIRulesForAS3(resourceConfig, app)
+
+			processDataGroupForAS3(resourceConfig, app)
+			tenantDecl[resourceConfig.Virtual.Name] = app
 		}
 		adc[tenantName] = tenantDecl
 	}

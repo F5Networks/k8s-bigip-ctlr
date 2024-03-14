@@ -80,7 +80,7 @@ func extractVirtualAddressAndPort(str string) (string, int) {
 func createTLSClient(
 	prof CustomProfile,
 	svcName, caBundleName string,
-	sharedApp as3Application,
+	app as3Application,
 ) *as3TLSClient {
 
 	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
@@ -89,8 +89,8 @@ func createTLSClient(
 			return nil
 		}
 	}
-	if _, ok := sharedApp[svcName]; len(prof.Certificates) > 0 && ok {
-		svc := sharedApp[svcName].(*as3Service)
+	if _, ok := app[svcName]; len(prof.Certificates) > 0 && ok {
+		svc := app[svcName].(*as3Service)
 		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
 
 		tlsClient := &as3TLSClient{
@@ -105,7 +105,7 @@ func createTLSClient(
 		} else {
 			tlsClient.Ciphers = prof.Ciphers
 		}
-		sharedApp[tlsClientName] = tlsClient
+		app[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
 		updateVirtualToHTTPS(svc)
 

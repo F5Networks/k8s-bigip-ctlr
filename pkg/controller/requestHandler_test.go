@@ -324,6 +324,7 @@ var _ = Describe("Backend Tests", func() {
 			_ = json.Unmarshal([]byte(as3Cfg.data), &as3Config)
 			deletedTenantDecl := as3Tenant{
 				"class": "Tenant",
+				"label": "test",
 			}
 			adc := as3Config["declaration"].(map[string]interface{})
 
@@ -425,10 +426,10 @@ var _ = Describe("Backend Tests", func() {
 		//	tenant := adc[DEFAULT_PARTITION].(as3Tenant)
 		//
 		//	Expect(tenant).To(HaveKey(as3SharedApplication))
-		//	sharedApp := tenant[as3SharedApplication].(as3Application)
-		//	Expect(len(sharedApp)).To(Equal(2))
-		//	Expect(sharedApp).To(HaveKeyWithValue("class", "Application"))
-		//	Expect(sharedApp).To(HaveKeyWithValue("template", "shared"))
+		//	app := tenant[as3SharedApplication].(as3Application)
+		//	Expect(len(app)).To(Equal(2))
+		//	Expect(app).To(HaveKeyWithValue("class", "Application"))
+		//	Expect(app).To(HaveKeyWithValue("template", "shared"))
 		//})
 
 		//It("Valid GTM Config", func() {
@@ -470,16 +471,16 @@ var _ = Describe("Backend Tests", func() {
 		//	tenant := adc[DEFAULT_PARTITION].(as3Tenant)
 		//
 		//	Expect(tenant).To(HaveKey(as3SharedApplication))
-		//	sharedApp := tenant[as3SharedApplication].(as3Application)
+		//	app := tenant[as3SharedApplication].(as3Application)
 		//
-		//	Expect(sharedApp).To(HaveKey("test.com"))
-		//	Expect(sharedApp["test.com"].(as3GLSBDomain).Class).To(Equal("GSLB_Domain"))
+		//	Expect(app).To(HaveKey("test.com"))
+		//	Expect(app["test.com"].(as3GLSBDomain).Class).To(Equal("GSLB_Domain"))
 		//
-		//	Expect(sharedApp).To(HaveKey("pool1"))
-		//	Expect(sharedApp["pool1"].(as3GSLBPool).Class).To(Equal("GSLB_Pool"))
+		//	Expect(app).To(HaveKey("pool1"))
+		//	Expect(app["pool1"].(as3GSLBPool).Class).To(Equal("GSLB_Pool"))
 		//
-		//	Expect(sharedApp).To(HaveKey("pool1_monitor"))
-		//	Expect(sharedApp["pool1_monitor"].(as3GSLBMonitor).Class).To(Equal("GSLB_Monitor"))
+		//	Expect(app).To(HaveKey("pool1_monitor"))
+		//	Expect(app["pool1_monitor"].(as3GSLBMonitor).Class).To(Equal("GSLB_Monitor"))
 		//})
 	})
 
@@ -501,10 +502,8 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("Test Deleted Partition", func() {
 			cisLabel := "test"
-			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel)
-			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
-			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel)
-			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
+			deletedPartition := getDeletedTenantDeclaration(cisLabel)
+			Expect(deletedPartition["label"]).To(Equal(cisLabel))
 		})
 	})
 

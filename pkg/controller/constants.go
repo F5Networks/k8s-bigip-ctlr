@@ -96,8 +96,6 @@ const (
 	// DefaultNativeResourceLabel is a label used for kubernetes/openshift Resources.
 	DefaultNativeResourceLabel = "f5nr in (true)"
 
-	Shared = "Shared"
-
 	Local = "local"
 
 	F5RouterName = "F5 BIG-IP"
@@ -153,11 +151,9 @@ const (
 	Requested
 	Allocated
 
-	as3SharedApplication = "Shared"
-	gtmPartition         = "Common"
-	timeoutSmall         = 5 * time.Second
-	timeoutMedium        = 30 * time.Second
-	timeoutLarge         = 180 * time.Second
+	timeoutSmall  = 5 * time.Second
+	timeoutMedium = 30 * time.Second
+	timeoutLarge  = 180 * time.Second
 )
 
 const (

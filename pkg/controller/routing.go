@@ -533,7 +533,7 @@ func httpRedirectIRuleNoHost(port int32) string {
 func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
-	dgName := "/" + partition + "/" + Shared + "/" + rsVSName + "_https_redirect_dg"
+	dgName := "/" + partition + "/" + rsVSName + "/" + rsVSName + "_https_redirect_dg"
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
 			
@@ -610,7 +610,7 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 }
 
 func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition string, multiPoolPersistence MultiPoolPersistence) string {
-	dgPath := strings.Join([]string{partition, Shared}, "/")
+	dgPath := strings.Join([]string{partition, rsVSName}, "/")
 
 	iRule := fmt.Sprintf(`proc select_ab_pool {path default_pool } {
 			set last_slash [string length $path]
@@ -710,7 +710,7 @@ func getPersistenceType(key string) string {
 }
 
 func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSourceRange []string, multiPoolPersistence MultiPoolPersistence) string {
-	dgPath := strings.Join([]string{partition, Shared}, "/")
+	dgPath := strings.Join([]string{partition, rsVSName}, "/")
 
 	iRule := fmt.Sprintf(`
 		when CLIENT_DATA {

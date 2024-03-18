@@ -18,12 +18,11 @@ package controller
 
 import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipam"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"sync"
-
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -33,12 +32,10 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 
-	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	v1 "k8s.io/api/core/v1"
-	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -62,7 +59,6 @@ type (
 		initState              bool
 		firstPostResponse      bool
 		shareNodes             bool
-		ipamCli                *ipammachinery.IPAMClient
 		ipamCR                 string
 		defaultRouteDomain     int
 		TeemData               *teem.TeemsData
@@ -71,7 +67,6 @@ type (
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
 		StaticRouteNodeCIDR    string
-		cacheIPAMHostSpecs     CacheIPAM
 		multiClusterConfigs    *clustermanager.MultiClusterConfig
 		multiClusterResources  *MultiClusterResourceStore
 		multiClusterMode       string
@@ -85,12 +80,12 @@ type (
 		respChan               chan *agentConfig
 		networkManager         *networkmanager.NetworkManager
 		ControllerIdentifier   string
+		ipamHandler            *ipam.IPAMHandler
 		resourceContext
 	}
 	ClientSets struct {
 		kubeCRClient  versioned.Interface
 		kubeClient    kubernetes.Interface
-		kubeAPIClient *extClient.Clientset
 		routeClientV1 routeclient.RouteV1Interface
 	}
 	ManagedResources struct {
@@ -443,10 +438,7 @@ type (
 		Cluster              string                                  `json:"-"`
 		ConnectionLimit      int32                                   `json:"-"`
 	}
-	CacheIPAM struct {
-		IPAM *ficV1.IPAM
-		sync.Mutex
-	}
+
 	// AlternateBackends lists backend svc of A/B
 	AlternateBackend struct {
 		Service          string `json:"service"`
@@ -494,9 +486,7 @@ type (
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
-		// key of the map is IPSpec.Key
-		ipamContext              map[string]ficV1.IPSpec
-		processedNativeResources map[resourceRef]struct{}
+		processedNativeResources  map[resourceRef]struct{}
 		// stores valid externalClustersConfig from extendendCM
 		externalClustersConfig map[string]cisapiv1.ExternalClusterConfig
 	}

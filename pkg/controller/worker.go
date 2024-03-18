@@ -35,7 +35,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
@@ -49,7 +48,6 @@ import (
 func (ctlr *Controller) nextGenResourceWorker() {
 	log.Debugf("Starting resource worker")
 	ctlr.setInitialResourceCount()
-	ctlr.migrateIPAM()
 	// process the DeployConfig CR if present
 	if ctlr.CISConfigCRKey != "" {
 		ctlr.processGlobalDeployConfigCR()
@@ -399,9 +397,6 @@ func (ctlr *Controller) processResources() bool {
 		}
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
 		ctlr.processExternalDNS(edns, rscDelete)
-	case IPAM:
-		ipam := rKey.rsc.(*ficV1.IPAM)
-		_ = ctlr.processIPAM(ipam)
 
 	case CustomPolicy:
 		cp := rKey.rsc.(*cisapiv1.Policy)
@@ -1063,16 +1058,16 @@ func (ctlr *Controller) processVirtualServers(
 	var ip string
 	var status int
 	partition := ctlr.getCRPartition(virtual.Spec.Partition)
-	if ctlr.ipamCli != nil {
+	if ctlr.ipamHandler != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			if virtual.Spec.HostGroup != "" {
 				//hg is unique across namespaces
 				//all virtuals with same hg are grouped together across namespaces
 				key := virtual.Spec.HostGroup + "_hg"
-				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
+				ip = ctlr.ipamHandler.ReleaseGrpcIP(virtual.Spec.IPAMLabel, key)
 			} else {
 				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
-				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, key)
+				ip = ctlr.ipamHandler.ReleaseGrpcIP(virtual.Spec.IPAMLabel, key)
 			}
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			// Prioritise VirtualServerAddress specified over IPAMLabel
@@ -1082,10 +1077,10 @@ func (ctlr *Controller) processVirtualServers(
 			if virtual.Spec.HostGroup != "" {
 				//hg is unique across namepsaces
 				key := virtual.Spec.HostGroup + "_hg"
-				ip, status = ctlr.requestIP(ipamLabel, "", key)
+				ip, status = ctlr.ipamHandler.AllocateGrpcIP(ipamLabel, key)
 			} else {
 				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
-				ip, status = ctlr.requestIP(ipamLabel, virtual.Spec.Host, key)
+				ip, status = ctlr.ipamHandler.AllocateGrpcIP(ipamLabel, key)
 			}
 
 			switch status {
@@ -1409,7 +1404,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			}
 		}
 
-		if ctlr.ipamCli != nil {
+		if ctlr.ipamHandler != nil {
 			if currentVS.Spec.HostGroup == "" && vrt.Spec.IPAMLabel != currentVS.Spec.IPAMLabel {
 				log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
 				return nil
@@ -1624,284 +1619,6 @@ func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error)
 		return "", fmt.Errorf("no Virtual Server Address Found")
 	}
 	return vsa, nil
-}
-
-func (ctlr *Controller) getIPAMCR() *ficV1.IPAM {
-	cr := strings.Split(ctlr.ipamCR, "/")
-	if len(cr) != 2 {
-		log.Errorf("[IPAM] error while retrieving IPAM namespace and name.")
-		return nil
-	}
-	ipamCR, err := ctlr.ipamCli.Get(cr[0], cr[1])
-	if err != nil {
-		log.Errorf("[IPAM] error while retrieving IPAM custom resource.")
-		return nil
-	}
-	return ipamCR
-}
-
-func (ctlr *Controller) migrateIPAM() {
-	if ctlr.ipamCli == nil {
-		return
-	}
-
-	ipamCR := ctlr.getIPAMCR()
-	if ipamCR == nil {
-		return
-	}
-
-	var specsToMigrate []ficV1.IPSpec
-
-	for _, spec := range ipamCR.Status.IPStatus {
-		idx := strings.LastIndex(spec.Key, "_")
-		var rscKind string
-		if idx != -1 {
-			rscKind = spec.Key[idx+1:]
-			switch rscKind {
-			case "host", "ts", "il", "svc":
-				// This entry is fine, process next entry
-				continue
-			case "hg":
-				//Check for format of hg.if key is of format ns/hostgroup_hg
-				//this is stale entry from older version, release ip
-				if !strings.Contains(spec.Key, "/") {
-					continue
-				}
-			}
-		}
-		specsToMigrate = append(specsToMigrate, *spec)
-	}
-
-	for _, spec := range specsToMigrate {
-		ctlr.releaseIP(spec.IPAMLabel, spec.Host, spec.Key)
-	}
-}
-
-// Request IPAM for virtual IP address
-func (ctlr *Controller) requestIP(ipamLabel string, host string, key string) (string, int) {
-	ipamCR := ctlr.getIPAMCR()
-	var ip string
-	var ipReleased bool
-	if ipamCR == nil {
-		return "", NotEnabled
-	}
-
-	if ipamLabel == "" {
-		return "", InvalidInput
-	}
-
-	// Add all processed IPAM entries till first PostCall.
-	if !ctlr.firstPostResponse {
-		if ctlr.cacheIPAMHostSpecs == (CacheIPAM{}) {
-			ctlr.cacheIPAMHostSpecs = CacheIPAM{
-				IPAM: &ficV1.IPAM{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "IPAM",
-						APIVersion: "v1",
-					},
-				},
-			}
-		}
-		ctlr.cacheIPAMHostSpecs.Lock()
-		ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs = append(ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs, &ficV1.HostSpec{
-			Host:      host,
-			Key:       key,
-			IPAMLabel: ipamLabel,
-		})
-		ctlr.cacheIPAMHostSpecs.Unlock()
-	}
-	if host != "" {
-		//For VS server
-		for _, ipst := range ipamCR.Status.IPStatus {
-			if ipst.IPAMLabel == ipamLabel && ipst.Host == host {
-				// IP will be returned later when availability of corresponding spec is confirmed
-				ip = ipst.IP
-			}
-		}
-
-		for _, hst := range ipamCR.Spec.HostSpecs {
-			if hst.Host == host {
-				if hst.IPAMLabel == ipamLabel {
-					if ip != "" {
-						// IP extracted from the corresponding status of the spec
-						return ip, Allocated
-					}
-
-					// HostSpec is already updated with IPAMLabel and Host but IP not got allocated yet
-					return "", Requested
-				} else {
-					// Different Label for same host, this indicates Label is updated
-					// Release the old IP, so that new IP can be requested
-					ctlr.releaseIP(hst.IPAMLabel, hst.Host, "")
-					ipReleased = true
-					break
-				}
-			}
-		}
-
-		if ip != "" && !ipReleased {
-			// Status is available for non-existing Spec
-			// Let the resource get cleaned up and re request later
-			return "", NotRequested
-		}
-
-		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs, &ficV1.HostSpec{
-			Host:      host,
-			Key:       key,
-			IPAMLabel: ipamLabel,
-		})
-	} else if key != "" {
-		//For Transport Server
-		for _, ipst := range ipamCR.Status.IPStatus {
-			if ipst.IPAMLabel == ipamLabel && ipst.Key == key {
-				// IP will be returned later when availability of corresponding spec is confirmed
-				ip = ipst.IP
-			}
-		}
-
-		for _, hst := range ipamCR.Spec.HostSpecs {
-			if hst.Key == key {
-				if hst.IPAMLabel == ipamLabel {
-					if ip != "" {
-						// IP extracted from the corresponding status of the spec
-						return ip, Allocated
-					}
-
-					// HostSpec is already updated with IPAMLabel and Host but IP not got allocated yet
-					return "", Requested
-				} else {
-					// Different Label for same key, this indicates Label is updated
-					// Release the old IP, so that new IP can be requested
-					ctlr.releaseIP(hst.IPAMLabel, "", hst.Key)
-					ipReleased = true
-					break
-				}
-			}
-		}
-
-		if ip != "" && !ipReleased {
-			// Status is available for non-existing Spec
-			// Let the resource get cleaned up and re request later
-			return "", NotRequested
-		}
-
-		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs, &ficV1.HostSpec{
-			Key:       key,
-			IPAMLabel: ipamLabel,
-		})
-	} else {
-		log.Debugf("[IPAM] Invalid host and key.")
-		return "", InvalidInput
-	}
-
-	_, err := ctlr.ipamCli.Update(ipamCR)
-	if err != nil {
-		log.Errorf("[IPAM] Error updating IPAM CR : %v", err)
-		return "", NotRequested
-	}
-
-	log.Debugf("[IPAM] Updated IPAM CR.")
-	return "", Requested
-
-}
-
-// Get List of VirtualServers associated with the IPAM resource
-func (ctlr *Controller) VerifyIPAMAssociatedHostGroupExists(key string) bool {
-	allTS := ctlr.getAllTSFromMonitoredNamespaces()
-	for _, ts := range allTS {
-		tskey := ts.Spec.HostGroup + "_hg"
-		if tskey == key {
-			return true
-		}
-	}
-	allVS := ctlr.getAllVSFromMonitoredNamespaces()
-	for _, vs := range allVS {
-		vskey := vs.Spec.HostGroup + "_hg"
-		if vskey == key {
-			return true
-		}
-	}
-	return false
-}
-
-func (ctlr *Controller) RemoveIPAMCRHostSpec(ipamCR *ficV1.IPAM, key string, index int) (res *ficV1.IPAM, err error) {
-	isExists := false
-	if strings.HasSuffix(key, "_hg") {
-		isExists = ctlr.VerifyIPAMAssociatedHostGroupExists(key)
-	}
-	if !isExists {
-		delete(ctlr.resources.ipamContext, key)
-		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
-		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-		return ctlr.ipamCli.Update(ipamCR)
-	}
-	return res, err
-}
-
-func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) string {
-	ipamCR := ctlr.getIPAMCR()
-	var ip string
-	if ipamCR == nil || ipamLabel == "" {
-		return ip
-	}
-	index := -1
-	if host != "" {
-		//Find index for deleted host
-		for i, hostSpec := range ipamCR.Spec.HostSpecs {
-			if hostSpec.IPAMLabel == ipamLabel && hostSpec.Host == host {
-				index = i
-				break
-			}
-		}
-		//Find IP address for deleted host
-		for _, ipst := range ipamCR.Status.IPStatus {
-			if ipst.IPAMLabel == ipamLabel && ipst.Host == host {
-				ip = ipst.IP
-			}
-		}
-		if index != -1 {
-			_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, key, index)
-			if err != nil {
-				log.Errorf("[IPAM] ipam hostspec update error: %v", err)
-				return ""
-			}
-			log.Debug("[IPAM] Updated IPAM CR hostspec while releasing IP.")
-		}
-	} else if key != "" {
-		//Find index for deleted key
-		for i, hostSpec := range ipamCR.Spec.HostSpecs {
-			if hostSpec.IPAMLabel == ipamLabel && hostSpec.Key == key {
-				index = i
-				break
-			}
-		}
-		//Find IP address for deleted host
-		for _, ipst := range ipamCR.Status.IPStatus {
-			if ipst.IPAMLabel == ipamLabel && ipst.Key == key {
-				ip = ipst.IP
-				break
-			}
-		}
-		if index != -1 {
-			_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, key, index)
-			if err != nil {
-				log.Errorf("[IPAM] ipam hostspec update error: %v", err)
-				return ""
-			}
-			log.Debug("[IPAM] Updated IPAM CR hostspec while releasing IP.")
-		}
-
-	} else {
-		log.Debugf("[IPAM] Invalid host and key.")
-	}
-
-	if len(ctlr.resources.ipamContext) == 0 {
-		ctlr.ipamHostSpecEmpty = true
-	}
-
-	return ip
 }
 
 func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKey, rsKey resourceRef, svcPort intstr.IntOrString, poolName, partition, rsName, path string, bigipLabel string) {
@@ -2345,16 +2062,16 @@ func (ctlr *Controller) processTransportServers(
 	var status int
 	partition := ctlr.getCRPartition(virtual.Spec.Partition)
 	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
-	if ctlr.ipamCli != nil {
+	if ctlr.ipamHandler != nil {
 		if virtual.Spec.HostGroup != "" {
 			key = virtual.Spec.HostGroup + "_hg"
 		}
 		if isTSDeleted && virtual.Spec.VirtualServerAddress == "" {
-			ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
+			ip = ctlr.ipamHandler.ReleaseGrpcIP(virtual.Spec.IPAMLabel, key)
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
-			ip, status = ctlr.requestIP(virtual.Spec.IPAMLabel, "", key)
+			ip, status = ctlr.ipamHandler.AllocateGrpcIP(virtual.Spec.IPAMLabel, key)
 
 			switch status {
 			case NotEnabled:
@@ -2562,8 +2279,9 @@ func (ctlr *Controller) processLBServices(
 		)
 		return nil
 	}
+
 	if !ok1 {
-		if ctlr.ipamCli == nil {
+		if ctlr.ipamHandler == nil {
 			warning := "[IPAM] IPAM is not enabled, Unable to process Services of Type LoadBalancer"
 			log.Warningf(warning)
 			prometheus.ConfigurationWarnings.WithLabelValues(Service, svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, warning).Set(1)
@@ -2573,9 +2291,9 @@ func (ctlr *Controller) processLBServices(
 		svcKey := svc.Namespace + "/" + svc.Name + "_svc"
 		var status int
 		if isSVCDeleted {
-			ip = ctlr.releaseIP(ipamLabel, "", svcKey)
+			ip = ctlr.ipamHandler.ReleaseGrpcIP(ipamLabel, svcKey)
 		} else {
-			ip, status = ctlr.requestIP(ipamLabel, "", svcKey)
+			ip, status = ctlr.ipamHandler.AllocateGrpcIP(ipamLabel, svcKey)
 
 			switch status {
 			case NotEnabled:
@@ -3122,147 +2840,6 @@ func validHostname(host string, isPattern bool) bool {
 	return true
 }
 
-func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
-	var keysToProcess []string
-
-	if ctlr.ipamHostSpecEmpty {
-		ipamRes, _ := ctlr.ipamCli.Get(ipam.Namespace, ipam.Name)
-		if len(ipamRes.Spec.HostSpecs) > 0 {
-			ctlr.ipamHostSpecEmpty = false
-		}
-	}
-
-	if !ctlr.ipamHostSpecEmpty {
-		for _, ipSpec := range ipam.Status.IPStatus {
-			if cachedIPSpec, ok := ctlr.resources.ipamContext[ipSpec.Key]; ok {
-				if cachedIPSpec.IP != ipSpec.IP {
-					// TODO: Delete the VS with old IP in BIGIP in case of FIC reboot
-					keysToProcess = append(keysToProcess, ipSpec.Key)
-				}
-			} else {
-				ctlr.resources.ipamContext[ipSpec.Key] = *ipSpec
-				keysToProcess = append(keysToProcess, ipSpec.Key)
-			}
-		}
-	}
-
-	for _, pKey := range keysToProcess {
-		idx := strings.LastIndex(pKey, "_")
-		if idx == -1 {
-			continue
-		}
-		rscKind := pKey[idx+1:]
-		var crInf *CRInformer
-		var comInf *CommonInformer
-		var ns string
-		if rscKind != "hg" {
-			splits := strings.Split(pKey, "/")
-			ns = splits[0]
-			var ok bool
-			crInf, ok = ctlr.getNamespacedCRInformer(ns)
-			comInf, ok = ctlr.getNamespacedCommonInformer(ns)
-			if !ok {
-				log.Errorf("Informer not found for namespace: %v", ns)
-				return nil
-			}
-		}
-		switch rscKind {
-		case "hg":
-			// For Virtual Server
-			var vss []*cisapiv1.VirtualServer
-			vss = ctlr.getAllVSFromMonitoredNamespaces()
-			for _, vs := range vss {
-				key := vs.Spec.HostGroup + "_hg"
-				if pKey == key {
-					ctlr.TeemData.Lock()
-					ctlr.TeemData.ResourceType.IPAMVS[ns]++
-					ctlr.TeemData.Unlock()
-					err := ctlr.processVirtualServers(vs, false)
-					if err != nil {
-						log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-					}
-					break
-				}
-			}
-			// For Transport Server
-			var tss []*cisapiv1.TransportServer
-			tss = ctlr.getAllTSFromMonitoredNamespaces()
-			for _, ts := range tss {
-				key := ts.Spec.HostGroup + "_hg"
-				if pKey == key {
-					ctlr.TeemData.Lock()
-					ctlr.TeemData.ResourceType.IPAMTS[ns]++
-					ctlr.TeemData.Unlock()
-					err := ctlr.processTransportServers(ts, false)
-					if err != nil {
-						log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-					}
-					break
-				}
-			}
-		case "host":
-			var vss []*cisapiv1.VirtualServer
-			vss = ctlr.getAllVirtualServers(ns)
-			for _, vs := range vss {
-				key := vs.Namespace + "/" + vs.Spec.Host + "_host"
-				if pKey == key {
-					ctlr.TeemData.Lock()
-					ctlr.TeemData.ResourceType.IPAMVS[ns]++
-					ctlr.TeemData.Unlock()
-					err := ctlr.processVirtualServers(vs, false)
-					if err != nil {
-						log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-					}
-					break
-				}
-			}
-		case "ts":
-			item, exists, err := crInf.tsInformer.GetIndexer().GetByKey(pKey[:idx])
-			if !exists || err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-				continue
-			}
-			ctlr.TeemData.Lock()
-			ctlr.TeemData.ResourceType.IPAMTS[ns]++
-			ctlr.TeemData.Unlock()
-			ts := item.(*cisapiv1.TransportServer)
-			err = ctlr.processTransportServers(ts, false)
-			if err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-			}
-		case "il":
-			item, exists, err := crInf.ilInformer.GetIndexer().GetByKey(pKey[:idx])
-			if !exists || err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-				continue
-			}
-			il := item.(*cisapiv1.IngressLink)
-			err = ctlr.processIngressLink(il, false)
-			if err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-			}
-		case "svc":
-			item, exists, err := comInf.svcInformer.GetIndexer().GetByKey(pKey[:idx])
-			if !exists || err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-				continue
-			}
-			ctlr.TeemData.Lock()
-			ctlr.TeemData.ResourceType.IPAMSvcLB[ns]++
-			ctlr.TeemData.Unlock()
-			svc := item.(*v1.Service)
-			err = ctlr.processLBServices(svc, false)
-			if err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
-			}
-		default:
-			log.Errorf("[IPAM] Found Invalid Key: %v while Processing IPAM", pKey)
-		}
-	}
-
-	return nil
-}
-
 func (ctlr *Controller) processIngressLink(
 	ingLink *cisapiv1.IngressLink,
 	isILDeleted bool,
@@ -3307,13 +2884,13 @@ func (ctlr *Controller) processIngressLink(
 	// Phase1 setting bigipLabel to empty string
 	bigipLabel := BigIPLabel
 	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
-	if ctlr.ipamCli != nil {
+	if ctlr.ipamHandler != nil {
 		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
-			ip = ctlr.releaseIP(ingLink.Spec.IPAMLabel, "", key)
+			ip = ctlr.ipamHandler.ReleaseGrpcIP(ingLink.Spec.IPAMLabel, key)
 		} else if ingLink.Spec.VirtualServerAddress != "" {
 			ip = ingLink.Spec.VirtualServerAddress
 		} else {
-			ip, status = ctlr.requestIP(ingLink.Spec.IPAMLabel, "", key)
+			ip, status = ctlr.ipamHandler.AllocateGrpcIP(ingLink.Spec.IPAMLabel, key)
 
 			switch status {
 			case NotEnabled:
@@ -4020,6 +3597,12 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 			os.Exit(1)
 		}
 	}
+	// processs IPAM Config
+	if ctlr.ipamHandler != nil {
+		ctlr.processIPAMConfig(configCR)
+
+	}
+
 	es := configCR.Spec.ExtendedSpec
 	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
 	clusterConfigUpdated := false

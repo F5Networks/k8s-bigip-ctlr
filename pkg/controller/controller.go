@@ -19,23 +19,17 @@ package controller
 import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
-	"os"
-	"strings"
-	"sync"
-	"time"
-	"unicode"
-
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipam"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+	"os"
+	"sync"
+	"time"
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -117,9 +111,6 @@ func NewController(params Params) *Controller {
 	// enable http endpoint
 	go ctlr.enableHttpEndpoint(params.HttpAddress)
 
-	// setup ipam
-	ctlr.setupIPAM(params)
-
 	go ctlr.Start()
 
 	return ctlr
@@ -135,86 +126,6 @@ func (ctlr *Controller) NewRequestHandler(userAgent string, httpClientMetrics bo
 		PostParams:        ctlr.PostParams,
 		httpClientMetrics: httpClientMetrics,
 	}
-}
-func (ctlr *Controller) setupIPAM(params Params) {
-	if params.IPAM {
-		ipamParams := ipammachinery.Params{
-			Config:        params.Config,
-			EventHandlers: ctlr.getEventHandlerForIPAM(),
-			Namespaces:    []string{IPAMNamespace},
-		}
-
-		ipamClient := ipammachinery.NewIPAMClient(ipamParams)
-		ctlr.ipamCli = ipamClient
-
-		ctlr.registerIPAMCRD()
-		time.Sleep(3 * time.Second)
-		_ = ctlr.createIPAMResource()
-	}
-}
-
-// Register IPAM CRD
-func (ctlr *Controller) registerIPAMCRD() {
-	err := ipammachinery.RegisterCRD(ctlr.clientsets.kubeAPIClient)
-	if err != nil {
-		log.Errorf("[IPAM] error while registering CRD %v", err)
-	}
-}
-
-// Create IPAM CRD
-func (ctlr *Controller) createIPAMResource() error {
-
-	frameIPAMResourceName := func() string {
-		prtn := ""
-		for _, ch := range DEFAULT_PARTITION {
-			elem := string(ch)
-			if unicode.IsUpper(ch) {
-				elem = strings.ToLower(elem) + "-"
-			}
-			prtn += elem
-		}
-		if string(prtn[len(prtn)-1]) == "-" {
-			prtn = prtn + ipamCRName
-		} else {
-			prtn = prtn + "." + ipamCRName
-		}
-
-		prtn = strings.Replace(prtn, "_", "-", -1)
-		prtn = strings.Replace(prtn, "--", "-", -1)
-
-		hostsplit := strings.Split(os.Getenv("HOSTNAME"), "-")
-		var host string
-		if len(hostsplit) > 2 {
-			host = strings.Join(hostsplit[0:len(hostsplit)-2], "-")
-		} else {
-			host = strings.Join(hostsplit, "-")
-		}
-		return strings.Join([]string{host, prtn}, ".")
-	}
-
-	crName := frameIPAMResourceName()
-	f5ipam := &ficV1.IPAM{
-		ObjectMeta: metaV1.ObjectMeta{
-			Name:      crName,
-			Namespace: IPAMNamespace,
-		},
-		Spec: ficV1.IPAMSpec{
-			HostSpecs: make([]*ficV1.HostSpec, 0),
-		},
-		Status: ficV1.IPAMStatus{
-			IPStatus: make([]*ficV1.IPSpec, 0),
-		},
-	}
-	ctlr.ipamCR = IPAMNamespace + "/" + crName
-
-	ipamCR, err := ctlr.ipamCli.Create(f5ipam)
-	if err == nil {
-		log.Debugf("[IPAM] Created IPAM Custom Resource: \n%v\n", ipamCR)
-		return nil
-	}
-
-	log.Debugf("[IPAM] error while creating IPAM custom resource %v", err.Error())
-	return err
 }
 
 // createLabelSelector returns label used to identify F5 specific
@@ -248,15 +159,6 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 		return fmt.Errorf("Failed to create kubeClient: %v", err)
 	}
 
-	var ipamCRConfig *rest.Config
-	if ipamCRConfig, err = rest.InClusterConfig(); err != nil {
-		log.Errorf("error creating client configuration: %v", err)
-	}
-	kubeIPAMClient, err := extClient.NewForConfig(ipamCRConfig)
-	if err != nil {
-		log.Errorf("Failed to create client: %v", err)
-	}
-
 	var rclient *routeclient.RouteV1Client
 	if ctlr.managedResources.ManageRoutes {
 		rclient, err = routeclient.NewForConfig(config)
@@ -269,7 +171,6 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 	ctlr.clientsets = &ClientSets{
 		kubeClient:    kubeClient,
 		kubeCRClient:  kubeCRClient,
-		kubeAPIClient: kubeIPAMClient,
 		routeClientV1: rclient,
 	}
 	return nil
@@ -284,8 +185,9 @@ func (ctlr *Controller) Start() {
 	// Start Informers
 	ctlr.startInformers()
 
-	if ctlr.ipamCli != nil {
-		go ctlr.ipamCli.Start()
+	// Start the ipam handler
+	if ctlr.ipamHandler != nil {
+		ctlr.ipamHandler.Start()
 	}
 
 	stopChan := make(chan struct{})
@@ -300,8 +202,8 @@ func (ctlr *Controller) Start() {
 func (ctlr *Controller) Stop() {
 	// stop the informers
 	ctlr.stopInformers()
-	if ctlr.ipamCli != nil {
-		ctlr.ipamCli.Stop()
+	if ctlr.ipamHandler != nil {
+		ctlr.ipamHandler.Stop()
 	}
 
 }
@@ -310,4 +212,16 @@ func (ctlr *Controller) Stop() {
 func (ctlr *Controller) setPrometheusResourceCount() {
 	prometheus.ManagedServices.Set(float64(len(ctlr.resources.poolMemCache)))
 	prometheus.ManagedTransportServers.Set(float64(len(ctlr.TeemData.ResourceType.TransportServer) + len(ctlr.TeemData.ResourceType.IPAMTS)))
+}
+
+func (ctlr *Controller) processIPAMConfig(configCR *cisapiv1.DeployConfig) {
+	if configCR.Spec.IPAMConfig != (cisapiv1.IPAMConfig{}) {
+		if ctlr.ipamHandler != nil {
+			if ctlr.ipamHandler.URI != configCR.Spec.IPAMConfig.Host {
+				ctlr.ipamHandler.Stop()
+				ctlr.ipamHandler = ipam.NewIpamHandler(configCR.Spec.IPAMConfig.Host, ctlr.clientsets.kubeClient)
+				ctlr.ipamHandler.Start()
+			}
+		}
+	}
 }

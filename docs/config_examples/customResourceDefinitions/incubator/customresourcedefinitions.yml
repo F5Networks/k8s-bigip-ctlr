@@ -1114,6 +1114,13 @@ spec:
               type: object
             spec:
               properties:
+                ipamConfig:
+                  properties:
+                    host:
+                      type: string
+                      description: "host address of ipam service or the nodeport address for the ipam service along with port, i.e. ipam-service:port"
+                  type: object
+                  description: FIC Configuration for CIS
                 as3Config:
                   properties:
                     debugAS3:

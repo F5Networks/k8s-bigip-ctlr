@@ -1,7 +1,6 @@
 package test
 
 import (
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -105,21 +104,6 @@ func NewExternalDNS(name, namespace string, spec cisapiv1.ExternalDNSSpec) *cisa
 			Namespace: namespace,
 		},
 		Spec: spec,
-	}
-}
-
-func NewIPAM(name, namespace string, spec ficV1.IPAMSpec, status ficV1.IPAMStatus) *ficV1.IPAM {
-	return &ficV1.IPAM{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "IPAM",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec:   spec,
-		Status: status,
 	}
 }
 

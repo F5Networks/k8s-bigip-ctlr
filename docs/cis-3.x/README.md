@@ -53,6 +53,58 @@ Step 6: Update the CIS deployment file (./docs/cis-3.x/install/k8s/sample-k8s-bi
 kubectl create -f ./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml
 ```
 
+Installing CIS 3.x with FIC Controller
+--------------------------------------
+
+**Prerequisites**
+* FIC Controller should be installed and running.
+
+Step 1: Clone the CIS repo
+
+```shell
+git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
+````
+Step 2: Install the RBAC for CIS Controller
+
+```shell
+kubectl create -f ./docs/cis-3.x/rbac/clusterrole.yaml
+```
+
+Step 3: Install Custom Resource Definitions for CIS Controller
+
+```shell
+kubectl create -f ./docs/config_examples/customResourceDefinitions/incubator/customresourcedefinitions.yml
+```
+
+Step 4: Install CIS Deploy config CR
+
+Update the host under ipamConfig parameter in deploy-config CR with the FIC Controller service's clusterIP/NodePort IP. 
+
+```shell
+kubectl create -f ./docs/cis-3.x/deploy-config/cis-deploy-config-ipam.yaml
+```
+
+Step 5: Create the kubernetes secret for Central Manager credentials
+
+```shell
+mkdir "creds"
+echo -n "admin" > creds/username
+echo -n "admin" > creds/password
+echo -n "10.10.10.10" > creds/url
+kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/ 
+```
+
+Step 6: Update the CIS deployment file (./docs/cis-3.x/install/k8s/sample-ipam-k8s-bigip-ctlr.yaml) with required image and parameters and install the CIS Controller.
+
+```shell
+kubectl create -f ./docs/cis-3.x/install/k8s/sample-ipam-k8s-bigip-ctlr.yaml
+```
+
+Note:- There are two environment variables added in the deployment file for CIS Controller along with the volume for projected serviceAcoountToken.
+* If you are modifying the service account's path, then update the environment variable "TOKEN_PATH" with the new path.
+* Update the environment variable "FIC_AUDIENCES" with the audience configured in FIC controller.
+
+
 Uninstalling CIS 3.x
 --------------------
 

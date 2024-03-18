@@ -20,6 +20,9 @@ rules:
   - apiGroups: ["", "extensions"]
     resources: ["secrets"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
 
 ---
 kind: ClusterRoleBinding

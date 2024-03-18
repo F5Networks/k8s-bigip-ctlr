@@ -464,6 +464,7 @@ type DeployConfigSpec struct {
 	BaseConfig    BaseConfig    `json:"baseConfig"`
 	NetworkConfig NetworkConfig `json:"networkConfig"`
 	AS3Config     AS3Config     `json:"as3Config,omitempty"`
+	IPAMConfig    IPAMConfig    `json:"ipamConfig,omitempty"`
 	BigIpConfig   []BigIpConfig `json:"bigIpConfig,omitempty"`
 	ExtendedSpec  ExtendedSpec  `json:"extendedSpec,omitempty"`
 }
@@ -492,6 +493,10 @@ type AS3Config struct {
 	DebugAS3     bool `json:"debugAS3,omitempty"`
 	PostDelayAS3 int  `json:"postDelayAS3,omitempty"`
 	DocumentAPI  bool `json:"documentAPI,omitempty"`
+}
+
+type IPAMConfig struct {
+	Host string `json:"host,omitempty"`
 }
 
 type BigIpConfig struct {

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipam"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +39,12 @@ func (ctlr *Controller) initController() {
 
 	// process the CNI config
 	ctlr.processCNIConfig(configCR)
+
+	// process IPAM config
+	if configCR.Spec.IPAMConfig != (cisapiv1.IPAMConfig{}) {
+		ctlr.ipamHandler = ipam.NewIpamHandler(configCR.Spec.IPAMConfig.Host, ctlr.clientsets.kubeClient)
+	}
+
 	// create the network manager if required
 	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
 		// create a new network manager

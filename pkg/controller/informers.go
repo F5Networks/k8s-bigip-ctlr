@@ -27,7 +27,6 @@ import (
 	"reflect"
 	"time"
 
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
@@ -711,76 +710,6 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 		)
 		nrInf.routeInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Route, Local))
 	}
-}
-
-func (ctlr *Controller) getEventHandlerForIPAM() *cache.ResourceEventHandlerFuncs {
-	return &cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { ctlr.enqueueIPAM(obj) },
-		UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedIPAM(oldObj, newObj) },
-		DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedIPAM(obj) },
-	}
-}
-
-func (ctlr *Controller) enqueueIPAM(obj interface{}) {
-	ipamObj := obj.(*ficV1.IPAM)
-
-	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamCR {
-		return
-	}
-
-	log.Debugf("Enqueueing IPAM: %v", ipamObj)
-	key := &rqKey{
-		namespace: ipamObj.ObjectMeta.Namespace,
-		kind:      IPAM,
-		rscName:   ipamObj.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Create,
-	}
-
-	ctlr.resourceQueue.Add(key)
-}
-
-func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
-	oldIpam := oldObj.(*ficV1.IPAM)
-	curIpam := newObj.(*ficV1.IPAM)
-
-	if curIpam.Namespace+"/"+curIpam.Name != ctlr.ipamCR {
-		return
-	}
-
-	if reflect.DeepEqual(oldIpam.Status, curIpam.Status) {
-		return
-	}
-
-	log.Debugf("Enqueueing Updated IPAM: %v", curIpam)
-	key := &rqKey{
-		namespace: curIpam.ObjectMeta.Namespace,
-		kind:      IPAM,
-		rscName:   curIpam.ObjectMeta.Name,
-		rsc:       newObj,
-		event:     Update,
-	}
-
-	ctlr.resourceQueue.Add(key)
-}
-
-func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
-	ipamObj := obj.(*ficV1.IPAM)
-
-	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamCR {
-		return
-	}
-
-	log.Debugf("Enqueueing IPAM: %v", ipamObj)
-	key := &rqKey{
-		namespace: ipamObj.ObjectMeta.Namespace,
-		kind:      IPAM,
-		rscName:   ipamObj.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
-	}
-
-	ctlr.resourceQueue.Add(key)
 }
 
 func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {

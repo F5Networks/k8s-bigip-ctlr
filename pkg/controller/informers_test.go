@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
@@ -607,64 +606,6 @@ var _ = Describe("Informers Tests", func() {
 
 			//mockCtlr.enqueueNamespace(ns)
 			//Expect(mockCtlr.processResources()).To(Equal(true))
-		})
-
-		It("IPAM", func() {
-			mockCtlr.ipamCR = "default/SampleIPAM"
-
-			hostSpec := &ficV1.HostSpec{
-				Host:      "test.com",
-				IPAMLabel: "test",
-			}
-			ipam := test.NewIPAM(
-				"SampleIPAM",
-				namespace,
-				ficV1.IPAMSpec{
-					HostSpecs: []*ficV1.HostSpec{hostSpec},
-				},
-				ficV1.IPAMStatus{},
-			)
-			mockCtlr.enqueueIPAM(ipam)
-			key, quit := mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue New IPAM Failed")
-			Expect(quit).To(BeFalse(), "Enqueue New IPAM  Failed")
-
-			ipSpec := &ficV1.IPSpec{
-				Host:      "test.com",
-				IPAMLabel: "test",
-				IP:        "1.2.3.4",
-			}
-			newIPAM := test.NewIPAM(
-				"SampleIPAM",
-				namespace,
-				ficV1.IPAMSpec{
-					HostSpecs: []*ficV1.HostSpec{hostSpec},
-				},
-				ficV1.IPAMStatus{
-					IPStatus: []*ficV1.IPSpec{ipSpec},
-				},
-			)
-			mockCtlr.enqueueUpdatedIPAM(ipam, newIPAM)
-			key, quit = mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue Updated IPAM Failed")
-			Expect(quit).To(BeFalse(), "Enqueue Updated IPAM  Failed")
-
-			mockCtlr.enqueueDeletedIPAM(newIPAM)
-			key, quit = mockCtlr.resourceQueue.Get()
-			Expect(key).ToNot(BeNil(), "Enqueue Deleted IPAM Failed")
-			Expect(quit).To(BeFalse(), "Enqueue Deleted IPAM  Failed")
-
-			mockCtlr.enqueueIPAM(ipam)
-			Expect(mockCtlr.processResources()).To(Equal(true))
-
-			newIPAM.Namespace = "test"
-			mockCtlr.enqueueDeletedIPAM(newIPAM)
-			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Enqueue Deleted IPAM Failed")
-			mockCtlr.enqueueIPAM(newIPAM)
-			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Enqueue Deleted IPAM Failed")
-			mockCtlr.enqueueUpdatedIPAM(newIPAM, newIPAM)
-			Expect(mockCtlr.resourceQueue.Len()).To(BeEquivalentTo(0), "Enqueue Deleted IPAM Failed")
-			Expect(mockCtlr.getEventHandlerForIPAM()).ToNot(BeNil())
 		})
 	})
 

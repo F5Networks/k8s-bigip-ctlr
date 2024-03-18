@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package ipamgrpc;
+
+option go_package = "./controller";
+
+message AllocateIPRequest {
+  string label = 1;
+  string hostname = 2;
+
+}
+
+message AllocateIPResponse {
+  string ipaddress = 1;
+  bool status = 2;
+  string  error = 3;
+}
+
+message ReleaseIPRequest {
+  string label = 1;
+  string hostname = 2;
+}
+
+message ReleaseIPResponse {
+  bool status = 1;
+  string ipaddress = 2;
+  string  error = 3;
+}
+
+service IpamGRPCService {
+  rpc AllocateIP(AllocateIPRequest) returns (AllocateIPResponse) {}
+  rpc ReleaseIP(ReleaseIPRequest) returns (ReleaseIPResponse) {}
+}

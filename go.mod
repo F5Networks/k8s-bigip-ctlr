@@ -3,19 +3,19 @@ module github.com/F5Networks/k8s-bigip-ctlr/v3
 go 1.21
 
 require (
-	github.com/F5Networks/f5-ipam-controller v0.1.8
 	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
 	github.com/google/uuid v1.3.0
-	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.6
 	github.com/openshift/api v0.0.0-20210315202829-4b79815405ec
 	github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
 	github.com/prometheus/client_golang v1.11.1
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/crypto v0.14.0
+	google.golang.org/grpc v1.51.0
+	google.golang.org/protobuf v1.30.0
 	k8s.io/api v0.28.3
-	k8s.io/apiextensions-apiserver v0.21.2
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3
 )
@@ -56,7 +56,6 @@ require (
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -68,3 +67,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+require google.golang.org/genproto v0.0.0-20221111202108-142d8a6fa32e // indirect

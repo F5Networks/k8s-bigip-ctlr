@@ -1,6 +1,23 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * Multi Cluster
+    * CRD
+
+
+Bug Fixes
+````````````
+* `Issue 3324 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3324>`_: Fix for Service LoadBalancer with targetPort set to name of containerPort creates emtpy BIG-IP Pool
+
+Upgrade notes
+``````````````
+
 2.16.0
 -------------
 

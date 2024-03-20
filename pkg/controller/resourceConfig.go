@@ -26,8 +26,6 @@ import (
 	"strconv"
 	"strings"
 
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 
@@ -60,7 +58,6 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
-	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 	rs.externalClustersConfig = make(map[string]cisapiv1.ExternalClusterConfig)
 }

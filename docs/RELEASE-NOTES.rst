@@ -9,6 +9,7 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+        * `Issue 3329 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3329>`_: Add support for static ip configuration in annotation for service type LoadBalancer.
 
 
 Bug Fixes

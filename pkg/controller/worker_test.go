@@ -911,6 +911,73 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
 		})
 
+		It("Processing ServiceTypeLoadBalancer with Ipam and static ip", func() {
+			// Service when IPAM is not available
+			mockCtlr.Agent = &Agent{
+				PostManager: &PostManager{
+					PostParams: PostParams{
+						BIGIPURL: "10.10.10.1",
+					},
+				},
+			}
+			mockCtlr.Partition = "default"
+			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+
+			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
+
+			mockCtlr.resources.Init()
+
+			// Service Without annotation
+			svc1.Annotations = make(map[string]string)
+			svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
+
+			_ = mockCtlr.createIPAMResource()
+			ipamCR := mockCtlr.getIPAMCR()
+
+			ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+				{
+					IPAMLabel: "test",
+					Host:      "",
+					Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
+				},
+			}
+
+			ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+				{
+					IPAMLabel: "test",
+					Host:      "",
+					IP:        "10.10.10.1",
+					Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
+				},
+			}
+			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_1_80"]).NotTo(BeNil(), "Invalid Resource Configs")
+
+			_ = mockCtlr.processLBServices(svc1, true)
+			svc1.Annotations[LBServiceIPAnnotation] = "10.10.10.2"
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
+
+			_ = mockCtlr.processLBServices(svc1, true)
+			svc1.Annotations[LBServiceIPAnnotation] = "10.10.10.3"
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_3_80"]).NotTo(BeNil(), "Invalid Resource Configs")
+
+			_ = mockCtlr.processLBServices(svc1, true)
+			delete(svc1.Annotations, LBServiceIPAnnotation)
+			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_1_80"]).NotTo(BeNil(), "Invalid Resource Configs")
+
+		})
+
 		It("Processing External DNS", func() {
 			mockCtlr.resources.Init()
 			DEFAULT_PARTITION = "default"

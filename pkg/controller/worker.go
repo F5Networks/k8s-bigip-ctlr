@@ -2624,40 +2624,44 @@ func (ctlr *Controller) processLBServices(
 	isSVCDeleted bool,
 ) error {
 
-	ipamLabel, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]
-	if !ok {
-		log.Debugf("Service %v/%v does not have annotation %v, continuing.",
+	ip, ok1 := svc.Annotations[LBServiceIPAnnotation]
+	ipamLabel, ok2 := svc.Annotations[LBServiceIPAMLabelAnnotation]
+	if !ok1 && !ok2 {
+		log.Debugf("Service %v/%v does not have either of annotation: %v, annotation:%v, continuing.",
 			svc.Namespace,
 			svc.Name,
 			LBServiceIPAMLabelAnnotation,
+			LBServiceIPAnnotation,
 		)
 		return nil
 	}
-	if ctlr.ipamCli == nil {
-		log.Warningf("[IPAM] IPAM is not enabled, Unable to process Services of Type LoadBalancer")
-		return nil
-	}
-
 	svcKey := ctlr.ipamClusterLabel + svc.Namespace + "/" + svc.Name + "_svc"
-	var ip string
-	var status int
-	if isSVCDeleted {
-		ip = ctlr.releaseIP(ipamLabel, "", svcKey)
-	} else {
-		ip, status = ctlr.requestIP(ipamLabel, "", svcKey)
+	// ip annotation has more preference than ipam
+	if !ok1 {
+		if ctlr.ipamCli == nil {
+			log.Warningf("[IPAM] IPAM is not enabled, Unable to process Services of Type LoadBalancer")
+			return nil
+		}
 
-		switch status {
-		case NotEnabled:
-			log.Debug("[IPAM] IPAM Custom Resource Not Available")
-			return nil
-		case InvalidInput:
-			log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
-			return nil
-		case NotRequested:
-			return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
-		case Requested:
-			log.Debugf("[IPAM] IP address requested for service: %s/%s", svc.Namespace, svc.Name)
-			return nil
+		var status int
+		if isSVCDeleted {
+			ip = ctlr.releaseIP(ipamLabel, "", svcKey)
+		} else {
+			ip, status = ctlr.requestIP(ipamLabel, "", svcKey)
+
+			switch status {
+			case NotEnabled:
+				log.Debug("[IPAM] IPAM Custom Resource Not Available")
+				return nil
+			case InvalidInput:
+				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
+				return nil
+			case NotRequested:
+				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
+			case Requested:
+				log.Debugf("[IPAM] IP address requested for service: %s/%s", svc.Namespace, svc.Name)
+				return nil
+			}
 		}
 	}
 

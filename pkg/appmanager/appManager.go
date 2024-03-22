@@ -1886,8 +1886,18 @@ func (appMgr *Manager) syncIngresses(
 					appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
 				} else {
 					if nil != ing.Spec.DefaultBackend {
+						var backendPort int32
+						var err error
+						if ing.Spec.DefaultBackend.Service.Port.Number != 0 {
+							backendPort = ing.Spec.DefaultBackend.Service.Port.Number
+						} else if ing.Spec.DefaultBackend.Service.Port.Name != "" {
+							backendPort, err = GetServicePort(ing.ObjectMeta.Namespace, ing.Spec.DefaultBackend.Service.Name, appInf.svcInformer.GetIndexer(), ing.Spec.DefaultBackend.Service.Port.Name, ResourceTypeIngress)
+							if err != nil {
+								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
+							}
+						}
 						fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
-							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName))
+							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName, backendPort))
 						RemoveUnReferredHealthMonitors(rsCfg, fullPoolName, monitors)
 						appMgr.handleSingleServiceV1IngressHealthMonitors(fullPoolName, rsCfg, ing, monitors)
 					} else {
@@ -1903,8 +1913,18 @@ func (appMgr *Manager) syncIngresses(
 			// Remove any dependencies no longer used by this Ingress
 			for _, dep := range depsRemoved {
 				if dep.Kind == ServiceDep {
+					var backendPort int32
+					var err error
+					if dep.BackendPortNumber != 0 {
+						backendPort = dep.BackendPortNumber
+					} else if dep.BackendPortName != "" {
+						backendPort, err = GetServicePort(dep.Name, dep.Name, appInf.svcInformer.GetIndexer(), dep.BackendPortName, ResourceTypeIngress)
+						if err != nil {
+							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
+						}
+					}
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, FormatIngressPoolName(dep.Namespace, dep.Name), appMgr.mergedRulesMap)
+						dep.Namespace, FormatIngressPoolName(dep.Namespace, dep.Name, backendPort), appMgr.mergedRulesMap)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}

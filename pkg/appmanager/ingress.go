@@ -389,7 +389,8 @@ func processV1IngressRules(
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
 				uri = rule.Host + path.Path
 				for _, pool := range pools {
-					if path.Backend.Service.Name == pool.ServiceName {
+					if path.Backend.Service.Name == pool.ServiceName &&
+						path.Backend.Service.Port.Number == pool.ServicePort {
 						poolName = pool.Name
 					}
 				}
@@ -675,6 +676,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 						Name: FormatIngressPoolName(
 							ing.ObjectMeta.Namespace,
 							path.Backend.Service.Name,
+							backendPort,
 						),
 						Partition:   cfg.Virtual.Partition,
 						Balance:     balance,
@@ -710,6 +712,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 			Name: FormatIngressPoolName(
 				ing.ObjectMeta.Namespace,
 				ing.Spec.DefaultBackend.Service.Name,
+				backendPort,
 			),
 			Partition:   cfg.Virtual.Partition,
 			Balance:     balance,

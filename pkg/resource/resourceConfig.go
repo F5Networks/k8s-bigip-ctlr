@@ -264,8 +264,8 @@ func FormatIngressVSName(ip string, port int32) string {
 }
 
 // format the pool name for an Ingress
-func FormatIngressPoolName(namespace, svc string, port int32) string {
-	return fmt.Sprintf("ingress_%s_%s_%d", namespace, svc)
+func FormatIngressPoolName(namespace, svc string, ingressName string, port int32) string {
+	return fmt.Sprintf("ingress_%s_%s_%s_%d", ingressName, namespace, svc, port)
 }
 
 func GetRouteCanonicalServiceName(route *routeapi.Route) string {

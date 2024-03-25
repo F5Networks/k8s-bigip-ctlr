@@ -676,6 +676,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 						Name: FormatIngressPoolName(
 							ing.ObjectMeta.Namespace,
 							path.Backend.Service.Name,
+							ing.ObjectMeta.Name,
 							backendPort,
 						),
 						Partition:   cfg.Virtual.Partition,
@@ -712,6 +713,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 			Name: FormatIngressPoolName(
 				ing.ObjectMeta.Namespace,
 				ing.Spec.DefaultBackend.Service.Name,
+				ing.ObjectMeta.Name,
 				backendPort,
 			),
 			Partition:   cfg.Virtual.Partition,

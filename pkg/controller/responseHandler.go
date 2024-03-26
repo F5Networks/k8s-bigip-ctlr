@@ -1,8 +1,6 @@
 package controller
 
 import (
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"sync"
 	"time"
@@ -66,7 +64,9 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 					continue
 				}
 				for rscKey, kind := range meta {
-					ctlr.removeUnusedIPAMEntries(kind)
+					if ctlr.ipamHandler != nil && (kind == VirtualServer || kind == TransportServer) {
+						ctlr.ipamHandler.RemoveUnusedIPAMEntries()
+					}
 					ns := strings.Split(rscKey, "/")[0]
 					switch kind {
 					//case VirtualServer:
@@ -151,54 +151,5 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 				}
 			}
 		}
-	}
-}
-
-func (ctlr *Controller) removeUnusedIPAMEntries(kind string) {
-	// Remove Unused IPAM entries in IPAM CR after CIS restarts, applicable to only first PostCall
-	if !ctlr.firstPostResponse && ctlr.ipamCli != nil && (kind == VirtualServer || kind == TransportServer) {
-		ctlr.firstPostResponse = true
-		toRemoveIPAMEntries := &ficV1.IPAM{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: make(map[string]string),
-			},
-		}
-		ipamCR := ctlr.getIPAMCR()
-		for _, hostSpec := range ipamCR.Spec.HostSpecs {
-			found := false
-			ctlr.cacheIPAMHostSpecs.Lock()
-			for cacheIndex, cachehostSpec := range ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs {
-				if (hostSpec.IPAMLabel == cachehostSpec.IPAMLabel && hostSpec.Host == cachehostSpec.Host) ||
-					(hostSpec.IPAMLabel == cachehostSpec.IPAMLabel && hostSpec.Key == cachehostSpec.Key) ||
-					(hostSpec.IPAMLabel == cachehostSpec.IPAMLabel && hostSpec.Key == cachehostSpec.Key && hostSpec.Host == cachehostSpec.Host) {
-					if len(ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs) > cacheIndex {
-						ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs = append(ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs[:cacheIndex], ctlr.cacheIPAMHostSpecs.IPAM.Spec.HostSpecs[cacheIndex+1:]...)
-					}
-					found = true
-					break
-				}
-			}
-			ctlr.cacheIPAMHostSpecs.Unlock()
-			if !found {
-				// To remove
-				toRemoveIPAMEntries.Spec.HostSpecs = append(toRemoveIPAMEntries.Spec.HostSpecs, hostSpec)
-			}
-		}
-		for _, removeIPAMentry := range toRemoveIPAMEntries.Spec.HostSpecs {
-			ipamCR = ctlr.getIPAMCR()
-			for index, hostSpec := range ipamCR.Spec.HostSpecs {
-				if (hostSpec.IPAMLabel == removeIPAMentry.IPAMLabel && hostSpec.Host == removeIPAMentry.Host) ||
-					(hostSpec.IPAMLabel == removeIPAMentry.IPAMLabel && hostSpec.Key == removeIPAMentry.Key) ||
-					(hostSpec.IPAMLabel == removeIPAMentry.IPAMLabel && hostSpec.Key == removeIPAMentry.Key && hostSpec.Host == removeIPAMentry.Host) {
-					_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, removeIPAMentry.Key, index)
-					if err != nil {
-						log.Errorf("[IPAM] ipam hostspec update error: %v", err)
-					}
-					break
-				}
-			}
-		}
-		// Delete cacheIPAMHostSpecs
-		ctlr.cacheIPAMHostSpecs = CacheIPAM{}
 	}
 }

@@ -85,6 +85,7 @@ var (
 	cmPassword  *string
 	credsDir    *string
 	sslInsecure *bool
+	ipam        *bool
 
 	trustedCertsCfgmap *string
 
@@ -160,7 +161,8 @@ func _init() {
 	}
 	manageCustomResources = kubeFlags.Bool("manage-custom-resources", true,
 		"Optional, specify whether or not to manage custom resources i.e. transportserver")
-
+	ipam = kubeFlags.Bool("ipam", false,
+		"Optional, when set to true, enable ipam feature for CRD.")
 	// MultiCluster Flags
 	multiClusterMode = multiClusterFlags.String("multi-cluster-mode", "",
 		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
@@ -361,6 +363,7 @@ func initController(
 			ManageCustomResources: *manageCustomResources,
 			UseNodeInternal:       *useNodeInternal,
 			MultiClusterMode:      *multiClusterMode,
+			IPAM:                  *ipam,
 		},
 	)
 

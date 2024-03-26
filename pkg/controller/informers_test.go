@@ -3,8 +3,10 @@ package controller
 import (
 	"context"
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
@@ -13,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"sync"
@@ -610,7 +613,9 @@ var _ = Describe("Informers Tests", func() {
 		})
 
 		It("IPAM", func() {
-			mockCtlr.ipamCR = "default/SampleIPAM"
+			fakeIpamCli := ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli)
+			mockCtlr.ipamHandler.IPAMCR = "default/SampleIPAM"
 
 			hostSpec := &ficV1.HostSpec{
 				Host:      "test.com",

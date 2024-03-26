@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
@@ -11,6 +12,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"sync"
 	"testing"
@@ -56,6 +58,7 @@ func newMockController() *mockController {
 			PostParams:       PostParams{},
 			clientsets:       &ClientSets{},
 			managedResources: ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
+			ipamHandler:      ipmanager.NewIpamHandler("test", &rest.Config{}, nil),
 		},
 	}
 }

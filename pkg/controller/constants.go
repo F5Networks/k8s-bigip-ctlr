@@ -146,12 +146,6 @@ const (
 
 	nginxMonitorPort int32 = 8081
 
-	NotEnabled = iota
-	InvalidInput
-	NotRequested
-	Requested
-	Allocated
-
 	timeoutSmall  = 5 * time.Second
 	timeoutMedium = 30 * time.Second
 	timeoutLarge  = 180 * time.Second

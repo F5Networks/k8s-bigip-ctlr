@@ -29,7 +29,6 @@ poolMemberType: auto
         orchestrationCNI: ovn-k8s
         metaData:
           poolMemberType: auto
-          sharedRouteMode: true
           networkCIDR: "10.1.0.0/16"
           staticRoutingMode: true
       as3Config:

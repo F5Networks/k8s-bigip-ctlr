@@ -18,6 +18,7 @@ package controller
 
 import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
@@ -33,12 +34,10 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 
-	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	v1 "k8s.io/api/core/v1"
-	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -60,14 +59,11 @@ type (
 		PoolMemberType         string
 		UseNodeInternal        bool
 		initState              bool
-		firstPostResponse      bool
 		shareNodes             bool
-		ipamCli                *ipammachinery.IPAMClient
-		ipamCR                 string
+		ipamHandler            *ipmanager.IPAMHandler
 		defaultRouteDomain     int
 		TeemData               *teem.TeemsData
 		requestMap             *requestMap
-		ipamHostSpecEmpty      bool
 		StaticRoutingMode      bool
 		OrchestrationCNI       string
 		StaticRouteNodeCIDR    string
@@ -90,7 +86,6 @@ type (
 	ClientSets struct {
 		kubeCRClient  versioned.Interface
 		kubeClient    kubernetes.Interface
-		kubeAPIClient *extClient.Clientset
 		routeClientV1 routeclient.RouteV1Interface
 	}
 	ManagedResources struct {
@@ -494,9 +489,7 @@ type (
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
-		// key of the map is IPSpec.Key
-		ipamContext              map[string]ficV1.IPSpec
-		processedNativeResources map[resourceRef]struct{}
+		processedNativeResources  map[resourceRef]struct{}
 		// stores valid externalClustersConfig from extendendCM
 		externalClustersConfig map[string]cisapiv1.ExternalClusterConfig
 	}

@@ -724,7 +724,7 @@ func (ctlr *Controller) getEventHandlerForIPAM() *cache.ResourceEventHandlerFunc
 func (ctlr *Controller) enqueueIPAM(obj interface{}) {
 	ipamObj := obj.(*ficV1.IPAM)
 
-	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamCR {
+	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamHandler.IPAMCR {
 		return
 	}
 
@@ -744,7 +744,7 @@ func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 	oldIpam := oldObj.(*ficV1.IPAM)
 	curIpam := newObj.(*ficV1.IPAM)
 
-	if curIpam.Namespace+"/"+curIpam.Name != ctlr.ipamCR {
+	if curIpam.Namespace+"/"+curIpam.Name != ctlr.ipamHandler.IPAMCR {
 		return
 	}
 
@@ -767,7 +767,7 @@ func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 	ipamObj := obj.(*ficV1.IPAM)
 
-	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamCR {
+	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamHandler.IPAMCR {
 		return
 	}
 

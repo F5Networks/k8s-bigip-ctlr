@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 	"net/http"
 	"reflect"
@@ -201,23 +203,24 @@ var _ = Describe("Worker Tests", func() {
 				tokenManager: mockCtlr.CMTokenManager,
 				PostParams:   PostParams{},
 			}
-			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			fakeIpamCli := ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli)
 		})
 
 		It("Create IPAM Custom Resource", func() {
-			err := mockCtlr.createIPAMResource()
+			err := mockCtlr.ipamHandler.CreateIPAMResource()
 			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
 		})
 
 		It("Get IPAM Resource", func() {
-			_ = mockCtlr.createIPAMResource()
-			ipamCR := mockCtlr.getIPAMCR()
+			_ = mockCtlr.ipamHandler.CreateIPAMResource()
+			ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 			Expect(ipamCR).NotTo(BeNil(), "Failed to GET IPAM")
-			mockCtlr.ipamCR = mockCtlr.ipamCR + "invalid"
-			ipamCR = mockCtlr.getIPAMCR()
+			mockCtlr.ipamHandler.IPAMCR = mockCtlr.ipamHandler.IPAMCR + "invalid"
+			ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
 			Expect(ipamCR).To(BeNil(), "Failed to GET IPAM")
-			mockCtlr.ipamCR = mockCtlr.ipamCR + "/invalid"
-			ipamCR = mockCtlr.getIPAMCR()
+			mockCtlr.ipamHandler.IPAMCR = mockCtlr.ipamHandler.IPAMCR + "/invalid"
+			ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
 			Expect(ipamCR).To(BeNil(), "Failed to GET IPAM")
 		})
 
@@ -228,37 +231,41 @@ var _ = Describe("Worker Tests", func() {
 			testSpec["key"] = "ns/name"
 
 			for sp, val := range testSpec {
-				_ = mockCtlr.createIPAMResource()
+				_ = mockCtlr.ipamHandler.CreateIPAMResource()
 				var key, host, errHint string
 				if sp == "host" {
 					host = val
-					key = ""
+					key = val + "_host"
 					errHint = "Host: "
 				} else {
 					key = val
 					host = ""
 					errHint = "Key: "
 				}
-
-				ip, status := mockCtlr.requestIP("test", host, key)
-				Expect(status).To(Equal(Requested), errHint+"Failed to Request IP")
+				resRef := ipmanager.ResourceRef{
+					Namespace: namespace,
+					Name:      "test-vs",
+					Kind:      VirtualServer,
+				}
+				ip, status := mockCtlr.ipamHandler.RequestIP("test", host, key, resRef)
+				Expect(status).To(Equal(ipmanager.Requested), errHint+"Failed to Request IP")
 				Expect(ip).To(BeEmpty(), errHint+"IP available even before requesting")
-				ipamCR := mockCtlr.getIPAMCR()
+				ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
 				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCtlr.requestIP("", host, key)
-				Expect(status).To(Equal(InvalidInput), errHint+"Failed to validate invalid input")
+				ip, status = mockCtlr.ipamHandler.RequestIP("", host, key, resRef)
+				Expect(status).To(Equal(ipmanager.InvalidInput), errHint+"Failed to validate invalid input")
 				Expect(ip).To(BeEmpty(), errHint+"Failed to validate invalid input")
-				newIPAMCR := mockCtlr.getIPAMCR()
+				newIPAMCR := mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
-				ip, status = mockCtlr.requestIP("test", host, key)
-				Expect(status).To(Equal(Requested), errHint+"Wrong status")
+				ip, status = mockCtlr.ipamHandler.RequestIP("test", host, key, resRef)
+				Expect(status).To(Equal(ipmanager.Requested), errHint+"Wrong status")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
-				newIPAMCR = mockCtlr.getIPAMCR()
+				newIPAMCR = mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
 				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -269,29 +276,29 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
-				ip, status = mockCtlr.requestIP("test", host, key)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
+				ip, status = mockCtlr.ipamHandler.RequestIP("test", host, key, resRef)
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Invalid IP")
-				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
-				ipamCR = mockCtlr.getIPAMCR()
+				Expect(status).To(Equal(ipmanager.Allocated), "Failed to fetch Allocated IP")
+				ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
 				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCtlr.requestIP("dev", host, key)
-				Expect(status).To(Equal(Requested), "Failed to Request IP")
+				ip, status = mockCtlr.ipamHandler.RequestIP("dev", host, key, resRef)
+				Expect(status).To(Equal(ipmanager.Requested), "Failed to Request IP")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
-				ipamCR = mockCtlr.getIPAMCR()
+				ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
 				// TODO: The expected number of Specs is 1. After the bug gets fixed update this to 1 from 2.
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(2), errHint+"Invalid number of Host Specs")
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCtlr.requestIP("test", "", "")
-				Expect(status).To(Equal(InvalidInput), errHint+"Failed to validate invalid input")
+				ip, status = mockCtlr.ipamHandler.RequestIP("test", "", "", resRef)
+				Expect(status).To(Equal(ipmanager.InvalidInput), errHint+"Failed to validate invalid input")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
-				newIPAMCR = mockCtlr.getIPAMCR()
+				newIPAMCR = mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{}
@@ -303,11 +310,11 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 
-				ip, status = mockCtlr.requestIP("old", host, key)
+				ip, status = mockCtlr.ipamHandler.RequestIP("old", host, key, resRef)
 				Expect(ip).To(Equal(""), errHint+"Invalid IP")
-				Expect(status).To(Equal(NotRequested), "Failed to identify Stale status")
+				Expect(status).To(Equal(ipmanager.NotRequested), "Failed to identify Stale status")
 			}
 		})
 
@@ -317,7 +324,7 @@ var _ = Describe("Worker Tests", func() {
 			testSpec["key"] = "ns/name"
 
 			for sp, val := range testSpec {
-				_ = mockCtlr.createIPAMResource()
+				_ = mockCtlr.ipamHandler.CreateIPAMResource()
 				var key, host, errHint string
 				if sp == "host" {
 					host = val
@@ -328,11 +335,16 @@ var _ = Describe("Worker Tests", func() {
 					host = ""
 					errHint = "Key: "
 				}
+				resRef := ipmanager.ResourceRef{
+					Namespace: namespace,
+					Name:      "test-ts",
+					Kind:      TransportServer,
+				}
 
-				ip := mockCtlr.releaseIP("", host, key)
+				ip := mockCtlr.ipamHandler.ReleaseIP("", host, key, resRef)
 				Expect(ip).To(BeEmpty(), errHint+"Unexpected IP address released")
 
-				ipamCR := mockCtlr.getIPAMCR()
+				ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
 					{
 						IPAMLabel: "test",
@@ -348,10 +360,10 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 
-				ip = mockCtlr.releaseIP("test", host, key)
-				ipamCR = mockCtlr.getIPAMCR()
+				ip = mockCtlr.ipamHandler.ReleaseIP("test", host, key, resRef)
+				ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(0), errHint+"IP Address Not released")
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
 
@@ -364,7 +376,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 				// Update status
 				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
 					{
@@ -374,7 +386,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 
 				// VS
 				vs := test.NewVirtualServer(
@@ -389,9 +401,14 @@ var _ = Describe("Worker Tests", func() {
 				ns := make(map[string]bool)
 				ns["default"] = true
 				mockCtlr.namespaces = ns
-				ip = mockCtlr.releaseIP("test", host, key)
-				ipamCR = mockCtlr.getIPAMCR()
-				Expect(len(ipamCR.Spec.HostSpecs)).NotTo(Equal(0), errHint+"IP Address Not released")
+				resRef = ipmanager.ResourceRef{
+					Namespace: vs.Namespace,
+					Name:      vs.Name,
+					Kind:      VirtualServer,
+				}
+				ip = mockCtlr.ipamHandler.ReleaseIP("test", host, key, resRef)
+				ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(0), errHint+"IP Address Not released")
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
 
 				// TS
@@ -404,9 +421,14 @@ var _ = Describe("Worker Tests", func() {
 					},
 				)
 				mockCtlr.addTransportServer(ts)
-				ip = mockCtlr.releaseIP("test", host, key)
-				ipamCR = mockCtlr.getIPAMCR()
-				Expect(len(ipamCR.Spec.HostSpecs)).NotTo(Equal(0), errHint+"IP Address Not released")
+				resRef = ipmanager.ResourceRef{
+					Namespace: ts.Namespace,
+					Name:      ts.Name,
+					Kind:      TransportServer,
+				}
+				ip = mockCtlr.ipamHandler.ReleaseIP("test", host, key, resRef)
+				ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(0), errHint+"IP Address Not released")
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
 
 			}
@@ -738,7 +760,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("IPAM Label", func() {
-				mockCtlr.ipamCli = &ipammachinery.IPAMClient{}
+				mockCtlr.ipamHandler.IpamCli = &ipammachinery.IPAMClient{}
 				vrt2.Spec.IPAMLabel = "test"
 				vrt3.Spec.IPAMLabel = "test"
 				vrt4.Spec.IPAMLabel = "test"
@@ -752,7 +774,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("IPAM Label: Absence in a virtualServer", func() {
-				mockCtlr.ipamCli = &ipammachinery.IPAMClient{}
+				mockCtlr.ipamHandler.IpamCli = &ipammachinery.IPAMClient{}
 				vrt2.Spec.IPAMLabel = "test"
 				vrt3.Spec.IPAMLabel = "test"
 				vrt4.Spec.IPAMLabel = ""
@@ -762,7 +784,7 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
 			It("IPAM Label in a virtualServer with empty host", func() {
-				mockCtlr.ipamCli = &ipammachinery.IPAMClient{}
+				mockCtlr.ipamHandler.IpamCli = &ipammachinery.IPAMClient{}
 				vrt4.Spec.IPAMLabel = "test"
 				vrt4.Spec.Host = ""
 				virts := mockCtlr.getAssociatedVirtualServers(vrt4,
@@ -860,7 +882,7 @@ var _ = Describe("Worker Tests", func() {
 				PostParams:   PostParams{},
 			}
 			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{}
-			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
@@ -879,8 +901,8 @@ var _ = Describe("Worker Tests", func() {
 			_ = mockCtlr.processLBServices(svc1, false)
 			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(0), "Resource Config should be empty")
 
-			_ = mockCtlr.createIPAMResource()
-			ipamCR := mockCtlr.getIPAMCR()
+			_ = mockCtlr.ipamHandler.CreateIPAMResource()
+			ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 
 			ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
 				{
@@ -898,7 +920,7 @@ var _ = Describe("Worker Tests", func() {
 					Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
 				},
 			}
-			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+			ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 
 			_ = mockCtlr.processLBServices(svc1, false)
 			time.Sleep(20 * time.Second)
@@ -1143,7 +1165,7 @@ var _ = Describe("Worker Tests", func() {
 					tokenManager: mockCtlr.CMTokenManager,
 					PostParams:   PostParams{},
 				}
-				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+				mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 				//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 				svc1.Spec.Type = v1.ServiceTypeLoadBalancer
@@ -1166,8 +1188,8 @@ var _ = Describe("Worker Tests", func() {
 				svc1, _ = mockCtlr.clientsets.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(
 					context.TODO(), svc1, metav1.UpdateOptions{})
 
-				_ = mockCtlr.createIPAMResource()
-				ipamCR := mockCtlr.getIPAMCR()
+				_ = mockCtlr.ipamHandler.CreateIPAMResource()
+				ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
 					{
@@ -1185,7 +1207,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 
 				// Policy CRD not found
 				_ = mockCtlr.processLBServices(svc1, false)
@@ -1495,8 +1517,8 @@ var _ = Describe("Worker Tests", func() {
 			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = mockPM.PostManager
 			mockCtlr.RequestHandler.userAgent = "as3"
-			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			_ = mockCtlr.createIPAMResource()
+			mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			_ = mockCtlr.ipamHandler.CreateIPAMResource()
 
 			policy = &cisapiv1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1674,7 +1696,6 @@ var _ = Describe("Worker Tests", func() {
 
 				mockCtlr.clientsets.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
 				mockCtlr.setInitialResourceCount()
-				mockCtlr.migrateIPAM()
 
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
@@ -1734,7 +1755,7 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(0), "Virtual Server not deleted")
 
 				vs.Spec.VirtualServerAddress = ""
-				mockCtlr.ipamCli = nil
+				mockCtlr.ipamHandler.IpamCli = nil
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(0), "Invalid VS")
@@ -1910,7 +1931,7 @@ var _ = Describe("Worker Tests", func() {
 
 				var key, host string
 
-				ipamCR := mockCtlr.getIPAMCR()
+				ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 				host = "test.com"
 				key = "default/test.com_host"
 
@@ -1920,7 +1941,7 @@ var _ = Describe("Worker Tests", func() {
 						Host:      "test.com",
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 				newIpamCR := ipamCR.DeepCopy()
 
 				svc2 := svc.DeepCopy()
@@ -1942,13 +1963,17 @@ var _ = Describe("Worker Tests", func() {
 						Key:       "default/test1_svc",
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 
 				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
 				mockCtlr.processResources()
-
-				_, status := mockCtlr.requestIP("test", host, key)
-				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				resRef := ipmanager.ResourceRef{
+					Namespace: svc.Namespace,
+					Name:      svc.Name,
+					Kind:      Service,
+				}
+				_, status := mockCtlr.ipamHandler.RequestIP("test", host, key, resRef)
+				Expect(status).To(Equal(ipmanager.Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(1), "VS not Processed")
 				Expect(*mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeTrue(), "http mrf route not processed correctly")
@@ -1983,7 +2008,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 				ipamCR = newIpamCR.DeepCopy()
 
 				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -1994,13 +2019,19 @@ var _ = Describe("Worker Tests", func() {
 						Key: key,
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 
 				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
 				mockCtlr.processResources()
 
-				_, status = mockCtlr.requestIP("test", "", key)
-				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				resRef = ipmanager.ResourceRef{
+					Namespace: vs.Namespace,
+					Name:      vs.Name,
+					Kind:      VirtualServer,
+				}
+
+				_, status = mockCtlr.ipamHandler.RequestIP("test", "", key, resRef)
+				Expect(status).To(Equal(ipmanager.Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(1), "Virtual Server not processed")
 				Expect(*mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeTrue(), "http mrf route not processed correctly")
@@ -2262,7 +2293,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(0), "Transport Server not deleted")
 
-				//mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+				//mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 				ts.Spec.VirtualServerAddress = ""
 				ts.Spec.IPAMLabel = "test"
 				mockCtlr.addTransportServer(ts)
@@ -2272,7 +2303,7 @@ var _ = Describe("Worker Tests", func() {
 
 				var key string
 
-				ipamCR := mockCtlr.getIPAMCR()
+				ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 				key = "default/SampleTS_ts"
 
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
@@ -2281,7 +2312,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 				newIpamCR := ipamCR.DeepCopy()
 
 				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -2292,14 +2323,18 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 
 				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
 				mockCtlr.processResources()
+				resRef := ipmanager.ResourceRef{
+					Namespace: ts.Namespace,
+					Name:      ts.Name,
+					Kind:      TransportServer,
+				}
+				_, status := mockCtlr.ipamHandler.RequestIP("test", "", key, resRef)
 
-				_, status := mockCtlr.requestIP("test", "", key)
-
-				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				Expect(status).To(Equal(ipmanager.Allocated), "Failed to fetch Allocated IP")
 				mockCtlr.deleteTransportServer(ts)
 				mockCtlr.processResources()
 
@@ -2317,7 +2352,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 				ipamCR = newIpamCR.DeepCopy()
 
 				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -2328,19 +2363,18 @@ var _ = Describe("Worker Tests", func() {
 						Key: key,
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 
 				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
 				mockCtlr.processResources()
 
-				_, status = mockCtlr.requestIP("test", "", key)
-				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
-				mockCtlr.firstPostResponse = false
-				mockCtlr.removeUnusedIPAMEntries(TransportServer)
+				_, status = mockCtlr.ipamHandler.RequestIP("test", "", key, resRef)
+				Expect(status).To(Equal(ipmanager.Allocated), "Failed to fetch Allocated IP")
+				mockCtlr.ipamHandler.RemoveUnusedIPAMEntries()
 				//check cache is not updated
-				ipamCR = mockCtlr.getIPAMCR()
+				ipamCR = mockCtlr.ipamHandler.GetIPAMCR()
 				Expect(len(ipamCR.Status.IPStatus)).To(Equal(1), "IPAM cache not updated")
-				mockCtlr.ipamCli = nil
+				mockCtlr.ipamHandler.IpamCli = nil
 				mockCtlr.addTransportServer(ts)
 				mockCtlr.processResources()
 			})
@@ -2630,7 +2664,7 @@ var _ = Describe("Worker Tests", func() {
 				var key, host string
 				var status int
 
-				ipamCR := mockCtlr.getIPAMCR()
+				ipamCR := mockCtlr.ipamHandler.GetIPAMCR()
 				key = "default/ingresslink1_il"
 
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
@@ -2639,7 +2673,7 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(ipamCR)
 				newIpamCR := ipamCR.DeepCopy()
 
 				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -2649,13 +2683,17 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				newIpamCR, _ = mockCtlr.ipamHandler.IpamCli.Update(newIpamCR)
 
 				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
 				mockCtlr.processResources()
-
-				_, status = mockCtlr.requestIP("test", host, key)
-				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				resRef := ipmanager.ResourceRef{
+					Namespace: IngressLink1.Namespace,
+					Name:      IngressLink1.Name,
+					Kind:      IngressLink,
+				}
+				_, status = mockCtlr.ipamHandler.RequestIP("test", host, key, resRef)
+				Expect(status).To(Equal(ipmanager.Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(1), "IngressLink not processed")
 				mockCtlr.deleteIngressLink(IngressLink1)
 				mockCtlr.processResources()
@@ -2680,7 +2718,7 @@ var _ = Describe("Worker Tests", func() {
 				valid = mockCtlr.checkValidIngressLink(IngressLink1)
 				Expect(valid).To(BeFalse(), "Invalid IngressLink")
 
-				mockCtlr.ipamCli = nil
+				mockCtlr.ipamHandler.IpamCli = nil
 				IngressLink1.Spec.VirtualServerAddress = ""
 				valid = mockCtlr.checkValidIngressLink(IngressLink1)
 				Expect(valid).To(BeFalse(), "Invalid IngressLink")
@@ -2842,8 +2880,8 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = mockPM.PostManager
 			mockCtlr.RequestHandler.userAgent = "as3"
 
-			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			_ = mockCtlr.createIPAMResource()
+			mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			_ = mockCtlr.ipamHandler.CreateIPAMResource()
 
 		})
 		AfterEach(func() {
@@ -3828,7 +3866,7 @@ var _ = Describe("Worker Tests", func() {
 		It("Virtual Server processing on pod update", func() {
 			mockCtlr.PoolMemberType = NodePortLocal
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
-			mockCtlr.ipamCli = nil
+			mockCtlr.ipamHandler.IpamCli = nil
 			labels := make(map[string]string)
 			labels["app"] = "dev"
 			mockCtlr.comInformers[namespace] = mockCtlr.newNamespacedCommonResourceInformer(namespace)

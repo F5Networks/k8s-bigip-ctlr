@@ -1165,9 +1165,6 @@ spec:
                         tunnelName:
                           type: string
                           description: "Tunnel name is used to specify the tunnel name configured on the BIG-IP for cluster mode routing"
-                        sharedRouteMode:
-                          type: boolean
-                          description: "Shared route mode is used to enable or disable creating static routes on the BIG-IP shared partition Common"
                         networkCIDR:
                           type: string
                           pattern: '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){2}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(3[0-2]|[12]?[0-9])$'

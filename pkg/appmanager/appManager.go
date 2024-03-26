@@ -2414,7 +2414,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 ) (bool, int, int) {
 	vsFound := 0
 	vsUpdated := 0
-	var deactivatedStatus bool
+	deactivated := false
 	poolUpdated := 0
 	for _, backendSvc := range currResourceSvcs {
 		//get current resource skey and port
@@ -2425,7 +2425,6 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 			Namespace:   sKey.Namespace,
 		}
 		backend, _, _ := appInf.svcInformer.GetIndexer().GetByKey(svcBackend)
-		deactivated := false
 
 		// Get the pool that matches the sKey we are processing
 		for i, pl := range rsCfg.Pools {
@@ -2548,7 +2547,6 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 				}
 			}
 		}
-		deactivatedStatus = deactivatedStatus && deactivated
 
 		if vsUpdated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
 			rsCfg.GetNameRef()) {
@@ -2562,7 +2560,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 		return false, 0, 0
 	}
 
-	if deactivatedStatus {
+	if deactivated {
 		return false, vsFound, vsUpdated
 	}
 

@@ -4349,18 +4349,89 @@ func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace 
 	return nodePort
 }
 
-func (ctlr *Controller) getResourceServicePort(ns string,
-	svcName string,
+func (ctlr *Controller) getResourceServicePortForRoute(
 	svcIndexer cache.Indexer,
-	portName string,
-	rscType string,
+	route *routeapi.Route,
 ) (int32, error) {
 	// GetServicePort returns the port number, for a given port name,
 	// else, returns the first port found for a Route's service.
-	key := ns + "/" + svcName
 
+	// The strategy used to get the port number is as follows:
+	// Step 1: Try to fetch the port number from the base service in the local cluster
+	// Step 2: If the base service is not found, try to fetch the port number from the base service in the HA peer cluster(in case of multi-cluster active-active)
+	// Step 3: If the base service is not found in HA peer cluster, try to fetch the port number from the alternate backend services in the local cluster
+	// Step 4: If the A/B services are not found in local cluster, try to fetch the port number from the alternate backend services in the HA peer cluster(in case of multi-cluster active-active)
+
+	if route == nil {
+		return 0, fmt.Errorf("Route is nil")
+	}
+	portName := "" // portName used in the service
+	// if port is defined in the route then use it
+	if route.Spec.Port != nil {
+		strVal := route.Spec.Port.TargetPort.StrVal
+		if strVal == "" {
+			return route.Spec.Port.TargetPort.IntVal, nil
+		} else {
+			portName = strVal
+		}
+	}
+
+	// Look for the base service
+	key := route.Namespace + "/" + route.Spec.To.Name
+	// 1. look for base service in the local cluster
+	port, err := getSvcPortFromLocalCluster(portName, key, resource.ResourceTypeRoute, svcIndexer)
+	if err == nil && port != 0 {
+		log.Warningf("Could not find service '%s' associated with route '%s' in local cluster", key,
+			route.Name)
+		return port, err
+	}
+
+	// 2. look for base service in the HA peer cluster
+	if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+		port, err := ctlr.getSvcPortFromHACluster(route.Namespace, route.Spec.To.Name, portName, resource.ResourceTypeRoute)
+		// If service and port found then return the port
+		if err == nil && port != 0 {
+			log.Warningf("Could not find service '%s' associated with route '%s' in HA peer cluster", key,
+				route.Name)
+			return port, err
+		}
+	}
+
+	// 3. look for the AB services in the local clusters
+	if route.Spec.AlternateBackends == nil || len(route.Spec.AlternateBackends) == 0 {
+		return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
+	}
+	for _, ab := range route.Spec.AlternateBackends {
+		key = route.Namespace + "/" + ab.Name
+		port, err = getSvcPortFromLocalCluster(portName, key, resource.ResourceTypeRoute, svcIndexer)
+		if err == nil && port != 0 {
+			log.Warningf("Could not find service '%s' associated with route '%s' in HA peer cluster", key,
+				route.Name)
+			return port, err
+		}
+	}
+
+	// 4th look for the AB services in the HA peer clusters
+	if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+		for _, ab := range route.Spec.AlternateBackends {
+			port, err := ctlr.getSvcPortFromHACluster(route.Namespace, ab.Name, portName, resource.ResourceTypeRoute)
+			if nil != err || port == 0 {
+				// ignore error and continue to next service
+				log.Warningf("Could not find service '%s' associated with route '%s' in HA peer cluster", key,
+					route.Name)
+				continue
+			}
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
+}
+
+// getSvcPortFromLocalCluster returns the port number for a given port name from the service in the local cluster
+func getSvcPortFromLocalCluster(portName, key, resourceType string, svcIndexer cache.Indexer) (int32, error) {
 	obj, found, err := svcIndexer.GetByKey(key)
 	if nil != err {
+		// ignore error and continue to next service
 		return 0, fmt.Errorf("Error looking for service '%s': %v", key, err)
 	}
 	if found {
@@ -4373,13 +4444,12 @@ func (ctlr *Controller) getResourceServicePort(ns string,
 			}
 			return 0,
 				fmt.Errorf("Could not find service port '%s' on service '%s'", portName, key)
-		} else if rscType == resource.ResourceTypeRoute {
+		} else if resourceType == resource.ResourceTypeRoute {
 			return svc.Spec.Ports[0].Port, nil
 		}
-	} else if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
-		return ctlr.getSvcPortFromHACluster(ns, svcName, portName, rscType)
 	}
-	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
+	return 0,
+		fmt.Errorf("Could not find service port '%s' on service '%s'", portName, key)
 }
 
 func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {

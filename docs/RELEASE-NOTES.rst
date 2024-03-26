@@ -15,6 +15,8 @@ Added Functionality
 Bug Fixes
 ````````````
 * `Issue 3324 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3324>`_: Fix for Service LoadBalancer with targetPort set to name of containerPort creates emtpy BIG-IP Pool
+* `Issue 3326 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3326>`_: Multi-cluster: Services in blue-green deployments don´t get updated
+
 
 Upgrade notes
 ``````````````

@@ -870,7 +870,7 @@ spec:
                   type: array
                   items:
                     type: string
-                    pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    pattern: '(^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$)|(^[a-zA-Z]+([A-z0-9-_+])*:[a-zA-Z]+([A-z0-9-_+])*$)'
                 selector:
                   properties:
                     matchLabels:

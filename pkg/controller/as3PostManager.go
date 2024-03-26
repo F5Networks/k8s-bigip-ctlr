@@ -201,9 +201,13 @@ func createPoolDecl(cfg *ResourceConfig, app as3Application, shareNodes bool, te
 				log.Warningf("[AS3] virtualServer: %v, pool: %v, monitor: %v, bigIp reference feature is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name, val.Name)
 			} else {
 				use := strings.Split(val.Name, "/")
-				monitor.Use = fmt.Sprintf("/%s/%s/%s",
-					tenant,
-					cfg.Virtual.Name,
+				// Full path is not supported with BIG-IP Next
+				//monitor.Use = fmt.Sprintf("/%s/%s/%s",
+				//	tenant,
+				//	cfg.Virtual.Name,
+				//	use[len(use)-1],
+				//)
+				monitor.Use = fmt.Sprintf("%s",
 					use[len(use)-1],
 				)
 				pool.Monitors = append(pool.Monitors, monitor)
@@ -246,8 +250,13 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 			strings.HasSuffix(iRuleNoPort, HttpRedirectNoHostIRuleName) ||
 			strings.HasSuffix(iRuleName, TLSIRuleName) ||
 			strings.HasSuffix(iRuleName, ABPathIRuleName) {
-
 			IRules = append(IRules, iRuleName)
+		} else if len(strings.Split(v, ":")) == 2 {
+			cmIRule := strings.Split(v, ":")
+			iRule := &as3ResourcePointer{
+				CM: fmt.Sprintf("%s::%s", cmIRule[0], cmIRule[1]),
+			}
+			IRules = append(IRules, iRule)
 		} else {
 			irule := &as3ResourcePointer{
 				BigIP: v,

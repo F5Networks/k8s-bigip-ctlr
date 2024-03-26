@@ -940,6 +940,7 @@ type (
 	as3ResourcePointer struct {
 		BigIP string `json:"bigip,omitempty"`
 		Use   string `json:"use,omitempty"`
+		CM    string `json:"cm,omitempty"`
 	}
 
 	// as3Service maps to the following in AS3 Resources

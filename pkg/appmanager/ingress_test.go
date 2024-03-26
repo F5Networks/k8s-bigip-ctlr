@@ -1985,6 +1985,74 @@ var _ = Describe("V1 Ingress Tests", func() {
 				Expect(nameRef.Name).NotTo(ContainSubstring("1.2.3.4"))
 			}
 		})
+	
+		It("Test backend rule host paths with same service and different ports", func() {
+			fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+				[]v1.ServicePort{{Port: 80, NodePort: 37001}, {Port: 81, NodePort: 37003}})
+			barSvc := test.NewService("bar", "1", namespace, "NodePort",
+				[]v1.ServicePort{{Port: 80, NodePort: 37002}, {Port: 81, NodePort: 37004}})
+			mockMgr.addService(fooSvc)
+			mockMgr.addService(barSvc)
+
+			ingCfg1 := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+				},
+				Rules: []netv1.IngressRule{
+					{
+						Host: "foo.com",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/foo",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+										},
+									},
+									{
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(81)}},
+										},
+									},
+								},
+							},
+						},
+					}, {
+						Host: "bar.com",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/foo",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{Name: "bar", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+										},
+									}, {
+										Path: "/",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{Name: "bar", Port: netv1.ServiceBackendPort{Number: int32(81)}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			ingress1 := NewV1Ingress("ingress1", "1", namespace, ingCfg1,
+				map[string]string{
+					"virtual-server.f5.com/ip": "10.1.0.3",
+					"ingress.kubernetes.io/ssl-redirect": "true",
+        			"ingress.kubernetes.io/allow-http": "false",
+				})
+			mockMgr.addV1Ingress(ingress1)
+			resources := mockMgr.resources()
+			Expect(resources.VirtualCount()).To(Equal(1))
+			Expect(resources.PoolCount()).To(Equal(4))
+		})
 	})
 })
 

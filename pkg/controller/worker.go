@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
@@ -1492,8 +1493,9 @@ func (ctlr *Controller) validateTSWithSameVSAddress(
 		if currentTS.Spec.VirtualServerAddress != "" &&
 			currentTS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
 			currentTSPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
-			log.Errorf("Multiple Transport Servers %v,%v are configured with same VirtualServerAddress : %v "+
+			err := fmt.Sprintf("Multiple Transport Servers %v,%v are configured with same VirtualServerAddress : %v "+
 				"with different partitions", currentTS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			ctlr.updateResourceStatus(TransportServer, currentTS, "", "", errors.New(err))
 			return false
 		}
 	}
@@ -2090,21 +2092,27 @@ func (ctlr *Controller) processTransportServers(
 
 			switch status {
 			case ipmanager.NotEnabled:
-				log.Debug("[IPAM] IPAM Custom Resource Not Available")
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "",
+					errors.New(fmt.Sprintf("[IPAM] IPAM Custom Resource Not Available")))
 				return nil
 			case ipmanager.InvalidInput:
-				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
-					virtual.Spec.IPAMLabel, virtual.Namespace, virtual.Name)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "",
+					errors.New(fmt.Sprintf("[IPAM] IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
+						virtual.Spec.IPAMLabel, virtual.Namespace, virtual.Name)))
 				return nil
 			case ipmanager.NotRequested:
 				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
 			case ipmanager.Requested:
-				log.Debugf("[IPAM] IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "",
+					errors.New(fmt.Sprintf("[IPAM] IP address requested for Transport Server: %s/%s",
+						virtual.Namespace, virtual.Name)))
 				return nil
 			}
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
+			ctlr.updateResourceStatus(TransportServer, virtual, "", "",
+				errors.New(fmt.Sprintf("No VirtualServer address in TS or IPAM found.")))
 			return fmt.Errorf("No VirtualServer address in TS or IPAM found.")
 		}
 		ip = virtual.Spec.VirtualServerAddress
@@ -2132,10 +2140,10 @@ func (ctlr *Controller) processTransportServers(
 		//}
 
 		ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
+
 		//if len(hostnames) > 0 {
 		//	ctlr.ProcessAssociatedExternalDNS(hostnames)
 		//}
-
 		return nil
 	}
 
@@ -2160,7 +2168,8 @@ func (ctlr *Controller) processTransportServers(
 		}
 	}
 	if err != nil {
-		log.Errorf("%v", err)
+		ctlr.updateResourceStatus(TransportServer, virtual, ip, "",
+			errors.New(err.Error()))
 		return nil
 	}
 
@@ -2172,7 +2181,8 @@ func (ctlr *Controller) processTransportServers(
 		virtual,
 	)
 	if err != nil {
-		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
+		ctlr.updateResourceStatus(TransportServer, virtual, "", "",
+			errors.New(fmt.Sprintf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)))
 		return nil
 	}
 	// handle pool settings from policy cr
@@ -2196,6 +2206,7 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
 	rsMap[rsName] = rsCfg
+	ctlr.updateResourceStatus(TransportServer, virtual, ip, "", nil)
 	//if len(rsCfg.MetaData.hosts) > 0 {
 	//	ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 	//}
@@ -3006,24 +3017,24 @@ func (ctlr *Controller) processIngressLink(
 
 			switch status {
 			case ipmanager.NotEnabled:
-				log.Debug("[IPAM] IPAM Custom Resource Not Available")
+				ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", errors.New(fmt.Sprintf("[IPAM] IPAM Custom Resource Not Available")))
 				return nil
 			case ipmanager.InvalidInput:
-				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
-					ingLink.Spec.IPAMLabel, ingLink.Namespace, ingLink.Name)
+				ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", errors.New(fmt.Sprintf("[IPAM] IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
+					ingLink.Spec.IPAMLabel, ingLink.Namespace, ingLink.Name)))
 				return nil
 			case ipmanager.NotRequested:
 				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
 			case ipmanager.Requested:
-				log.Debugf("[IPAM] IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
+				ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", errors.New(fmt.Sprintf("[IPAM] IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)))
 				return nil
 			}
 			log.Debugf("[IPAM] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
 			if ip == "" {
-				log.Debugf("[IPAM] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
+				ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", errors.New(fmt.Sprintf("[IPAM] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)))
 				return nil
 			}
-			ctlr.updateIngressLinkStatus(ingLink, ip)
+			ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", nil)
 			svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
 			if err != nil {
 				return err
@@ -3037,6 +3048,7 @@ func (ctlr *Controller) processIngressLink(
 		}
 	} else {
 		if ingLink.Spec.VirtualServerAddress == "" {
+			ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", errors.New(fmt.Sprintf("No VirtualServer address in ingLink or IPAM found.")))
 			return fmt.Errorf("No VirtualServer address in ingLink or IPAM found.")
 		}
 		ip = ingLink.Spec.VirtualServerAddress
@@ -3171,7 +3183,7 @@ func (ctlr *Controller) processIngressLink(
 		//	ctlr.ProcessAssociatedExternalDNS(hostnames)
 		//}
 	}
-
+	ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", nil)
 	return nil
 }
 
@@ -3289,12 +3301,12 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	serviceList, err := listerscorev1.NewServiceLister(comInf.svcInformer.GetIndexer()).Services(ingLink.ObjectMeta.Namespace).List(ls)
 
 	if err != nil {
-		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
+		ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(fmt.Sprintf("Error getting service list From IngressLink. Error: %v", err)))
 		return nil, err
 	}
 
 	if len(serviceList) == 0 {
-		log.Infof("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)
+		ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(fmt.Sprintf("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)))
 		return nil, nil
 	}
 
@@ -3505,6 +3517,44 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	if nil != updateErr {
 		log.Debugf("Error while updating ingresslink status:%v", updateErr)
 		return
+	}
+}
+
+func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip string, statusOk string, err error) {
+
+	switch rscType {
+	case TransportServer:
+		ts := obj.(*cisapiv1.TransportServer)
+		tsStatus := cisapiv1.TransportServerStatus{LastUpdated: time.Now()}
+		if err != nil {
+			tsStatus.Error = err.Error()
+		} else if ip != "" {
+			tsStatus.VSAddress = ip
+			tsStatus.StatusOk = statusOk
+		} else {
+			tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
+		}
+		ts.Status = tsStatus
+		_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+		if nil != updateErr {
+			log.Debugf("Error while updating TS status:%v", updateErr)
+		}
+	case IngressLink:
+		il := obj.(*cisapiv1.IngressLink)
+		ilStatus := cisapiv1.IngressLinkStatus{LastUpdated: time.Now()}
+		if err != nil {
+			ilStatus.Error = err.Error()
+		} else if ip != "" {
+			ilStatus.VSAddress = ip
+			ilStatus.StatusOk = statusOk
+		} else {
+			ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
+		}
+		il.Status = ilStatus
+		_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+		if nil != updateErr {
+			log.Debugf("Error while updating il status:%v", updateErr)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package v1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"time"
 )
 
 // +genclient
@@ -210,7 +211,10 @@ type IngressLink struct {
 
 // IngressLinkStatus is the status of the ingressLink resource.
 type IngressLinkStatus struct {
-	VSAddress string `json:"vsAddress,omitempty"`
+	VSAddress   string    `json:"vsAddress,omitempty"`
+	LastUpdated time.Time `json:"lastUpdated,omitempty"`
+	Error       string    `json:"error,omitempty"`
+	StatusOk    string    `json:"statusOk,omitempty"`
 }
 
 // IngressLinkSpec is Spec for IngressLink
@@ -249,8 +253,10 @@ type TransportServer struct {
 
 // TransportServerStatus is the status of the VirtualServer resource.
 type TransportServerStatus struct {
-	VSAddress string `json:"vsAddress,omitempty"`
-	StatusOk  string `json:"status,omitempty"`
+	VSAddress   string    `json:"vsAddress,omitempty"`
+	StatusOk    string    `json:"status,omitempty"`
+	LastUpdated time.Time `json:"lastUpdated,omitempty"`
+	Error       string    `json:"error,omitempty"`
 }
 
 // TransportServerSpec is the spec of the VirtualServer resource.

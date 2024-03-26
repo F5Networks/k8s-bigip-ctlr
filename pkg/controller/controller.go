@@ -66,6 +66,7 @@ func NewController(params Params) *Controller {
 		managedResources: ManagedResources{
 			ManageCustomResources: true,
 			ManageTransportServer: true,
+			ManageIL:              true,
 		},
 		bigIpMap:   make(BigIpMap),
 		PostParams: PostParams{},

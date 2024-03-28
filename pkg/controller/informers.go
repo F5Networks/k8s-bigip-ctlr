@@ -955,7 +955,7 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-
+	ctlr.updateResourceStatus(TransportServer, vs, "", "", nil)
 	ctlr.resourceQueue.Add(key)
 }
 
@@ -1012,6 +1012,7 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 		event:     Delete,
 	}
 
+	ctlr.updateResourceStatus(TransportServer, ingLink, "", "", nil)
 	ctlr.resourceQueue.Add(key)
 }
 

@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
@@ -102,18 +103,21 @@ func (ctlr *Controller) checkValidTransportServer(
 	}
 
 	bindAddr := tsResource.Spec.VirtualServerAddress
+	var err string
 
 	if ctlr.ipamHandler == nil {
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
 		if bindAddr == "" {
-			log.Infof("No IP was specified for the transport server %s", vsName)
+			err = fmt.Sprintf("No IP was specified for the transport server %s", vsName)
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
 			return false
 		}
 	} else {
 		ipamLabel := tsResource.Spec.IPAMLabel
 		if ipamLabel == "" && bindAddr == "" {
-			log.Infof("No ipamLabel was specified for the transport server %s", vsName)
+			err = fmt.Sprintf("No ipamLabel was specified for the transport server %s", vsName)
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
 			return false
 		}
 	}
@@ -121,7 +125,8 @@ func (ctlr *Controller) checkValidTransportServer(
 	if tsResource.Spec.Type == "" {
 		tsResource.Spec.Type = "tcp"
 	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
-		log.Warningf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
+		err = fmt.Sprintf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
+		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
 		return false
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
@@ -158,16 +163,18 @@ func (ctlr *Controller) checkValidIngressLink(
 	}
 
 	bindAddr := il.Spec.VirtualServerAddress
-
+	var err string
 	if ctlr.ipamHandler == nil {
 		if bindAddr == "" {
-			log.Infof("No IP was specified for ingresslink %s", ilName)
+			err = fmt.Sprintf("No IP was specified for ingresslink %s", ilName)
+			ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
 			return false
 		}
 	} else {
 		ipamLabel := il.Spec.IPAMLabel
 		if ipamLabel == "" && bindAddr == "" {
-			log.Infof("No ipamLabel was specified for the il server %s", ilName)
+			err = fmt.Sprintf("No ipamLabel was specified for the il server %s", ilName)
+			ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
 			return false
 		}
 	}

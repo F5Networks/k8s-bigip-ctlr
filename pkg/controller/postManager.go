@@ -797,8 +797,6 @@ func (postMgr *PostManager) retryFailedTenant(userAgent string) {
 			as3APIURL: postMgr.getAS3APIURL(retryTenants),
 			id:        0,
 		}
-		// Ignoring timeouts for custom errors
-		<-time.After(timeoutMedium)
 
 		postMgr.postConfig(&cfg)
 

@@ -491,7 +491,8 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 	agent.tenantPriorityMap = make(map[string]int)
 	for tenant, cfg := range agent.createAS3LTMAndGTMConfigADC(config) {
 		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) ||
-			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && agent.PrimaryClusterHealthProbeParams.statusChanged) {
+			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && agent.PrimaryClusterHealthProbeParams.statusChanged) ||
+			agent.retryTenantDeclMap[tenant] != nil {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
 			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)

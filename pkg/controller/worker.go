@@ -3054,17 +3054,18 @@ func (ctlr *Controller) processIngressLink(
 			}
 		}
 		for _, rsName := range delRes {
-			var hostnames []string
-			if rsMap[rsName] != nil {
-				rsCfg, err := ctlr.resources.getResourceConfig(partition, rsName, BigIPLabel)
-				if err == nil {
-					hostnames = rsCfg.MetaData.hosts
-				}
-			}
+			// TODO: Uncomment the below code when ENDS is supported with 3.x
+			//var hostnames []string
+			//if rsMap[rsName] != nil {
+			//	rsCfg, err := ctlr.resources.getResourceConfig(partition, rsName, BigIPLabel)
+			//	if err == nil {
+			//		hostnames = rsCfg.MetaData.hosts
+			//	}
+			//}
 			ctlr.deleteVirtualServer(partition, rsName, bigipConfig)
-			if len(hostnames) > 0 {
-				ctlr.ProcessAssociatedExternalDNS(hostnames)
-			}
+			//if len(hostnames) > 0 {
+			//	ctlr.ProcessAssociatedExternalDNS(hostnames)
+			//}
 		}
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.IngressLink[ingLink.Namespace]--
@@ -3152,21 +3153,23 @@ func (ctlr *Controller) processIngressLink(
 		if len(pool.Members) > 0 {
 			rsCfg.MetaData.Active = true
 		}
-		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
-		rsCfg.Monitors = append(
-			rsCfg.Monitors,
-			Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20,
-				Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: targetPort})
-		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName})
+		// TODO: Commented below monitor definition since TargetPort isn't supported yet with Bigip-Next
+		//monitorName := fmt.Sprintf("%s_monitor", pool.Name)
+		//rsCfg.Monitors = append(
+		//	rsCfg.Monitors,
+		//	Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20,
+		//		Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: targetPort})
+		//pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName})
 		rsCfg.Virtual.PoolName = pool.Name
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals
 		rsMap[rsName] = rsCfg
-		var hostnames []string
-		hostnames = rsCfg.MetaData.hosts
-		if len(hostnames) > 0 {
-			ctlr.ProcessAssociatedExternalDNS(hostnames)
-		}
+		// TODO: Uncomment the following lines once CIS 3.x starts supporting EDNS
+		//var hostnames []string
+		//hostnames = rsCfg.MetaData.hosts
+		//if len(hostnames) > 0 {
+		//	ctlr.ProcessAssociatedExternalDNS(hostnames)
+		//}
 	}
 
 	return nil

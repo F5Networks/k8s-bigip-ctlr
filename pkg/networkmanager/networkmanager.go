@@ -28,6 +28,7 @@ const (
 	networkManagerPrefix = "[NetworkManager]"
 	timeoutSmall         = 2 * time.Second
 	timeoutLarge         = 180 * time.Second
+	DefaultL3Network     = "Default L3-Network"
 )
 
 // NetworkManager is responsible for managing the network objects on central manager.
@@ -56,7 +57,7 @@ type (
 	// L3Forward struct represents the structure of the L3Forward in the JSON response
 	L3Forward struct {
 		ID     string            `json:"id,omitempty"`
-		VLANs  []int             `json:"vlans"`
+		VRF    string            `json:"vrf"`
 		Name   string            `json:"name"`
 		Config StaticRouteConfig `json:"config"`
 	}
@@ -247,12 +248,14 @@ func (nm *NetworkManager) GetL3ForwardsFromInstance(instanceId string, controlle
 						config.L3ForwardType, _ = configData["l3ForwardType"].(string)
 					}
 
-					if idOk && nameOk {
+					vrfData, vrfOk := l3Forward["payload"].(map[string]interface{})["vrf"].(string)
+
+					if idOk && nameOk && vrfOk {
 						staticRoutes[config] = L3Forward{
 							ID:     id,
 							Name:   name,
 							Config: config,
-							VLANs:  []int{},
+							VRF:    vrfData,
 						}
 					}
 				}

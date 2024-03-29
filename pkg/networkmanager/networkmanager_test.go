@@ -54,8 +54,8 @@ var _ = Describe("Network Manager Tests", func() {
 						Destination:   "10.244.0.0/24",
 						L3ForwardType: L3RouteGateway,
 					},
-					VLANs: []int{},
-					Name:  "test",
+					VRF:  DefaultL3Network,
+					Name: "test",
 				}
 				// Mock the server
 				server = ghttp.NewServer()
@@ -198,8 +198,8 @@ var _ = Describe("Network Manager Tests", func() {
 						Destination:   "10.244.0.0/24",
 						L3ForwardType: L3RouteGateway,
 					},
-					VLANs: []int{},
-					Name:  "test",
+					VRF:  DefaultL3Network,
+					Name: "test",
 				}
 				// Mock the server
 				server = ghttp.NewServer()
@@ -369,8 +369,8 @@ var _ = Describe("Network Manager Tests", func() {
 						Destination:   "10.244.0.0/24",
 						L3ForwardType: L3RouteGateway,
 					},
-					VLANs: []int{},
-					Name:  "test",
+					VRF:  DefaultL3Network,
+					Name: "test",
 				}
 				// Mock the server
 				server = ghttp.NewServer()
@@ -417,12 +417,13 @@ var _ = Describe("Network Manager Tests", func() {
                         "gateway": "10.4.0.234",
                         "destination": "10.244.0.0/24",
                         "l3ForwardType": "L3RouteGateway"
-                    }
+                    },
+					"vrf": "%s"
                 }
             }
 ]
     }
-}`, L3ForwardId, BigIpId)
+}`, L3ForwardId, BigIpId, DefaultL3Network)
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("GET", InstancesURI+BigIpId+L3Forwards),

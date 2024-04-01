@@ -201,11 +201,7 @@ func createPoolDecl(cfg *ResourceConfig, app as3Application, shareNodes bool, te
 				log.Warningf("[AS3] virtualServer: %v, pool: %v, monitor: %v, bigIp reference feature is not supported with BIG-IP Next", cfg.Virtual.Name, v.Name, val.Name)
 			} else {
 				use := strings.Split(val.Name, "/")
-				monitor.Use = fmt.Sprintf("/%s/%s/%s",
-					tenant,
-					cfg.Virtual.Name,
-					use[len(use)-1],
-				)
+				monitor.Use = use[len(use)-1]
 				pool.Monitors = append(pool.Monitors, monitor)
 			}
 		}

@@ -420,7 +420,9 @@ func (agent *Agent) retryWorker() {
 	for range agent.retryChan {
 
 		for len(agent.retryTenantDeclMap) != 0 {
-
+			// Ignoring timeouts for custom errors
+			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
+			<-time.After(timeoutMedium)
 			if agent.HAMode {
 				// if endPoint is not empty -> cis is running in secondary mode
 				// check if the primary cis is up and running
@@ -440,8 +442,6 @@ func (agent *Agent) retryWorker() {
 				agent.declUpdate.Unlock()
 				break
 			}
-
-			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
 
 			//If there are any 201 tenants, poll for its status
 			agent.pollTenantStatus()

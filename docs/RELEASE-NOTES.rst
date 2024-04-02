@@ -17,6 +17,7 @@ Bug Fixes
 * `Issue 3324 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3324>`_: Fix for Service LoadBalancer with targetPort set to name of containerPort creates emtpy BIG-IP Pool
 * `Issue 3326 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3326>`_: Multi-cluster: Services in blue-green deployments don´t get updated
 * `Issue 3340 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3340>`_: Fix to post latest config in retrying a failing AS3 configuration
+* `Issue 3335 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3335>`_: Authorization errors and unexpected 503 HTTP return code inside F5 BIGIP controller version 2.16-WIP
 
 
 Upgrade notes

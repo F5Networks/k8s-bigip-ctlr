@@ -12,7 +12,7 @@ rules:
     resources: ["events", "services/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["transportservers", "transportservers/status", "deployconfigs", "policies"]
+    resources: ["transportservers", "transportservers/status", "deployconfigs", "policies", "ingresslinks", "ingresslinks/status"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["fic.f5.com"]
     resources: ["ipams", "ipams/status"]

@@ -264,8 +264,8 @@ func FormatIngressVSName(ip string, port int32) string {
 }
 
 // format the pool name for an Ingress
-func FormatIngressPoolName(namespace, svc string) string {
-	return fmt.Sprintf("ingress_%s_%s", namespace, svc)
+func FormatIngressPoolName(namespace, svc string, ingressName string, port int32) string {
+	return fmt.Sprintf("ingress_%s_%s_%s_%d", namespace, ingressName, svc, port)
 }
 
 func GetRouteCanonicalServiceName(route *routeapi.Route) string {
@@ -477,9 +477,11 @@ type ResourceConfigMap map[NameRef]*ResourceConfig
 
 // ObjectDependency identifies a K8s Object
 type ObjectDependency struct {
-	Kind      string
-	Namespace string
-	Name      string
+	Kind              string
+	Namespace         string
+	Name              string
+	BackendPortNumber int32
+	BackendPortName   string
 }
 
 // ObjectDependencies contains each dependency and its use count (usually 1)
@@ -588,9 +590,11 @@ func NewObjectDependencies(
 		key.Name = ingress.ObjectMeta.Name
 		if nil != ingress.Spec.DefaultBackend {
 			dep := ObjectDependency{
-				Kind:      ServiceDep,
-				Namespace: ingress.ObjectMeta.Namespace,
-				Name:      ingress.Spec.DefaultBackend.Service.Name,
+				Kind:              ServiceDep,
+				Namespace:         ingress.ObjectMeta.Namespace,
+				Name:              ingress.Spec.DefaultBackend.Service.Name,
+				BackendPortName:   ingress.Spec.DefaultBackend.Service.Port.Name,
+				BackendPortNumber: ingress.Spec.DefaultBackend.Service.Port.Number,
 			}
 			deps[dep]++
 		}
@@ -600,9 +604,11 @@ func NewObjectDependencies(
 			}
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
 				dep := ObjectDependency{
-					Kind:      ServiceDep,
-					Namespace: ingress.ObjectMeta.Namespace,
-					Name:      path.Backend.Service.Name,
+					Kind:              ServiceDep,
+					Namespace:         ingress.ObjectMeta.Namespace,
+					Name:              path.Backend.Service.Name,
+					BackendPortName:   path.Backend.Service.Port.Name,
+					BackendPortNumber: path.Backend.Service.Port.Number,
 				}
 				deps[dep]++
 				dep = ObjectDependency{

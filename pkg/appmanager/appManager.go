@@ -1886,8 +1886,18 @@ func (appMgr *Manager) syncIngresses(
 					appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
 				} else {
 					if nil != ing.Spec.DefaultBackend {
+						var backendPort int32
+						var err error
+						if ing.Spec.DefaultBackend.Service.Port.Number != 0 {
+							backendPort = ing.Spec.DefaultBackend.Service.Port.Number
+						} else if ing.Spec.DefaultBackend.Service.Port.Name != "" {
+							backendPort, err = GetServicePort(ing.ObjectMeta.Namespace, ing.Spec.DefaultBackend.Service.Name, appInf.svcInformer.GetIndexer(), ing.Spec.DefaultBackend.Service.Port.Name, ResourceTypeIngress)
+							if err != nil {
+								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
+							}
+						}
 						fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
-							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName))
+							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName, ing.ObjectMeta.Name, backendPort))
 						RemoveUnReferredHealthMonitors(rsCfg, fullPoolName, monitors)
 						appMgr.handleSingleServiceV1IngressHealthMonitors(fullPoolName, rsCfg, ing, monitors)
 					} else {
@@ -1903,8 +1913,18 @@ func (appMgr *Manager) syncIngresses(
 			// Remove any dependencies no longer used by this Ingress
 			for _, dep := range depsRemoved {
 				if dep.Kind == ServiceDep {
+					var backendPort int32
+					var err error
+					if dep.BackendPortNumber != 0 {
+						backendPort = dep.BackendPortNumber
+					} else if dep.BackendPortName != "" {
+						backendPort, err = GetServicePort(dep.Name, dep.Name, appInf.svcInformer.GetIndexer(), dep.BackendPortName, ResourceTypeIngress)
+						if err != nil {
+							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
+						}
+					}
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, FormatIngressPoolName(dep.Namespace, dep.Name), appMgr.mergedRulesMap)
+						dep.Namespace, FormatIngressPoolName(dep.Namespace, dep.Name, ing.ObjectMeta.Name, backendPort), appMgr.mergedRulesMap)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}
@@ -2388,9 +2408,9 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 ) (bool, int, int) {
 	vsFound := 0
 	vsUpdated := 0
-	var pool Pool
-	plIdx := 0
-	for j, backendSvc := range currResourceSvcs {
+	deactivated := false
+	poolUpdated := 0
+	for _, backendSvc := range currResourceSvcs {
 		//get current resource skey and port
 		svcBackend := sKey.Namespace + "/" + backendSvc
 		//backend svc key of ingress
@@ -2399,148 +2419,143 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 			Namespace:   sKey.Namespace,
 		}
 		backend, _, _ := appInf.svcInformer.GetIndexer().GetByKey(svcBackend)
-		deactivated := false
-		found := false
+
 		// Get the pool that matches the sKey we are processing
 		for i, pl := range rsCfg.Pools {
 			if pl.ServiceName == CurrsvcKey.ServiceName &&
 				poolInNamespace(rsCfg, pl.Name, sKey.Namespace) {
-				pool = pl
-				plIdx = i
-				found = true
-				break
-			}
-		}
-		if !found {
-			//For multi-service continue processing remaining services.
-			if j < len(currResourceSvcs)-1 {
-				continue
-			}
-			return false, vsFound, vsUpdated
-		}
-		// Make sure pool members from the old config are applied to the new
-		// config pools.
-		appMgr.syncPoolMembers(rsName, rsCfg)
+				poolUpdated += 1
+				// Make sure pool members from the old config are applied to the new
+				// config pools.
+				appMgr.syncPoolMembers(rsName, rsCfg, i)
 
-		svcKey := ServiceKey{
-			Namespace:   sKey.Namespace,
-			ServiceName: pool.ServiceName,
-			ServicePort: pool.ServicePort,
-		}
-		if nil != backend {
-			svc := backend.(*v1.Service)
-			svcPortMap := make(map[int32]bool)
-			for _, portSpec := range svc.Spec.Ports {
-				svcPortMap[portSpec.Port] = false
-			}
-			// Match, remove config from rsMap so we don't delete it at the end.
-			// (rsMap contains configs we want to delete).
-			// In the case of Ingress/Routes: If the svc(s) of the currently processed ingress/route
-			// doesn't match the svc in our ServiceKey, then we don't want to remove the config from the map.
-			// Multiple Ingress/Routes can share a config, so if one Ingress/Route is deleted, then just
-			// the pools for that resource should be deleted from our config. By keeping the config in the map,
-			// we delete the necessary pools later on, while leaving everything else intact.
-			cfgList := rsMap[pool.ServicePort]
-			if serviceMatch(currResourceSvcs, sKey) {
-				if len(cfgList) == 1 && cfgList[0].GetNameRef() == rsName {
-					delete(rsMap, pool.ServicePort)
-				} else if len(cfgList) > 1 {
-					for index, val := range cfgList {
-						if val.GetNameRef() == rsName {
-							cfgList = append(cfgList[:index], cfgList[index+1:]...)
+				svcKey := ServiceKey{
+					Namespace:   sKey.Namespace,
+					ServiceName: pl.ServiceName,
+					ServicePort: pl.ServicePort,
+				}
+				if nil != backend {
+					svc := backend.(*v1.Service)
+					svcPortMap := make(map[int32]bool)
+					for _, portSpec := range svc.Spec.Ports {
+						svcPortMap[portSpec.Port] = false
+					}
+					// Match, remove config from rsMap so we don't delete it at the end.
+					// (rsMap contains configs we want to delete).
+					// In the case of Ingress/Routes: If the svc(s) of the currently processed ingress/route
+					// doesn't match the svc in our ServiceKey, then we don't want to remove the config from the map.
+					// Multiple Ingress/Routes can share a config, so if one Ingress/Route is deleted, then just
+					// the pools for that resource should be deleted from our config. By keeping the config in the map,
+					// we delete the necessary pools later on, while leaving everything else intact.
+					cfgList := rsMap[pl.ServicePort]
+					if serviceMatch(currResourceSvcs, sKey) {
+						if len(cfgList) == 1 && cfgList[0].GetNameRef() == rsName {
+							delete(rsMap, pl.ServicePort)
+						} else if len(cfgList) > 1 {
+							for index, val := range cfgList {
+								if val.GetNameRef() == rsName {
+									cfgList = append(cfgList[:index], cfgList[index+1:]...)
+								}
+							}
+							rsMap[pl.ServicePort] = cfgList
 						}
 					}
-					rsMap[pool.ServicePort] = cfgList
-				}
-			}
 
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(0)
-			if _, ok := svcPortMap[pool.ServicePort]; !ok {
-				log.Debugf("[CORE] Process Service delete - name: %v namespace: %v",
-					pool.ServiceName, svcKey.Namespace)
-				log.Infof("[CORE] Port '%v' for service '%v' was not found.",
-					pool.ServicePort, pool.ServiceName)
-				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(1)
-				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
-				if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
-					vsUpdated += 1
-				}
-				deactivated = true
-			}
+					bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(0)
+					if _, ok := svcPortMap[pl.ServicePort]; !ok {
+						log.Debugf("[CORE] Process Service delete - name: %v namespace: %v",
+							pl.ServiceName, svcKey.Namespace)
+						log.Infof("[CORE] Port '%v' for service '%v' was not found.",
+							pl.ServicePort, pl.ServiceName)
+						bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(1)
+						bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
+						if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, i) {
+							deactivated = true
+							vsUpdated += 1
+						}
+					}
 
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(0)
+					bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(0)
 
-			// Update pool members.
-			vsFound += 1
-			correctBackend := true
-			var reason string
-			var msg string
+					// Update pool members.
+					vsFound += 1
+					correctBackend := true
+					var reason string
+					var msg string
 
-			if svc.ObjectMeta.Labels["component"] == "apiserver" && svc.ObjectMeta.Labels["provider"] == "kubernetes" {
-				appMgr.exposeKubernetesService(svc, svcKey, rsCfg, appInf, plIdx)
-			} else {
-				if appMgr.IsNodePort() {
-					//Pool members update required in Nodeport only in below scenarios
-					//1.If it's create event
-					//2.There's node update/update from ProcessNodeUpdate
-					//3.Backend serviceport is updated or service is deleted.
-					if sKey.Operation == OprTypeCreate || (sKey.ResourceKind == Nodes && sKey.Operation == OprTypeUpdate) || sKey.ResourceKind == Services {
-						correctBackend, reason, msg =
-							appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+					if svc.ObjectMeta.Labels["component"] == "apiserver" && svc.ObjectMeta.Labels["provider"] == "kubernetes" {
+						appMgr.exposeKubernetesService(svc, svcKey, rsCfg, appInf, i)
 					} else {
-						//No node updates are observed.
-						correctBackend, reason, msg = true, "", ""
+						if appMgr.IsNodePort() {
+							//Pool members update required in Nodeport only in below scenarios
+							//1.If it's create event
+							//2.There's node update/update from ProcessNodeUpdate
+							//3.Backend serviceport is updated or service is deleted.
+							if sKey.Operation == OprTypeCreate || (sKey.ResourceKind == Nodes && sKey.Operation == OprTypeUpdate) || sKey.ResourceKind == Services {
+								correctBackend, reason, msg =
+									appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, i)
+							} else {
+								//No node updates are observed.
+								correctBackend, reason, msg = true, "", ""
+							}
+						} else if appMgr.poolMemberType == NodePortLocal {
+							correctBackend, reason, msg, _ =
+								appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, i)
+						} else {
+							correctBackend, reason, msg =
+								appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, i)
+						}
 					}
-				} else if appMgr.poolMemberType == NodePortLocal {
-					correctBackend, reason, msg, _ =
-						appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
+					// This will only update the config if the vs actually changed.
+					if appMgr.saveVirtualServer(svcKey, rsName, rsCfg) {
+						vsUpdated += 1
+
+						// If this is an Ingress resource, add an event if there was a backend error
+						if !correctBackend {
+							if obj != nil {
+								appMgr.recordV1IngressEvent(obj.(*netv1.Ingress), reason, msg)
+							}
+						}
+					}
+
+					if !deactivated {
+						bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(1)
+					}
 				} else {
-					correctBackend, reason, msg =
-						appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
-				}
-			}
-			// This will only update the config if the vs actually changed.
-			if appMgr.saveVirtualServer(svcKey, rsName, rsCfg) {
-				vsUpdated += 1
-
-				// If this is an Ingress resource, add an event if there was a backend error
-				if !correctBackend {
-					if obj != nil {
-						appMgr.recordV1IngressEvent(obj.(*netv1.Ingress), reason, msg)
+					// The service is gone, de-activate it in the config.
+					log.Infof("[CORE] Service '%v' has not been found.", pl.ServiceName)
+					bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(1)
+					bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
+					if !deactivated {
+						if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, i) {
+							deactivated = true
+							vsUpdated += 1
+						}
 					}
-				}
-			}
+					// If this is an Ingress resource, add an event that the service wasn't found
+					if obj != nil {
+						msg := "Service " + pl.ServiceName + " has not been found."
+						appMgr.recordV1IngressEvent(obj.(*netv1.Ingress), "ServiceNotFound", msg)
+					}
 
-			if !deactivated {
-				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(1)
-			}
-		} else {
-			// The service is gone, de-activate it in the config.
-			log.Infof("[CORE] Service '%v' has not been found.", pool.ServiceName)
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(1)
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
-			if !deactivated {
-				deactivated = true
-				if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
-					vsUpdated += 1
 				}
 			}
-			// If this is an Ingress resource, add an event that the service wasn't found
-			if obj != nil {
-				msg := "Service " + pool.ServiceName + " has not been found."
-				appMgr.recordV1IngressEvent(obj.(*netv1.Ingress), "ServiceNotFound", msg)
-			}
-			//Continue processing other services for multi-svc backend
-			if j < len(currResourceSvcs)-1 {
-				continue
-			}
-			return false, vsFound, vsUpdated
 		}
+
 		if vsUpdated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
 			rsCfg.GetNameRef()) {
 			vsUpdated -= 1
 			vsFound -= 1
 		}
+
+	}
+
+	if poolUpdated == 0 {
+		return false, 0, 0
+	}
+
+	if deactivated {
+		return false, vsFound, vsUpdated
 	}
 
 	return true, vsFound, vsUpdated
@@ -2580,7 +2595,7 @@ func (appMgr *Manager) handleConfigForType(
 
 	// Make sure pool members from the old config are applied to the new
 	// config pools.
-	appMgr.syncPoolMembers(rsName, rsCfg)
+	appMgr.syncPoolMembers(rsName, rsCfg, plIdx)
 
 	svcKey := ServiceKey{
 		Namespace:   sKey.Namespace,
@@ -2705,17 +2720,17 @@ func (appMgr *Manager) handleConfigForType(
 	return true, vsFound, vsUpdated, nil
 }
 
-func (appMgr *Manager) syncPoolMembers(rsName NameRef, rsCfg *ResourceConfig) {
+func (appMgr *Manager) syncPoolMembers(rsName NameRef, rsCfg *ResourceConfig, plIdx int) {
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
-		for i, newPool := range rsCfg.Pools {
-			for _, oldPool := range oldCfg.Pools {
-				if oldPool.Name == newPool.Name {
-					rsCfg.Pools[i].Members = oldPool.Members
-				}
+		//for i, newPool := range rsCfg.Pools {
+		for _, oldPool := range oldCfg.Pools {
+			if oldPool.Name == rsCfg.Pools[plIdx].Name {
+				rsCfg.Pools[plIdx].Members = oldPool.Members
 			}
 		}
+		//}
 		//for iApp resource update IAppPoolMemberTable with members found for pool.
 		if rsCfg.MetaData.ResourceType == "iapp" {
 			for _, p := range rsCfg.Pools {

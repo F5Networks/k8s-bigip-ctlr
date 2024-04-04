@@ -2374,14 +2374,8 @@ func poolInNamespace(cfg *ResourceConfig, name, namespace string) bool {
 		if split[0] == namespace {
 			return true
 		}
-	} else if cfg.MetaData.ResourceType == "ingress" {
-		if split[2] == namespace {
-			return true
-		}
-	} else {
-		if split[1] == namespace {
-			return true
-		}
+	} else if split[1] == namespace {
+		return true
 	}
 	return false
 }

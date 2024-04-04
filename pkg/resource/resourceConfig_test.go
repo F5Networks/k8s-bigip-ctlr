@@ -758,7 +758,7 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("FormatIngressPoolName", func() {
-			Expect(FormatIngressPoolName("default", "svc1", "ingress1", 8080)).To(Equal("ingress_ingress1_default_svc1_8080"))
+			Expect(FormatIngressPoolName("default", "svc1", "ingress1", 8080)).To(Equal("ingress_default_ingress1_svc1_8080"))
 		})
 
 		It("GetRouteCanonicalServiceName", func() {

@@ -1985,7 +1985,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				Expect(nameRef.Name).NotTo(ContainSubstring("1.2.3.4"))
 			}
 		})
-	
+
 		It("Test backend rule host paths with same service and different ports", func() {
 			fooSvc := test.NewService("foo", "1", namespace, "NodePort",
 				[]v1.ServicePort{{Port: 80, NodePort: 37001}, {Port: 81, NodePort: 37003}})
@@ -2046,7 +2046,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				map[string]string{
 					"virtual-server.f5.com/ip":           "10.1.0.3",
 					"ingress.kubernetes.io/ssl-redirect": "true",
-     "ingress.kubernetes.io/allow-http":   "false",
+					"ingress.kubernetes.io/allow-http":   "false",
 				})
 			mockMgr.addV1Ingress(ingress1)
 			resources := mockMgr.resources()

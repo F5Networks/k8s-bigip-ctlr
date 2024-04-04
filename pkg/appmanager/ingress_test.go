@@ -2044,9 +2044,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			}
 			ingress1 := NewV1Ingress("ingress1", "1", namespace, ingCfg1,
 				map[string]string{
-					"virtual-server.f5.com/ip": "10.1.0.3",
+					"virtual-server.f5.com/ip":           "10.1.0.3",
 					"ingress.kubernetes.io/ssl-redirect": "true",
-        			"ingress.kubernetes.io/allow-http": "false",
+     "ingress.kubernetes.io/allow-http":   "false",
 				})
 			mockMgr.addV1Ingress(ingress1)
 			resources := mockMgr.resources()

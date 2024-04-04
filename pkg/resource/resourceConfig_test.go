@@ -583,10 +583,10 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(key).To(Equal(ObjectDependency{
 				Kind: "Ingress", Namespace: "ns2", Name: vsName}))
 			ingressDeps := []ObjectDependency{
-				{Kind: "Service", Namespace: "ns2", Name: "foo"},
-				{Kind: "Service", Namespace: "ns2", Name: "bar"},
-				{Kind: "Service", Namespace: "ns2", Name: "baz"},
-				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
+				{Kind: "Service", Namespace: "ns2", Name: "foo", BackendPortNumber: 80, BackendPortName: "http"},
+				{Kind: "Service", Namespace: "ns2", Name: "bar", BackendPortNumber: 80, BackendPortName: "http"},
+				{Kind: "Service", Namespace: "ns2", Name: "baz", BackendPortNumber: 80, BackendPortName: "http"},
+				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz", BackendPortNumber: 80, BackendPortName: "http"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},

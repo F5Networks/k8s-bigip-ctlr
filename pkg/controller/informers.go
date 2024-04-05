@@ -956,6 +956,10 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 		event:     Delete,
 	}
 
+	ts, _ := ctlr.clientsets.kubeCRClient.CisV1().TransportServers(vs.Namespace).Get(context.TODO(), vs.Name, metav1.GetOptions{})
+	if ts != nil {
+		go ctlr.updateResourceStatus(TransportServer, vs, "", "", nil)
+	}
 	ctlr.resourceQueue.Add(key)
 }
 
@@ -1012,6 +1016,10 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 		event:     Delete,
 	}
 
+	il, _ := ctlr.clientsets.kubeCRClient.CisV1().IngressLinks(ingLink.Namespace).Get(context.TODO(), ingLink.Name, metav1.GetOptions{})
+	if il != nil {
+		go ctlr.updateResourceStatus(IngressLink, ingLink, "", "", nil)
+	}
 	ctlr.resourceQueue.Add(key)
 }
 

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	v1 "k8s.io/api/core/v1"
 	"strings"
 	"sync"
 	"time"
@@ -126,18 +127,18 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 						if virtual.Namespace+"/"+virtual.Name == rscKey {
 							if _, found := config.as3Config.failedTenants[partition]; !found {
 								// update the status for transport server as tenant posting is success
-								ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
-								//// Update Corresponding Service Status of Type LB
-								//var svcNamespace string
-								//if virtual.Spec.Pool.ServiceNamespace != "" {
-								//	svcNamespace = virtual.Spec.Pool.ServiceNamespace
-								//} else {
-								//	svcNamespace = virtual.Namespace
-								//}
-								//svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
-								//if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-								//	ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
-								//}
+								ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, "Ok", nil)
+								// Update Corresponding Service Status of Type LB
+								var svcNamespace string
+								if virtual.Spec.Pool.ServiceNamespace != "" {
+									svcNamespace = virtual.Spec.Pool.ServiceNamespace
+								} else {
+									svcNamespace = virtual.Namespace
+								}
+								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
+								if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+								}
 							}
 						}
 						//case Route:

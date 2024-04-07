@@ -3130,6 +3130,8 @@ func (ctlr *Controller) processIngressLink(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+		rsCfg.MetaData.baseResources = make(map[string]string)
+		rsCfg.MetaData.baseResources[ingLink.Namespace+"/"+ingLink.Name] = IngressLink
 		if len(ingLink.Spec.IRules) > 0 {
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}

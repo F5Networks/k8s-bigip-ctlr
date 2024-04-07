@@ -214,7 +214,7 @@ type IngressLinkStatus struct {
 	VSAddress   string    `json:"vsAddress,omitempty"`
 	LastUpdated time.Time `json:"lastUpdated,omitempty"`
 	Error       string    `json:"error,omitempty"`
-	StatusOk    string    `json:"statusOk,omitempty"`
+	StatusOk    string    `json:"status,omitempty"`
 }
 
 // IngressLinkSpec is Spec for IngressLink

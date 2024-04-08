@@ -880,6 +880,7 @@ spec:
                   type: string
                 status:
                   type: string
+                  default: pending
                 lastUpdated:
                   type: string
                 error:

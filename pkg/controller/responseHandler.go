@@ -141,6 +141,29 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 								}
 							}
 						}
+					case IngressLink:
+						// update status
+						crInf, ok := ctlr.getNamespacedCRInformer(ns)
+						if !ok {
+							log.Debugf("IngressLink Informer not found for namespace: %v", ns)
+							continue
+						}
+						obj, exist, err := crInf.ilInformer.GetIndexer().GetByKey(rscKey)
+						if err != nil {
+							log.Debugf("Could not fetch IngressLink: %v: %v", rscKey, err)
+							continue
+						}
+						if !exist {
+							log.Debugf("IngressLink Not Found: %v", rscKey)
+							continue
+						}
+						il := obj.(*cisapiv1.IngressLink)
+						if il.Namespace+"/"+il.Name == rscKey {
+							if _, found := config.as3Config.failedTenants[partition]; !found {
+								// update the status for transport server as tenant posting is success
+								ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, "Ok", nil)
+							}
+						}
 						//case Route:
 						//	if _, found := config.as3Config.failedTenants[partition]; found {
 						//		// TODO : distinguish between a 503 and an actual failure

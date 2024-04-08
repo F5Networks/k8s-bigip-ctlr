@@ -1027,6 +1027,11 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
 
+	// Skip ingressLink on status updates
+	if reflect.DeepEqual(oldIngLink.Spec, newIngLink.Spec) {
+		return
+	}
+
 	oldILPartition := ctlr.getCRPartition(oldIngLink.Spec.Partition)
 	newILPartition := ctlr.getCRPartition(newIngLink.Spec.Partition)
 	////TODO: get bigipLabel from cr resource or service address cr resource

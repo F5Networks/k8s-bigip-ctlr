@@ -47,7 +47,9 @@ RUN microdnf update -y && \
     adduser ctlr && \
     microdnf remove git perl-Git -y && \
     microdnf remove perl-Error perl-File-Find perl-lib libedit openssh openssh-clients  perl-TermReadKey git-core git-core-doc less shadow-utils pip git-core-doc cracklib cracklib-dicts emacs-filesystem git-core-doc git-core groff-base gzip less libcbor libdb libeconf libedit libfdisk util-linux util-linux-core libfido2 libpwquality libsemanage libutempter ncurses openssh openssh-clients openssh-8.7p1 pam perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Pod-Perldoc perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Pod-Usage perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader  -y && \
-    microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
+    microdnf clean all && \
+    microdnf remove rpm libdnf librepo curl-minimal libcurl-minimal libnghttp2 rpm-libs libmodulemd libsolv microdnf -y && \
+    echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 USER ctlr
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/

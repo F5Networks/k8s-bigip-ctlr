@@ -133,14 +133,19 @@ func (appMgr *Manager) checkValidService(
 
 func (appMgr *Manager) checkValidEndpoints(
 	obj interface{},
+	operation string,
 ) (bool, []*serviceQueueKey) {
 	eps := obj.(*v1.Endpoints)
 	namespace := eps.ObjectMeta.Namespace
 	// Check if the service to see if we care about it.
-	_, ok := appMgr.getNamespaceInformer(namespace)
+	appInf, ok := appMgr.getNamespaceInformer(namespace)
 	if !ok {
 		// Not watching this namespace
 		return false, nil
+	}
+	// handle the pod graceful shutdown
+	if appMgr.podGracefulShutdown && operation == OprTypeDelete {
+		appMgr.processPodGracefulShutdown(eps, appInf)
 	}
 	key := &serviceQueueKey{
 		ServiceName:  eps.ObjectMeta.Name,

@@ -128,6 +128,7 @@ type Manager struct {
 	manageConfigMaps       bool
 	configMapLabel         string
 	hubMode                bool
+	podGracefulShutdown    bool
 	manageIngress          bool
 	manageIngressClassOnly bool
 	ingressClass           string
@@ -216,6 +217,7 @@ type Params struct {
 	ManageIngress          bool
 	ManageIngressClassOnly bool
 	HubMode                bool
+	PodGracefulShutdown    bool
 	IngressClass           string
 	Agent                  string
 	SchemaLocalPath        string
@@ -388,6 +390,7 @@ func NewManager(params *Params) *Manager {
 		mergedRulesMap:         make(map[string]map[string]MergedRuleEntry),
 		manageConfigMaps:       params.ManageConfigMaps,
 		hubMode:                params.HubMode,
+		podGracefulShutdown:    params.PodGracefulShutdown,
 		manageIngress:          params.ManageIngress,
 		manageIngressClassOnly: params.ManageIngressClassOnly,
 		ingressClass:           params.IngressClass,
@@ -1021,7 +1024,7 @@ func (appMgr *Manager) enqueueService(obj interface{}, operation string) {
 }
 
 func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
-	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
+	if ok, keys := appMgr.checkValidEndpoints(obj, operation); ok {
 		for _, key := range keys {
 			key.Operation = operation
 			appMgr.vsQueue.Add(*key)
@@ -1623,6 +1626,21 @@ func (appMgr *Manager) syncConfigMaps(
 
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
+				if sKey.Operation == OprTypeDisable && appMgr.poolMemberType == ClusterIP {
+					if svcCache, ok := appMgr.agentCfgMapSvcCache[key]; ok {
+						if svcCache.labelString == selector && svcCache.members != nil {
+							pod, _ := sKey.Object.(*v1.Pod)
+							for _, member := range svcCache.members {
+								if pod != nil && member.Address == pod.Status.PodIP {
+									member.AdminState = "disable"
+									stats.poolsUpdated += 1
+									return nil
+								}
+							}
+
+						}
+					}
+				}
 				//TODO: Sorting endpoints members
 				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
 				if err != nil {
@@ -3971,6 +3989,74 @@ func (appMgr *Manager) processStaticRouteUpdate(
 			log.Warningf("Did not receive write response in 1s")
 		}
 	}
+}
+
+func (appMgr *Manager) processPodGracefulShutdown(eps *v1.Endpoints, inf *appInformer) {
+	// waitGroup to wait for all goroutines to complete
+	var wg sync.WaitGroup
+
+	for _, subset := range eps.Subsets {
+		for _, addr := range subset.Addresses {
+			if addr.TargetRef == nil {
+				continue
+			}
+
+			obj, found, err := inf.podInformer.GetStore().GetByKey(addr.TargetRef.Namespace + "/" + addr.TargetRef.Name)
+			// if err is not nil it means pod is not found
+			if err != nil || !found {
+				continue
+			}
+
+			if found {
+				// disable the endpoint to disable new connections
+				appMgr.enqueueEndpointDisable(eps, obj)
+				pod, _ := obj.(*v1.Pod)
+
+				// Increment the wait group counter
+				wg.Add(1)
+
+				go func(pod *v1.Pod) {
+					defer wg.Done()
+
+					// Create a channel to receive a signal after the timeout
+					timeout := time.Duration(*pod.Spec.TerminationGracePeriodSeconds) * time.Second
+					timeoutCh := time.After(timeout)
+
+					for {
+						_, found, err := inf.podInformer.GetStore().GetByKey(addr.TargetRef.Namespace + "/" + addr.TargetRef.Name)
+						// if err is not nil it means pod is not found
+						if err != nil || !found {
+							return
+						}
+
+						select {
+						case <-timeoutCh:
+							// Timeout reached, exit the loop
+							return
+						default:
+							// Continue the loop until the timeout
+						}
+					}
+				}(pod)
+			}
+		}
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+}
+
+// EnqueueEndpointDisable enqueues the endpoint disable event
+func (appMgr *Manager) enqueueEndpointDisable(eps *v1.Endpoints, obj interface{}) {
+	key := &serviceQueueKey{
+		ServiceName:  eps.ObjectMeta.Name,
+		Namespace:    eps.ObjectMeta.Namespace,
+		ResourceKind: Endpoints,
+		ResourceName: eps.Name,
+		Operation:    OprTypeDisable,
+		Object:       obj,
+	}
+	appMgr.vsQueue.Add(*key)
 }
 
 func parseNodeSubnet(ann, nodeName string) (string, error) {

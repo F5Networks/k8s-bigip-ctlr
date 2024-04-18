@@ -300,7 +300,7 @@ func (m *mockAppManager) deleteService(svc *v1.Service) bool {
 }
 
 func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
-	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	ok, keys := m.appMgr.checkValidEndpoints(ep, OprTypeCreate)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Add(ep)
@@ -316,7 +316,7 @@ func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
 }
 
 func (m *mockAppManager) updateEndpoints(ep *v1.Endpoints) bool {
-	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	ok, keys := m.appMgr.checkValidEndpoints(ep, OprTypeUpdate)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Update(ep)
@@ -332,7 +332,7 @@ func (m *mockAppManager) updateEndpoints(ep *v1.Endpoints) bool {
 }
 
 func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
-	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	ok, keys := m.appMgr.checkValidEndpoints(ep, OprTypeDelete)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Delete(ep)

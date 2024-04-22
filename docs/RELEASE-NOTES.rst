@@ -1,27 +1,44 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.16.1
 -------------
 
 Added Functionality
 ```````````````````
 **What's new:**
-    * Multi Cluster
     * CRD
         * `Issue 3329 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3329>`_: Add support for static ip configuration in annotation for service type LoadBalancer.
 
 
 Bug Fixes
 ````````````
-* `Issue 3324 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3324>`_: Fix for Service LoadBalancer with targetPort set to name of containerPort creates emtpy BIG-IP Pool
-* `Issue 3326 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3326>`_: Multi-cluster: Services in blue-green deployments don´t get updated
-* `Issue 3340 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3340>`_: Fix to post latest config in retrying a failing AS3 configuration
-* `Issue 3335 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3335>`_: Authorization errors and unexpected 503 HTTP return code inside F5 BIGIP controller version 2.16-WIP
+* `Issue 3324 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3324`_: Fix for Service LoadBalancer with targetPort set to name of containerPort creates emtpy BIG-IP Pool
+* `Issue 3326 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3326`_: Multi-cluster: Services in blue-green deployments don´t get updated
+* `Issue 3340 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3340`_: Fix to post latest config in retrying a failing AS3 configuration
+* `Issue 3335 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3335`_: Authorization errors and unexpected 503 HTTP return code inside F5 BIGIP controller version 2.16-WIP
+* `Issue 3322 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3322`_: Ingress using single service backend with different paths and ports not create correctly f5 ingress object
 
 
-Upgrade notes
-``````````````
+Known Issues
+`````````````
+CVE-2024-2961
+
+
+F5 IPAM Controller v0.1.10
+``````````````````````````
+
+Vulnerability Fixes
+```````````````````
+CVE-2023-38545, CVE-2023-38546, CVE-2022-48337, CVE-2022-48338, CVE-2022-48339, CVE-2023-2491, CVE-2023-24329,
+CVE-2023-40217, CVE-2023-4527, CVE-2023-4806, CVE-2023-4813, CVE-2023-4911, CVE-2023-44487, CVE-2023-28617,
+CVE-2022-40897
+
+
+Known Issues
+`````````````
+CVE-2024-2961
+
 
 2.16.0
 -------------

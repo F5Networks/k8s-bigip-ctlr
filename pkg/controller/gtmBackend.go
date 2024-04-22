@@ -129,6 +129,9 @@ func (agent *Agent) retryGTMWorker() {
 	for range agent.GTMPostManager.retryChan {
 
 		for len(agent.GTMPostManager.retryTenantDeclMap) != 0 {
+			// Ignoring timeouts for custom errors
+			log.Debugf("[AS3][GTM] Posting failed tenants configuration in %v seconds", timeoutMedium)
+			<-time.After(timeoutMedium)
 
 			agent.declUpdate.Lock()
 
@@ -138,9 +141,7 @@ func (agent *Agent) retryGTMWorker() {
 				break
 			}
 
-			log.Debugf("[AS3][GTM] Posting failed tenants configuration in %v seconds", timeoutMedium)
-
-			//If there are any 201 tenants, poll for its status
+			//If there are any 201 tenants, poll for its statusma
 			agent.GTMPostManager.pollTenantStatus()
 
 			//If there are any failed tenants, retry posting them

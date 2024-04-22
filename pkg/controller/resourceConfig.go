@@ -2277,12 +2277,17 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		svc.Name,
 		svcPort.TargetPort,
 		"", "", "")
+
+	targetPort := ctlr.fetchTargetPort(svc.Namespace, svc.Name, intstr.IntOrString{IntVal: svcPort.Port}, "")
+	if (intstr.IntOrString{}) == targetPort {
+		targetPort = intstr.IntOrString{IntVal: svcPort.Port}
+	}
 	pool := Pool{
 		Name:             poolName,
 		Partition:        rsCfg.Virtual.Partition,
 		ServiceName:      svc.Name,
 		ServiceNamespace: svc.Namespace,
-		ServicePort:      svcPort.TargetPort,
+		ServicePort:      targetPort,
 		NodeMemberLabel:  "",
 	}
 	svcKey := MultiClusterServiceKey{

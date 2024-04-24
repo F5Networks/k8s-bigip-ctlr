@@ -37,4 +37,9 @@ const (
 	CILIUM_K8S                      = "cilium-k8s"
 	CiliumK8sNodeSubnetAnnotation12 = "io.cilium.network.ipv4-pod-cidr"
 	CiliumK8sNodeSubnetAnnotation13 = "network.cilium.io/ipv4-pod-cidr"
+
+	//Calico CNI
+	CALICO_K8S                  = "calico-k8s"
+	CALICO_API_BLOCK_AFFINITIES = "/apis/crd.projectcalico.org/v1/blockaffinities"
+	CALICONodeIPAnnotation      = "projectcalico.org/IPv4Address"
 )

@@ -501,7 +501,6 @@ type AS3Config struct {
 
 type BigIpConfig struct {
 	BigIpAddress     string `json:"bigIpAddress,omitempty"`
-	HaBigIpAddress   string `json:"haBigIpAddress,omitempty"`
 	BigIpLabel       string `json:"bigIpLabel,omitempty"`
 	DefaultPartition string `json:"defaultPartition,omitempty"`
 }

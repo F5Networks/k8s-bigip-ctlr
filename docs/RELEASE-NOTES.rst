@@ -11,6 +11,8 @@ Added Functionality
     * CRD
 Bug Fixes
 ````````````
+* `Issue 3371 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3371`_: CIS added irules cannot have "event disable all"
+
 
 2.16.1
 -------------

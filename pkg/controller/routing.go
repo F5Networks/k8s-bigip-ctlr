@@ -760,7 +760,7 @@ func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition str
 				   if {$selected_pool != ""} then {
 						pool $selected_pool
 						persist %v $persist_key %v
-						event disable
+						return
 					}
 				}
 }`, persistenceType, persistenceType, multiPoolPersistence.TimeOut)
@@ -771,7 +771,7 @@ func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition str
 			set selected_pool [call select_ab_pool $path ""]
 			if {$selected_pool != ""} then {
 				pool $selected_pool
-				event disable
+				return
 			}
 		}`)
 	}

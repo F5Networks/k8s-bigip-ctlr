@@ -675,9 +675,6 @@ func (ctlr *Controller) processResources() bool {
 func getBigIpList(config cisapiv1.BigIpConfig) []BigIpKey {
 	var bigIpList []BigIpKey
 	bigIpList = append(bigIpList, BigIpKey{BigIpAddress: config.BigIpAddress, BigIpLabel: config.BigIpLabel})
-	if config.HaBigIpAddress != "" {
-		bigIpList = append(bigIpList, BigIpKey{BigIpAddress: config.HaBigIpAddress, BigIpLabel: config.BigIpLabel})
-	}
 	return bigIpList
 }
 

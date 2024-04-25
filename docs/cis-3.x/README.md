@@ -22,6 +22,7 @@ git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
 Step 2: Install the RBAC for CIS Controller
 
 ```shell
+cd k8s-bigip-ctlr
 kubectl create -f ./docs/cis-3.x/rbac/clusterrole.yaml
 ```
 
@@ -31,7 +32,7 @@ Step 3: Install Custom Resource Definitions for CIS Controller
 kubectl create -f ./docs/config_examples/customResourceDefinitions/incubator/customresourcedefinitions.yml
 ```
 
-Step 4: Install CIS Deploy config CR
+Step 4: Update the deploy config CR with the required parameters and create the deploy config CR
 
 ```shell
 kubectl create -f ./docs/cis-3.x/deploy-config/cis-deploy-config-cr.yaml

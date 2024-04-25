@@ -60,8 +60,6 @@ spec:
             "--deploy-config-cr=kube-system/cis-config",
             "--manage-custom-resources=true",
             "--credentials-directory=/tmp/creds",
-            "--disable-teems=true",
-            "--kubeconfig=/tmp/kubeconfig",
             "--log-level=INFO",
             "--no-verify-ssl=true"
           ]

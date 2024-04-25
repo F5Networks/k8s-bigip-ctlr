@@ -8,21 +8,27 @@ metadata:
     f5cr: "true"
 spec:
   baseConfig:
+    # namespaceLabel is used to define the namespces which can be monitored by CIS
     namespaceLabel: controller=cis
     nodeLabel: controller=cis
+    # controllerIdentifier is used to identify the unique CIS cluster/instance
     controllerIdentifier: cluster-1
   networkConfig:
     orchestrationCNI: ovn-k8s
     metaData:
+      # poolMemberType is optional parameter, and it is used to specify the pool member type in CIS default value is nodeport
+      # allowed values are auto, cluster, nodeport and nodeportlocal
       poolMemberType: cluster
+      # network CIDR is optional parameter and required if your nodes are using multiple network interfaces
       networkCIDR: "10.1.0.0/16"
       staticRoutingMode: true
   as3Config:
+    # debugAS3 is a optional parameter, and it is used to enable the debug logs for AS3
     debugAS3: true
+    # post delay is a optional parameter, and it is used if AS3 is taking more time to apply the configuration
     postDelayAS3: 10
-    documentAPI: true
   bigIpConfig:
     - bigIpAddress: 10.10.10.1
-      haBigIpAddress: 10.10.10.2
+      # bigIpLabel is used to map the ingress resource to the bigip, you can specify the bigip label in TS/IngressLink CR
       bigIpLabel: Hyderabad
       defaultPartition: test

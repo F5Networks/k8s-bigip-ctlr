@@ -473,12 +473,29 @@ func (postMgr *PostManager) updateTenantResponseCode(code int, cfg *as3Config, t
 
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg *as3Config) {
 	// traverse all response results
-	results := (responseMap["results"]).([]interface{})
-	declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
-	for _, value := range results {
-		v := value.(map[string]interface{})
-		log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
-		postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
+	unknownResponse := false
+	results, ok1 := (responseMap["results"]).([]interface{})
+	declaration, ok2 := (responseMap["declaration"]).(interface{}).(map[string]interface{})
+	if ok1 && ok2 {
+		for _, value := range results {
+			if v, ok := value.(map[string]interface{}); ok {
+				code, ok1 := v["code"].(float64)
+				tenant, ok2 := v["tenant"].(string)
+				if ok1 && ok2 {
+					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					postMgr.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration))
+				} else {
+					unknownResponse = true
+				}
+			} else {
+				unknownResponse = true
+			}
+		}
+	} else {
+		unknownResponse = true
+	}
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
+		postMgr.logAS3Response(responseMap)
 	}
 }
 
@@ -571,19 +588,34 @@ func (postMgr *PostManager) getTenantConfigStatus(id string, cfg *as3Config) {
 }
 
 func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}, cfg *as3Config) {
-	if results, ok := (responseMap["results"]).([]interface{}); ok {
-		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
+	unknownResponse := false
+	results, ok1 := (responseMap["results"]).([]interface{})
+	declaration, ok2 := (responseMap["declaration"]).(interface{}).(map[string]interface{})
+	if ok1 && ok2 {
 		for _, value := range results {
-			v := value.(map[string]interface{})
-
-			if v["code"].(float64) != 200 {
-				postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), false)
-				log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+			if v, ok := value.(map[string]interface{}); ok {
+				code, ok1 := v["code"].(float64)
+				tenant, ok2 := v["tenant"].(string)
+				if ok1 && ok2 {
+					if code != 200 {
+						postMgr.updateTenantResponseCode(int(code), cfg, tenant, false)
+						log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					} else {
+						postMgr.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration))
+						log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					}
+				} else {
+					unknownResponse = true
+				}
 			} else {
-				postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
-				log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+				unknownResponse = true
 			}
 		}
+	} else {
+		unknownResponse = true
+	}
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
+		postMgr.logAS3Response(responseMap)
 	}
 }
 
@@ -611,33 +643,51 @@ func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap m
 }
 
 func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, cfg *as3Config) {
+	unknownResponse := false
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
 	} else {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, http.StatusNotFound)
+		unknownResponse = true
 	}
-	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}
 	postMgr.updateTenantResponseCode(http.StatusNotFound, cfg, "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *as3Config) {
-	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
-		postMgr.logAS3Response(responseMap)
-	}
+	unknownResponse := false
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
-			v := value.(map[string]interface{})
-			log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
-			postMgr.updateTenantResponseCode(int(v["code"].(float64)), cfg, v["tenant"].(string), false)
+			if v, ok := value.(map[string]interface{}); ok {
+				code, ok1 := v["code"].(float64)
+				tenant, ok2 := v["tenant"].(string)
+				if ok1 && ok2 {
+					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					postMgr.updateTenantResponseCode(int(code), cfg, tenant, false)
+				} else {
+					unknownResponse = true
+				}
+			} else {
+				unknownResponse = true
+			}
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
-		postMgr.updateTenantResponseCode(int(err["code"].(float64)), cfg, "", false)
+		if code, ok := err["code"].(float64); ok {
+			postMgr.updateTenantResponseCode(int(code), cfg, "", false)
+		} else {
+			unknownResponse = true
+		}
 	} else {
+		unknownResponse = true
 		log.Errorf("%v[AS3]%v Big-IP Responded with code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, responseMap["code"])
-		postMgr.updateTenantResponseCode(int(responseMap["code"].(float64)), cfg, "", false)
+		if code, ok := responseMap["code"].(float64); ok {
+			postMgr.updateTenantResponseCode(int(code), cfg, "", false)
+		}
+	}
+	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
+		postMgr.logAS3Response(responseMap)
 	}
 }
 

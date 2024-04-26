@@ -1109,7 +1109,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		_ = ctlr.processRoutes(routeGroupKey, true)
 		// deleting the bigip partition when partition is changes
 		if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
-			if _, ok := ctlr.resources.ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
+			if _, ok := ctlr.resources.ltmConfig.Load(ctlr.resources.extdSpecMap[routeGroupKey].partition); ok {
 				ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1)
 			}
 		}

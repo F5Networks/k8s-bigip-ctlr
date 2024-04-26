@@ -91,7 +91,7 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 							delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey], port)
 							//delete the poolMem Cache as well
 							log.Debugf("Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
-							delete(ctlr.resources.poolMemCache, mSvcKey)
+							ctlr.resources.poolMemCache.Delete(mSvcKey)
 							// delete the pod cache as well in nodePortLocal mode
 							if ctlr.PoolMemberType == NodePortLocal {
 								pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, mSvcKey.clusterName, true)

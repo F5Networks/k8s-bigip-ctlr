@@ -498,7 +498,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 
 		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+		if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
 			log.Debugf("Skipping service '%v' as it's not used by any CIS monitored resource", svcKey)
 			break
 		}
@@ -521,7 +521,7 @@ func (ctlr *Controller) processResources() bool {
 			clusterName: rKey.clusterName,
 		}
 		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+		if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
 			log.Debugf("Skipping endpoint '%v/%v' as it's not used by any CIS monitored resource", ep.Namespace, ep.Name)
 			break
 		}
@@ -551,7 +551,7 @@ func (ctlr *Controller) processResources() bool {
 			clusterName: rKey.clusterName,
 		}
 		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+		if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
 			log.Debugf("Skipping pod '%v/%v' as it's not used by any CIS monitored resource", pod.Namespace, pod.Name)
 			break
 		}
@@ -2177,11 +2177,11 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		namespace:   serviceNamespace,
 		clusterName: clusterName,
 	}
-	if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
+	if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
 		log.Debugf("Adding service '%v' in CIS cache %v", svcKey, getClusterLog(clusterName))
-		ctlr.resources.poolMemCache[svcKey] = &poolMembersInfo{
+		ctlr.resources.poolMemCache.Store(svcKey, &poolMembersInfo{
 			memberMap: make(map[portRef][]PoolMember),
-		}
+		})
 	}
 	err, svc := ctlr.fetchService(svcKey)
 	if err != nil {
@@ -2207,7 +2207,8 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 
 func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString) []PoolMember {
 	var poolMembers []PoolMember
-	poolMemInfo, ok := ctlr.resources.poolMemCache[mSvcKey]
+	poolMemInt, ok := ctlr.resources.poolMemCache.Load(mSvcKey)
+	poolMemInfo, _ := poolMemInt.(*poolMembersInfo)
 	if !ok || len(poolMemInfo.memberMap) == 0 {
 		log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
 		return poolMembers
@@ -2223,7 +2224,12 @@ func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKe
 
 func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
 	var poolMembers []PoolMember
-	poolMemInfo, _ := ctlr.resources.poolMemCache[mSvcKey]
+	poolMemInt, ok := ctlr.resources.poolMemCache.Load(mSvcKey)
+	if !ok {
+		log.Errorf("[CORE]Service could not be fetched from CIS cache", mSvcKey)
+		return poolMembers
+	}
+	poolMemInfo, _ := poolMemInt.(*poolMembersInfo)
 	var poolMemType = ctlr.PoolMemberType
 	if poolMemType == Auto {
 		poolMemType = string(poolMemInfo.svcType)
@@ -2750,7 +2756,8 @@ func (ctlr *Controller) processService(
 		clusterName: clusterName,
 	}
 
-	pmi, _ := ctlr.resources.poolMemCache[svcKey]
+	pmInt, _ := ctlr.resources.poolMemCache.Load(svcKey)
+	pmi, _ := pmInt.(*poolMembersInfo)
 	pmi.portSpec = svc.Spec.Ports
 	pmi.svcType = svc.Spec.Type
 	nodes := ctlr.getNodesFromCache(svcKey.clusterName)
@@ -2824,14 +2831,14 @@ func (ctlr *Controller) processService(
 			pmi.memberMap[portKey] = members
 		}
 	}
-	ctlr.resources.poolMemCache[svcKey] = pmi
+	ctlr.resources.poolMemCache.Store(svcKey, pmi)
 	return nil
 }
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
-		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
+	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig.Load(DEFAULT_GTM_PARTITION); ok {
+		if processedWIP, ok := gtmPartitionConfig.(GTMPartitionConfig).WideIPs[edns.Spec.DomainName]; ok {
 			if processedWIP.UID != string(edns.UID) {
 				log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
 				return
@@ -2840,11 +2847,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	}
 
 	if isDelete {
-		if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
+		pcInt, ok := ctlr.resources.gtmConfig.Load(DEFAULT_GTM_PARTITION)
+		if !ok {
 			return
 		}
-
-		delete(ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
+		if partitionConfig, ok := pcInt.(GTMPartitionConfig); ok {
+			delete(partitionConfig.WideIPs, edns.Spec.DomainName)
+		}
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -2995,13 +3004,16 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}
-	if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
-		ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION] = GTMPartitionConfig{
+	var gtmPartitionConfig GTMPartitionConfig
+	if pcInt, ok := ctlr.resources.gtmConfig.Load(DEFAULT_GTM_PARTITION); !ok {
+		gtmPartitionConfig = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
+	} else {
+		gtmPartitionConfig = pcInt.(GTMPartitionConfig)
 	}
-
-	ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
+	gtmPartitionConfig.WideIPs[edns.Spec.DomainName] = wip
+	ctlr.resources.gtmConfig.Store(DEFAULT_GTM_PARTITION, gtmPartitionConfig)
 	return
 }
 

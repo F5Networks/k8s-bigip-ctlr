@@ -429,6 +429,19 @@ func (postMgr *PostManager) deleteDocumentAPI(tenant string, cfg *as3Config, doc
 func updateTenantDeletion(tenant string, declaration map[string]interface{}) bool {
 	// We are finding the tenant is deleted based on the AS3 API response,
 	// if results contain the partition with status code of 200 and declaration does not contain the partition we assume that partition is deleted.
+	// This is a workaround to handle the deletion of tenant in AS3 API response for CIS 3.x, presently AS3 returns class AS3, where as it's expected to return class ADC
+	// TODO: Revert this change once fixed
+	// Currently the response is in the format
+	/*
+			"declaration": {
+		        "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema//as3-schema-.json",
+		        "class": "AS3",
+		        "declaration": {
+		            "class": "ADC",
+	*/
+	if adcDeclaration, ok := declaration["declaration"]; ok {
+		declaration = adcDeclaration.(interface{}).(map[string]interface{})
+	}
 	if _, ok := declaration[tenant]; !ok {
 		return true
 	}

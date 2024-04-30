@@ -16,9 +16,6 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 		return
 	}
 
-	ctlr.multiClusterResources.Lock()
-	defer ctlr.multiClusterResources.Unlock()
-
 	for _, svc := range clusterSvcs {
 		if ctlr.checkValidExtendedService(svc) != nil {
 			// Skip processing invalid extended service
@@ -31,13 +28,19 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 				clusterName: svc.ClusterName,
 			}
 
-			if ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] == nil {
-				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
-			}
+			var multiClusterServicePoolMap MultiClusterServicePoolMap
+			if valInt, ok := ctlr.multiClusterResources.clusterSvcMap.Load(svc.ClusterName); !ok {
+				multiClusterServicePoolMap = make(MultiClusterServicePoolMap)
+			} else {
+				multiClusterServicePoolMap = valInt.(MultiClusterServicePoolMap)
 
-			if _, ok := ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey]; !ok {
-				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName][svcKey] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 			}
+			// if service not found in clusterSvcMap, add it
+			if _, ok := multiClusterServicePoolMap[svcKey]; !ok {
+				multiClusterServicePoolMap[svcKey] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+			}
+			// update the multi cluster resource map
+			ctlr.multiClusterResources.clusterSvcMap.Store(svc.ClusterName, multiClusterServicePoolMap)
 
 			// update the multi cluster resource map
 			if _, ok := ctlr.multiClusterResources.rscSvcMap[rscKey]; !ok {
@@ -73,22 +76,21 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 //}
 
 func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey resourceRef) {
-	ctlr.multiClusterResources.Lock()
-	defer ctlr.multiClusterResources.Unlock()
 	// remove resource and service mapping
 	if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsKey]; ok {
 		// for service referring to resource, remove the resource from clusterSvcMap
 		for mSvcKey, port := range svcs {
-			if _, ok = ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName]; ok {
-				if _, ok = ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey]; ok {
-					if poolIdsMap, found := ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][port]; found {
+			if valInt, ok := ctlr.multiClusterResources.clusterSvcMap.Load(mSvcKey.clusterName); ok {
+				multiClusterServicePoolMap := valInt.(MultiClusterServicePoolMap)
+				if _, ok = multiClusterServicePoolMap[mSvcKey]; ok {
+					if poolIdsMap, found := multiClusterServicePoolMap[mSvcKey][port]; found {
 						for poolId := range poolIdsMap {
 							if poolId.rsKey == rsKey {
 								delete(poolIdsMap, poolId)
 							}
 						}
 						if len(poolIdsMap) == 0 {
-							delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey], port)
+							delete(multiClusterServicePoolMap[mSvcKey], port)
 							//delete the poolMem Cache as well
 							log.Debugf("Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
 							ctlr.resources.poolMemCache.Delete(mSvcKey)
@@ -100,13 +102,15 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 								}
 							}
 						} else {
-							ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][port] = poolIdsMap
+							multiClusterServicePoolMap[mSvcKey][port] = poolIdsMap
 						}
 					}
 				}
-			}
-			if len(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey]) == 0 {
-				delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
+				if len(multiClusterServicePoolMap[mSvcKey]) == 0 {
+					delete(multiClusterServicePoolMap, mSvcKey)
+				}
+				// store the updated clusterSvcMap
+				ctlr.multiClusterResources.clusterSvcMap.Store(mSvcKey.clusterName, multiClusterServicePoolMap)
 			}
 		}
 		//remove resource entry
@@ -117,19 +121,26 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 // when route is processed check for the clusters whose services references are removed
 // if any cluster is present with no references of services, stop the cluster informers
 func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
-
-	ctlr.multiClusterResources.Lock()
-	defer ctlr.multiClusterResources.Unlock()
-
-	for clusterName, svcs := range ctlr.multiClusterResources.clusterSvcMap {
+	// Channel to receive keys to delete
+	keysToDelete := make(chan interface{})
+	defer close(keysToDelete)
+	ctlr.multiClusterResources.clusterSvcMap.Range(func(key, value interface{}) bool {
+		clusterName := key.(string)
+		svcs := value.(MultiClusterServicePoolMap)
 		// If no services are referenced from this cluster and this isn't HA peer cluster in case of active-active/ratio
 		// then remove the clusterName key from the clusterSvcMap and stop the informers for this cluster
 		if len(svcs) == 0 && ((ctlr.haModeType == StandAloneCIS || ctlr.haModeType == StandBy) ||
 			ctlr.multiClusterConfigs.HAPairClusterName != clusterName) {
-			delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
-			ctlr.stopMultiClusterInformers(clusterName, true)
+			keysToDelete <- key
 		}
+		return true
+	})
+	// Delete keys received from the channel
+	for key := range keysToDelete {
+		ctlr.multiClusterResources.clusterSvcMap.Delete(key)
+		ctlr.stopMultiClusterInformers(key.(string), true)
 	}
+
 }
 
 func (ctlr *Controller) getSvcPortFromHACluster(svcNameSpace, svcName, portName, rscType string) (int32, error) {

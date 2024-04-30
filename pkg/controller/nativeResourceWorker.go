@@ -780,7 +780,8 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 		"",
 	)
 	// for each cluster -> referred svcs -> for each svc -> port info and bigip vs and dependant resource(route)
-	if serviceKeys, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
+	if valInt, ok := ctlr.multiClusterResources.clusterSvcMap.Load(svcKey.clusterName); ok {
+		serviceKeys := valInt.(MultiClusterServicePoolMap)
 		if svcPorts, ok2 := serviceKeys[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
 				for poolId := range poolIds {
@@ -1798,8 +1799,6 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			var clusterSvcs []cisapiv1.MultiClusterServiceReference
 			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 			if err == nil {
-				ctlr.multiClusterResources.Lock()
-				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
 					err := ctlr.checkValidExtendedService(svc)
 					if err != nil {

@@ -1987,20 +1987,26 @@ func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKe
 		rsKey:     rsKey,
 	}
 	multiClusterSvcConfig := MultiClusterServiceConfig{svcPort: svcPort}
-	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName]; !ok {
-		ctlr.multiClusterResources.clusterSvcMap[key.clusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+	var multiClusterSvcPoolMap MultiClusterServicePoolMap
+	if valInt, ok := ctlr.multiClusterResources.clusterSvcMap.Load(key.clusterName); !ok {
+		multiClusterSvcPoolMap = make(MultiClusterServicePoolMap)
+	} else {
+		multiClusterSvcPoolMap = valInt.(MultiClusterServicePoolMap)
 	}
-	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key]; !ok {
-		ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+	if _, ok := multiClusterSvcPoolMap[key]; !ok {
+		multiClusterSvcPoolMap[key] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	}
-	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig]; !ok {
-		ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig] = make(map[PoolIdentifier]struct{})
+	if _, ok := multiClusterSvcPoolMap[key][multiClusterSvcConfig]; !ok {
+		multiClusterSvcPoolMap[key][multiClusterSvcConfig] = make(map[PoolIdentifier]struct{})
 	}
-	ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig][poolId] = struct{}{}
+	multiClusterSvcPoolMap[key][multiClusterSvcConfig][poolId] = struct{}{}
+	// store the updated map
+	ctlr.multiClusterResources.clusterSvcMap.Store(key.clusterName, multiClusterSvcPoolMap)
 }
 
 func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKey, svcPortUpdated bool) {
-	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
+	if sKey, ok := ctlr.multiClusterResources.clusterSvcMap.Load(svcKey.clusterName); ok {
+		serviceKey, _ := sKey.(MultiClusterServicePoolMap)
 		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
 				for poolId := range poolIds {

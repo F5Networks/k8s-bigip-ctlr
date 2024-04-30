@@ -2203,8 +2203,10 @@ extendedRouteSpec:
 
 		It("Process Route with multi cluster annotation without multicluster config", func() {
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+			multiClusterServicecPoolMap, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 		})
 
 		It("Process Route with multi cluster annotation with multicluster config", func() {
@@ -2229,9 +2231,12 @@ extendedRouteSpec:
 			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "service":"svc", "namespace": "default", "servicePort": "8080" },
 {"clusterName": "cluster3", "service":"svc1", "namespace": "default", "servicePort": "8081" }]`
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			multiClusterServicecPoolMap, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
 
 			resourceKey := resourceRef{
 				kind:      Route,
@@ -2254,16 +2259,24 @@ extendedRouteSpec:
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(0))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "service":"svc1", "namespace": "default", "servicePort": "8081" }]`
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 		})
 
@@ -2528,9 +2541,13 @@ externalClustersConfig:
 			}
 			mockCtlr.haModeType = Ratio
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			multiClusterServicecPoolMap, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 			// Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
@@ -2556,9 +2573,13 @@ externalClustersConfig:
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(0))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 			vs.Spec.Pools[0].MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2570,9 +2591,13 @@ externalClustersConfig:
 			}
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 		})
 
 		It("Process TS with multi cluster config", func() {
@@ -2629,9 +2654,15 @@ externalClustersConfig:
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			multiClusterServicecPoolMap, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
+
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			resourceKey := resourceRef{
 				kind:      TransportServer,
@@ -2643,9 +2674,13 @@ externalClustersConfig:
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(0))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2657,9 +2692,13 @@ externalClustersConfig:
 			}
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(2))
+			multiClusterServicecPoolMap, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(multiClusterServicecPoolMap.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(test.LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 		})
 	})

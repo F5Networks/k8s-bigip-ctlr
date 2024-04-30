@@ -1409,9 +1409,10 @@ type (
 
 	MultiClusterResourceStore struct {
 		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
-		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
-		sync.Mutex
+		clusterSvcMap sync.Map
 	}
+	MultiClusterServicePoolMap map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
+
 	MultiClusterServiceKey struct {
 		serviceName string
 		clusterName string

@@ -310,9 +310,9 @@ type (
 
 	// ResourceStore contain processed LTM and GTM resource data
 	ResourceStore struct {
-		ltmConfig      LTMConfig
+		ltmConfig      sync.Map
 		ltmConfigCache LTMConfig
-		gtmConfig      GTMConfig
+		gtmConfig      sync.Map
 		gtmConfigCache GTMConfig
 		nplStore       NPLStore
 		supplementContextCache
@@ -357,6 +357,7 @@ type (
 	WideIPs struct {
 		WideIPs []WideIP `json:"wideIPs"`
 	}
+
 	// GTMConfig key is PartitionName
 	GTMConfig map[string]GTMPartitionConfig
 
@@ -483,7 +484,7 @@ type (
 
 	supplementContextCache struct {
 		baseRouteConfig           BaseRouteConfig
-		poolMemCache              PoolMemberCache
+		poolMemCache              sync.Map
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
@@ -1408,9 +1409,10 @@ type (
 
 	MultiClusterResourceStore struct {
 		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
-		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
-		sync.Mutex
+		clusterSvcMap sync.Map
 	}
+	MultiClusterServicePoolMap map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
+
 	MultiClusterServiceKey struct {
 		serviceName string
 		clusterName string

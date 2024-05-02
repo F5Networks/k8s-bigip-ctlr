@@ -65,7 +65,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 				log.Debugf("Processing Node Updates for local cluster")
 				// Update node cache
 				ctlr.oldNodes = newNodes
-				if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+				if _, ok := ctlr.multiClusterResources.clusterSvcMap.Load(clusterName); ok {
 					ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 				}
 			}
@@ -76,8 +76,8 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 					log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
 					// Update node cache
 					nodeInf.oldNodes = newNodes
-					if ctlr.multiClusterResources.clusterSvcMap != nil {
-						if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+					if &ctlr.multiClusterResources.clusterSvcMap != nil {
+						if _, ok := ctlr.multiClusterResources.clusterSvcMap.Load(clusterName); ok {
 							ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 						}
 					}
@@ -99,7 +99,8 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 }
 
 func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
-	if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+	if sKey, ok := ctlr.multiClusterResources.clusterSvcMap.Load(clusterName); ok {
+		svcKeys, _ := sKey.(MultiClusterServicePoolMap)
 		for svcKey, _ := range svcKeys {
 			ctlr.updatePoolMembersForService(svcKey, false)
 		}

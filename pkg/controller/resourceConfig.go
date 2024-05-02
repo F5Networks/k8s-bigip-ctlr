@@ -19,6 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
@@ -50,17 +51,17 @@ func NewResourceStore() *ResourceStore {
 func newMultiClusterResourceStore() *MultiClusterResourceStore {
 	var rs MultiClusterResourceStore
 	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig)
-	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+	rs.clusterSvcMap = sync.Map{}
 	return &rs
 }
 
 // Init is Receiver to initialize the object.
 func (rs *ResourceStore) Init() {
-	rs.ltmConfig = make(LTMConfig)
+	rs.ltmConfig = sync.Map{}
 	rs.ltmConfigCache = make(LTMConfig)
-	rs.gtmConfig = make(GTMConfig)
+	rs.gtmConfig = sync.Map{}
 	rs.gtmConfigCache = make(GTMConfig)
-	rs.poolMemCache = make(PoolMemberCache)
+	rs.poolMemCache = sync.Map{}
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
@@ -1590,43 +1591,50 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 }
 
 func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
-	_, ok := rs.ltmConfig[partition]
+	partitionConfig, ok := rs.ltmConfig.Load(partition)
+	var resourceMap ResourceMap
 	if !ok {
 		zero := 0
-		rs.ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+		resourceMap = make(ResourceMap)
+		rs.ltmConfig.Store(partition, &PartitionConfig{ResourceMap: resourceMap, Priority: &zero})
+	} else {
+		resourceMap = partitionConfig.(*PartitionConfig).ResourceMap
 	}
 
-	return rs.ltmConfig[partition].ResourceMap
+	return resourceMap
 }
 
 func (rs *ResourceStore) getLTMPartitions() []string {
 	var partitions []string
 
-	for partition, _ := range rs.ltmConfig {
-		partitions = append(partitions, partition)
-	}
+	// Iterate over the sync.Map and collect keys into the slice
+	rs.ltmConfig.Range(func(key, value interface{}) bool {
+		partitions = append(partitions, key.(string))
+		return true
+	})
+
 	return partitions
 }
 
 // getResourceConfig gets a specific Resource cfg
 func (rs *ResourceStore) getResourceConfig(partition, name string) (*ResourceConfig, error) {
 
-	rsMap, ok := rs.ltmConfig[partition]
+	rsMap, ok := rs.ltmConfig.Load(partition)
 	if !ok {
 		return nil, fmt.Errorf("partition not available")
 	}
-	if res, ok := rsMap.ResourceMap[name]; ok {
+	if res, ok := rsMap.(*PartitionConfig).ResourceMap[name]; ok {
 		return res, nil
 	}
 	return nil, fmt.Errorf("resource not available")
 }
 
 func (rs *ResourceStore) setResourceConfig(partition, name string, rsCfg *ResourceConfig) error {
-	partitionConfig, ok := rs.ltmConfig[partition]
+	partitionConfig, ok := rs.ltmConfig.Load(partition)
 	if !ok {
 		return fmt.Errorf("partition not available")
 	}
-	partitionConfig.ResourceMap[name] = rsCfg
+	partitionConfig.(*PartitionConfig).ResourceMap[name] = rsCfg
 	return nil
 }
 
@@ -1634,7 +1642,9 @@ func (rs *ResourceStore) setResourceConfig(partition, name string, rsCfg *Resour
 func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
 	var deletePartitions []string
-	for prtn, partitionConfig := range rs.ltmConfig {
+	rs.ltmConfig.Range(func(key, value interface{}) bool {
+		prtn := key.(string)
+		partitionConfig := value.(*PartitionConfig)
 		// copy only those partitions where virtual server exists otherwise remove from ltmConfig
 		if len(partitionConfig.ResourceMap) > 0 {
 			ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
@@ -1649,10 +1659,11 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 			}
 			partitionConfig.PriorityMutex.RUnlock()
 		}
-	}
+		return true
+	})
 	// delete the partitions if there are no virtuals in that partition
 	for _, prtn := range deletePartitions {
-		delete(rs.ltmConfig, prtn)
+		rs.ltmConfig.Delete(prtn)
 	}
 	return ltmConfig
 }
@@ -1660,7 +1671,9 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 // getLTMConfigDeepCopy is a Resource reference copy of LTMConfig
 func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
-	for prtn, partitionConfig := range rs.ltmConfig {
+	rs.ltmConfig.Range(func(key, value interface{}) bool {
+		prtn := key.(string)
+		partitionConfig := value.(*PartitionConfig)
 		partitionConfig.PriorityMutex.RLock()
 		ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
 		partitionConfig.PriorityMutex.RUnlock()
@@ -1669,14 +1682,17 @@ func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 			copyRes.copyConfig(res)
 			ltmConfig[prtn].ResourceMap[rsName] = copyRes
 		}
-	}
+		return true
+	})
 	return ltmConfig
 }
 
 // getGTMConfigCopy is a WideIP reference copy of GTMConfig
 func (rs *ResourceStore) getGTMConfigCopy() GTMConfig {
 	gtmConfig := make(GTMConfig)
-	for partition, gtmPartitionConfig := range rs.gtmConfig {
+	rs.gtmConfig.Range(func(key, value interface{}) bool {
+		partition := key.(string)
+		gtmPartitionConfig := value.(GTMPartitionConfig)
 		gtmConfig[partition] = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
@@ -1684,8 +1700,29 @@ func (rs *ResourceStore) getGTMConfigCopy() GTMConfig {
 			copyRes := copyGTMConfig(wip)
 			gtmConfig[partition].WideIPs[domainName] = copyRes
 		}
-	}
+		return true
+	})
 	return gtmConfig
+}
+
+// LenLtmConfig function to count the length of ltmConfig
+func (rs *ResourceStore) LenLtmConfig() int {
+	count := 0
+	rs.ltmConfig.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
+}
+
+// LenGtmConfig function to count the length of gtmConfig
+func (rs *ResourceStore) LenGtmConfig() int {
+	count := 0
+	rs.gtmConfig.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
 }
 
 func (rs *ResourceStore) updateCaches() {
@@ -1695,8 +1732,70 @@ func (rs *ResourceStore) updateCaches() {
 }
 
 func (rs *ResourceStore) isConfigUpdated() bool {
-	return !reflect.DeepEqual(rs.ltmConfig, rs.ltmConfigCache) ||
-		!reflect.DeepEqual(rs.gtmConfig, rs.gtmConfigCache)
+	// Channels to signal completion of each condition
+	ltmResult := make(chan bool)
+	gtmResult := make(chan bool)
+	lengthResult := make(chan bool)
+
+	// Check if lengths are different
+	go func() {
+		lengthResult <- rs.LenLtmConfig() != len(rs.ltmConfigCache) || rs.LenGtmConfig() != len(rs.gtmConfigCache)
+	}()
+
+	// Check LTM config
+	go func() {
+		for k, v := range rs.ltmConfigCache {
+			if pcInt, ok := rs.ltmConfig.Load(k); !ok {
+				ltmResult <- true
+				return // Exit early if LTM config is updated
+			} else {
+				partitionConfig := pcInt.(*PartitionConfig)
+				if !reflect.DeepEqual(v, partitionConfig) {
+					ltmResult <- true
+					return // Exit early if LTM config is updated
+				}
+			}
+		}
+		ltmResult <- false
+	}()
+
+	// Check GTM config
+	go func() {
+		for k, v := range rs.gtmConfigCache {
+			if pcInt, ok := rs.gtmConfig.Load(k); !ok {
+				gtmResult <- true
+				return // Exit early if GTM config is updated
+			} else {
+				partitionConfig := pcInt.(GTMPartitionConfig)
+				if !reflect.DeepEqual(v, partitionConfig) {
+					gtmResult <- true
+					return // Exit early if GTM config is updated
+				}
+			}
+		}
+		gtmResult <- false
+	}()
+
+	for i := 0; i < 3; {
+		select {
+		case updated := <-ltmResult:
+			if updated {
+				return true
+			}
+			i++
+		case updated := <-gtmResult:
+			if updated {
+				return true
+			}
+			i++
+		case updated := <-lengthResult:
+			if updated {
+				return true
+			}
+			i++
+		}
+	}
+	return false
 }
 
 // Deletes respective VirtualServer resource configuration from  ResourceStore
@@ -1706,10 +1805,11 @@ func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
 
 // Update the tenant priority in ltmConfigCache
 func (rs *ResourceStore) updatePartitionPriority(partition string, priority int) {
-	if _, ok := rs.ltmConfig[partition]; ok {
-		rs.ltmConfig[partition].PriorityMutex.Lock()
-		*rs.ltmConfig[partition].Priority = priority
-		rs.ltmConfig[partition].PriorityMutex.Unlock()
+	if pcInt, ok := rs.ltmConfig.Load(partition); ok {
+		partitionConfig := pcInt.(*PartitionConfig)
+		partitionConfig.PriorityMutex.Lock()
+		*partitionConfig.Priority = priority
+		partitionConfig.PriorityMutex.Unlock()
 	}
 }
 

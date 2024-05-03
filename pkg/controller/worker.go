@@ -1346,9 +1346,10 @@ func (ctlr *Controller) processVirtualServers(
 
 		// Update ltmConfig with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
-			if _, ok := rsMap[rsName]; !ok {
-				hostnames = rsCfg.MetaData.hosts
-			}
+			// Get the hostnames associated with the VirtualServers, without caring about whether the resource is
+			// already processed or not, to make sure that ExternalDNS is updated/processed for all the hostnames in case
+			// multiple VirtualServer CRs with different hosts are grouped under one Big-IP Virtual.
+			hostnames = rsCfg.MetaData.hosts
 			rsMap[rsName] = rsCfg
 		}
 

@@ -12,6 +12,7 @@ Added Functionality
 Bug Fixes
 ````````````
 * `Issue 3371 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3371`_: CIS added irules cannot have "event disable all"
+* Fix for EDNS pool member empty issue.
 
 
 2.16.1

@@ -673,11 +673,25 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.Host = "test3.com"
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
-					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					[]*cisapiv1.VirtualServer{vrt2, vrt3},
 					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
 				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
+
+				// VS CRs with different hostGroups but same Vs Address
+				virts = mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false, &VSSpecProperties{})
+				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
+
+				// VS CRs with same hostGroups but different Vs Address
+				vrt3.Spec.VirtualServerAddress = "10.10.10.10"
+				virts = mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3},
+					false, &VSSpecProperties{})
+				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
+				vrt3.Spec.VirtualServerAddress = "1.2.3.5"
 			})
 
 			It("Host Group with IP Address Only specified once", func() {
@@ -687,12 +701,18 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.VirtualServerAddress = ""
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
-					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					[]*cisapiv1.VirtualServer{vrt2, vrt3},
 					false, &VSSpecProperties{})
 
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
 				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
+
+				virts = mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false, &VSSpecProperties{})
+
+				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
 
 			It("Host Group with Multiple Hosts", func() {
@@ -789,6 +809,19 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.Host = ""
 				virts := mockCtlr.getAssociatedVirtualServers(vrt4,
 					[]*cisapiv1.VirtualServer{vrt4},
+					false, &VSSpecProperties{})
+				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
+			})
+			It("Different IPAM Label in a virtualServer with same HostGroup", func() {
+				mockCtlr.ipamHandler.IpamCli = &ipammachinery.IPAMClient{}
+				vrt4.Spec.IPAMLabel = "test1"
+				vrt2.Spec.IPAMLabel = "test"
+				vrt3.Spec.IPAMLabel = "test"
+				vrt2.Spec.HostGroup = "test-hg"
+				vrt3.Spec.HostGroup = "test-hg"
+				vrt4.Spec.HostGroup = "test-hg"
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})

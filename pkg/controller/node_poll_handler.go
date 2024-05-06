@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net"
 	"reflect"
 	"sort"
@@ -219,6 +221,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 	}
 	log.Debugf("Processing Node Updates for static routes")
 	routes := routeSection{}
+	nodePodCIDRMap := ctlr.GetNodePodCIDRMap()
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
 		// Ignore the Nodes with status NotReady
@@ -310,6 +313,27 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					}
 				}
 
+			}
+		} else if ctlr.OrchestrationCNI == CALICO_K8S {
+			if nodePodCIDRMap != nil && len(nodePodCIDRMap) > 0 {
+				if len(nodePodCIDRMap) != len(nodes) {
+					//Wait for some time to get the nodePodCIDRMap in case a new node is added, it takes some time to create the block affinity for node
+					time.Sleep(1 * time.Second)
+					nodePodCIDRMap = ctlr.GetNodePodCIDRMap()
+				}
+				if nodeIPValue, ok := node.Annotations[CALICONodeIPAnnotation]; ok {
+					if cidr, ok := nodePodCIDRMap[node.Name]; ok {
+						route.Gateway = strings.Split(nodeIPValue, "/")[0]
+						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, route.Gateway)
+						route.Network = cidr
+					} else {
+						log.Warningf("Pod Network not found for node %v, static route not added", node.Name)
+						continue
+					}
+				} else {
+					log.Warningf("Host addresses annotation %v not found on node %v ,static route not added", CALICONodeIPAnnotation, node.Name)
+					continue
+				}
 			}
 		} else {
 			//For k8s CNI like flannel, antrea etc we can get subnet from node spec
@@ -417,4 +441,32 @@ func parseHostCIDRS(ann string, nodenetwork *net.IPNet) (string, error) {
 	}
 	err := fmt.Errorf("Cannot get nodeip from %s within nodenetwork %v", OvnK8sNodeIPAnnotation3, nodenetwork)
 	return "", err
+}
+
+func (ctlr *Controller) GetNodePodCIDRMap() map[string]string {
+	var nodePodCIDRMap map[string]string
+	if ctlr.OrchestrationCNI == CALICO_K8S {
+		// Retrieve Calico Block Affinity
+		blockAffinitiesRaw, err := ctlr.kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
+		if err != nil {
+			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
+			return nodePodCIDRMap
+		}
+		// Define a map to store the unmarshalled data
+		var blockAffinities unstructured.UnstructuredList
+
+		// Unmarshal the JSON data into the unstructured list
+		err = json.Unmarshal(blockAffinitiesRaw, &blockAffinities)
+		if err != nil {
+			log.Errorf("Unable to unmarshall block affinity resource %v, getting error %v", string(blockAffinitiesRaw), err)
+			return nodePodCIDRMap
+		}
+		nodePodCIDRMap = make(map[string]string)
+		for _, blockAffinity := range blockAffinities.Items {
+			// Access the spec field from the unstructured object
+			specData := blockAffinity.Object["spec"].(map[string]interface{})
+			nodePodCIDRMap[specData["node"].(string)] = specData["cidr"].(string)
+		}
+	}
+	return nodePodCIDRMap
 }

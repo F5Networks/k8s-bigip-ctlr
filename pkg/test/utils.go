@@ -455,3 +455,13 @@ func NewServicewithselectors(id, rv, namespace string, selector map[string]strin
 		},
 	}
 }
+
+// function to count the sync.Map length
+func LenSyncMap(m *sync.Map) int {
+	count := 0
+	m.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
+}

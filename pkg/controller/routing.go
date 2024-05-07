@@ -806,135 +806,150 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 			# Bytes 1-2 are the TLS version.
 			# Bytes 3-4 are the TLS payload length.
 			# Bytes 5-$tls_payload_len are the TLS payload.
-			binary scan [TCP::payload] cSS tls_content_type tls_version tls_payload_len
-			if { ! [ expr { [info exists tls_content_type] && [string is integer -strict $tls_content_type] } ] }  { reject ; event disable all; return; }
-			if { ! [ expr { [info exists tls_version] && [string is integer -strict $tls_version] } ] }  { reject ; event disable all; return; }
-			switch -exact $tls_version {
-				"769" -
-				"770" -
-				"771" {
-					# Content type of 22 indicates the TLS payload contains a handshake.
-					if { $tls_content_type == 22 } {
-						# Byte 5 (the first byte of the handshake) indicates the handshake
-						# record type, and a value of 1 signifies that the handshake record is
-						# a ClientHello.
-						binary scan [TCP::payload] @5c tls_handshake_record_type
-						if { ! [ expr { [info exists tls_handshake_record_type] && [string is integer -strict $tls_handshake_record_type] } ] }  { reject ; event disable all; return; }
-						if { $tls_handshake_record_type == 1 } {
-							# Bytes 6-8 are the handshake length (which we ignore).
-							# Bytes 9-10 are the TLS version (which we ignore).
-							# Bytes 11-42 are random data (which we ignore).
+			set payload [TCP::payload]
+           set payloadlen [TCP::payload length]
 
-							# Byte 43 is the session ID length.  Following this are three
-							# variable-length fields which we shall skip over.
-							set record_offset 43
-
-							# Skip the session ID.
-							binary scan [TCP::payload] @${record_offset}c tls_session_id_len
-							if { ! [ expr { [info exists tls_session_id_len] && [string is integer -strict $tls_session_id_len] } ] }  { reject ; event disable all; return; }
-							incr record_offset [expr {1 + $tls_session_id_len}]
-
-							# Skip the cipher_suites field.
-							binary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len
-							if { ! [ expr { [info exists tls_cipher_suites_len] && [string is integer -strict $tls_cipher_suites_len] } ] }  { reject ; event disable all; return; }
-							incr record_offset [expr {2 + $tls_cipher_suites_len}]
-
-							# Skip the compression_methods field.
-							binary scan [TCP::payload] @${record_offset}c tls_compression_methods_len
-							if { ! [ expr { [info exists tls_compression_methods_len] && [string is integer -strict $tls_compression_methods_len] } ] }  { reject ; event disable all; return; }
-							incr record_offset [expr {1 + $tls_compression_methods_len}]
-
-							# Get the number of extensions, and store the extensions.
-							binary scan [TCP::payload] @${record_offset}S tls_extensions_len
-							if { ! [ expr { [info exists tls_extensions_len] && [string is integer -strict $tls_extensions_len] } ] }  { reject ; event disable all; return; }
-							incr record_offset 2
-							binary scan [TCP::payload] @${record_offset}a* tls_extensions
-							if { ! [info exists tls_extensions] }  { reject ; event disable all; return; }
-							for { set extension_start 0 }
-									{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }
-									{ incr extension_start 4 } {
-								# Bytes 0-1 of the extension are the extension type.
-								# Bytes 2-3 of the extension are the extension length.
-								binary scan $tls_extensions @${extension_start}SS extension_type extension_len
-								if { ! [ expr { [info exists extension_type] && [string is integer -strict $extension_type] } ] }  { reject ; event disable all; return; }
-								if { ! [ expr { [info exists extension_len] && [string is integer -strict $extension_len] } ] }  { reject ; event disable all; return; }
-
-								# Extension type 00 is the ServerName extension.
-								if { $extension_type == "00" } {
-									# Bytes 4-5 of the extension are the SNI length (we ignore this).
-
-									# Byte 6 of the extension is the SNI type.
-									set sni_type_offset [expr {$extension_start + 6}]
-									binary scan $tls_extensions @${sni_type_offset}S sni_type
-									if { ! [ expr { [info exists sni_type] && [string is integer -strict $sni_type] } ] }  { reject ; event disable all; return; }
-
-									# Type 0 is host_name.
-									if { $sni_type == "0" } {
-										# Bytes 7-8 of the extension are the SNI data (host_name)
-										# length.
-										set sni_len_offset [expr {$extension_start + 7}]
-										binary scan $tls_extensions @${sni_len_offset}S sni_len
-										if { ! [ expr { [info exists sni_len] && [string is integer -strict $sni_len] } ] }  { reject ; event disable all; return; } 
-
-										# Bytes 9-$sni_len are the SNI data (host_name).
-										set sni_start [expr {$extension_start + 9}]
-										binary scan $tls_extensions @${sni_start}A${sni_len} tls_servername
+           if {![info exists payloadscan]} {
+               set payloadscan [binary scan $payload cSS tls_content_type tls_version tls_payload_len ]
+           }
+		   
+	       if {($payloadscan == 3)} {
+               if {($tls_payload_len < 0 || $tls_payload_len > 16389)} {  
+                   log local0.warn "[IP::remote_addr] : parsed SSL/TLS record length ${tls_payload_len} outside of handled length (0..16389)"
+                   reject
+                   return
+               } elseif {($payloadlen < $tls_payload_len+5)} {
+                   TCP::collect [expr {$tls_payload_len +5 - $payloadlen}]
+                   return
+               }
+				if { ! [ expr { [info exists tls_content_type] && [string is integer -strict $tls_content_type] } ] }  { reject ; event disable all; return; }
+				if { ! [ expr { [info exists tls_version] && [string is integer -strict $tls_version] } ] }  { reject ; event disable all; return; }
+				switch -exact $tls_version {
+					"769" -
+					"770" -
+					"771" {
+						# Content type of 22 indicates the TLS payload contains a handshake.
+						if { $tls_content_type == 22 } {
+							# Byte 5 (the first byte of the handshake) indicates the handshake
+							# record type, and a value of 1 signifies that the handshake record is
+							# a ClientHello.
+							binary scan [TCP::payload] @5c tls_handshake_record_type
+							if { ! [ expr { [info exists tls_handshake_record_type] && [string is integer -strict $tls_handshake_record_type] } ] }  { reject ; event disable all; return; }
+							if { $tls_handshake_record_type == 1 } {
+								# Bytes 6-8 are the handshake length (which we ignore).
+								# Bytes 9-10 are the TLS version (which we ignore).
+								# Bytes 11-42 are random data (which we ignore).
+	
+								# Byte 43 is the session ID length.  Following this are three
+								# variable-length fields which we shall skip over.
+								set record_offset 43
+	
+								# Skip the session ID.
+								binary scan [TCP::payload] @${record_offset}c tls_session_id_len
+								if { ! [ expr { [info exists tls_session_id_len] && [string is integer -strict $tls_session_id_len] } ] }  { reject ; event disable all; return; }
+								incr record_offset [expr {1 + $tls_session_id_len}]
+	
+								# Skip the cipher_suites field.
+								binary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len
+								if { ! [ expr { [info exists tls_cipher_suites_len] && [string is integer -strict $tls_cipher_suites_len] } ] }  { reject ; event disable all; return; }
+								incr record_offset [expr {2 + $tls_cipher_suites_len}]
+	
+								# Skip the compression_methods field.
+								binary scan [TCP::payload] @${record_offset}c tls_compression_methods_len
+								if { ! [ expr { [info exists tls_compression_methods_len] && [string is integer -strict $tls_compression_methods_len] } ] }  { reject ; event disable all; return; }
+								incr record_offset [expr {1 + $tls_compression_methods_len}]
+	
+								# Get the number of extensions, and store the extensions.
+								binary scan [TCP::payload] @${record_offset}S tls_extensions_len
+								if { ! [ expr { [info exists tls_extensions_len] && [string is integer -strict $tls_extensions_len] } ] }  { reject ; event disable all; return; }
+								incr record_offset 2
+								binary scan [TCP::payload] @${record_offset}a* tls_extensions
+								if { ! [info exists tls_extensions] }  { reject ; event disable all; return; }
+								for { set extension_start 0 }
+										{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }
+										{ incr extension_start 4 } {
+									# Bytes 0-1 of the extension are the extension type.
+									# Bytes 2-3 of the extension are the extension length.
+									binary scan $tls_extensions @${extension_start}SS extension_type extension_len
+									if { ! [ expr { [info exists extension_type] && [string is integer -strict $extension_type] } ] }  { reject ; event disable all; return; }
+									if { ! [ expr { [info exists extension_len] && [string is integer -strict $extension_len] } ] }  { reject ; event disable all; return; }
+	
+									# Extension type 00 is the ServerName extension.
+									if { $extension_type == "00" } {
+										# Bytes 4-5 of the extension are the SNI length (we ignore this).
+	
+										# Byte 6 of the extension is the SNI type.
+										set sni_type_offset [expr {$extension_start + 6}]
+										binary scan $tls_extensions @${sni_type_offset}S sni_type
+										if { ! [ expr { [info exists sni_type] && [string is integer -strict $sni_type] } ] }  { reject ; event disable all; return; }
+	
+										# Type 0 is host_name.
+										if { $sni_type == "0" } {
+											# Bytes 7-8 of the extension are the SNI data (host_name)
+											# length.
+											set sni_len_offset [expr {$extension_start + 7}]
+											binary scan $tls_extensions @${sni_len_offset}S sni_len
+											if { ! [ expr { [info exists sni_len] && [string is integer -strict $sni_len] } ] }  { reject ; event disable all; return; } 
+	
+											# Bytes 9-$sni_len are the SNI data (host_name).
+											set sni_start [expr {$extension_start + 9}]
+											binary scan $tls_extensions @${sni_start}A${sni_len} tls_servername
+										}
 									}
+	
+									incr extension_start $extension_len
 								}
-
-								incr extension_start $extension_len
-							}
-							if { [info exists tls_servername] } {
-								set servername_lower [string tolower $tls_servername]
-                            	set domain_length [llength [split $servername_lower "."]]
-                				set domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]
-                				# Set wc_host with the wildcard domain
-								set wc_host ".$domain_wc"
-								set passthru_class "/%[1]s/%[2]s_ssl_passthrough_servername_dg"
-								if { [class exists $passthru_class] } {
-                                    # check if the passthrough data group has a record with the servername
-                                    set passthru_dg_key [class match $servername_lower equals $passthru_class]
-								    set passthru_dg_wc_key [class match $wc_host equals $passthru_class]
-								    if { $passthru_dg_key != 0 || $passthru_dg_wc_key != 0 } {
-										SSL::disable serverside
-										set dflt_pool_passthrough ""
-	
-										# Disable Serverside SSL for Passthrough Class
-										set dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]
-										# If no match, try wildcard domain
-										if { $dflt_pool_passthrough == "" } {
-											if { [class match $wc_host equals $passthru_class] } {
-													set dflt_pool_passthrough [class match -value $wc_host equals $passthru_class]
+								if { [info exists tls_servername] } {
+									set servername_lower [string tolower $tls_servername]
+									set domain_length [llength [split $servername_lower "."]]
+									set domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]
+									# Set wc_host with the wildcard domain
+									set wc_host ".$domain_wc"
+									set passthru_class "/%[1]s/%[2]s_ssl_passthrough_servername_dg"
+									if { [class exists $passthru_class] } {
+										# check if the passthrough data group has a record with the servername
+										set passthru_dg_key [class match $servername_lower equals $passthru_class]
+										set passthru_dg_wc_key [class match $wc_host equals $passthru_class]
+										if { $passthru_dg_key != 0 || $passthru_dg_wc_key != 0 } {
+											SSL::disable serverside
+											set dflt_pool_passthrough ""
+		
+											# Disable Serverside SSL for Passthrough Class
+											set dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]
+											# If no match, try wildcard domain
+											if { $dflt_pool_passthrough == "" } {
+												if { [class match $wc_host equals $passthru_class] } {
+														set dflt_pool_passthrough [class match -value $wc_host equals $passthru_class]
+												}
 											}
-										}
-										if { not ($dflt_pool_passthrough equals "") } {
-											SSL::disable
-											HTTP::disable
-										}
-	
-										set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
-										if { not [class exists $ab_class] } {
-											if { $dflt_pool_passthrough == "" } then {
-												log local0.debug "Failed to find pool for $servername_lower $"
+											if { not ($dflt_pool_passthrough equals "") } {
+												SSL::disable
+												HTTP::disable
+											}
+		
+											set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+											if { not [class exists $ab_class] } {
+												if { $dflt_pool_passthrough == "" } then {
+													log local0.debug "Failed to find pool for $servername_lower $"
+												} else {
+													pool $dflt_pool_passthrough
+												}
 											} else {
-												pool $dflt_pool_passthrough
-											}
-										} else {
-											set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough ""]
-											if { $selected_pool == "" } then {
-												log local0.debug "Failed to find pool for $servername_lower"
-											} else {
-												pool $selected_pool
+												set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough ""]
+												if { $selected_pool == "" } then {
+													log local0.debug "Failed to find pool for $servername_lower"
+												} else {
+													pool $selected_pool
+												}
 											}
 										}
-                                    }
+									}
 								}
 							}
 						}
 					}
 				}
 			}
-
 			TCP::release
 		}
 

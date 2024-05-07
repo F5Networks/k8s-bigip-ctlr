@@ -10,9 +10,11 @@ Added Functionality
     * Multi Cluster
     * CRD
     * Support for Calico CNI with Static Routing Mode, See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/StaticRoute/README.md>`_
+
 Bug Fixes
 ````````````
 * `Issue 3371 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3371`_: CIS added irules cannot have "event disable all"
+* `Issue 3402 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3402`_: TLS iRule fails after recent browser updates
 * Fix for EDNS pool member empty issue.
 
 

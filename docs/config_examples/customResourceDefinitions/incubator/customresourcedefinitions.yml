@@ -667,6 +667,10 @@ spec:
                 status:
                   type: string
                   default: Pending
+                lastUpdated:
+                  type: string
+                error:
+                  type: string
       additionalPrinterColumns:
       - name: virtualServerAddress
         type: string
@@ -882,6 +886,13 @@ spec:
               type: object
               properties:
                 vsAddress:
+                  type: string
+                status:
+                  type: string
+                  default: pending
+                lastUpdated:
+                  type: string
+                error:
                   type: string
       additionalPrinterColumns:
         - name: IPAMVSAddress

@@ -1,0 +1,30 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-vs-foo-svc-1
+  namespace: default
+spec:
+  additionalVirtualServerAddresses: []
+  allowVlans: []
+  host: foo.com
+  httpTraffic: none
+  iRules: []
+  partition: test
+  policyName: cr-policy1
+  profileAccess: /Common/prof-access
+  policyPerRequestAccess: /Common/per-req-pol
+  pools:
+    - monitor:
+        interval: 20
+        recv: ""
+        send: /
+        timeout: 10
+        type: http
+      path: /
+      service: svc-1
+      servicePort: 80
+  snat: auto
+  tlsProfileName: cr-tls-foo-svc-1
+  virtualServerAddress: 10.12.3.228

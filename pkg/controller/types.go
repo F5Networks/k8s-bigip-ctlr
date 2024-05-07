@@ -244,6 +244,8 @@ type (
 		AnalyticsProfiles          AnalyticsProfiles     `json:"analyticsProfiles,omitempty"`
 		MultiPoolPersistence       MultiPoolPersistence  `json:"multiPoolPersistence,omitempty"`
 		HTMLProfile                string                `json:"htmlProfile,omitempty"`
+		ProfileAccess              string                `json:"profileAccess,omitempty"`
+		PolicyPerRequestAccess     string                `json:"policyPerRequestAccess,omitempty"`
 	}
 	MultiPoolPersistence struct {
 		Method  string `json:"method,omitempty"`
@@ -1055,6 +1057,8 @@ type (
 		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
 		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
 		ProfileHTML            as3MultiTypeParam    `json:"profileHTML,omitempty"`
+		ProfileAccess          as3MultiTypeParam    `json:"profileAccess,omitempty"`
+		PolicyPerRequestAccess as3MultiTypeParam    `json:"policyPerRequestAccess,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

@@ -263,7 +263,7 @@ func (ctlr *Controller) getNamespacedNativeInformer(
 func (ctlr *Controller) getWatchingNamespaces() []string {
 	var namespaces []string
 	if ctlr.watchingAllNamespaces() {
-		nss, err := ctlr.clientsets.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+		nss, err := ctlr.clientsets.KubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Unable to Fetch Namespaces: %v", err)
 			return nil
@@ -345,7 +345,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 
 	if ctlr.managedResources.ManageIL {
 		crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-			ctlr.clientsets.kubeCRClient,
+			ctlr.clientsets.KubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -355,7 +355,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 
 	if ctlr.managedResources.ManageVirtualServer {
 		crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-			ctlr.clientsets.kubeCRClient,
+			ctlr.clientsets.KubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -365,7 +365,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 
 	if ctlr.managedResources.ManageTLSProfile {
 		crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
-			ctlr.clientsets.kubeCRClient,
+			ctlr.clientsets.KubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -374,7 +374,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 	}
 
 	crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
-		ctlr.clientsets.kubeCRClient,
+		ctlr.clientsets.KubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -398,11 +398,11 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 					options.LabelSelector = ctlr.resourceSelectorConfig.RouteLabel
-					return ctlr.clientsets.routeClientV1.Routes(namespace).List(context.TODO(), options)
+					return ctlr.clientsets.RouteClientV1.Routes(namespace).List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 					options.LabelSelector = ctlr.resourceSelectorConfig.RouteLabel
-					return ctlr.clientsets.routeClientV1.Routes(namespace).Watch(context.TODO(), options)
+					return ctlr.clientsets.RouteClientV1.Routes(namespace).Watch(context.TODO(), options)
 				},
 			},
 			&routeapi.Route{},
@@ -421,7 +421,7 @@ func (ctlr *Controller) getNodeInformer(clusterName string) NodeInformer {
 		options.LabelSelector = ctlr.resourceSelectorConfig.NodeLabel
 	}
 	if clusterName == "" {
-		restClientv1 = ctlr.clientsets.kubeClient.CoreV1().RESTClient()
+		restClientv1 = ctlr.clientsets.KubeClient.CoreV1().RESTClient()
 	} else {
 		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
 			restClientv1 = config.KubeClient.CoreV1().RESTClient()
@@ -481,7 +481,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.clientsets.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.clientsets.KubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = ctlr.resourceSelectorConfig.customResourceSelector.String()
 	}
@@ -534,7 +534,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 
 	if ctlr.managedResources.ManageEDNS {
 		comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
-			ctlr.clientsets.kubeCRClient,
+			ctlr.clientsets.KubeCRClient,
 			namespace,
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -543,7 +543,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	}
 
 	comInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
-		ctlr.clientsets.kubeCRClient,
+		ctlr.clientsets.KubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -551,12 +551,15 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	)
 
 	comInf.configCRInformer = cisinfv1.NewFilteredDeployConfigInformer(
-		ctlr.clientsets.kubeCRClient,
+		ctlr.clientsets.KubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
+
+	// add the deployInformer to the status manager
+	ctlr.CMTokenManager.StatusManager.AddDeployInformer(&comInf.configCRInformer, namespace)
 
 	//enable pod informer for nodeport local mode and openshift mode
 	if ctlr.PoolMemberType == NodePortLocal || ctlr.managedResources.ManageRoutes {
@@ -956,7 +959,7 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 		event:     Delete,
 	}
 
-	ts, _ := ctlr.clientsets.kubeCRClient.CisV1().TransportServers(vs.Namespace).Get(context.TODO(), vs.Name, metav1.GetOptions{})
+	ts, _ := ctlr.clientsets.KubeCRClient.CisV1().TransportServers(vs.Namespace).Get(context.TODO(), vs.Name, metav1.GetOptions{})
 	if ts != nil {
 		go ctlr.updateResourceStatus(TransportServer, vs, "", "", nil)
 	}
@@ -1016,7 +1019,7 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 		event:     Delete,
 	}
 
-	il, _ := ctlr.clientsets.kubeCRClient.CisV1().IngressLinks(ingLink.Namespace).Get(context.TODO(), ingLink.Name, metav1.GetOptions{})
+	il, _ := ctlr.clientsets.KubeCRClient.CisV1().IngressLinks(ingLink.Namespace).Get(context.TODO(), ingLink.Name, metav1.GetOptions{})
 	if il != nil {
 		go ctlr.updateResourceStatus(IngressLink, ingLink, "", "", nil)
 	}
@@ -1309,6 +1312,10 @@ func (ctlr *Controller) enqueueConfigCR(obj interface{}, event string) {
 func (ctlr *Controller) enqueueUpdatedConfigCR(old, cur interface{}) {
 	oldConfigCR := old.(*cisapiv1.DeployConfig)
 	curConfigCR := cur.(*cisapiv1.DeployConfig)
+	// return if spec is not changed
+	if reflect.DeepEqual(oldConfigCR.Spec, curConfigCR.Spec) {
+		return
+	}
 	if oldConfigCR.Spec.BaseConfig != curConfigCR.Spec.BaseConfig {
 		ctlr.updateResourceSelectorConfig(curConfigCR.Spec.BaseConfig)
 		if oldConfigCR.Spec.BaseConfig.NamespaceLabel != curConfigCR.Spec.BaseConfig.NamespaceLabel {
@@ -1453,7 +1460,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 	}
 
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.clientsets.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.clientsets.KubeClient.CoreV1().RESTClient()
 
 	ctlr.nsInformers[label] = &NSInformer{
 		stopCh: make(chan struct{}),

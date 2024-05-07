@@ -5,10 +5,10 @@ ENV GO111MODULE on
 ENV PKGPATH /go/src/github.com/F5Networks/k8s-bigip-ctlr/v3
 
 RUN mkdir -p ${GOPATH}/src/github.com/F5Networks \
-	&& mkdir -p ${GOPATH}/src/k8s.io \
-	&& go get -d k8s.io/code-generator@v0.20.4 \
-	&& go get -d k8s.io/apimachinery \
-	&& go get -d k8s.io/apiextensions-apiserver \
+	&& mkdir -p ${GOPATH}/src/k8s.io/ \
+	&& go get -d k8s.io/code-generator@v0.21.2 \
+	&& go get -d k8s.io/apimachinery@v0.21.2 \
+	&& go get -d k8s.io/apiextensions-apiserver@v0.21.2 \
 	&& cp -r ${GOPATH}/pkg/mod/k8s.io/api@* ${GOPATH}/src/k8s.io/api \
 	&& cp -r ${GOPATH}/pkg/mod/k8s.io/apiextensions-apiserver@* ${GOPATH}/src/k8s.io/apiextensions-apiserver \
 	&& cp -r ${GOPATH}/pkg/mod/k8s.io/apimachinery@* ${GOPATH}/src/k8s.io/apimachinery \

@@ -15,7 +15,7 @@ var _ = Describe("Node Poller Handler", func() {
 	var networkManager *networkmanager.NetworkManager
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
@@ -324,8 +324,8 @@ var _ = Describe("Node Poller Handler", func() {
 
 	//Describe("Processes CIS monitored resources on node update", func() {
 	//	BeforeEach(func() {
-	//		mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
-	//		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+	//		mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+	//		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 	//		mockCtlr.PoolMemberType = NodePort
 	//		mockCtlr.crInformers = make(map[string]*CRInformer)
 	//		mockCtlr.comInformers = make(map[string]*CommonInformer)
@@ -485,7 +485,7 @@ var _ = Describe("Node Poller Handler", func() {
 	//		mockCtlr.crInformers = make(map[string]*CRInformer)
 	//		_ = mockCtlr.addNamespacedInformers("", false)
 	//		mockCtlr.crInformers[""].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-	//			mockCtlr.clientsets.kubeCRClient,
+	//			mockCtlr.clientsets.KubeCRClient,
 	//			"",
 	//			0,
 	//			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},

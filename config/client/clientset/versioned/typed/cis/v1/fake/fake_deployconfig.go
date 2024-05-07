@@ -102,6 +102,18 @@ func (c *FakeDeployConfigs) Update(ctx context.Context, deployConfig *cisv1.Depl
 	return obj.(*cisv1.DeployConfig), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeDeployConfigs) UpdateStatus(ctx context.Context, deployConfig *cisv1.DeployConfig, opts v1.UpdateOptions) (*cisv1.DeployConfig, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(deployconfigsResource, "status", c.ns, deployConfig), &cisv1.DeployConfig{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*cisv1.DeployConfig), err
+}
+
 // Delete takes name of the deployConfig and deletes it. Returns an error if one occurs.
 func (c *FakeDeployConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.

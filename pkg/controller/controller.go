@@ -20,27 +20,67 @@ import (
 	"fmt"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
-	"os"
+	"strings"
 	"sync"
 	"time"
 
-	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 )
 
+// RunController creates a new controller and starts it.
+func RunController(params Params) *Controller {
+
+	// create the status manager first
+	// create the new status manager
+	keys := strings.Split(params.CISConfigCRKey, "/")
+	statusManager := statusmanager.NewStatusManager(&params.ClientSets.KubeCRClient, keys[0], keys[1])
+
+	// start the status manager
+	go statusManager.Start()
+
+	ctlr := NewController(params, statusManager)
+
+	// add the informers for namespaces and node
+	ctlr.addInformers()
+
+	// Start Sync CM token Manager
+	go ctlr.CMTokenManager.Start(make(chan struct{}))
+
+	// start request handler
+	ctlr.RequestHandler.startRequestHandler()
+
+	// start response handler
+	go ctlr.responseHandler(ctlr.respChan)
+
+	// start the networkConfigHandler
+	if ctlr.networkManager != nil {
+		go ctlr.networkManager.NetworkConfigHandler()
+	}
+
+	// setup postmanager for bigip label
+	for bigip, _ := range ctlr.bigIpMap {
+		ctlr.RequestHandler.startPostManager(bigip)
+	}
+
+	// enable http endpoint
+	go ctlr.enableHttpEndpoint(params.HttpAddress)
+
+	go ctlr.Start()
+
+	return ctlr
+}
+
 // NewController creates a new Controller Instance.
-func NewController(params Params) *Controller {
+func NewController(params Params, statusManager *statusmanager.StatusManager) *Controller {
 
 	ctlr := &Controller{
 		resources:             NewResourceStore(),
@@ -57,7 +97,8 @@ func NewController(params Params) *Controller {
 			params.CMConfigDetails.URL,
 			tokenmanager.Credentials{Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password},
 			params.CMTrustedCerts,
-			params.CMSSLInsecure),
+			params.CMSSLInsecure,
+			statusManager),
 		managedResources: ManagedResources{
 			ManageCustomResources: true,
 			ManageTransportServer: true,
@@ -65,58 +106,26 @@ func NewController(params Params) *Controller {
 		},
 		bigIpMap:   make(BigIpMap),
 		PostParams: PostParams{},
+		clientsets: params.ClientSets,
 	}
 
 	log.Debug("Controller Created")
+
 	// fetch the CM token
-	err := ctlr.CMTokenManager.FetchToken()
-	if err != nil {
-		log.Errorf("Failed to Fetch Token: %v", err)
-		os.Exit(1)
-	}
-	// Sync CM token
-	go ctlr.CMTokenManager.SyncToken(make(chan struct{}))
-	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
-		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
+	ctlr.CMTokenManager.SyncToken()
+
+	ctlr.resourceQueue = workqueue.NewRateLimitingQueueWithConfig(
+		workqueue.DefaultControllerRateLimiter(),
+		workqueue.RateLimitingQueueConfig{Name: "nextgen-resource-controller"})
 
 	// set extended spec configCR for all
 	ctlr.CISConfigCRKey = params.CISConfigCRKey
 
-	if err := ctlr.setupClients(params.Config); err != nil {
-		log.Errorf("Failed to Setup Clients: %v", err)
-	}
-
 	// Initialize the controller with base resources in CIS config CR
 	ctlr.initController()
 
-	// create the informers for namespaces and node
-	if err3 := ctlr.setupInformers(); err3 != nil {
-		log.Error("Failed to Setup Informers")
-	}
-
-	// start request handler
+	// create the new request handler
 	ctlr.NewRequestHandler(params.UserAgent, params.httpClientMetrics)
-	ctlr.RequestHandler.startRequestHandler()
-
-	// start response handler
-	go ctlr.responseHandler(ctlr.respChan)
-
-	// start the networkConfigHandler
-	if ctlr.networkManager != nil {
-		go ctlr.networkManager.NetworkConfigHandler()
-	}
-	// setup postmanager for bigip label
-	for bigip, _ := range ctlr.bigIpMap {
-		ctlr.RequestHandler.startPostManager(bigip)
-	}
-
-	// enable http endpoint
-	go ctlr.enableHttpEndpoint(params.HttpAddress)
-
-	// setup ipam
-	ctlr.setupIPAM(params)
-
-	go ctlr.Start()
 
 	return ctlr
 }
@@ -168,37 +177,6 @@ func createLabelSelector(label string) (labels.Selector, error) {
 	return l, nil
 }
 
-// setupClients sets Kubernetes Clients.
-func (ctlr *Controller) setupClients(config *rest.Config) error {
-	var kubeCRClient *versioned.Clientset
-	var err error
-	kubeCRClient, err = versioned.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
-	}
-
-	kubeClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("Failed to create kubeClient: %v", err)
-	}
-
-	var rclient *routeclient.RouteV1Client
-	if ctlr.managedResources.ManageRoutes {
-		rclient, err = routeclient.NewForConfig(config)
-		if nil != err {
-			return fmt.Errorf("Failed to create Route Client: %v", err)
-		}
-	}
-
-	log.Debug("Client Created")
-	ctlr.clientsets = &ClientSets{
-		kubeClient:    kubeClient,
-		kubeCRClient:  kubeCRClient,
-		routeClientV1: rclient,
-	}
-	return nil
-}
-
 // Start the Controller
 func (ctlr *Controller) Start() {
 	log.Debugf("Starting Controller")
@@ -227,7 +205,8 @@ func (ctlr *Controller) Stop() {
 	if ctlr.ipamHandler != nil {
 		ctlr.ipamHandler.IpamCli.Stop()
 	}
-
+	// Stop the status manager
+	ctlr.CMTokenManager.StatusManager.Stop()
 }
 
 // Set the resource count for prometheus metrics

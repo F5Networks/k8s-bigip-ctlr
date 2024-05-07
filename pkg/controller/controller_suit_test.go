@@ -5,6 +5,7 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager/mockmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
@@ -44,7 +45,8 @@ type (
 )
 
 func newMockController() *mockController {
-	tokenManager := tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false)
+	statusManager := mockmanager.NewMockStatusManager()
+	tokenManager := tokenmanager.NewTokenManager("https://0.0.0.0", tokenmanager.Credentials{Username: "admin", Password: "admin"}, "admin", false, statusManager)
 	return &mockController{
 		Controller: &Controller{
 			resourceSelectorConfig: ResourceSelectorConfig{},
@@ -79,9 +81,10 @@ func newMockPostManger() *mockPostManager {
 	}
 	mockPM.AS3PostManager = &AS3PostManager{}
 	mockPM.AS3PostManager.firstPost = true
+	statusManager := mockmanager.NewMockStatusManager()
 	mockPM.tokenManager = tokenmanager.NewTokenManager(
 		"0.0.0.0",
-		tokenmanager.Credentials{Username: "admin", Password: "admin"}, "", false)
+		tokenmanager.Credentials{Username: "admin", Password: "admin"}, "", false, statusManager)
 	return mockPM
 }
 

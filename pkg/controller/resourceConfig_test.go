@@ -260,8 +260,8 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 			mockCtlr.managedResources.ManageCustomResources = true
-			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
@@ -974,7 +974,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
 		})
 		It("Int target port is returned with integer targetPort", func() {
@@ -1345,7 +1345,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
@@ -1356,7 +1356,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset(clSecret)
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})

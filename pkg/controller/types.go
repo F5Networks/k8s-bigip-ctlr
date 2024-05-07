@@ -84,9 +84,9 @@ type (
 		resourceContext
 	}
 	ClientSets struct {
-		kubeCRClient  versioned.Interface
-		kubeClient    kubernetes.Interface
-		routeClientV1 routeclient.RouteV1Interface
+		KubeCRClient  versioned.Interface
+		KubeClient    kubernetes.Interface
+		RouteClientV1 routeclient.RouteV1Interface
 	}
 	ManagedResources struct {
 		ManageRoutes          bool
@@ -121,6 +121,7 @@ type (
 	// Params defines parameters
 	Params struct {
 		Config                *rest.Config
+		ClientSets            *ClientSets
 		Namespaces            []string
 		UserAgent             string
 		UseNodeInternal       bool

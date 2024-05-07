@@ -347,7 +347,10 @@ func (ctlr *Controller) processStaticRouteUpdate() {
 			for bigIpKey, bigIpConfig := range ctlr.resources.bigIpMap {
 				if len(bigIpConfig.ltmConfig) > 0 {
 					if instanceId, ok := ctlr.networkManager.DeviceMap[bigIpKey.BigIpAddress]; ok {
-						routeStore[instanceId] = staticRouteMap
+						routeStore[networkmanager.BigIP{
+							IPaddress:  bigIpKey.BigIpAddress,
+							InstanceId: instanceId,
+						}] = staticRouteMap
 					} else {
 						log.Warningf("Unable to find instanceId for bigip %v", bigIpKey.BigIpAddress)
 					}
@@ -435,7 +438,7 @@ func (ctlr *Controller) GetNodePodCIDRMap() map[string]string {
 	var nodePodCIDRMap map[string]string
 	if ctlr.OrchestrationCNI == CALICO {
 		// Retrieve Calico Block Affinity
-		blockAffinitiesRaw, err := ctlr.clientsets.kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
+		blockAffinitiesRaw, err := ctlr.clientsets.KubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
 		if err != nil {
 			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
 			return nodePodCIDRMap

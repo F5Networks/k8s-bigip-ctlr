@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/controller"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/url"
@@ -79,6 +81,7 @@ var (
 
 	kubeConfig            *string
 	manageCustomResources *bool
+	manageRoutes          *bool
 
 	cmURL       *string
 	cmUsername  *string
@@ -93,7 +96,7 @@ var (
 	httpAddress *string
 
 	// package variables
-	kubeClient       kubernetes.Interface
+	clientSets       controller.ClientSets
 	userAgentInfo    string
 	multiClusterMode *string
 )
@@ -161,6 +164,9 @@ func _init() {
 	}
 	manageCustomResources = kubeFlags.Bool("manage-custom-resources", true,
 		"Optional, specify whether or not to manage custom resources i.e. transportserver")
+	// setting manageRoutes to false by default
+	tmpval := false
+	manageRoutes = &tmpval
 	ipam = kubeFlags.Bool("ipam", false,
 		"Optional, when set to true, enable ipam feature for CRD.")
 	// MultiCluster Flags
@@ -323,13 +329,12 @@ func main() {
 
 	config, err := getKubeConfig()
 	if err != nil {
-		os.Exit(1)
+		log.Fatalf("[INIT] error getting the kube config: %v", err)
 	}
 
-	kubeClient, err = kubernetes.NewForConfig(config)
+	err = initClientSets(config)
 	if err != nil {
 		log.Fatalf("[INIT] error connecting to the client: %v", err)
-		os.Exit(1)
 	}
 	userAgentInfo = getUserAgentInfo()
 	ctlr := initController(config)
@@ -343,14 +348,44 @@ func main() {
 	log.Infof("Exiting - signal %v\n", sig)
 }
 
+func initClientSets(config *rest.Config) error {
+	var err error
+
+	clientSets.KubeClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create KubeClient: %v", err)
+	}
+
+	if *manageCustomResources {
+		clientSets.KubeCRClient, err = versioned.NewForConfig(config)
+		if err != nil {
+			return fmt.Errorf("failed to create Custum Resource KubeClient: %v", err)
+		}
+	}
+
+	if *manageRoutes {
+		clientSets.RouteClientV1, err = routeclient.NewForConfig(config)
+		if err != nil {
+			return fmt.Errorf("failed to create Route Client: %v", err)
+		}
+	}
+
+	if clientSets.KubeClient != nil {
+		log.Debug("Clients Created")
+	}
+	return nil
+
+}
+
 func initController(
 	config *rest.Config,
 ) *controller.Controller {
 
-	ctlr := controller.NewController(
+	ctlr := controller.RunController(
 		controller.Params{
-			Config:    config,
-			UserAgent: userAgentInfo,
+			Config:     config,
+			ClientSets: &clientSets,
+			UserAgent:  userAgentInfo,
 			CMConfigDetails: &controller.CMConfig{
 				URL:      *cmURL,
 				UserName: *cmUsername,
@@ -433,7 +468,7 @@ func getUserAgentInfo() string {
 	var versionInfo map[string]string
 	var err error
 	var vInfo []byte
-	rc := kubeClient.Discovery().RESTClient()
+	rc := clientSets.KubeClient.Discovery().RESTClient()
 	// support for ocp < 3.11
 	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(context.TODO()); err == nil {
 		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
@@ -471,9 +506,8 @@ func getBIGIPTrustedCerts() string {
 
 	cm, err := getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
 	if err != nil {
-		log.Errorf("[INIT] ConfigMap with name %v not found in namespace: %v, error: %v",
+		log.Fatalf("[INIT] ConfigMap with name %v not found in namespace: %v, error: %v",
 			namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
-		os.Exit(1)
 	}
 
 	var certs string
@@ -486,7 +520,7 @@ func getBIGIPTrustedCerts() string {
 
 // getConfigMapUsingNamespaceAndName fetches and returns the configMap
 func getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
-	cfgMap, err := kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(context.TODO(), cfgMapName, metav1.GetOptions{})
+	cfgMap, err := clientSets.KubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(context.TODO(), cfgMapName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

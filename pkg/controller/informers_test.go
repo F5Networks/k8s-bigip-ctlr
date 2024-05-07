@@ -36,8 +36,8 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
@@ -71,8 +71,8 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageCustomResources = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
@@ -294,7 +294,7 @@ var _ = Describe("Informers Tests", func() {
 			// Verify TS status update event is not queued for processing
 			queueLen := mockCtlr.resourceQueue.Len()
 			updatedStatusTS := tsWithPartition.DeepCopy()
-			updatedStatusTS.Status.StatusOk = "Ok"
+			updatedStatusTS.Status.StatusOk = Ok
 			mockCtlr.enqueueUpdatedTransportServer(tsWithPartition, updatedStatusTS)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(queueLen), "TS status update should be skipped")
 
@@ -678,8 +678,8 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers = make(map[string]*CRInformer)
@@ -697,7 +697,7 @@ var _ = Describe("Informers Tests", func() {
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 			nsObj := v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
-			mockCtlr.clientsets.kubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
+			mockCtlr.clientsets.KubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
 			ns := mockCtlr.getWatchingNamespaces()
 			Expect(ns).ToNot(BeNil())
 			mockCtlr.nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")
@@ -712,8 +712,8 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.managedResources.ManageRoutes = true
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
-			mockCtlr.clientsets.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers = make(map[string]*CRInformer)
@@ -781,7 +781,7 @@ var _ = Describe("Informers Tests", func() {
 				namespace,
 				cisapiv1.DeployConfigSpec{
 					ExtendedSpec: cisapiv1.ExtendedSpec{
-						HAMode: StandAloneCIS,
+						HAMode: Active,
 					},
 				},
 			)

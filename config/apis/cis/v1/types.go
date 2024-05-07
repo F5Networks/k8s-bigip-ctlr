@@ -3,7 +3,6 @@ package v1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"time"
 )
 
 // +genclient
@@ -211,10 +210,10 @@ type IngressLink struct {
 
 // IngressLinkStatus is the status of the ingressLink resource.
 type IngressLinkStatus struct {
-	VSAddress   string    `json:"vsAddress,omitempty"`
-	LastUpdated time.Time `json:"lastUpdated,omitempty"`
-	Error       string    `json:"error,omitempty"`
-	StatusOk    string    `json:"status,omitempty"`
+	VSAddress   string      `json:"vsAddress,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
+	StatusOk    string      `json:"status,omitempty"`
 }
 
 // IngressLinkSpec is Spec for IngressLink
@@ -253,10 +252,10 @@ type TransportServer struct {
 
 // TransportServerStatus is the status of the VirtualServer resource.
 type TransportServerStatus struct {
-	VSAddress   string    `json:"vsAddress,omitempty"`
-	StatusOk    string    `json:"status,omitempty"`
-	LastUpdated time.Time `json:"lastUpdated,omitempty"`
-	Error       string    `json:"error,omitempty"`
+	VSAddress   string      `json:"vsAddress,omitempty"`
+	StatusOk    string      `json:"status,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
 }
 
 // TransportServerSpec is the spec of the VirtualServer resource.
@@ -448,12 +447,15 @@ type PolicyList struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:validation:Optional
+// +kubebuilder:subresource:status
 
 // DeployConfig defines the DeployConfig resource.
 type DeployConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              DeployConfigSpec `json:"spec"`
+	Spec              DeployConfigSpec   `json:"spec"`
+	Status            DeployConfigStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -468,7 +470,7 @@ type DeployConfigList struct {
 
 type DeployConfigSpec struct {
 	BaseConfig    BaseConfig    `json:"baseConfig"`
-	NetworkConfig NetworkConfig `json:"networkConfig"`
+	NetworkConfig NetworkConfig `json:"networkConfig,omitempty"`
 	AS3Config     AS3Config     `json:"as3Config,omitempty"`
 	BigIpConfig   []BigIpConfig `json:"bigIpConfig,omitempty"`
 	ExtendedSpec  ExtendedSpec  `json:"extendedSpec,omitempty"`
@@ -506,26 +508,26 @@ type BigIpConfig struct {
 }
 
 type ExtendedSpec struct {
-	ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `json:"extendedRouteSpec"`
-	BaseRouteConfig           `json:"baseRouteSpec"`
-	ExternalClustersConfig    []ExternalClusterConfig `json:"externalClustersConfig"`
-	HAClusterConfig           HAClusterConfig         `json:"highAvailabilityCIS"`
-	HAMode                    HAModeType              `json:"mode"`
-	LocalClusterRatio         *int                    `json:"localClusterRatio"`
-	LocalClusterAdminState    AdminState              `json:"localClusterAdminState"`
+	ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `json:"extendedRouteSpec,omitempty"`
+	BaseRouteConfig           BaseRouteConfig            `json:"baseRouteSpec,omitempty"`
+	ExternalClustersConfig    []ExternalClusterConfig    `json:"externalClustersConfig,omitempty"`
+	HAClusterConfig           HAClusterConfig            `json:"highAvailabilityCIS,omitempty"`
+	HAMode                    HAModeType                 `json:"mode,omitempty"`
+	LocalClusterRatio         *int                       `json:"localClusterRatio,omitempty"`
+	LocalClusterAdminState    AdminState                 `json:"localClusterAdminState,omitempty"`
 }
 
 type ExtendedRouteGroupConfig struct {
-	Namespace              string `json:"namespace"`      // Group Identifier
-	NamespaceLabel         string `json:"namespaceLabel"` // Group Identifier
-	BigIpPartition         string `json:"bigIpPartition"` // bigip Partition
+	Namespace              string `json:"namespace,omitempty"`      // Group Identifier
+	NamespaceLabel         string `json:"namespaceLabel,omitempty"` // Group Identifier
+	BigIpPartition         string `json:"bigIpPartition,omitempty"` // bigip Partition
 	ExtendedRouteGroupSpec `json:",inline"`
 }
 
 type ExtendedRouteGroupSpec struct {
-	VServerName        string `json:"vserverName"`
-	VServerAddr        string `json:"vserverAddr"`
-	AllowOverride      string `json:"allowOverride"`
+	VServerName        string `json:"vserverName,omitempty"`
+	VServerAddr        string `json:"vserverAddr,omitempty"`
+	AllowOverride      string `json:"allowOverride,omitempty"`
 	Policy             string `json:"policyCR,omitempty"`
 	HTTPServerPolicyCR string `json:"httpServerPolicyCR,omitempty"`
 	Meta               Meta   `json:",inline"`
@@ -536,12 +538,12 @@ type Meta struct {
 }
 
 type DefaultRouteGroupConfig struct {
-	BigIpPartition        string                 `json:"bigIpPartition"` // bigip Partition
+	BigIpPartition        string                 `json:"bigIpPartition,omitempty"` // bigip Partition
 	DefaultRouteGroupSpec ExtendedRouteGroupSpec `json:",inline"`
 }
 
 type BaseRouteConfig struct {
-	TLSCipher               TLSCipher               `json:"tlsCipher"`
+	TLSCipher               TLSCipher               `json:"tlsCipher,omitempty"`
 	DefaultTLS              DefaultSSLProfile       `json:"defaultTLS,omitempty"`
 	DefaultRouteGroupConfig DefaultRouteGroupConfig `json:"defaultRouteGroup,omitempty"`
 	AutoMonitor             AutoMonitorType         `json:"autoMonitor,omitempty"`
@@ -560,19 +562,19 @@ type DefaultSSLProfile struct {
 }
 
 type ExternalClusterConfig struct {
-	ClusterName string     `json:"clusterName"`
-	Secret      string     `json:"secret"`
-	Ratio       *int       `json:"ratio"`
-	AdminState  AdminState `json:"adminState"`
+	ClusterName string     `json:"clusterName,omitempty"`
+	Secret      string     `json:"secret,omitempty"`
+	Ratio       *int       `json:"ratio,omitempty"`
+	AdminState  AdminState `json:"adminState,omitempty"`
 }
 
 type HAClusterConfig struct {
 	// HAMode                 HAMode         `json:"mode"`
-	PrimaryClusterEndPoint string         `json:"primaryEndPoint"`
-	ProbeInterval          int            `json:"probeInterval"`
-	RetryInterval          int            `json:"retryInterval"`
-	PrimaryCluster         ClusterDetails `json:"primaryCluster"`
-	SecondaryCluster       ClusterDetails `json:"secondaryCluster"`
+	PrimaryClusterEndPoint string         `json:"primaryEndPoint,omitempty"`
+	ProbeInterval          int            `json:"probeInterval,omitempty"`
+	RetryInterval          int            `json:"retryInterval,omitempty"`
+	PrimaryCluster         ClusterDetails `json:"primaryCluster,omitempty"`
+	SecondaryCluster       ClusterDetails `json:"secondaryCluster,omitempty"`
 }
 
 type HAMode struct {
@@ -585,8 +587,73 @@ type AutoMonitorType string
 type AdminState string
 
 type ClusterDetails struct {
-	ClusterName string     `json:"clusterName"`
-	Secret      string     `json:"secret"`
-	Ratio       *int       `json:"ratio"`
-	AdminState  AdminState `json:"adminState"`
+	ClusterName string     `json:"clusterName,omitempty"`
+	Secret      string     `json:"secret,omitempty"`
+	Ratio       *int       `json:"ratio,omitempty"`
+	AdminState  AdminState `json:"adminState,omitempty"`
+}
+
+type ControllerStatus struct {
+	Type        string      `json:"type,omitempty"`
+	Message     string      `json:"message,omitempty"`
+	Error       string      `json:"error,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+}
+
+type BigIPStatus struct {
+	BigIPAddress string     `json:"bigIpAddress,omitempty"`
+	L3Status     *L3Status  `json:"l3Status,omitempty"`
+	AS3Status    *AS3Status `json:"as3Status,omitempty"`
+}
+
+type K8SClusterStatus struct {
+	ClusterName string      `json:"clusterName,omitempty"`
+	Message     string      `json:"message,omitempty"`
+	Error       string      `json:"error,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+}
+
+type HAStatus struct {
+	PrimaryEndPoint          string      `json:"primaryEndPoint"`
+	PrimaryEndPointStatus    string      `json:"primaryEndPointStatus"`
+	LastSuccess              metav1.Time `json:"lastSuccess,omitempty"`
+	LastFailure              metav1.Time `json:"lastFailure,omitempty"`
+	Error                    string      `json:"error,omitempty"`
+	ProbesSuccessSinceClkRst int32       `json:"probesSuccessSinceClkRst"`
+	ProbesFailSinceClkRst    int32       `json:"probesFailSinceClkRst"`
+}
+
+type DeployConfigStatus struct {
+	ControllerStatus    *ControllerStatus    `json:"controllerStatus,omitempty"`
+	CMStatus            *CMStatus            `json:"cmStatus,omitempty"`
+	NetworkConfigStatus *NetworkConfigStatus `json:"networkConfigStatus,omitempty"`
+	BigIPStatus         []BigIPStatus        `json:"bigIpStatus,omitempty"`
+	K8SClusterStatus    []K8SClusterStatus   `json:"k8sClusterStatus,omitempty"`
+	HAStatus            []HAStatus           `json:"haStatus,omitempty"`
+}
+
+type CMStatus struct {
+	Message     string      `json:"message"`
+	Error       string      `json:"error,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+}
+
+type NetworkConfigStatus struct {
+	Message     string      `json:"message"`
+	Error       string      `json:"error,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+}
+
+type AS3Status struct {
+	Message        string      `json:"message"`
+	Error          string      `json:"error,omitempty"`
+	LastSubmitted  metav1.Time `json:"lastSubmitted,omitempty"`
+	LastSuccessful metav1.Time `json:"lastSuccessful,omitempty"`
+}
+
+type L3Status struct {
+	Message        string      `json:"message"`
+	Error          string      `json:"error,omitempty"`
+	LastSubmitted  metav1.Time `json:"lastSubmitted,omitempty"`
+	LastSuccessful metav1.Time `json:"lastSuccessful,omitempty"`
 }

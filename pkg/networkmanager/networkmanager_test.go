@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager/mockmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -33,6 +34,7 @@ var _ = Describe("Network Manager Tests", func() {
 	var l3Forward L3Forward
 	var staticRouteMap map[StaticRouteConfig]L3Forward
 	var bigIPConfig []cisapiv1.BigIpConfig
+	mockStatusManager := mockmanager.NewMockStatusManager()
 	const (
 		BigIPAddress       = "10.218.130.73"
 		BigIpId            = "41073280-8f16-4b1f-9808-8908910e8fc2"
@@ -62,7 +64,7 @@ var _ = Describe("Network Manager Tests", func() {
 				tokenManager = tokenmanager.NewTokenManager(server.URL(), tokenmanager.Credentials{
 					Username: "admin",
 					Password: "admin",
-				}, "", true)
+				}, "", true, mockStatusManager)
 
 				tokenResponse = tokenmanager.TokenResponse{
 					AccessToken: "test.token",
@@ -72,7 +74,7 @@ var _ = Describe("Network Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, tokenResponse),
 					))
-				tokenManager.FetchToken()
+				tokenManager.SyncTokenWithoutRetry()
 				inventoryResponse = fmt.Sprintf(`{
     "_embedded": {
         "devices": [
@@ -143,7 +145,10 @@ var _ = Describe("Network Manager Tests", func() {
 					))
 
 				staticRouteMap[l3Forward.Config] = l3Forward
-				routeStore[BigIpId] = staticRouteMap
+				routeStore[BigIP{
+					IPaddress:  BigIPAddress,
+					InstanceId: BigIpId,
+				}] = staticRouteMap
 				networkManager.NetworkRequestHandler(routeStore)
 				time.Sleep(3 * time.Second)
 				isr, _ := networkManager.L3ForwardStore.InstanceStaticRoutes[BigIpId]
@@ -179,7 +184,10 @@ var _ = Describe("Network Manager Tests", func() {
 						ghttp.VerifyRequest("GET", TaskBaseURI+TaskRef),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, stringToJson(routeTaskSuccessResponse)),
 					))
-				routeStore[BigIpId] = staticRouteMap
+				routeStore[BigIP{
+					IPaddress:  BigIPAddress,
+					InstanceId: BigIpId,
+				}] = staticRouteMap
 				l3Forward.ID = L3ForwardId
 				networkManager.L3ForwardStore.addL3ForwardEntry(BigIpId, l3Forward)
 				networkManager.NetworkRequestHandler(routeStore)
@@ -206,7 +214,7 @@ var _ = Describe("Network Manager Tests", func() {
 				tokenManager = tokenmanager.NewTokenManager(server.URL(), tokenmanager.Credentials{
 					Username: "admin",
 					Password: "admin",
-				}, "", true)
+				}, "", true, mockStatusManager)
 
 				tokenResponse = tokenmanager.TokenResponse{
 					AccessToken: "test.token",
@@ -216,7 +224,7 @@ var _ = Describe("Network Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, tokenResponse),
 					))
-				tokenManager.FetchToken()
+				tokenManager.SyncTokenWithoutRetry()
 				// Route delete success response
 				networkManager = NewNetworkManager(tokenManager, "cluster-1")
 			})
@@ -256,9 +264,12 @@ var _ = Describe("Network Manager Tests", func() {
 					))
 
 				networkConfigRequest := NetworkConfigRequest{
-					NetworkConfig:   l3Forward,
-					BigIpInstanceId: BigIpId,
-					Action:          Create,
+					NetworkConfig: l3Forward,
+					BigIp: BigIP{
+						IPaddress:  BigIPAddress,
+						InstanceId: BigIpId,
+					},
+					Action: Create,
 				}
 				networkManager.HandleL3ForwardRequest(&networkConfigRequest, &l3Forward)
 				Expect(len(networkManager.NetworkChan)).ToNot(BeZero())
@@ -296,9 +307,12 @@ var _ = Describe("Network Manager Tests", func() {
 					))
 
 				networkConfigRequest := NetworkConfigRequest{
-					NetworkConfig:   l3Forward,
-					BigIpInstanceId: BigIpId,
-					Action:          Delete,
+					NetworkConfig: l3Forward,
+					BigIp: BigIP{
+						IPaddress:  BigIPAddress,
+						InstanceId: BigIpId,
+					},
+					Action: Delete,
 				}
 				networkManager.L3ForwardStore.InstanceStaticRoutes[BigIpId] = staticRouteMap
 				l3Forward.ID = L3ForwardId
@@ -322,9 +336,12 @@ var _ = Describe("Network Manager Tests", func() {
 					))
 
 				networkConfigRequest := NetworkConfigRequest{
-					NetworkConfig:   l3Forward,
-					BigIpInstanceId: BigIpId,
-					Action:          Create,
+					NetworkConfig: l3Forward,
+					BigIp: BigIP{
+						IPaddress:  BigIPAddress,
+						InstanceId: BigIpId,
+					},
+					Action: Create,
 				}
 				networkManager.HandleL3ForwardRequest(&networkConfigRequest, &l3Forward)
 				Expect(len(networkManager.NetworkChan)).ToNot(BeZero())
@@ -344,9 +361,12 @@ var _ = Describe("Network Manager Tests", func() {
 						ghttp.RespondWithJSONEncoded(statusCodeAccepted, stringToJson(routeAPIFailureResponse)),
 					))
 				networkConfigRequest := NetworkConfigRequest{
-					NetworkConfig:   l3Forward,
-					BigIpInstanceId: BigIpId,
-					Action:          Delete,
+					NetworkConfig: l3Forward,
+					BigIp: BigIP{
+						IPaddress:  BigIPAddress,
+						InstanceId: BigIpId,
+					},
+					Action: Delete,
 				}
 				networkManager.L3ForwardStore.InstanceStaticRoutes[BigIpId] = staticRouteMap
 
@@ -377,7 +397,7 @@ var _ = Describe("Network Manager Tests", func() {
 				tokenManager = tokenmanager.NewTokenManager(server.URL(), tokenmanager.Credentials{
 					Username: "admin",
 					Password: "admin",
-				}, "", true)
+				}, "", true, mockStatusManager)
 
 				tokenResponse = tokenmanager.TokenResponse{
 					AccessToken: "test.token",
@@ -387,7 +407,7 @@ var _ = Describe("Network Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, tokenResponse),
 					))
-				tokenManager.FetchToken()
+				tokenManager.SyncTokenWithoutRetry()
 				inventoryResponse = fmt.Sprintf(`{
     "_embedded": {
         "devices": [

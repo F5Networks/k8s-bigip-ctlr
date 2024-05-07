@@ -31,9 +31,9 @@ var _ = Describe("Informers Tests", func() {
 			},
 		)
 		mockCtlr.clientsets = &ClientSets{
-			routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
-			kubeCRClient:  crdfake.NewSimpleClientset(configCR),
-			kubeClient:    k8sfake.NewSimpleClientset(),
+			RouteClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
+			KubeCRClient:  crdfake.NewSimpleClientset(configCR),
+			KubeClient:    k8sfake.NewSimpleClientset(),
 		}
 		mockCtlr.managedResources = ManagedResources{
 			ManageRoutes:          true,
@@ -67,7 +67,7 @@ var _ = Describe("Informers Tests", func() {
 			Expect(mockCtlr.resourceSelectorConfig.RouteLabel).To(Equal(""), "Failed to initialize informers")
 			Expect(mockCtlr.resourceSelectorConfig.NamespaceLabel).To(Equal(""), "Failed to initialize informers")
 			Expect(mockCtlr.namespaces[""]).To(BeTrue(), "Failed to initialize informers")
-			mockCtlr.setupInformers()
+			mockCtlr.addInformers()
 			comInf, _ := mockCtlr.getNamespacedCommonInformer("")
 			Expect(comInf).ToNot(BeNil(), "Failed to setup informers")
 			crInf, _ := mockCtlr.getNamespacedCRInformer("")
@@ -93,7 +93,7 @@ var _ = Describe("Informers Tests", func() {
 		})
 		It("Controller reset with nodeLabel", func() {
 			mockCtlr.initController()
-			mockCtlr.setupInformers()
+			mockCtlr.addInformers()
 			newconfigCR := test.NewConfigCR(
 				configCRName,
 				namespace,

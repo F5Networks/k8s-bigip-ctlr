@@ -127,7 +127,7 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 						if virtual.Namespace+"/"+virtual.Name == rscKey {
 							if _, found := config.as3Config.failedTenants[partition]; !found {
 								// update the status for transport server as tenant posting is success
-								ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, "Ok", nil)
+								ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, Ok, nil)
 								// Update Corresponding Service Status of Type LB
 								var svcNamespace string
 								if virtual.Spec.Pool.ServiceNamespace != "" {
@@ -161,7 +161,7 @@ func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 						if il.Namespace+"/"+il.Name == rscKey {
 							if _, found := config.as3Config.failedTenants[partition]; !found {
 								// update the status for transport server as tenant posting is success
-								ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, "Ok", nil)
+								ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, Ok, nil)
 							}
 						}
 						//case Route:

@@ -26,9 +26,9 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"os"
 	"reflect"
 	"slices"
 	"sort"
@@ -66,6 +66,13 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	ctlr.processStaticRouteUpdate()
 
 	log.Infof("Started Controller")
+	// update the status of the controller
+	ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.ControllerStatus{
+		Type:        ctlr.multiClusterMode,
+		Message:     Ok,
+		Error:       "",
+		LastUpdated: metav1.Now(),
+	})
 	for ctlr.processResources() {
 	}
 }
@@ -3381,7 +3388,7 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
 
-	_, updateErr := ctlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.KubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 	if nil != updateErr {
 		// Multi-service causes the controller to try to update the status multiple times
 		// at once. Ignore this error.
@@ -3423,7 +3430,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 			svc.Status.LoadBalancer.Ingress[index+1:]...)
 
-		_, updateErr := ctlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+		_, updateErr := ctlr.clientsets.KubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
 			context.TODO(), svc, metav1.UpdateOptions{})
 		if nil != updateErr {
 			// Multi-service causes the controller to try to update the status multiple times
@@ -3448,7 +3455,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 //) {
 //	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
 //
-//	_, updateErr := ctlr.clientsets.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+//	_, updateErr := ctlr.clientsets.KubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
 //		context.TODO(), svc, metav1.UpdateOptions{})
 //	if nil != updateErr {
 //		// Multi-service causes the controller to try to update the status multiple times
@@ -3476,7 +3483,7 @@ func (ctlr *Controller) recordLBServiceIngressEvent(
 	//namespace := svc.ObjectMeta.Namespace
 	//// Create the event
 	//evNotifier := ctlr.eventNotifier.CreateNotifierForNamespace(
-	//	namespace, ctlr.clientsets.kubeClient.CoreV1())
+	//	namespace, ctlr.clientsets.KubeClient.CoreV1())
 	//evNotifier.RecordEvent(svc, eventType, reason, message)
 }
 
@@ -3537,7 +3544,7 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 	vs.Status = vsStatus
 	vs.Status.VSAddress = ip
 	vs.Status.StatusOk = statusOk
-	_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.KubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
 		return
@@ -3552,7 +3559,7 @@ func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer
 	ts.Status = tsStatus
 	ts.Status.VSAddress = ip
 	ts.Status.StatusOk = statusOk
-	_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.KubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating Transport server status:%v", updateErr)
 		return
@@ -3564,7 +3571,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	// Set the vs status to include the virtual IP address
 	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
 	il.Status = ilStatus
-	_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+	_, updateErr := ctlr.clientsets.KubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating ingresslink status:%v", updateErr)
 		return
@@ -3576,7 +3583,7 @@ func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip
 	switch rscType {
 	case TransportServer:
 		ts := obj.(*cisapiv1.TransportServer)
-		tsStatus := cisapiv1.TransportServerStatus{LastUpdated: time.Now()}
+		tsStatus := cisapiv1.TransportServerStatus{LastUpdated: metav1.Now()}
 		if err != nil {
 			tsStatus.Error = err.Error()
 		} else if ip != "" {
@@ -3586,13 +3593,13 @@ func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip
 			tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
 		}
 		ts.Status = tsStatus
-		_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+		_, updateErr := ctlr.clientsets.KubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
 		if nil != updateErr {
 			log.Debugf("Error while updating TS status:%v", updateErr)
 		}
 	case IngressLink:
 		il := obj.(*cisapiv1.IngressLink)
-		ilStatus := cisapiv1.IngressLinkStatus{LastUpdated: time.Now()}
+		ilStatus := cisapiv1.IngressLinkStatus{LastUpdated: metav1.Now()}
 		if err != nil {
 			ilStatus.Error = err.Error()
 		} else if ip != "" {
@@ -3602,7 +3609,7 @@ func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip
 			ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
 		}
 		il.Status = ilStatus
-		_, updateErr := ctlr.clientsets.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+		_, updateErr := ctlr.clientsets.KubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
 		if nil != updateErr {
 			log.Debugf("Error while updating il status:%v", updateErr)
 		}
@@ -3759,7 +3766,9 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 	return nil
 }
 
-func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
+func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) error {
+
+	var err error
 
 	ctlr.OrchestrationCNI = configCR.Spec.NetworkConfig.OrchestrationCNI
 	ctlr.PoolMemberType = configCR.Spec.NetworkConfig.MetaData.PoolMemberType
@@ -3779,14 +3788,13 @@ func (ctlr *Controller) processCNIConfig(configCR *cisapiv1.DeployConfig) {
 		} else if (ctlr.OrchestrationCNI == FLANNEL || ctlr.OrchestrationCNI == CILIUM ||
 			ctlr.OrchestrationCNI == OPENSHIFTSDN) && !ctlr.StaticRoutingMode {
 			if configCR.Spec.NetworkConfig.MetaData.TunnelName == "" {
-				log.Errorf("tunnelName is required for CIS cluster mode with CNI without static routing mode: %v", ctlr.OrchestrationCNI)
-				os.Exit(1)
+				err = fmt.Errorf("tunnelName is required for CIS cluster mode with CNI without static routing mode: %v", ctlr.OrchestrationCNI)
 			}
 		} else {
-			log.Errorf("invalid CNI: %v configured in Config CR", ctlr.OrchestrationCNI)
-			os.Exit(1)
+			err = fmt.Errorf("invalid CNI: %v configured in Config CR", ctlr.OrchestrationCNI)
 		}
 	}
+	return err
 }
 
 func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelete bool) (error, bool) {
@@ -3809,8 +3817,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
 		err := ctlr.networkManager.SetInstanceIds(configCR.Spec.BigIpConfig, ctlr.ControllerIdentifier)
 		if err != nil {
-			log.Errorf("%v", err)
-			os.Exit(1)
+			log.Fatalf("%v", err)
 		}
 	}
 	es := configCR.Spec.ExtendedSpec
@@ -3828,8 +3835,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" {
 			if es.HAClusterConfig == (cisapiv1.HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (cisapiv1.ClusterDetails{}) ||
 				es.HAClusterConfig.SecondaryCluster == (cisapiv1.ClusterDetails{}) {
-				log.Errorf("[MultiCluster] CIS High availability cluster config not provided properly.")
-				os.Exit(1)
+				log.Fatalf("[MultiCluster] CIS High availability cluster config not provided properly.")
 			}
 		}
 		// Read multiCluster mode
@@ -3839,9 +3845,8 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 				ctlr.haModeType = es.HAMode
 				ctlr.RequestHandler.HAMode = true
 			} else {
-				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
+				log.Fatalf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio)")
-				os.Exit(1)
 			}
 		}
 		// Update cluster ratio
@@ -4210,7 +4215,7 @@ func (ctlr *Controller) getResourceServicePort(ns string,
 
 func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) {
 	//check if bigip config is existing or not in the bigipMap
-	existingBigipConfig := make([]cisapiv1.BigIpConfig, len(ctlr.bigIpMap))
+	var existingBigipConfig []cisapiv1.BigIpConfig
 	for bigipConfig, _ := range ctlr.bigIpMap {
 		existingBigipConfig = append(existingBigipConfig, bigipConfig)
 	}
@@ -4225,6 +4230,10 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 					ctlr.RequestHandler.stopPostManager(bigIpKey)
 					//remove bigipconfig from bigipMap
 					delete(ctlr.bigIpMap, existingConfig)
+					// remove the bigip from the deploy config status
+					ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.BigIPStatus{
+						BigIPAddress: bigIpKey.BigIpAddress,
+					})
 				}
 			}
 		}

@@ -1,0 +1,685 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: transportservers.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: TransportServer
+    plural: transportservers
+    shortNames:
+      - ts
+    singular: transportserver
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                partition:
+                  type: string
+                  pattern: '^[a-zA-Z]+[-A-z0-9_.]+$'
+                  x-kubernetes-validations:
+                    - message: "Transport Server partition can not be changed. Please delete and recreate the Transport Server to change the partition."
+                      rule: self == oldSelf
+                virtualServerAddress:
+                  type: string
+                  pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$'
+                virtualServerPort:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                virtualServerName:
+                  type: string
+                  pattern: '^[a-zA-Z]+([A-z0-9-_+])*([A-z0-9])$'
+                host:
+                  type: string
+                  pattern: '^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                hostGroup:
+                  type: string
+                  pattern: '^[a-zA-Z]+[-A-z0-9_.:]*[A-z0-9]*$'
+                policyName:
+                  type: string
+                  pattern: '^([A-z0-9-_+])*([A-z0-9])$'
+                mode:
+                  type: string
+                  enum: [standard, performance]
+                type:
+                  type: string
+                  enum: [tcp, udp, sctp]
+                snat:
+                  type: string
+                  pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                connectionMirroring:
+                  type: string
+                  enum: [ none, L4 ]
+                profiles:
+                  type: object
+                  properties:
+                    tcp:
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                persistenceProfile:
+                  type: string
+                  pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                dos:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                profileL4:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                allowVlans:
+                  items:
+                    type: string
+                    pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.]+\/?)*$'
+                  type: array
+                iRules:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                ipamLabel:
+                  type: string
+                  pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                pool:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                    service:
+                      type: string
+                      pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                    servicePort:
+                      x-kubernetes-int-or-string: true
+                      anyOf:
+                        - type: integer
+                        - type: string
+                    serviceNamespace:
+                      type: string
+                      pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                    loadBalancingMethod:
+                      type: string
+                      pattern: '^[a-z]+[a-z_-]+[a-z]+$'
+                    nodeMemberLabel:
+                      type: string
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                    monitor:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [tcp, udp, http, https]
+                        interval:
+                          type: integer
+                        timeout:
+                          type: integer
+                        targetPort:
+                          type: integer
+                        name:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        reference:
+                          type: string
+                          enum: [bigip]
+                        send:
+                          type: string
+                        recv:
+                          type: string
+                    monitors:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            enum: [ tcp, udp, http, https ]
+                          interval:
+                            type: integer
+                          timeout:
+                            type: integer
+                          targetPort:
+                            type: integer
+                          name:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          reference:
+                            type: string
+                            enum: [bigip]
+                          send:
+                            type: string
+                          recv:
+                            type: string
+                    reselectTries:
+                      type: integer
+                      minimum: 0
+                      maximum: 65535
+                    serviceDownAction:
+                      type: string
+                    extendedServiceReferences:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          clusterName:
+                            type: string
+                          serviceName:
+                            type: string
+                            pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                          namespace:
+                            type: string
+                          port:
+                            x-kubernetes-int-or-string: true
+                            anyOf:
+                              - type: integer
+                              - type: string
+                  required:
+                    - service
+                    - servicePort
+              required:
+                - virtualServerPort
+                - pool
+                - mode
+            status:
+              type: object
+              properties:
+                vsAddress:
+                  type: string
+                  default: None
+                status:
+                  type: string
+                  default: Pending
+                lastUpdated:
+                  type: string
+                error:
+                  type: string
+      additionalPrinterColumns:
+        - name: virtualServerAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .spec.virtualServerAddress
+        - name: virtualServerPort
+          type: integer
+          description: Port of virtualServer
+          jsonPath: .spec.virtualServerPort
+        - name: pool
+          type: string
+          description: Name of service
+          jsonPath: .spec.pool.service
+        - name: poolPort
+          type: string
+          description: Port of service
+          jsonPath: .spec.pool.servicePort
+        - name: ipamLabel
+          type: string
+          description: ipamLabel for transport server
+          jsonPath: .spec.ipamLabel
+        - name: IPAMVSAddress
+          type: string
+          description: IP address of transport server
+          jsonPath: .status.vsAddress
+        - name: STATUS
+          type: string
+          description: status of TransportServer
+          jsonPath: .status.status
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: { }
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ingresslinks.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: IngressLink
+    shortNames:
+      - il
+    singular: ingresslink
+    plural: ingresslinks
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                partition:
+                  type: string
+                  pattern: '^[a-zA-Z]+[-A-z0-9_.]+$'
+                  x-kubernetes-validations:
+                    - message: "Ingress Link partition can not be changed. Please delete and recreate the Ingress Link to change the partition."
+                      rule: self == oldSelf
+                virtualServerAddress:
+                  type: string
+                  pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+                host:
+                  type: string
+                  pattern: '^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                ipamLabel:
+                  type: string
+                  pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
+                iRules:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '(^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$)|(^[a-zA-Z]+([A-z0-9-_+])*:[a-zA-Z]+([A-z0-9-_+])*$)'
+                selector:
+                  properties:
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  type: object
+            status:
+              type: object
+              properties:
+                vsAddress:
+                  type: string
+                status:
+                  type: string
+                  default: pending
+                lastUpdated:
+                  type: string
+                error:
+                  type: string
+      additionalPrinterColumns:
+        - name: IPAMVSAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .status.vsAddress
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: { }
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: policies.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: Policy
+    shortNames:
+      - plc
+    singular: policy
+    plural: policies
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                l7Policies:
+                  type: object
+                  properties:
+                    waf:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                l3Policies:
+                  type: object
+                  properties:
+                    dos:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    botDefense:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    firewallPolicy:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    ipIntelligencePolicy:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    allowSourceRange:
+                      items:
+                        type: string
+                      type: array
+                    allowVlans:
+                      items:
+                        type: string
+                        pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([A-z0-9-_.\s]+\/?)*$'
+                      type: array
+                ltmPolicies:
+                  type: object
+                  properties:
+                    insecure:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([-A-z0-9_+:]+\/)+([A-z0-9]+\/?)*$'
+                    secure:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([-A-z0-9_+:]+\/)+([A-z0-9]+\/?)*$'
+                    priority:
+                      type: string
+                      enum: [low, high]
+                iRules:
+                  type: object
+                  properties:
+                    insecure:
+                      type: string
+                      pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    secure:
+                      type: string
+                      pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    priority:
+                      type: string
+                      enum: [ low, high ]
+                iRuleList:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                profiles:
+                  type: object
+                  properties:
+                    tcp:
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    udp:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    http:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    http2:
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    persistenceProfile:
+                      type: string
+                      pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                    profileL4:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    profileWebSocket:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    profileMultiplex:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    rewriteProfile:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    logProfiles:
+                      items:
+                        type: string
+                        pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([-A-z0-9._\s]+\/?)*$'
+                      type: array
+                    httpMrfRoutingEnabled:
+                      type: boolean
+                    sslProfiles:
+                      type: object
+                      properties:
+                        clientProfiles:
+                          items:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          type: array
+                        serverProfiles:
+                          items:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          type: array
+                    analyticsProfiles:
+                      type: object
+                      properties:
+                        http:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                autoLastHop:
+                  type: string
+                  enum: [ default, auto, disable ]
+                snat:
+                  type: string
+                  pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
+                poolSettings:
+                  type: object
+                  properties:
+                    reselectTries:
+                      type: integer
+                      minimum: 0
+                      maximum: 65535
+                    serviceDownAction:
+                      type: string
+                    slowRampTime:
+                      type: integer
+                      minimum: 0
+                      maximum: 900
+                    multiPoolPersistence:
+                      type: object
+                      properties:
+                        method:
+                          type: string
+                          enum: [ uieSourceAddress, hashSourceAddress ]
+                        timeOut:
+                          type: integer
+                          minimum: 1
+                          default: 180
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: deployconfigs.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: DeployConfig
+    listKind: DeployConfigList
+    plural: deployconfigs
+    singular: deployconfig
+    shortNames:
+      - dc
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          description: DeployConfig defines the DeployConfig
+            resource.
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                as3Config:
+                  properties:
+                    debugAS3:
+                      type: boolean
+                      description: "Debug AS3 is used to enable or disable logging AS3 declaration being sent to BIG-IP"
+                    postDelayAS3:
+                      type: integer
+                      description: "time (in seconds) that CIS waits to post the available AS3 declaration to BIG-IP"
+                  type: object
+                  description: AS3 Configuration for CIS
+                baseConfig:
+                  properties:
+                    controllerIdentifier:
+                      type: string
+                      description: "Controller identifier is used to uniquely identify the CIS controller deployed in the cluster"
+                      x-kubernetes-validations:
+                        - message: "Controller identifier can not be changed. Please delete and recreate the CIS controller and deploy config CR."
+                          rule: self == oldSelf
+                    namespaceLabel:
+                      type: string
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      description: "CIS watches namespaces with this label"
+                    nodeLabel:
+                      type: string
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      description: "CIS watches nodes only with this label, if not provided, CIS watches all nodes"
+                  type: object
+                  required:
+                    - controllerIdentifier
+                networkConfig:
+                  properties:
+                    orchestrationCNI:
+                      type: string
+                      enum: [ovn-k8s,cilium,flannel,antrea]
+                      description: "Orchestration CNI is used to specify the CNI plugin used in the cluster"
+                    metaData:
+                      type: object
+                      properties:
+                        poolMemberType:
+                          type: string
+                          enum: [cluster, nodeport, nodeportlocal, auto]
+                          description: "Pool member type is used to specify the type of pool member used in the cluster"
+                        staticRoutingMode:
+                          type: boolean
+                          description: "Static routing mode is used to enable or disable configuration of static routes on bigip for pod network subnets"
+                        tunnelName:
+                          type: string
+                          description: "Tunnel name is used to specify the tunnel name configured on the BIG-IP for cluster mode routing"
+                        networkCIDR:
+                          type: string
+                          pattern: '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){2}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(3[0-2]|[12]?[0-9])$'
+                          description: "flag to specify node network cidr to be used for static routing when node has multiple interfaces.This is supported only with CNI ovn-k8s"
+                  type: object
+                bigIpConfig:
+                  items:
+                    properties:
+                      bigIpAddress:
+                        type: string
+                        pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$'
+                        description: "IP address of BIG-IP"
+                      bigIpLabel:
+                        type: string
+                        description: "To uniquely identify bigip ha pair"
+                      defaultPartition:
+                        type: string
+                        description: "partition for the Big-IP kubernetes objects"
+                    required:
+                      - bigIpAddress
+                      - bigIpLabel
+                      - defaultPartition
+                    type: object
+                  type: array
+                extendedSpec:
+                  properties:
+                    externalClustersConfig:
+                      items:
+                        properties:
+                          adminState:
+                            type: string
+                          clusterName:
+                            type: string
+                          ratio:
+                            type: integer
+                          secret:
+                            type: string
+                        type: object
+                      type: array
+                    highAvailabilityCIS:
+                      properties:
+                        primaryCluster:
+                          properties:
+                            adminState:
+                              type: string
+                            clusterName:
+                              type: string
+                            ratio:
+                              type: integer
+                            secret:
+                              type: string
+                          type: object
+                        primaryEndPoint:
+                          description: HAMode
+                          type: string
+                        probeInterval:
+                          type: integer
+                        retryInterval:
+                          type: integer
+                        secondaryCluster:
+                          properties:
+                            adminState:
+                              type: string
+                            clusterName:
+                              type: string
+                            ratio:
+                              type: integer
+                            secret:
+                              type: string
+                          type: object
+                      type: object
+                    localClusterAdminState:
+                      type: string
+                    localClusterRatio:
+                      type: integer
+                    mode:
+                      type: string
+                  type: object
+              type: object
+          type: object

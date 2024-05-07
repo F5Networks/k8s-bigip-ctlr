@@ -1,0 +1,3 @@
+when SERVER_CONNECTED {
+      TCP::respond "PROXY TCP[IP::version] [IP::client_addr] [clientside {IP::local_addr}] [TCP::client_port] [clientside {TCP::local_port}]\r\n"
+}

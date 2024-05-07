@@ -169,8 +169,9 @@ class VersionInfo(object):
         self._ver_file = Version(data)
 
         if self._ver_file.pre or self._ver_file.build:
-            raise Exception("{} contains more than major.minor.patch"
-                            .format(version_file.name))
+            if self._ver_file.pre not in ["alpha","beta","rc"]:
+                raise Exception("{} contains more than major.minor.patch"
+                                .format(version_file.name))
         self._vers = {
             'major': self._ver_file.major,
             'minor': self._ver_file.minor,

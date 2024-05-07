@@ -866,7 +866,7 @@ func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
 		}
 		responseMap["declaration"] = as3Declaration(decl)
 	}
-	log.Errorf("[AS3]%v Raw response from Big-IP: %v ", postMgr.postManagerPrefix, responseMap)
+	log.Debugf("[AS3]%v Raw response from Big-IP: %v ", postMgr.postManagerPrefix, responseMap)
 }
 
 func (postMgr *PostManager) logAS3Request(cfg string) {

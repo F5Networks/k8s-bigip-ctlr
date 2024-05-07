@@ -59,6 +59,8 @@ type VirtualServerSpec struct {
 	Partition                        string           `json:"partition,omitempty"`
 	HTMLProfile                      string           `json:"htmlProfile,omitempty"`
 	HostPersistence                  HostPersistence  `json:"hostPersistence,omitempty"`
+	ProfileAccess                    string           `json:"profileAccess,omitempty"`
+	PolicyPerRequestAccess           string           `json:"policyPerRequestAccess,omitempty"`
 }
 
 type HostPersistence struct {
@@ -396,7 +398,9 @@ type AnalyticsProfiles struct {
 }
 
 type L7PolicySpec struct {
-	WAF string `json:"waf,omitempty"`
+	WAF                    string `json:"waf,omitempty"`
+	ProfileAccess          string `json:"profileAccess,omitempty"`
+	PolicyPerRequestAccess string `json:"policyPerRequestAccess,omitempty"`
 }
 
 type L3PolicySpec struct {

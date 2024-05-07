@@ -1839,6 +1839,21 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 		}
 	}
 
+	//Attach profile access policy
+	// if perRequest policy is enabled, profile access policy should also be configured
+	if cfg.Virtual.ProfileAccess != "" {
+		svc.ProfileAccess = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.ProfileAccess),
+		}
+
+		//Attach per request policy
+		if cfg.Virtual.PolicyPerRequestAccess != "" {
+			svc.PolicyPerRequestAccess = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.PolicyPerRequestAccess),
+			}
+		}
+	}
+
 	//Attach logging profile
 	if cfg.Virtual.LogProfiles != nil {
 		for _, lp := range cfg.Virtual.LogProfiles {

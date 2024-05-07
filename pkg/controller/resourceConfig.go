@@ -716,6 +716,13 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
 	}
 
+	if vs.Spec.ProfileAccess != "" {
+		rsCfg.Virtual.ProfileAccess = vs.Spec.ProfileAccess
+		if vs.Spec.PolicyPerRequestAccess != "" {
+			rsCfg.Virtual.PolicyPerRequestAccess = vs.Spec.PolicyPerRequestAccess
+		}
+	}
+
 	if vs.Spec.DOS != "" {
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
@@ -2477,6 +2484,12 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
 	rsCfg.Virtual.AutoLastHop = plc.Spec.AutoLastHop
+	if plc.Spec.L7Policies.ProfileAccess != "" {
+		rsCfg.Virtual.ProfileAccess = plc.Spec.L7Policies.ProfileAccess
+		if plc.Spec.L7Policies.PolicyPerRequestAccess != "" {
+			rsCfg.Virtual.PolicyPerRequestAccess = plc.Spec.L7Policies.PolicyPerRequestAccess
+		}
+	}
 	if rsCfg.Virtual.HttpMrfRoutingEnabled == nil && plc.Spec.Profiles.HttpMrfRoutingEnabled != nil {
 		rsCfg.Virtual.HttpMrfRoutingEnabled = plc.Spec.Profiles.HttpMrfRoutingEnabled
 	}

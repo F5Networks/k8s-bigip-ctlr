@@ -19,10 +19,10 @@ spec:
     metaData:
       # poolMemberType is optional parameter, and it is used to specify the pool member type in CIS default value is nodeport
       # allowed values are auto, cluster, nodeport and nodeportlocal
-      poolMemberType: cluster
+      poolMemberType: nodeport
       # network CIDR is optional parameter and required if your nodes are using multiple network interfaces
       # networkCIDR: "10.1.0.0/16"
-      staticRoutingMode: true
+      # staticRoutingMode: true
   as3Config:
     # debugAS3 is a optional parameter, and it is used to enable the debug logs for AS3
     debugAS3: true

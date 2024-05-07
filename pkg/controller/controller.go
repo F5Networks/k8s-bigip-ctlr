@@ -83,6 +83,8 @@ const (
 	NodePort = "nodeport"
 	Cluster  = "cluster"
 
+	PoolLBMemberRatio = "ratio-member"
+
 	Local = "local"
 
 	StandAloneCIS = "standalone"

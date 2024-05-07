@@ -829,6 +829,9 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			var member as3PoolMember
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
+			if val.Ratio > 0 {
+				member.Ratio = val.Ratio
+			}
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			if shareNodes || (poolMemberType == Auto && val.MemberType == NodePort) {
 				member.ShareNodes = true

@@ -647,6 +647,27 @@ spec:
                       anyOf:
                         - type: integer
                         - type: string
+                    weight:
+                      type: integer
+                      minimum: 0
+                      maximum: 100
+                    alternateBackends:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          service:
+                            type: string
+                            pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                          serviceNamespace:
+                            type: string
+                            pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                          weight:
+                            type: integer
+                            minimum: 0
+                            maximum: 100
+                        required:
+                          - service
                     serviceNamespace:
                       type: string
                       pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
@@ -725,6 +746,10 @@ spec:
                             anyOf:
                               - type: integer
                               - type: string
+                          weight:
+                            type: integer
+                            minimum: 0
+                            maximum: 100
                   required:
                       - service
                       - servicePort

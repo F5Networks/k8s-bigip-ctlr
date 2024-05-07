@@ -2197,6 +2197,59 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	} else {
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 	}
+
+	if ctlr.isSinglePoolRatioEnabled(vs) {
+		defaultWeight := 100
+		pool.Balance = PoolLBMemberRatio
+		pool.SinglePoolRatioEnabled = true
+
+		// populate the local cluster weight
+		if vs.Spec.Pool.Weight != nil {
+			pool.Weight = *vs.Spec.Pool.Weight
+		} else {
+			pool.Weight = int32(defaultWeight)
+		}
+
+		// check the alternate backend and populate the weights
+		if len(vs.Spec.Pool.AlternateBackends) > 0 {
+			var altBckEnds []AlternateBackend
+			for _, svc := range vs.Spec.Pool.AlternateBackends {
+				altBackEnd := AlternateBackend{
+					Service:          svc.Service,
+					ServiceNamespace: svc.ServiceNamespace,
+				}
+				if svc.Weight != nil {
+					altBackEnd.Weight = *svc.Weight
+				} else {
+					altBackEnd.Weight = 100
+				}
+				altBckEnds = append(altBckEnds, altBackEnd)
+				svcKey := MultiClusterServiceKey{
+					serviceName: svc.Service,
+					clusterName: "",
+					namespace:   svc.ServiceNamespace,
+				}
+				ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
+			}
+			pool.AlternateBackends = altBckEnds
+		}
+
+		// check the multi cluster services and populate the weights
+		for _, plSvc := range vs.Spec.Pool.MultiClusterServices {
+			for idx, svc := range pool.MultiClusterServices {
+				if svc.ClusterName == plSvc.ClusterName && svc.SvcName == plSvc.SvcName {
+					if plSvc.Weight != nil {
+						pool.MultiClusterServices[idx].Weight = plSvc.Weight
+					} else {
+						pool.MultiClusterServices[idx].Weight = &defaultWeight
+					}
+					break
+				}
+			}
+		}
+	}
+
 	// Update the pool Members
 	ctlr.updatePoolMembersForResources(&pool)
 	if len(pool.Members) > 0 {
@@ -2271,6 +2324,23 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
 	}
 	return nil
+}
+
+func (ctlr *Controller) isSinglePoolRatioEnabled(ts *cisapiv1.TransportServer) bool {
+	if ts.Spec.Pool.Weight != nil {
+		return true
+	}
+	for _, svc := range ts.Spec.Pool.AlternateBackends {
+		if svc.Weight != nil {
+			return true
+		}
+	}
+	for _, svc := range ts.Spec.Pool.MultiClusterServices {
+		if svc.Weight != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // Prepares resource config based on VirtualServer resource config

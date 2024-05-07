@@ -2120,30 +2120,42 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 // updatePoolMembersForResources updates the pool members for service present in the provided Pool
 func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	var poolMembers []PoolMember
+	var clsSvcPoolMemMap = make(map[MultiClusterServiceKey][]PoolMember)
 	// for local cluster
 	// Skip adding the pool members if adding pool member is restricted for local cluster in multi cluster mode
 	if pool.Cluster == "" && !ctlr.isAddingPoolRestricted(pool.Cluster) {
-		poolMembers = append(poolMembers,
-			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, "", pool.ConnectionLimit)...)
-		if len(ctlr.clusterRatio) > 0 {
-			pool.Members = poolMembers
+		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+			pool.NodeMemberLabel, "", pool.ConnectionLimit)
+		poolMembers = append(poolMembers, pms...)
+		if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
+			pool.Members = pms
 			return
+		}
+
+		if pool.SinglePoolRatioEnabled {
+			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
+				clusterName: ""}] = pms
 		}
 	}
 
 	// for HA cluster pair service
 	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
-	if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
+	// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
+	if (ctlr.haModeType == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
 		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
-		poolMembers = append(poolMembers,
-			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)...)
+		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)
+		poolMembers = append(poolMembers, pms...)
+
+		if pool.SinglePoolRatioEnabled {
+			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
+				clusterName: ctlr.multiClusterConfigs.HAPairClusterName}] = pms
+		}
 	}
 
 	// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
 	// pool associated with the HA peer cluster or external cluster and return
-	if len(ctlr.clusterRatio) > 0 {
+	if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit)...)
@@ -2162,12 +2174,249 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
 		// already populated while updating the HA cluster pair service pool members above
 		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
-			poolMembers = append(poolMembers,
-				ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
-					pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit)...)
+			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
+				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit)
+			poolMembers = append(poolMembers, pms...)
+
+			if pool.SinglePoolRatioEnabled {
+				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: mcs.SvcName, namespace: mcs.Namespace,
+					clusterName: mcs.ClusterName}] = pms
+			}
 		}
 	}
+
+	if !ctlr.isAddingPoolRestricted(pool.Cluster) {
+		for _, svc := range pool.AlternateBackends {
+			pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
+				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit)
+			poolMembers = append(poolMembers, pms...)
+
+			if pool.SinglePoolRatioEnabled {
+				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: svc.Service, namespace: svc.ServiceNamespace,
+					clusterName: pool.Cluster}] = pms
+			}
+
+			// for HA cluster pair service
+			// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
+			if ctlr.multiClusterConfigs.HAPairClusterName != "" &&
+				!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
+				pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
+					pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)
+				poolMembers = append(poolMembers, pms...)
+
+				if pool.SinglePoolRatioEnabled {
+					clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: svc.Service, namespace: svc.ServiceNamespace,
+						clusterName: ctlr.multiClusterConfigs.HAPairClusterName}] = pms
+				}
+			}
+		}
+	}
+
+	if pool.SinglePoolRatioEnabled {
+		poolMembers = ctlr.updatePoolMemberWeights(clsSvcPoolMemMap, pool)
+	}
 	pool.Members = poolMembers
+}
+
+func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServiceKey][]PoolMember, pool *Pool) []PoolMember {
+	var totalWeight = 0
+	var defaultWeight = 100
+	var poolMem []PoolMember
+	var ratio int
+
+	// in non ratio mode don't do any ratio calculation
+	// assign simple weights
+	if len(ctlr.clusterRatio) == 0 {
+		// for each service -  pool members
+		for svcKey, plMem := range svcMemMap {
+			// for local or ha cluster check config
+			if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
+				svcKey.namespace == pool.ServiceNamespace {
+				if pool.Weight > 0 {
+					ratio = int(float32(pool.Weight) / float32(len(plMem)))
+				} else {
+					continue
+				}
+				for idx, _ := range plMem {
+					plMem[idx].Ratio = ratio
+				}
+				poolMem = append(poolMem, plMem...)
+				continue
+			}
+
+			for _, svc := range pool.AlternateBackends {
+				// for local or ha cluster check config
+				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == svc.Service &&
+					svcKey.namespace == svc.ServiceNamespace {
+					if svc.Weight > 0 {
+						ratio = int(float32(svc.Weight) / float32(len(plMem)))
+					} else {
+						break
+					}
+					for idx, _ := range plMem {
+						plMem[idx].Ratio = ratio
+					}
+					poolMem = append(poolMem, plMem...)
+					break
+				}
+			}
+
+			for _, mcSvc := range pool.MultiClusterServices {
+				if svcKey.clusterName == mcSvc.ClusterName && svcKey.serviceName == mcSvc.SvcName &&
+					svcKey.namespace == mcSvc.Namespace {
+					if mcSvc.Weight == nil {
+						ratio = int(float32(defaultWeight) / float32(len(plMem)))
+					} else {
+						ratio = int(float32(*mcSvc.Weight) / float32(len(plMem)))
+					}
+					for idx, _ := range plMem {
+						plMem[idx].Ratio = ratio
+					}
+					poolMem = append(poolMem, plMem...)
+					break
+				}
+			}
+		}
+	} else {
+		// First we calculate the total service weights, total ratio and the total number of backends
+
+		// store the localClusterPool state and HA peer cluster pool state in advance for further processing
+		localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+		hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
+		// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
+		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
+			hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+		}
+		// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
+		// them have to be considered( this is based on multiCluster mode and cluster pool state)
+		factor := 0
+		if !localClusterPoolRestricted {
+			factor++ // it ensures local cluster services associated with the VS are considered
+		}
+		if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			factor++ // it ensures HA peer cluster services associated with the VS are considered
+		}
+		// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
+		// with the VS running in that cluster
+		clusterSvcMap := make(map[string]struct{})
+		clusterSvcMap[""] = struct{}{} // "" is used as key for the local cluster where this CIS is running
+		// totalClusterRatio stores the sum total of all the ratio of clusters contributing services to this VS
+		totalClusterRatio := 0.0
+		// totalSvcWeights stores the sum total of all the weights of services associated with this VS
+		totalSvcWeights := 0.0
+		// Include local cluster ratio in the totalClusterRatio calculation
+		if !localClusterPoolRestricted {
+			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+		}
+		// Include HA partner cluster ratio in the totalClusterRatio calculation
+		if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+		}
+		// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
+		if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
+			if pool.Weight > 0 {
+				totalSvcWeights += float64(pool.Weight) * float64(factor)
+			} else {
+				totalSvcWeights += float64(defaultWeight) * float64(factor)
+			}
+		}
+
+		if pool.Weight > 0 {
+			totalWeight += int(pool.Weight)
+		}
+
+		for _, svc := range pool.AlternateBackends {
+			if svc.Weight > 0 {
+				totalWeight += int(svc.Weight)
+			}
+		}
+
+		for _, svc := range pool.MultiClusterServices {
+			if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+				continue
+			}
+			if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
+				if r, ok := ctlr.clusterRatio[svc.ClusterName]; ok {
+					totalClusterRatio += float64(*r)
+				}
+			}
+			if svc.Weight != nil {
+				totalWeight += *svc.Weight
+			} else {
+				totalWeight += defaultWeight
+			}
+		}
+
+		// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0 to avoid division by zero
+		if totalWeight == 0 {
+			totalWeight = 1
+		}
+		if totalClusterRatio == 0 {
+			totalClusterRatio = 1
+		}
+		// Process VS spec primary service
+		// for each service -  pool members
+		for svcKey, plMem := range svcMemMap {
+			// for local or ha cluster check config
+			if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
+				svcKey.namespace == pool.ServiceNamespace {
+				if pool.Weight > 0 {
+					cluster := svcKey.clusterName
+					if cluster == "" {
+						cluster = ctlr.multiClusterConfigs.LocalClusterName
+					}
+					ratio = int((float64(pool.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[cluster]) / totalClusterRatio) * 100)
+				} else {
+					continue
+				}
+				for idx, _ := range plMem {
+					plMem[idx].Ratio = ratio
+				}
+				poolMem = append(poolMem, plMem...)
+				continue
+			}
+
+			for _, svc := range pool.AlternateBackends {
+				// for local or ha cluster check config
+				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == svc.Service &&
+					svcKey.namespace == svc.ServiceNamespace {
+					if svc.Weight > 0 {
+						cluster := svcKey.clusterName
+						if cluster == "" {
+							cluster = ctlr.multiClusterConfigs.LocalClusterName
+						}
+						ratio = int((float64(svc.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[cluster]) / totalClusterRatio) * 100)
+					} else {
+						break
+					}
+					for idx, _ := range plMem {
+						plMem[idx].Ratio = ratio
+					}
+					poolMem = append(poolMem, plMem...)
+					break
+				}
+			}
+
+			for _, mcSvc := range pool.MultiClusterServices {
+				if svcKey.clusterName == mcSvc.ClusterName && svcKey.serviceName == mcSvc.SvcName &&
+					svcKey.namespace == mcSvc.Namespace {
+					if mcSvc.Weight == nil {
+						ratio = int((float64(defaultWeight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[svcKey.clusterName]) / totalClusterRatio) * 100)
+					} else {
+						ratio = int((float64(*mcSvc.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[svcKey.clusterName]) / totalClusterRatio) * 100)
+					}
+					for idx, _ := range plMem {
+						plMem[idx].Ratio = ratio
+					}
+					poolMem = append(poolMem, plMem...)
+					break
+				}
+			}
+		}
+
+	}
+
+	return poolMem
 }
 
 // fetchPoolMembersForService returns pool members associated with a service created in specified cluster

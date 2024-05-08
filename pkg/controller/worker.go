@@ -1373,7 +1373,30 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 
 		// skip the virtuals in other HostGroups
 		if vrt.Spec.HostGroup != currentVS.Spec.HostGroup {
+			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" &&
+				currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress {
+				log.Errorf("Multiple Virtual Servers %v, %v are configured with same VirtualServerAddress: %v, "+
+					"but different HostGroups: %s %s", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress,
+					currentVS.Spec.HostGroup, vrt.Spec.HostGroup)
+				return nil
+			}
 			continue
+		}
+
+		if vrt.Spec.HostGroup != "" && currentVS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentVS.Spec.HostGroup {
+			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" &&
+				currentVS.Spec.VirtualServerAddress != vrt.Spec.VirtualServerAddress {
+				log.Errorf("Multiple Virtual Servers %v, %v are configured with different VirtualServerAddress: %v %v, "+
+					"but same HostGroup: %s", currentVS.Name, vrt.Name, currentVS.Spec.VirtualServerAddress,
+					vrt.Spec.VirtualServerAddress, currentVS.Spec.HostGroup)
+				return nil
+			}
+			if currentVS.Spec.IPAMLabel != "" && vrt.Spec.IPAMLabel != "" && currentVS.Spec.IPAMLabel != vrt.Spec.IPAMLabel {
+				log.Errorf("Multiple Virtual Servers %v, %v are configured with different IPAM Labels: %v %v, but "+
+					"same HostGroup: %s", currentVS.Name, vrt.Name, currentVS.Spec.IPAMLabel, vrt.Spec.IPAMLabel,
+					currentVS.Spec.HostGroup)
+				return nil
+			}
 		}
 
 		if currentVS.Spec.HostGroup == "" {
@@ -1484,6 +1507,34 @@ func (ctlr *Controller) validateTSWithSameVSAddress(
 		// skip the deleted virtual in the event of deletion
 		if isVSDeleted && vrt.Name == currentTS.Name {
 			continue
+		}
+
+		// skip the virtuals in other HostGroups
+		if vrt.Spec.HostGroup != currentTS.Spec.HostGroup {
+			if currentTS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" &&
+				currentTS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress {
+				log.Errorf("Multiple Transport Servers %v, %v are configured with same VirtualServerAddress: %v, "+
+					"but different HostGroups: %s %s", currentTS.Name, vrt.Name, vrt.Spec.VirtualServerAddress,
+					currentTS.Spec.HostGroup, vrt.Spec.HostGroup)
+				return false
+			}
+			continue
+		}
+
+		if vrt.Spec.HostGroup != "" && currentTS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentTS.Spec.HostGroup {
+			if currentTS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" &&
+				currentTS.Spec.VirtualServerAddress != vrt.Spec.VirtualServerAddress {
+				log.Errorf("Multiple Transport Servers %v, %v are configured with different VirtualServerAddress: "+
+					"%v %v, but same HostGroup: %s", currentTS.Name, vrt.Name, currentTS.Spec.VirtualServerAddress,
+					vrt.Spec.VirtualServerAddress, currentTS.Spec.HostGroup)
+				return false
+			}
+			if currentTS.Spec.IPAMLabel != "" && vrt.Spec.IPAMLabel != "" && currentTS.Spec.IPAMLabel != vrt.Spec.IPAMLabel {
+				log.Errorf("Multiple Transport Servers %v, %v are configured with different IPAM Labels: %v %v, "+
+					"but same HostGroup: %s", currentTS.Name, vrt.Name, currentTS.Spec.IPAMLabel, vrt.Spec.IPAMLabel,
+					currentTS.Spec.HostGroup)
+				return false
+			}
 		}
 
 		// Multiple TS sharing same VS address with different partition is invalid

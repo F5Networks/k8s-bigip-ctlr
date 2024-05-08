@@ -206,6 +206,10 @@ func (h *IPAMHandler) RequestIP(ipamLabel string, host string, key string, ref R
 			if hst.IPAMLabel == ipamLabel {
 				if ip != "" {
 					// IP extracted from the corresponding status of the spec
+					if !h.IsHostSpecCached(hostSpec) {
+						// This scenario occurs when CIS is restarted after IP allocation.
+						h.AddHostSpec(hostSpec)
+					}
 					return ip, Allocated
 				}
 
@@ -312,6 +316,9 @@ func (h *IPAMHandler) RemoveUnusedIPAMEntries() {
 			}
 			h.ipamCache.RUnlock()
 		}
+		cisUsedIPAM.SetName(ipamCR.GetName())
+		cisUsedIPAM.SetNamespace(ipamCR.GetNamespace())
+		cisUsedIPAM.SetResourceVersion(ipamCR.GetResourceVersion())
 		if !reflect.DeepEqual(ipamCR.Spec, cisUsedIPAM.Spec) {
 			_, err := h.IpamCli.Update(cisUsedIPAM)
 			if err != nil {
@@ -334,6 +341,16 @@ func (h *IPAMHandler) AddHostSpec(key ficV1.HostSpec) {
 	h.ipamCache.Lock()
 	defer h.ipamCache.Unlock()
 	h.ipamCache.ipamCacheMap[key] = ""
+}
+
+// IsHostSpecCached function to checks if IPAM HostSpec is cached
+func (h *IPAMHandler) IsHostSpecCached(key ficV1.HostSpec) bool {
+	h.ipamCache.RLock()
+	defer h.ipamCache.RUnlock()
+	if _, ok := h.ipamCache.ipamCacheMap[key]; ok {
+		return true
+	}
+	return false
 }
 
 // function to add ipSpec to the ipam context

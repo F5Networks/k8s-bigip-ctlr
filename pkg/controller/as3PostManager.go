@@ -1070,13 +1070,13 @@ func (req *RequestHandler) createAS3Config(rsConfig ResourceConfigRequest, pm *P
 	return as3cfg
 }
 
-func (as3PM *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant,
+func (as3PM *AS3PostManager) createAS3BIGIPConfig(config BigIpResourceConfigRequest, partition string, cachedTenantDeclMap map[string]as3Tenant,
 	poolMemberType string) as3ADC {
 	adc := as3PM.createAS3LTMConfigADC(config, partition, cachedTenantDeclMap, poolMemberType)
 	return adc
 }
 
-func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig, partition string, cachedTenantDeclMap map[string]as3Tenant,
+func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfigRequest, partition string, cachedTenantDeclMap map[string]as3Tenant,
 	poolMemberType string) as3ADC {
 	adc := as3ADC{}
 	cisLabel := partition
@@ -1126,7 +1126,7 @@ func (postMgr *AS3PostManager) createAS3LTMConfigADC(config BigIpResourceConfig,
 
 // removeDeletedTenantsForBigIP will check the tenant exists on bigip or not
 // if tenant exists and rsConfig does not have tenant, update the tenant with empty PartitionConfig
-func removeDeletedTenantsForBigIP(rsConfig *BigIpResourceConfig, cisLabel string, as3Config map[string]interface{}, partition string) {
+func removeDeletedTenantsForBigIP(rsConfig *BigIpResourceConfigRequest, cisLabel string, as3Config map[string]interface{}, partition string) {
 	for k, v := range as3Config {
 		if decl, ok := v.(map[string]interface{}); ok {
 			if label, found := decl["label"]; found && label == cisLabel && k != partition+"_gtm" {

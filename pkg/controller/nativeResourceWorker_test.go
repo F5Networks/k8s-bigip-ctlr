@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"sync"
 	"time"
 )
 
@@ -50,17 +51,17 @@ var _ = Describe("Routes", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
-			tokenManager: mockCtlr.CMTokenManager,
-			PostParams:   PostParams{},
-		}
 		bigipConfig = cisapiv1.BigIpConfig{
 			BigIpLabel:       "bigip1",
-			BigIpAddress:     "10.8.0.5",
+			BigIpAddress:     "10.8.3.11",
 			DefaultPartition: "test",
 		}
-		mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigipConfig] = &PostManager{
+			tokenManager: mockCtlr.CMTokenManager,
+			PostParams:   PostParams{},
+			postChan:     make(chan agentConfig, 1),
+		}
+		mockCtlr.bigIpConfigMap[bigipConfig] = &BigIpResourceConfig{ltmConfig: &sync.Map{}, gtmConfig: &sync.Map{}}
 	})
 
 	Describe("Routes", func() {
@@ -139,8 +140,11 @@ var _ = Describe("Routes", func() {
 				Partition: "test",
 			}
 			Expect(err).To(BeNil(), "Failed to process routes")
-			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["samplevs_443"].Policies)).To(BeEquivalentTo(0), "Policy should not be created for passthrough route")
-			dg, ok := mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["samplevs_443"].IntDgMap[mapKey]
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ := resourceConfig.ltmConfig.Load("test")
+			rsMap := rsInt.(*PartitionConfig).ResourceMap
+			Expect(len(rsMap["samplevs_443"].Policies)).To(BeEquivalentTo(0), "Policy should not be created for passthrough route")
+			dg, ok := rsMap["samplevs_443"].IntDgMap[mapKey]
 			Expect(ok).To(BeTrue(), "datagroup should be created for passthrough route")
 			Expect(dg[ns].Records[0].Name).To(BeEquivalentTo("foo.com"), "Invalid vsHostname in datagroup")
 			Expect(dg[ns].Records[0].Data).To(BeEquivalentTo("foo_80_default"), "Invalid vsHostname in datagroup")
@@ -435,7 +439,7 @@ var _ = Describe("Routes", func() {
 					//log.Debugf("GCM: %v", cm.Data)
 					_ = json.Unmarshal([]byte(extConfig), &es)
 					configSpec.ExtendedSpec = es
-					configSpec.BigIpConfig = []cisapiv1.BigIpConfig{bigIpKey}
+					configSpec.BigIpConfig = []cisapiv1.BigIpConfig{bigIpConfig}
 					configCR = test.NewConfigCR(
 						crName,
 						crNamespace,
@@ -519,7 +523,7 @@ var _ = Describe("Routes", func() {
 					//Process ENDS with non-matching domain
 					mockCtlr.addEDNS(newEDNS)
 					mockCtlr.processExternalDNS(newEDNS, false)
-					gtmConfig := mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig := mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					DEFAULT_GTM_PARTITION = DEFAULT_GTM_PARTITION + "_gtm"
 					Expect(len(gtmConfig)).To(Equal(1))
 					Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
@@ -529,14 +533,14 @@ var _ = Describe("Routes", func() {
 					//delete EDNS
 					mockCtlr.deleteEDNS(newEDNS)
 					mockCtlr.processExternalDNS(newEDNS, true)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(0))
 
 					// Modify EDNS with matching domain and create again
 					mockCtlr.addEDNS(newEDNS)
 					newEDNS.Spec.DomainName = "pytest-foo-1.com"
 					mockCtlr.processExternalDNS(newEDNS, false)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(1))
 					Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 					// Pool member should be present
@@ -546,7 +550,7 @@ var _ = Describe("Routes", func() {
 					mockCtlr.deleteRoute(route1)
 					mockCtlr.deleteHostPathMapEntry(route1)
 					mockCtlr.processRoutes(namespace1, false)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(1))
 					Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 					// No pool member should be present
@@ -601,7 +605,7 @@ var _ = Describe("Routes", func() {
 					//Test with 2nd route with bigIpPartition
 					mockCtlr.addEDNS(barEDNS)
 					mockCtlr.processExternalDNS(barEDNS, false)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(2))
 					Expect(len(gtmConfig["pytest-bar-1.com"].Pools)).To(Equal(1))
 					Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
@@ -609,7 +613,7 @@ var _ = Describe("Routes", func() {
 
 					mockCtlr.deleteEDNS(barEDNS)
 					mockCtlr.processExternalDNS(barEDNS, true)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(1))
 
 					//Remove route group
@@ -636,7 +640,7 @@ var _ = Describe("Routes", func() {
 					Expect(err).To(BeNil())
 					Expect(isProcessed).To(BeTrue())
 
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(1))
 					Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 					//No pool members should present
@@ -646,7 +650,7 @@ var _ = Describe("Routes", func() {
 					barEDNS.Spec.Pools[0].Monitor.Type = "tcp"
 					mockCtlr.addEDNS(barEDNS)
 					mockCtlr.processExternalDNS(barEDNS, false)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(2))
 					Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 					Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
@@ -663,7 +667,7 @@ var _ = Describe("Routes", func() {
 					}
 					mockCtlr.addEDNS(barEDNS)
 					mockCtlr.processExternalDNS(barEDNS, false)
-					gtmConfig = mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+					gtmConfig = mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 					Expect(len(gtmConfig)).To(Equal(2))
 					Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 					Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
@@ -864,8 +868,13 @@ var _ = Describe("Routes", func() {
 			parition := mockCtlr.resources.extdSpecMap[routeGroup].partition
 			vsName := frameRouteVSName(mockCtlr.resources.extdSpecMap[routeGroup].global.VServerName, mockCtlr.resources.extdSpecMap[routeGroup].global.VServerAddr, portStruct{protocol: "https", port: 443})
 			Expect(err).To(BeNil())
-			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap[vsName].Pools[0].ConnectionLimit).
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ := resourceConfig.ltmConfig.Load(parition)
+			rsMap := rsInt.(*PartitionConfig).ResourceMap
+			Expect(len(rsMap[vsName].IRulesMap) == 1).To(BeTrue())
+			rsInt, _ = resourceConfig.ltmConfig.Load("test")
+			rsMap = rsInt.(*PartitionConfig).ResourceMap
+			Expect(rsMap[vsName].Pools[0].ConnectionLimit).
 				To(Equal(int32(5)), "pod concurrent connections not processed")
 
 			var alternateBackend []routeapi.RouteTargetReference
@@ -882,7 +891,10 @@ var _ = Describe("Routes", func() {
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
-			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
+			resourceConfig = mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ = resourceConfig.ltmConfig.Load(parition)
+			rsMap = rsInt.(*PartitionConfig).ResourceMap
+			Expect(len(rsMap[vsName].IRulesMap) == 1).To(BeTrue())
 
 			spec2 := routeapi.RouteSpec{
 				Host: "pytest-foo-1.com",
@@ -905,8 +917,11 @@ var _ = Describe("Routes", func() {
 			Expect(err).To(BeNil())
 
 			abPathIRule := getRSCfgResName(vsName, ABPathIRuleName)
-			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap[vsName].IRulesMap) == 2).To(BeTrue())
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap[vsName].IRulesMap[NameRef{abPathIRule, parition}].Name == abPathIRule).To(BeTrue())
+			resourceConfig = mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ = resourceConfig.ltmConfig.Load("test")
+			rsMap = rsInt.(*PartitionConfig).ResourceMap
+			Expect(len(rsMap[vsName].IRulesMap) == 2).To(BeTrue())
+			Expect(rsMap[vsName].IRulesMap[NameRef{abPathIRule, parition}].Name == abPathIRule).To(BeTrue())
 
 		})
 
@@ -1107,7 +1122,7 @@ var _ = Describe("Routes", func() {
 					},
 				},
 			}
-			mockCtlr.resources.poolMemCache = make(PoolMemberCache)
+			mockCtlr.resources.poolMemCache = sync.Map{}
 			namespace := "default"
 			data := make(map[string][]byte)
 			data["tls.key"] = []byte{}
@@ -1357,9 +1372,12 @@ var _ = Describe("Routes", func() {
 
 			err := mockCtlr.processRoutes(ns, false)
 			Expect(err).To(BeNil(), "Failed to process routes")
-			Expect(len(mockCtlr.Controller.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["samplevs_443"].Policies)).
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ := resourceConfig.ltmConfig.Load("test")
+			rsMap := rsInt.(*PartitionConfig).ResourceMap
+			Expect(len(rsMap["samplevs_443"].Policies)).
 				To(BeNumerically(">", 0), "Policy should not be empty")
-			createdPolicies := mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["samplevs_443"].Policies
+			createdPolicies := rsMap["samplevs_443"].Policies
 
 			checkWAFRules := func(policies Policies) bool {
 				defaultWAFDisableRule := false
@@ -1926,8 +1944,11 @@ var _ = Describe("Routes", func() {
 			err = mockCtlr.processRoutes(routeGroup, false)
 
 			Expect(err).To(BeNil())
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].Balance == "least-connections-node").To(BeTrue())
-			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["nextgenroutes_443"].Policies[0].Rules) == 3).To(BeTrue())
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ := resourceConfig.ltmConfig.Load("test")
+			rsMap := rsInt.(*PartitionConfig).ResourceMap
+			Expect(rsMap["nextgenroutes_443"].Pools[0].Balance == "least-connections-node").To(BeTrue())
+			Expect(len(rsMap["nextgenroutes_443"].Policies[0].Rules) == 3).To(BeTrue())
 
 			extConfig = `
 {
@@ -2050,8 +2071,11 @@ var _ = Describe("Routes", func() {
 				Partition:   "test",
 				TimeUntilUp: &zero,
 			}
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ := resourceConfig.ltmConfig.Load("test")
+			rsMap := rsInt.(*PartitionConfig).ResourceMap
+			Expect(rsMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
+			Expect(rsMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
 
 			// Verify autoMonitorTimeout
 			extConfig = `
@@ -2093,8 +2117,11 @@ var _ = Describe("Routes", func() {
 				TimeUntilUp: &zero,
 			}
 			partition := mockCtlr.getPartitionForBIGIP("")
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].ResourceMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
-			Expect(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].ResourceMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
+			resourceConfig = mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			rsInt, _ = resourceConfig.ltmConfig.Load(partition)
+			rsMap = rsInt.(*PartitionConfig).ResourceMap
+			Expect(rsMap["nextgenroutes_443"].Pools[0].MonitorNames[0].Name).To(Equal("foo_80_default_monitor"))
+			Expect(rsMap["nextgenroutes_443"].Monitors[0]).To(Equal(expectedDefaultTCPMonitor))
 
 		})
 	})
@@ -2138,8 +2165,12 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			crName := "escm"
 			crNamespace := "system"
 			mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+			bigipConfig := cisapiv1.BigIpConfig{
+				BigIpLabel:       "bigip1",
+				BigIpAddress:     "10.8.3.11",
+				DefaultPartition: "test",
+			}
+			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigipConfig] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				PostParams:   PostParams{},
 			}
@@ -2258,11 +2289,10 @@ var _ = Describe("Multi Cluster with Routes", func() {
 	var sct1, sct2, sct3, sct4 *v1.Secret
 	var configCR *cisapiv1.DeployConfig
 	configSpec := cisapiv1.DeployConfigSpec{}
-
+	var bigipConfig cisapiv1.BigIpConfig
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-		mockCtlr.resources = NewResourceStore()
 		mockCtlr.managedResources.ManageRoutes = true
 		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
 		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
@@ -2294,8 +2324,12 @@ var _ = Describe("Multi Cluster with Routes", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+		bigipConfig = cisapiv1.BigIpConfig{
+			BigIpLabel:       "bigip1",
+			DefaultPartition: "test",
+			BigIpAddress:     "10.8.3.11",
+		}
+		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigipConfig] = &PostManager{
 			tokenManager: mockCtlr.CMTokenManager,
 			PostParams:   PostParams{},
 		}
@@ -2304,6 +2338,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 		crNamespace := "kube-system"
 		mockCtlr.CISConfigCRKey = crNamespace + "/" + crName
 		mockCtlr.resources = NewResourceStore()
+		mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
 		extConfig := `
 {
     "highAvailabilityCIS": {
@@ -2427,8 +2462,10 @@ var _ = Describe("Multi Cluster with Routes", func() {
 
 		It("Process Route with multi cluster annotation without multicluster config", func() {
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+			val, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 		})
 
 		It("Process Route with multi cluster annotation with multicluster config", func() {
@@ -2453,9 +2490,13 @@ var _ = Describe("Multi Cluster with Routes", func() {
 			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "serviceName":"svc", "namespace": "default", "port": "8080" },
 {"clusterName": "cluster3", "serviceName":"svc1", "namespace": "default", "port": "8081" }]`
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			val, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			resourceKey := resourceRef{
 				kind:      Route,
@@ -2478,17 +2519,24 @@ var _ = Describe("Multi Cluster with Routes", func() {
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(0))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 			route1.Annotations["virtual-server.f5.com/multiClusterServices"] = `[{"clusterName": "cluster3", "serviceName":"svc1", "namespace": "default", "port": "8081" }]`
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
-
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 		})
 
 		It("Process Route with multi cluster annotation and cluster AdminState in multicluster config", func() {
@@ -2634,8 +2682,12 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+		bigipConfig := cisapiv1.BigIpConfig{
+			BigIpLabel:       "bigip1",
+			DefaultPartition: "test",
+			BigIpAddress:     "10.8.3.11",
+		}
+		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigipConfig] = &PostManager{
 			tokenManager: mockCtlr.CMTokenManager,
 			PostParams:   PostParams{},
 		}
@@ -2790,9 +2842,13 @@ var _ = Describe("Multi Cluster with CRD", func() {
 			}
 			mockCtlr.haModeType = Ratio
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			val, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 			// Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
@@ -2818,9 +2874,13 @@ var _ = Describe("Multi Cluster with CRD", func() {
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(0))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 
 			vs.Spec.Pools[0].MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2832,9 +2892,13 @@ var _ = Describe("Multi Cluster with CRD", func() {
 			}
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
 		})
 
 		It("Process TS with multi cluster config", func() {
@@ -2891,9 +2955,13 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			val, ok := mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			resourceKey := resourceRef{
 				kind:      TransportServer,
@@ -2905,9 +2973,13 @@ var _ = Describe("Multi Cluster with CRD", func() {
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(0))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2919,10 +2991,13 @@ var _ = Describe("Multi Cluster with CRD", func() {
 			}
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
-
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(2))
+			val, ok = mockCtlr.multiClusterResources.clusterSvcMap.Load("cluster3")
+			Expect(ok).To(BeTrue())
+			Expect(len(val.(MultiClusterServicePoolMap))).To(Equal(1))
+			Expect(LenSyncMap(&mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 		})
 	})
 

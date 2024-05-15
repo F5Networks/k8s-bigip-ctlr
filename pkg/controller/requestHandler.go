@@ -15,7 +15,7 @@ func (req *RequestHandler) startRequestHandler() {
 	go req.requestHandler()
 }
 
-func (req *RequestHandler) stopPostManager(key BigIpKey) {
+func (req *RequestHandler) stopPostManager(key cisapiv1.BigIpConfig) {
 	//stop post manager
 	if pm, ok := req.PostManagers.PostManagerMap[key]; ok {
 		//close the channels to stop the post channel
@@ -28,20 +28,18 @@ func (req *RequestHandler) stopPostManager(key BigIpKey) {
 }
 
 func (req *RequestHandler) startPostManager(config cisapiv1.BigIpConfig) {
-	for _, bigIpKey := range getBigIpList(config) {
-		//start agent
-		req.PostManagers.Lock()
-		if _, ok := req.PostManagers.PostManagerMap[bigIpKey]; !ok {
-			pm := NewPostManager(req.PostParams, config.DefaultPartition)
-			pm.respChan = req.respChan
-			pm.tokenManager = req.CMTokenManager
-			// update agent Map
-			req.PostManagers.PostManagerMap[bigIpKey] = pm
-			// increase the Agent Count
-			prometheus.AgentCount.Inc()
-		}
-		req.PostManagers.Unlock()
+	//start agent
+	req.PostManagers.Lock()
+	if _, ok := req.PostManagers.PostManagerMap[config]; !ok {
+		pm := NewPostManager(req.PostParams, config.DefaultPartition)
+		pm.respChan = req.respChan
+		pm.tokenManager = req.CMTokenManager
+		// update agent Map
+		req.PostManagers.PostManagerMap[config] = pm
+		// increase the Agent Count
+		prometheus.AgentCount.Inc()
 	}
+	req.PostManagers.Unlock()
 }
 
 func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) {
@@ -61,7 +59,7 @@ func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) 
 func (req *RequestHandler) requestHandler() {
 	for rsConfig := range req.reqChan {
 		req.PostManagers.RLock()
-		if pm, ok := req.PostManagers.PostManagerMap[rsConfig.bigIpKey]; ok {
+		if pm, ok := req.PostManagers.PostManagerMap[rsConfig.bigIpConfig]; ok {
 			//create post config declaration for BigIp pair and put in post channel
 			cfg := req.createDeclarationForBIGIP(rsConfig, pm)
 			if !reflect.DeepEqual(cfg, agentConfig{}) {
@@ -109,10 +107,10 @@ func (req *RequestHandler) createDeclarationForBIGIP(rsConfig ResourceConfigRequ
 	}
 	// TODO : Create the L3 declaration for the bigip
 	agentCfg = agentConfig{
-		id:        rsConfig.reqMeta.id,
-		as3Config: as3cfg,
-		l3Config:  l3Config{},
-		BigIpKey:  rsConfig.bigIpKey,
-		reqMeta:   rsConfig.reqMeta}
+		id:          rsConfig.reqMeta.id,
+		as3Config:   as3cfg,
+		l3Config:    l3Config{},
+		bigIpConfig: rsConfig.bigIpConfig,
+		reqMeta:     rsConfig.reqMeta}
 	return agentCfg
 }

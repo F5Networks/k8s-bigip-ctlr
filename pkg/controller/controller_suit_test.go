@@ -52,11 +52,11 @@ func newMockController() *mockController {
 			resourceSelectorConfig: ResourceSelectorConfig{},
 			CMTokenManager:         tokenManager,
 			RequestHandler: &RequestHandler{
-				PostManagers: PostManagers{sync.RWMutex{}, make(map[BigIpKey]*PostManager)},
+				PostManagers: PostManagers{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]*PostManager)},
 				reqChan:      make(chan ResourceConfigRequest, 1),
 				PostParams:   PostParams{tokenManager: tokenManager},
 			},
-			bigIpMap:         make(BigIpMap),
+			bigIpConfigMap:   make(BigIpConfigMap),
 			PostParams:       PostParams{},
 			clientsets:       &ClientSets{},
 			managedResources: ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
@@ -123,7 +123,7 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 
 func newMockAgent(userAgent string) *RequestHandler {
 	return &RequestHandler{
-		PostManagers: PostManagers{sync.RWMutex{}, make(map[BigIpKey]*PostManager)},
+		PostManagers: PostManagers{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]*PostManager)},
 		userAgent:    userAgent,
 	}
 }

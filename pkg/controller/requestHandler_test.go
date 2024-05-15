@@ -20,7 +20,7 @@ var _ = Describe("Backend Tests", func() {
 		var requestHandler *RequestHandler
 		BeforeEach(func() {
 			requestHandler = newMockAgent("as3")
-			requestHandler.PostManagers.PostManagerMap[BigIpKey{}] = &PostManager{
+			requestHandler.PostManagers.PostManagerMap[v1.BigIpConfig{}] = &PostManager{
 				PostParams: PostParams{},
 				AS3PostManager: &AS3PostManager{
 					AS3Config: v1.AS3Config{},
@@ -236,8 +236,8 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config := ResourceConfigRequest{
-				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigIpKey:            BigIpKey{},
+				bigIpResourceConfig: BigIpResourceConfigRequest{ltmConfig: LTMConfig{}},
+				bigIpConfig:         v1.BigIpConfig{},
 			}
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
@@ -279,8 +279,8 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config := ResourceConfigRequest{
-				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigIpKey:            BigIpKey{},
+				bigIpResourceConfig: BigIpResourceConfigRequest{ltmConfig: LTMConfig{}},
+				bigIpConfig:         v1.BigIpConfig{},
 			}
 
 			zero := 0
@@ -304,8 +304,8 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
-				bigIpKey:            BigIpKey{},
-				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
+				bigIpConfig:         v1.BigIpConfig{},
+				bigIpResourceConfig: BigIpResourceConfigRequest{ltmConfig: LTMConfig{}},
 			}
 
 			zero := 0
@@ -366,7 +366,7 @@ var _ = Describe("Backend Tests", func() {
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
 			requestHandler = newMockAgent("as3")
-			requestHandler.PostManagers.PostManagerMap[BigIpKey{}] = &PostManager{
+			requestHandler.PostManagers.PostManagerMap[v1.BigIpConfig{}] = &PostManager{
 				PostParams: PostParams{
 					httpClient: client},
 				AS3PostManager: &AS3PostManager{
@@ -376,8 +376,8 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
-				bigIpKey: BigIpKey{},
-				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{
+				bigIpConfig: v1.BigIpConfig{},
+				bigIpResourceConfig: BigIpResourceConfigRequest{ltmConfig: LTMConfig{
 					"test": &PartitionConfig{ResourceMap: make(ResourceMap)},
 				}},
 			}
@@ -415,7 +415,7 @@ var _ = Describe("Backend Tests", func() {
 
 		//It("Empty GTM Partition Config / Delete Case", func() {
 		//	adc := as3ADC{}
-		//	adc = requesthandler.createAS3GTMConfigADC(BigIpResourceConfig{
+		//	adc = requesthandler.createAS3GTMConfigADC(BigIpResourceConfigRequest{
 		//		gtmConfig: GTMConfig{
 		//			DEFAULT_PARTITION: GTMPartitionConfig{},
 		//		},
@@ -463,7 +463,7 @@ var _ = Describe("Backend Tests", func() {
 		//		},
 		//	}
 		//	adc := requesthandler.createAS3GTMConfigADC(
-		//		BigIpResourceConfig{gtmConfig: gtmConfig},
+		//		BigIpResourceConfigRequest{gtmConfig: gtmConfig},
 		//		as3ADC{},
 		//	)
 		//

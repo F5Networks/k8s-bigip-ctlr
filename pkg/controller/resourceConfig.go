@@ -19,6 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"net"
 	"reflect"
@@ -46,15 +47,15 @@ func NewResourceStore() *ResourceStore {
 func newMultiClusterResourceStore() *MultiClusterResourceStore {
 	var rs MultiClusterResourceStore
 	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig)
-	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+	rs.clusterSvcMap = sync.Map{}
 	return &rs
 }
 
 // Init is Receiver to initialize the object.
 func (rs *ResourceStore) Init() {
-	rs.bigIpMap = make(BigIpMap)
-	rs.bigIpMapCache = make(BigIpMap)
-	rs.poolMemCache = make(PoolMemberCache)
+	rs.bigIpConfigMap = make(BigIpConfigMap)
+	rs.bigIpMapCache = make(BigIpConfigCacheMap)
+	rs.poolMemCache = sync.Map{}
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
@@ -1355,66 +1356,104 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 	return nil
 }
 
-func (rs *ResourceStore) getPartitionResourceMap(partition string, bigipConfig cisapiv1.BigIpConfig) ResourceMap {
-	// update resource map for bigipMap
-	_, ok := rs.bigIpMap[bigipConfig] // check if bigip is already present in bigipMap
-	if !ok {
-		rs.bigIpMap[bigipConfig] = BigIpResourceConfig{
-			ltmConfig: make(LTMConfig),
-			gtmConfig: make(GTMConfig),
+// function return the vsnames for the edns processing
+func (rs *ResourceStore) getVirtualServerNamesForEDNSProcessing(partition, hostname string, bigipConfig cisapiv1.BigIpConfig) []string {
+	var vsNames []string
+	if bigipConfig == (cisapiv1.BigIpConfig{}) {
+		return vsNames
+	}
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	if partitionConfigInt, ok := rsConfig.ltmConfig.Load(partition); ok {
+		partitionConfig := partitionConfigInt.(*PartitionConfig)
+		for vsName, vs := range partitionConfig.ResourceMap {
+			var found bool
+			for _, host := range vs.MetaData.hosts {
+				if host == hostname {
+					found = true
+					break
+				}
+			}
+			if found {
+				//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
+				if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
+					continue
+				}
+				vsNames = append(vsNames, vsName)
+			}
 		}
 	}
-	rsConfig := rs.getBigIpResourceConfig(bigipConfig.BigIpLabel)
-	if rsConfig.ltmConfig == nil {
-		rsConfig.ltmConfig = make(LTMConfig)
-	}
-	_, ok = rs.bigIpMap[bigipConfig].ltmConfig[partition]
-	if !ok {
-		zero := 0
-		rs.bigIpMap[bigipConfig].ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-	}
-
-	return rs.bigIpMap[bigipConfig].ltmConfig[partition].ResourceMap
+	return vsNames
 }
 
-func (rs *ResourceStore) getLTMPartitions(bigipLabel string) []string {
-	var partitions []string
-	rsConfig := rs.getBigIpResourceConfig(bigipLabel)
-	for partition, _ := range rsConfig.ltmConfig {
-		partitions = append(partitions, partition)
+// function to get the hostname from the given rsName
+func (rs *ResourceStore) getHostnamesFromRsName(rsName, partition string, bigipConfig cisapiv1.BigIpConfig) []string {
+	var hostnames []string
+	if bigipConfig == (cisapiv1.BigIpConfig{}) {
+		return hostnames
 	}
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	if partitionConfigInt, ok := rsConfig.ltmConfig.Load(partition); ok {
+		partitionConfig := partitionConfigInt.(*PartitionConfig)
+		if _, ok := partitionConfig.ResourceMap[rsName]; ok {
+			hostnames = partitionConfig.ResourceMap[rsName].MetaData.hosts
+		}
+	}
+	return hostnames
+}
+
+// function to update the resource map for the partition
+func (rs *ResourceStore) updatePartitionResourceMap(partition, name string, rsCfg *ResourceConfig, bigipConfig cisapiv1.BigIpConfig) {
+	if bigipConfig == (cisapiv1.BigIpConfig{}) {
+		return
+	}
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	if rsConfig.ltmConfig == nil {
+		rsConfig.ltmConfig = &sync.Map{}
+	}
+	partitionConfigInt, ok := rsConfig.ltmConfig.Load(partition)
+	var partitionConfig *PartitionConfig
+	if !ok {
+		zero := 0
+		partitionConfig = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+	} else {
+		partitionConfig = partitionConfigInt.(*PartitionConfig)
+	}
+	partitionConfig.ResourceMap[name] = rsCfg
+	rsConfig.ltmConfig.Store(partition, partitionConfig)
+}
+
+func (rs *ResourceStore) getLTMPartitions(bigipConfig cisapiv1.BigIpConfig) []string {
+	var partitions []string
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	// Iterate over the sync.Map and collect keys into the slice
+	rsConfig.ltmConfig.Range(func(key, value interface{}) bool {
+		partitions = append(partitions, key.(string))
+		return true
+	})
 	return partitions
 }
 
-// getResourceConfig gets a specific Resource cfg
-func (rs *ResourceStore) getResourceConfig(partition, name string, bigipLabel string) (*ResourceConfig, error) {
-	rsConfig := rs.getBigIpResourceConfig(bigipLabel)
-	rsMap, ok := rsConfig.ltmConfig[partition]
+// getLTMVirtualResourceConfig gets a specific Resource cfg
+func (rs *ResourceStore) getLTMVirtualResourceConfig(partition, name string, bigipConfig cisapiv1.BigIpConfig) (*ResourceConfig, error) {
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	rsMap, ok := rsConfig.ltmConfig.Load(partition)
 	if !ok {
 		return nil, fmt.Errorf("partition not available")
 	}
-	if res, ok := rsMap.ResourceMap[name]; ok {
+	if res, ok := rsMap.(*PartitionConfig).ResourceMap[name]; ok {
 		return res, nil
 	}
 	return nil, fmt.Errorf("resource not available")
-}
-
-func (rs *ResourceStore) setResourceConfig(partition, name string, rsCfg *ResourceConfig, bigip cisapiv1.BigIpConfig) error {
-	if bigip != (cisapiv1.BigIpConfig{}) {
-		partitionConfig, ok := rs.bigIpMap[bigip].ltmConfig[partition]
-		if !ok {
-			return fmt.Errorf("partition not available")
-		}
-		partitionConfig.ResourceMap[name] = rsCfg
-	}
-	return nil
 }
 
 // getSanitizedLTMConfigCopy is a Resource reference copy of LTMConfig
 func (rs *ResourceStore) getSanitizedLTMConfigCopy(bigip cisapiv1.BigIpConfig) LTMConfig {
 	ltmConfig := make(LTMConfig)
 	var deletePartitions []string
-	for prtn, partitionConfig := range rs.bigIpMap[bigip].ltmConfig {
+	resourceConfig := rs.getBigIpResourceConfig(bigip)
+	resourceConfig.ltmConfig.Range(func(key, value interface{}) bool {
+		prtn := key.(string)
+		partitionConfig := value.(*PartitionConfig)
 		// copy only those partitions where virtual server exists otherwise remove from ltmConfig
 		if len(partitionConfig.ResourceMap) > 0 {
 			ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
@@ -1429,10 +1468,11 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy(bigip cisapiv1.BigIpConfig) L
 			}
 			partitionConfig.PriorityMutex.RUnlock()
 		}
-	}
+		return true
+	})
 	// delete the partitions if there are no virtuals in that partition
 	for _, prtn := range deletePartitions {
-		delete(rs.bigIpMap[bigip].ltmConfig, prtn)
+		resourceConfig.ltmConfig.Delete(prtn)
 	}
 	return ltmConfig
 }
@@ -1440,7 +1480,10 @@ func (rs *ResourceStore) getSanitizedLTMConfigCopy(bigip cisapiv1.BigIpConfig) L
 // getLTMConfigDeepCopy is a Resource reference copy of LTMConfig
 func (rs *ResourceStore) getLTMConfigDeepCopy(bigip cisapiv1.BigIpConfig) LTMConfig {
 	ltmConfig := make(LTMConfig)
-	for prtn, partitionConfig := range rs.bigIpMap[bigip].ltmConfig {
+	resourceConfig := rs.getBigIpResourceConfig(bigip)
+	resourceConfig.ltmConfig.Range(func(key, value interface{}) bool {
+		prtn := key.(string)
+		partitionConfig := value.(*PartitionConfig)
 		partitionConfig.PriorityMutex.RLock()
 		ltmConfig[prtn] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: partitionConfig.Priority}
 		partitionConfig.PriorityMutex.RUnlock()
@@ -1449,14 +1492,21 @@ func (rs *ResourceStore) getLTMConfigDeepCopy(bigip cisapiv1.BigIpConfig) LTMCon
 			copyRes.copyConfig(res)
 			ltmConfig[prtn].ResourceMap[rsName] = copyRes
 		}
-	}
+		return true
+	})
 	return ltmConfig
 }
 
 // getGTMConfigCopy is a WideIP reference copy of GTMConfig
 func (rs *ResourceStore) getGTMConfigCopy(bigip cisapiv1.BigIpConfig) GTMConfig {
 	gtmConfig := make(GTMConfig)
-	for partition, gtmPartitionConfig := range rs.bigIpMap[bigip].gtmConfig {
+	resourceConfig := rs.getBigIpResourceConfig(bigip)
+	if resourceConfig.gtmConfig == nil {
+		return gtmConfig
+	}
+	resourceConfig.gtmConfig.Range(func(key, value interface{}) bool {
+		partition := key.(string)
+		gtmPartitionConfig := value.(GTMPartitionConfig)
 		gtmConfig[partition] = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
@@ -1464,41 +1514,135 @@ func (rs *ResourceStore) getGTMConfigCopy(bigip cisapiv1.BigIpConfig) GTMConfig 
 			copyRes := copyGTMConfig(wip)
 			gtmConfig[partition].WideIPs[domainName] = copyRes
 		}
-	}
+		return true
+	})
 	return gtmConfig
 }
 
-func (rs *ResourceStore) updateCaches() {
-	// No need to deep copy as each RsCfg will be framed in a fresh memory block while creating live ltmConfig
-	for bigip, _ := range rs.bigIpMap {
-		rs.updateCache(bigip)
-	}
-}
-
-func (rs *ResourceStore) updateCache(bigip cisapiv1.BigIpConfig) {
+func (rs *ResourceStore) updateCaches(bigip cisapiv1.BigIpConfig) {
+	// Update the LTM cache
 	ltmConfigcache := rs.getSanitizedLTMConfigCopy(bigip)
 	gtmConfigcache := rs.getGTMConfigCopy(bigip)
-	rs.bigIpMapCache[bigip] = BigIpResourceConfig{
+	rs.bigIpMapCache[bigip] = &BigIpResourceConfigRequest{
 		ltmConfig: ltmConfigcache,
 		gtmConfig: gtmConfigcache,
 	}
 }
 
-func (rs *ResourceStore) isConfigUpdated(bigipConfig cisapiv1.BigIpConfig) bool {
-	return !reflect.DeepEqual(rs.bigIpMap[bigipConfig].ltmConfig, rs.bigIpMapCache[bigipConfig].ltmConfig) || !reflect.DeepEqual(rs.bigIpMap[bigipConfig].gtmConfig, rs.bigIpMapCache[bigipConfig].gtmConfig)
+func (rs *ResourceStore) isConfigUpdated() bool {
+	// Check if lengths are different
+	if len(rs.bigIpConfigMap) != len(rs.bigIpMapCache) {
+		return true
+	}
+	// Channels to signal completion of each condition
+	ltmResult := make(chan bool)
+	gtmResult := make(chan bool)
+	lengthResult := make(chan bool)
+
+	for bigip, resourceConfig := range rs.bigIpConfigMap {
+		// Check if lengths are different
+		go func() {
+			lengthResult <- LenSyncMap(resourceConfig.ltmConfig) != len(rs.bigIpMapCache[bigip].ltmConfig) || LenSyncMap(resourceConfig.gtmConfig) != len(rs.bigIpMapCache[bigip].gtmConfig)
+		}()
+
+		// Check LTM config
+		go func() {
+			for k, v := range rs.bigIpMapCache[bigip].ltmConfig {
+				if pcInt, ok := resourceConfig.ltmConfig.Load(k); !ok {
+					ltmResult <- true
+					close(ltmResult)
+					return // Exit early if LTM config is updated
+				} else {
+					partitionConfig := pcInt.(*PartitionConfig)
+					if !reflect.DeepEqual(v, partitionConfig) {
+						ltmResult <- true
+						close(ltmResult)
+						return // Exit early if LTM config is updated
+					}
+				}
+			}
+			ltmResult <- false
+		}()
+
+		// Check GTM config
+		go func() {
+			for k, v := range rs.bigIpMapCache[bigip].gtmConfig {
+				if pcInt, ok := resourceConfig.gtmConfig.Load(k); !ok {
+					gtmResult <- true
+					close(gtmResult)
+					return // Exit early if GTM config is updated
+				} else {
+					partitionConfig := pcInt.(GTMPartitionConfig)
+					if !reflect.DeepEqual(v, partitionConfig) {
+						gtmResult <- true
+						close(gtmResult)
+						return // Exit early if GTM config is updated
+					}
+				}
+			}
+			gtmResult <- false
+		}()
+	}
+
+	// we have 3*len(rs.bigIpConfigMap)+1 conditions to check as we have 3 conditions to check for each bigip and 1 condition for length
+	for i := 0; i < 3*len(rs.bigIpConfigMap); {
+		select {
+		case updated := <-ltmResult:
+			if updated {
+				return true
+			}
+			i++
+		case updated := <-gtmResult:
+			if updated {
+				return true
+			}
+			i++
+		case updated := <-lengthResult:
+			if updated {
+				return true
+			}
+			i++
+		}
+	}
+	return false
+}
+
+// Deletes respective VirtualServer resource configuration from  ResourceStore
+func (rs *ResourceStore) deleteVirtualServerWithPrefix(partition, rsNamePrefix string, bigipConfig cisapiv1.BigIpConfig) {
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	if rsConfig != nil {
+		if partitionConfigInt, ok := rsConfig.ltmConfig.Load(partition); ok {
+			partitionConfig := partitionConfigInt.(*PartitionConfig)
+			partitionConfig = partitionConfigInt.(*PartitionConfig)
+			for rsName, _ := range partitionConfig.ResourceMap {
+				if strings.HasPrefix(rsName, rsNamePrefix) {
+					delete(partitionConfig.ResourceMap, rsName)
+				}
+			}
+		}
+	}
 }
 
 // Deletes respective VirtualServer resource configuration from  ResourceStore
 func (rs *ResourceStore) deleteVirtualServer(partition, rsName string, bigipConfig cisapiv1.BigIpConfig) {
-	delete(rs.getPartitionResourceMap(partition, bigipConfig), rsName)
+	rsConfig := rs.getBigIpResourceConfig(bigipConfig)
+	if rsConfig != nil {
+		if partitionConfigInt, ok := rsConfig.ltmConfig.Load(partition); ok {
+			partitionConfig := partitionConfigInt.(*PartitionConfig)
+			partitionConfig = partitionConfigInt.(*PartitionConfig)
+			delete(partitionConfig.ResourceMap, rsName)
+		}
+	}
 }
 
 // Update the tenant priority in ltmConfigCache
 func (rs *ResourceStore) updatePartitionPriority(partition string, priority int, bigip cisapiv1.BigIpConfig) {
-	if _, ok := rs.bigIpMap[bigip].ltmConfig[partition]; ok {
-		rs.bigIpMap[bigip].ltmConfig[partition].PriorityMutex.Lock()
-		*rs.bigIpMap[bigip].ltmConfig[partition].Priority = priority
-		rs.bigIpMap[bigip].ltmConfig[partition].PriorityMutex.Unlock()
+	resourceConfig := rs.getBigIpResourceConfig(bigip)
+	if pcInt, ok := resourceConfig.ltmConfig.Load(partition); ok {
+		partitionConfig := pcInt.(*PartitionConfig)
+		partitionConfig.PriorityMutex.Lock()
+		*partitionConfig.Priority = priority
+		partitionConfig.PriorityMutex.Unlock()
 	}
 }
 
@@ -1846,8 +1990,11 @@ func (ctlr *Controller) deleteVirtualServer(partition, rsName string, bigipConfi
 	ctlr.resources.deleteVirtualServer(partition, rsName, bigipConfig)
 }
 
-func (ctlr *Controller) getVirtualServer(partition, rsName string, bigipLabel string) *ResourceConfig {
-	res, _ := ctlr.resources.getResourceConfig(partition, rsName, bigipLabel)
+func (ctlr *Controller) getVirtualServer(partition, rsName string, bigipLabel cisapiv1.BigIpConfig) *ResourceConfig {
+	res, err := ctlr.resources.getLTMVirtualResourceConfig(partition, rsName, bigipLabel)
+	if err != nil {
+		log.Errorf("Error getting virtual server %s: %v", rsName, err)
+	}
 	return res
 }
 
@@ -2781,17 +2928,38 @@ func ParseRewriteAction(targetUrlPath, valueUrlPath string) string {
 	return action
 }
 
-func (rs *ResourceStore) getBigIpResourceConfig(bigipLabel string) BigIpResourceConfig {
-	for bigIp, rsCfg := range rs.bigIpMap {
+func (rs *ResourceStore) getBigIpResourceConfig(bigipConfig cisapiv1.BigIpConfig) *BigIpResourceConfig {
+	// update resource map for bigipMap
+	bigIpResourceConfig, ok := rs.bigIpConfigMap[bigipConfig] // check if bigip is already present in bigipMap
+	if !ok {
+		bigIpResourceConfig = &BigIpResourceConfig{
+			ltmConfig: &sync.Map{},
+			gtmConfig: &sync.Map{},
+		}
+		rs.bigIpConfigMap[bigipConfig] = bigIpResourceConfig
+	}
+	for bigIp, rsCfg := range rs.bigIpConfigMap {
 		//Phase1 getting bigipconfig from index 0 if bigipLabel is not specified
-		if bigipLabel == "" {
+		if bigipConfig.BigIpLabel == "" {
 			return rsCfg
 		} else {
-			if bigIp.BigIpLabel == bigipLabel {
+			if bigIp.BigIpLabel == bigipConfig.BigIpLabel {
 				return rsCfg
 			}
 		}
 	}
-	log.Debugf("No BigIpResourceConfig found for bigipLabel: %s", bigipLabel)
-	return BigIpResourceConfig{}
+	return bigIpResourceConfig
+}
+
+// function to count the sync.Map length
+func LenSyncMap(m *sync.Map) int {
+	count := 0
+	if m == nil {
+		return count
+	}
+	m.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
 }

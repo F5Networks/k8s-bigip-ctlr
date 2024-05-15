@@ -2,6 +2,7 @@ package controller
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -17,7 +18,6 @@ import (
 
 var _ = Describe("Resource Config Tests", func() {
 	namespace := "default"
-	bigipLabel := BigIPLabel
 	var bigipConfig cisapiv1.BigIpConfig
 	Describe("Virtual Ports", func() {
 		var mockCtlr *mockController
@@ -35,7 +35,7 @@ var _ = Describe("Resource Config Tests", func() {
 				},
 			)
 			bigipConfig = cisapiv1.BigIpConfig{BigIpLabel: "bigip1", BigIpAddress: "10.8.3.11", DefaultPartition: "test"}
-			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+			mockCtlr.bigIpConfigMap[bigipConfig] = &BigIpResourceConfig{ltmConfig: &sync.Map{}, gtmConfig: &sync.Map{}}
 		})
 
 		It("Virtual Ports with Default Ports", func() {
@@ -1069,56 +1069,40 @@ var _ = Describe("Resource Config Tests", func() {
 			rs.Init()
 		})
 
-		It("Get Partition Resource Map", func() {
-			rsMap := rs.getPartitionResourceMap("default", bigipConfig)
-			Expect(len(rsMap)).To(Equal(0))
-			rsMap["default"] = &ResourceConfig{}
-			rsMap = rs.getPartitionResourceMap("default", bigipConfig)
-			Expect(len(rsMap)).To(Equal(1))
-		})
-
 		It("Get Resource", func() {
-
-			rsCfg, err := rs.getResourceConfig("default", "sampleVS", bigipLabel)
+			rs.getBigIpResourceConfig(bigipConfig)
+			rsCfg, err := rs.getLTMVirtualResourceConfig("default", "sampleVS", bigipConfig)
 			Expect(err).ToNot(BeNil())
-			_ = rs.getPartitionResourceMap("default", bigipConfig)
-
-			rsCfg, err = rs.getResourceConfig("default", "sampleVS", bigipLabel)
+			rsCfg, err = rs.getLTMVirtualResourceConfig("default", "sampleVS", bigipConfig)
 			Expect(err).ToNot(BeNil())
 			Expect(rsCfg).To(BeNil())
-
-			zero := 0
-			rs.bigIpMap[bigipConfig].ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-
-			rs.bigIpMap[bigipConfig].ltmConfig["default"].ResourceMap["virtualServer"] = &ResourceConfig{
+			resourceConfig := &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer",
 				},
 			}
-
-			rsCfg, err = rs.getResourceConfig("default", "virtualServer", bigipLabel)
+			rs.updatePartitionResourceMap("default", "virtualServer", resourceConfig, bigipConfig)
+			rsCfg, err = rs.getLTMVirtualResourceConfig("default", "virtualServer", bigipConfig)
 			Expect(err).To(BeNil())
 			Expect(rsCfg).NotTo(BeNil())
 			Expect(rsCfg.Virtual.Name).To(Equal("VirtualServer"))
 		})
 
 		It("Get all Resources", func() {
-			zero := 0
-			rs.bigIpMap[bigipConfig] = BigIpResourceConfig{
-				ltmConfig: make(LTMConfig),
-			}
-			rs.bigIpMap[bigipConfig].ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			rs.bigIpMap[bigipConfig].ltmConfig["default"].ResourceMap["virtualServer1"] = &ResourceConfig{
+			rs.getBigIpResourceConfig(bigipConfig)
+
+			rsCfg1 := &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer1",
 				},
 			}
-			rs.bigIpMap[bigipConfig].ltmConfig["default"].ResourceMap["virtualServer2"] = &ResourceConfig{
+			rs.updatePartitionResourceMap("default", "virtualServer1", rsCfg1, bigipConfig)
+			rsCfg2 := &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer2",
 				},
 			}
-
+			rs.updatePartitionResourceMap("default", "virtualServer2", rsCfg2, bigipConfig)
 			ltmCfg := rs.getLTMConfigDeepCopy(bigipConfig)
 			Expect(len(ltmCfg)).To(Equal(1), "Wrong number of Partitions")
 			Expect(len(ltmCfg["default"].ResourceMap)).To(Equal(2), "Wrong number of ResourceConfigs")

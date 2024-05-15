@@ -20,6 +20,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sync"
 )
 
 // NewRoute returns a new route object
@@ -219,4 +220,14 @@ func NewServicewithselectors(id, rv, namespace string, selector map[string]strin
 			Selector: selector,
 		},
 	}
+}
+
+// function to count the sync.Map length
+func LenSyncMap(m *sync.Map) int {
+	count := 0
+	m.Range(func(_, _ interface{}) bool {
+		count++
+		return true
+	})
+	return count
 }

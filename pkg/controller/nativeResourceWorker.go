@@ -68,7 +68,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
 			rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-			vs := ctlr.getVirtualServer(partition, rsName, bigipLabel)
+			vs := ctlr.getVirtualServer(partition, rsName, bigipConfig)
 			if vs != nil {
 				log.Debugf("Removing virtual %v belongs to RouteGroup: %v",
 					rsName, routeGroup)
@@ -196,9 +196,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	if !processingError {
 		var hosts []string
 		for name, rscfg := range vsMap {
-			rsMap := ctlr.resources.getPartitionResourceMap(partition, bigipConfig)
-			rsMap[name] = rscfg
-
+			ctlr.resources.updatePartitionResourceMap(partition, name, rscfg, bigipConfig)
 			if len(rscfg.MetaData.hosts) > 0 {
 				hosts = rscfg.MetaData.hosts
 			}
@@ -781,11 +779,13 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 		"",
 	)
 	// for each cluster -> referred svcs -> for each svc -> port info and bigip vs and dependant resource(route)
-	if serviceKeys, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
+	if valInt, ok := ctlr.multiClusterResources.clusterSvcMap.Load(svcKey.clusterName); ok {
+		serviceKeys := valInt.(MultiClusterServicePoolMap)
 		if svcPorts, ok2 := serviceKeys[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
 				for poolId := range poolIds {
-					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName, poolId.bigIpLabel)
+					bigipConfig := ctlr.getBIGIPConfig(poolId.bigIpLabel)
+					rsCfg := ctlr.getVirtualServer(poolId.partition, poolId.rsName, bigipConfig)
 					if rsCfg == nil {
 						continue
 					}
@@ -850,7 +850,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 									}
 								}
 								bigipConfig := ctlr.getBIGIPConfig(BigIPLabel)
-								_ = ctlr.resources.setResourceConfig(poolId.partition, poolId.rsName, freshRsCfg, bigipConfig)
+								ctlr.resources.updatePartitionResourceMap(poolId.partition, poolId.rsName, freshRsCfg, bigipConfig)
 							}
 						}
 					}
@@ -1118,7 +1118,8 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es cisapiv1.ExtendedSpec,
 		_ = ctlr.processRoutes(routeGroupKey, true)
 		// deleting the bigip partition when partition is changes
 		if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
-			if _, ok := ctlr.resources.bigIpMap[bigipconfig].ltmConfig[ctlr.resources.extdSpecMap[routeGroupKey].partition]; ok {
+			resourceConfig := ctlr.resources.getBigIpResourceConfig(bigipconfig)
+			if _, ok := resourceConfig.ltmConfig.Load(ctlr.resources.extdSpecMap[routeGroupKey].partition); ok {
 				ctlr.resources.updatePartitionPriority(ctlr.resources.extdSpecMap[routeGroupKey].partition, 1, bigipconfig)
 			}
 		}
@@ -1818,8 +1819,6 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			var clusterSvcs []cisapiv1.MultiClusterServiceReference
 			err := json.Unmarshal([]byte(annotation), &clusterSvcs)
 			if err == nil {
-				ctlr.multiClusterResources.Lock()
-				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
 					err := ctlr.checkValidExtendedService(svc)
 					if err != nil {

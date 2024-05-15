@@ -77,7 +77,7 @@ type (
 		managedResources       ManagedResources
 		resourceSelectorConfig ResourceSelectorConfig
 		CMTokenManager         *tokenmanager.TokenManager
-		bigIpMap               BigIpMap
+		bigIpConfigMap         BigIpConfigMap
 		respChan               chan *agentConfig
 		networkManager         *networkmanager.NetworkManager
 		ControllerIdentifier   string
@@ -314,9 +314,9 @@ type (
 
 	// ResourceStore contain processed LTM and GTM resource data
 	ResourceStore struct {
-		bigIpMap      BigIpMap
-		bigIpMapCache BigIpMap
-		nplStore      NPLStore
+		bigIpConfigMap BigIpConfigMap
+		bigIpMapCache  BigIpConfigCacheMap
+		nplStore       NPLStore
 		supplementContextCache
 	}
 
@@ -384,25 +384,37 @@ type (
 
 	// ResourceConfigRequest Each BigIPConfig per BigIP HA pair to put into the queue to process
 	ResourceConfigRequest struct {
-		bigIpKey            BigIpKey
-		bigIpResourceConfig BigIpResourceConfig
+		bigIpConfig         cisapiv1.BigIpConfig
+		bigIpResourceConfig BigIpResourceConfigRequest
 		reqMeta             requestMeta
 		poolMemberType      string
 	}
 
-	// BigIpMap Where key is the BigIP structure and value is the bigip-next configuration
-	BigIpMap map[cisapiv1.BigIpConfig]BigIpResourceConfig
+	// BigIpConfigMap Where key is the BigIP structure and value is the bigip-next configuration
+	BigIpConfigMap map[cisapiv1.BigIpConfig]*BigIpResourceConfig
+
+	// BigIpConfigCacheMap Where key is the BigIP structure and value is the bigip-next configuration
+	BigIpConfigCacheMap map[cisapiv1.BigIpConfig]*BigIpResourceConfigRequest
 
 	// BigIP struct to hold the bigip address and label for HA pairs
 	BIGIPConfigs []cisapiv1.BigIpConfig
 
-	BigIpKey struct {
-		BigIpAddress string
-		BigIpLabel   string
+	// BigIpResourceConfig struct to hold the bigip-next ltm and gtm configuration
+	BigIpResourceConfigRequest struct {
+		ltmConfig  LTMConfig
+		gtmConfig  GTMConfig
+		shareNodes bool
 	}
 
 	// BigIpResourceConfig struct to hold the bigip-next ltm and gtm configuration
 	BigIpResourceConfig struct {
+		ltmConfig  *sync.Map
+		gtmConfig  *sync.Map
+		shareNodes bool
+	}
+
+	// BigIpResourceConfigCache struct to hold the bigip-next ltm and gtm configuration
+	BigIpResourceConfigCache struct {
 		ltmConfig  LTMConfig
 		gtmConfig  GTMConfig
 		shareNodes bool
@@ -486,8 +498,7 @@ type (
 
 	supplementContextCache struct {
 		baseRouteConfig           cisapiv1.BaseRouteConfig
-		poolMemCache              PoolMemberCache
-		sslContext                map[string]*v1.Secret
+		poolMemCache              sync.Map
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
 		processedNativeResources  map[resourceRef]struct{}
@@ -668,8 +679,8 @@ type (
 	}
 
 	requestMap struct {
-		sync.Mutex
-		requestMap map[BigIpKey]requestMeta
+		sync.RWMutex
+		requestMap map[cisapiv1.BigIpConfig]requestMeta
 	}
 
 	requestMeta struct {
@@ -749,7 +760,7 @@ type (
 
 	PostManagers struct {
 		sync.RWMutex
-		PostManagerMap map[BigIpKey]*PostManager
+		PostManagerMap map[cisapiv1.BigIpConfig]*PostManager
 	}
 	AS3PostManager struct {
 		AS3VersionInfo  as3VersionInfo
@@ -784,11 +795,11 @@ type (
 
 	//agentConfig holds as3config and l3config to put onto post channel
 	agentConfig struct {
-		as3Config as3Config
-		l3Config  l3Config
-		id        int
-		BigIpKey  BigIpKey
-		reqMeta   requestMeta
+		as3Config   as3Config
+		l3Config    l3Config
+		id          int
+		bigIpConfig cisapiv1.BigIpConfig
+		reqMeta     requestMeta
 	}
 	//as3Config to put into post channel
 	as3Config struct {
@@ -1208,10 +1219,10 @@ type (
 
 	MultiClusterResourceStore struct {
 		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
-		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
-		sync.Mutex
+		clusterSvcMap sync.Map
 	}
-	MultiClusterServiceKey struct {
+	MultiClusterServicePoolMap map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
+	MultiClusterServiceKey     struct {
 		serviceName string
 		clusterName string
 		namespace   string

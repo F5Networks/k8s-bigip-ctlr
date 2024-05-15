@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
+	"sync"
 )
 
 func (ctlr *Controller) addInformers() {
@@ -164,7 +165,7 @@ func (ctlr *Controller) updateResourceSelectorConfig(config cisapiv1.BaseConfig)
 func (ctlr *Controller) updateBigIpConfigMap(config []cisapiv1.BigIpConfig) {
 	for _, bigipconfig := range config {
 		//initialize map with empty bigipconfig.will be updated after resource processing
-		ctlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+		ctlr.bigIpConfigMap[bigipconfig] = &BigIpResourceConfig{ltmConfig: &sync.Map{}, gtmConfig: &sync.Map{}}
 	}
 }
 

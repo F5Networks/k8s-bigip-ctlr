@@ -10,7 +10,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 )
 
-func (ctlr *Controller) enqueueReq(config BigIpResourceConfig, bigIpKey BigIpKey) requestMeta {
+func (ctlr *Controller) enqueueReq(config BigIpResourceConfigRequest, bigIpKey cisapiv1.BigIpConfig) requestMeta {
 	rm := requestMeta{
 		partitionMap: make(map[string]map[string]string, len(config.ltmConfig)),
 	}
@@ -35,18 +35,18 @@ func (ctlr *Controller) enqueueReq(config BigIpResourceConfig, bigIpKey BigIpKey
 
 func (ctlr *Controller) responseHandler(respChan chan *agentConfig) {
 	// todo: update only when there is a change(success to fail or vice versa) in tenant status
-	ctlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+	ctlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 	//TODO: Need to get bigipLabel from rspchan
 	bigipLabel := BigIPLabel
 	bigipConfig := ctlr.getBIGIPConfig(bigipLabel)
 	for config := range respChan {
 		ctlr.requestMap.Lock()
-		latestRequestMeta, _ := ctlr.requestMap.requestMap[config.BigIpKey]
+		latestRequestMeta, _ := ctlr.requestMap.requestMap[config.bigIpConfig]
 		ctlr.requestMap.Unlock()
 		if len(config.as3Config.failedTenants) > 0 && latestRequestMeta.id == config.id {
 			// if the current request id is same as the failed tenant request id, then retry the failed tenants
 			ctlr.RequestHandler.PostManagers.RLock()
-			pm := ctlr.RequestHandler.PostManagers.PostManagerMap[config.BigIpKey]
+			pm := ctlr.RequestHandler.PostManagers.PostManagerMap[config.bigIpConfig]
 			// Delay the retry of failed tenants
 			<-time.After(timeoutMedium)
 			pm.postChan <- *config

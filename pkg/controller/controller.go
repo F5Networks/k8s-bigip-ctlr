@@ -67,7 +67,7 @@ func RunController(params Params) *Controller {
 	}
 
 	// setup postmanager for bigip label
-	for bigip, _ := range ctlr.bigIpMap {
+	for bigip, _ := range ctlr.bigIpConfigMap {
 		ctlr.RequestHandler.startPostManager(bigip)
 	}
 
@@ -104,9 +104,9 @@ func NewController(params Params, statusManager *statusmanager.StatusManager) *C
 			ManageTransportServer: true,
 			ManageIL:              true,
 		},
-		bigIpMap:   make(BigIpMap),
-		PostParams: PostParams{},
-		clientsets: params.ClientSets,
+		bigIpConfigMap: make(BigIpConfigMap),
+		PostParams:     PostParams{},
+		clientsets:     params.ClientSets,
 	}
 
 	log.Debug("Controller Created")
@@ -132,7 +132,7 @@ func NewController(params Params, statusManager *statusmanager.StatusManager) *C
 
 func (ctlr *Controller) NewRequestHandler(userAgent string, httpClientMetrics bool) {
 	ctlr.RequestHandler = &RequestHandler{
-		PostManagers:      PostManagers{sync.RWMutex{}, make(map[BigIpKey]*PostManager)},
+		PostManagers:      PostManagers{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]*PostManager)},
 		reqChan:           make(chan ResourceConfigRequest, 1),
 		userAgent:         userAgent,
 		respChan:          ctlr.respChan,
@@ -211,6 +211,6 @@ func (ctlr *Controller) Stop() {
 
 // Set the resource count for prometheus metrics
 func (ctlr *Controller) setPrometheusResourceCount() {
-	prometheus.ManagedServices.Set(float64(len(ctlr.resources.poolMemCache)))
+	prometheus.ManagedServices.Set(float64(LenSyncMap(&ctlr.resources.poolMemCache)))
 	prometheus.ManagedTransportServers.Set(float64(len(ctlr.TeemData.ResourceType.TransportServer) + len(ctlr.TeemData.ResourceType.IPAMTS)))
 }

@@ -8,6 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/util/workqueue"
+	"sync"
 )
 
 var _ = Describe("Node Poller Handler", func() {
@@ -101,17 +103,18 @@ var _ = Describe("Node Poller Handler", func() {
 		networkManager.DeviceMap["10.8.3.11"] = "dummy-id"
 		networkManager.L3ForwardStore.InstanceStaticRoutes["dummy-id"] = networkmanager.StaticRouteMap{}
 		mockCtlr.networkManager = networkManager
-		mockCtlr.resources = NewResourceStore()
-		bigipconfig := cisapiv1.BigIpConfig{
+		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+		mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
+		rMeta := requestMeta{
+			partitionMap: make(map[string]map[string]string),
+		}
+		rMeta.partitionMap[DEFAULT_PARTITION] = make(map[string]string)
+		mockCtlr.requestMap.requestMap[cisapiv1.BigIpConfig{
 			BigIpLabel:       "bigip1",
 			BigIpAddress:     "10.8.3.11",
-			DefaultPartition: "test",
-		}
-		mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
-		ltmConfig := make(map[string]*PartitionConfig, 0)
-		ltmConfig["test"] = &PartitionConfig{}
-		mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: ltmConfig, gtmConfig: make(GTMConfig)}
-
+			DefaultPartition: DEFAULT_PARTITION,
+		}] = rMeta
 		// Static routes with Node taints, CNI flannel, no podCIDR
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
@@ -320,6 +323,7 @@ var _ = Describe("Node Poller Handler", func() {
 		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
 		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
 		Expect(l3Forward.Config.Gateway).To(Equal("1.2.3.4"))
+		mockCtlr.resourceQueue.ShutDown()
 	})
 
 	//Describe("Processes CIS monitored resources on node update", func() {

@@ -46,7 +46,7 @@ var _ = Describe("Informers Tests", func() {
 				BigIpLabel:   "bigip1",
 				BigIpAddress: "10.8.3.11",
 			}
-			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+			mockCtlr.bigIpConfigMap[bigipConfig] = &BigIpResourceConfig{ltmConfig: &sync.Map{}, gtmConfig: &sync.Map{}}
 		})
 		It("Resource Informers", func() {
 			err := mockCtlr.addNamespacedInformers(namespace, false)
@@ -85,11 +85,10 @@ var _ = Describe("Informers Tests", func() {
 				BigIpAddress:     "10.8.3.11",
 				DefaultPartition: "test",
 			}
-			mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
-			mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+			mockCtlr.bigIpConfigMap[bigipconfig] = &BigIpResourceConfig{ltmConfig: &sync.Map{}, gtmConfig: &sync.Map{}}
+			mockCtlr.resources.bigIpConfigMap[bigipconfig] = &BigIpResourceConfig{ltmConfig: &sync.Map{}, gtmConfig: &sync.Map{}}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
+			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigipconfig] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				postChan:     make(chan agentConfig, 1),
 			}
@@ -129,15 +128,19 @@ var _ = Describe("Informers Tests", func() {
 			zero := 0
 			partition := mockCtlr.getPartitionForBIGIP("")
 			bigipConfig := mockCtlr.getBIGIPConfig(bigipLabel)
-			mockCtlr.resources.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig)}
-			mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			bigIPConfig := &BigIpResourceConfig{ltmConfig: &sync.Map{}}
+			bigIPConfig.ltmConfig.Store(partition, &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero})
+			mockCtlr.resources.bigIpConfigMap[bigipConfig] = bigIPConfig
 			mockCtlr.enqueueUpdatedVirtualServer(vs, newVS)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
 			time.Sleep(10 * time.Second)
-			Expect(*mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
-			delete(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig, partition)
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			partitionConfig, ok := resourceConfig.ltmConfig.Load(partition)
+			Expect(ok).To(BeTrue(), "Partition not found")
+			Expect(*partitionConfig.(*PartitionConfig).Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			mockCtlr.resources.bigIpConfigMap[bigipConfig].ltmConfig.Delete(partition)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
@@ -287,9 +290,14 @@ var _ = Describe("Informers Tests", func() {
 			bigipLabel := BigIPLabel
 			partition := mockCtlr.getPartitionForBIGIP(bigipLabel)
 			bigipConfig := mockCtlr.getBIGIPConfig(bigipLabel)
-			mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			bigIPResourceConfig := &BigIpResourceConfig{ltmConfig: &sync.Map{}}
+			bigIPResourceConfig.ltmConfig.Store(partition, &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero})
+			mockCtlr.resources.bigIpConfigMap[bigipConfig] = bigIPResourceConfig
 			mockCtlr.enqueueUpdatedTransportServer(newTS, tsWithPartition)
-			Expect(*mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			partitionConfig, ok := resourceConfig.ltmConfig.Load(partition)
+			Expect(ok).To(BeTrue(), "Partition not found")
+			Expect(*partitionConfig.(*PartitionConfig).Priority).To(BeEquivalentTo(1), "Priority Not Updated")
 
 			// Verify TS status update event is not queued for processing
 			queueLen := mockCtlr.resourceQueue.Len()
@@ -366,9 +374,14 @@ var _ = Describe("Informers Tests", func() {
 			bigipLabel := BigIPLabel
 			partition := mockCtlr.getPartitionForBIGIP(bigipLabel)
 			bigipConfig := mockCtlr.getBIGIPConfig(bigipLabel)
-			mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			bigIPResourceConfig := &BigIpResourceConfig{ltmConfig: &sync.Map{}}
+			bigIPResourceConfig.ltmConfig.Store(partition, &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero})
+			mockCtlr.resources.bigIpConfigMap[bigipConfig] = bigIPResourceConfig
 			mockCtlr.enqueueUpdatedIngressLink(newIL, ilWithPartition)
-			Expect(*mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			resourceConfig := mockCtlr.resources.getBigIpResourceConfig(bigipConfig)
+			partitionConfig, ok := resourceConfig.ltmConfig.Load(partition)
+			Expect(ok).To(BeTrue(), "Partition not found")
+			Expect(*partitionConfig.(*PartitionConfig).Priority).To(BeEquivalentTo(1), "Priority Not Updated")
 
 		})
 
@@ -412,14 +425,18 @@ var _ = Describe("Informers Tests", func() {
 					ExternalDNS:  make(map[string]int),
 				},
 			}
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
-			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+			bigipconfig := cisapiv1.BigIpConfig{
+				BigIpLabel:       "bigip1",
+				BigIpAddress:     "10.8.3.11",
+				DefaultPartition: "test",
+			}
+			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigipconfig] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				postChan:     make(chan agentConfig, 1),
 				PostParams:   PostParams{},
 			}
 
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 
 			mockCtlr.enqueueExternalDNS(edns)
 			Expect(mockCtlr.processResources()).To(Equal(true))
@@ -697,7 +714,7 @@ var _ = Describe("Informers Tests", func() {
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 			nsObj := v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
-			mockCtlr.clientsets.KubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
+			_, _ = mockCtlr.clientsets.KubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
 			ns := mockCtlr.getWatchingNamespaces()
 			Expect(ns).ToNot(BeNil())
 			mockCtlr.nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")

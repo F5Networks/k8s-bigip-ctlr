@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/controller"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -258,9 +259,11 @@ var _ = Describe("Main Tests", func() {
 			Expect(*cmURL).To(Equal("https://cm.example.com"))
 			Expect(*cmUsername).To(Equal("user"))
 			Expect(*cmPassword).To(Equal("pass"))
-			kubeClient = fake.NewSimpleClientset()
+			clientSets = controller.ClientSets{
+				KubeClient: fake.NewSimpleClientset(),
+			}
 			cfgFoo := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "foomap", Namespace: "default"}, Data: map[string]string{"data": "foo"}}
-			_, err = kubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cfgFoo, metav1.CreateOptions{})
+			_, err = clientSets.KubeClient.CoreV1().ConfigMaps("default").Create(context.TODO(), cfgFoo, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			cfgFoo, err = getConfigMapUsingNamespaceAndName("default", "foomap")
 			Expect(err).ToNot(HaveOccurred())

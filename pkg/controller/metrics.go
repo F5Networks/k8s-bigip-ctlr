@@ -35,10 +35,10 @@ func (ctlr *Controller) enableHttpEndpoint(httpAddress string) {
 
 func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if ctlr.clientsets.kubeClient != nil {
+		if ctlr.clientsets.KubeClient != nil {
 			var response string
 			// Check if kube-api server is reachable
-			_, err := ctlr.clientsets.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+			_, err := ctlr.clientsets.KubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
 			if err != nil {
 				response = "kube-api server is not reachable."
 			}
@@ -51,7 +51,7 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 			// if err2 == nil && err == nil {
 			if err == nil {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("Ok"))
+				w.Write([]byte(Ok))
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte(response))

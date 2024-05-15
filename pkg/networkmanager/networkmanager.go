@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"strings"
 	"sync"
@@ -29,6 +31,7 @@ const (
 	timeoutSmall         = 2 * time.Second
 	timeoutLarge         = 180 * time.Second
 	DefaultL3Network     = "Default L3-Network"
+	Ok                   = "Ok"
 )
 
 // NetworkManager is responsible for managing the network objects on central manager.
@@ -42,8 +45,13 @@ type (
 		httpClient     *http.Client
 	}
 
+	BigIP struct {
+		IPaddress  string
+		InstanceId string
+	}
+
 	// RouteStore static route config store for each instance key is the instance id
-	RouteStore map[string]map[StaticRouteConfig]L3Forward
+	RouteStore map[BigIP]map[StaticRouteConfig]L3Forward
 
 	// L3ForwardStore static route config store for each instance key is the instance id
 	L3ForwardStore struct {
@@ -71,10 +79,10 @@ type (
 
 	// NetworkConfigRequest represents the network config request
 	NetworkConfigRequest struct {
-		NetworkConfig   interface{}
-		BigIpInstanceId string
-		Action          string
-		retryTimeout    int
+		NetworkConfig interface{}
+		BigIp         BigIP
+		Action        string
+		retryTimeout  int
 	}
 )
 
@@ -447,16 +455,16 @@ func (nm *NetworkManager) NetworkRequestHandler(store interface{}) {
 	case RouteStore:
 		routeStore := store.(RouteStore)
 		// Create the new l3 forwards
-		for instanceId, rMap := range routeStore {
+		for bigip, rMap := range routeStore {
 			nm.L3ForwardStore.RLock()
-			if cachedIsr, ok := nm.L3ForwardStore.InstanceStaticRoutes[instanceId]; ok {
+			if cachedIsr, ok := nm.L3ForwardStore.InstanceStaticRoutes[bigip.InstanceId]; ok {
 				// enqueue the deleted routes
 				for config, l3Forward := range cachedIsr {
 					if _, ok := rMap[config]; !ok {
 						nm.NetworkChan <- &NetworkConfigRequest{
-							NetworkConfig:   l3Forward,
-							BigIpInstanceId: instanceId,
-							Action:          Delete,
+							NetworkConfig: l3Forward,
+							BigIp:         bigip,
+							Action:        Delete,
 						}
 					}
 				}
@@ -464,9 +472,9 @@ func (nm *NetworkManager) NetworkRequestHandler(store interface{}) {
 				for config, l3Forward := range rMap {
 					if _, ok := cachedIsr[config]; !ok {
 						nm.NetworkChan <- &NetworkConfigRequest{
-							NetworkConfig:   l3Forward,
-							BigIpInstanceId: instanceId,
-							Action:          Create,
+							NetworkConfig: l3Forward,
+							BigIp:         bigip,
+							Action:        Create,
 						}
 					}
 				}
@@ -498,10 +506,14 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 	} else {
 		log.Debugf("%v Posting request %v", networkManagerPrefix, req)
 	}
+	// bigipStatus
+	bigipStatus := cisapiv1.BigIPStatus{
+		BigIPAddress: req.BigIp.IPaddress,
+	}
 	switch req.Action {
 	case Create:
 		// check if the l3 forward already exists
-		if nm.L3ForwardStore.getL3ForwardEntry(req.BigIpInstanceId, *l3Forward) {
+		if nm.L3ForwardStore.getL3ForwardEntry(req.BigIp.InstanceId, *l3Forward) {
 			log.Debugf("%v l3 forward already exists hence skipping the creation: %v", networkManagerPrefix, l3Forward)
 			return
 		}
@@ -509,40 +521,61 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 		// check if the entry is present in the cache
 		// if present(true) means event is in progress - skip the processing of event
 		// if not(false) means this is a new event and will be processed further
-		if nm.L3ForwardStore.checkL3ForwardEntryInCache(req.BigIpInstanceId, req.retryTimeout, *l3Forward) {
+		if nm.L3ForwardStore.checkL3ForwardEntryInCache(req.BigIp.InstanceId, req.retryTimeout, *l3Forward) {
 			return
 		}
+
 		// create the l3 forward
-		err := nm.PostL3Forward(nm.CMTokenManager.ServerURL+InstancesURI+req.BigIpInstanceId+L3Forwards, nm.CMTokenManager.GetToken(), l3Forward)
+		err := nm.PostL3Forward(nm.CMTokenManager.ServerURL+InstancesURI+req.BigIp.InstanceId+L3Forwards, nm.CMTokenManager.GetToken(), l3Forward)
 		if err != nil {
+			bigipStatus.L3Status = &cisapiv1.L3Status{
+				Message:       Create + Failed,
+				Error:         fmt.Sprintf("%v error while creating l3 forward %v", networkManagerPrefix, err),
+				LastSubmitted: metav1.Now(),
+			}
+			nm.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
 			// as the request is failed retrying the request
-			log.Errorf("%v error while creating l3 forward %v", networkManagerPrefix, err)
 			req.retryTimeout = getRetryTimeout(req.retryTimeout)
 			nm.NetworkChan <- req
 			return
 		}
 		log.Debugf("%v successfully created l3 forward %v", networkManagerPrefix, l3Forward)
-		nm.L3ForwardStore.addL3ForwardEntry(req.BigIpInstanceId, *l3Forward)
+		bigipStatus.L3Status = &cisapiv1.L3Status{
+			Message:       Ok,
+			LastSubmitted: metav1.Now(),
+		}
+		nm.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
+		nm.L3ForwardStore.addL3ForwardEntry(req.BigIp.InstanceId, *l3Forward)
 		// once event is processed remove entry from cache
-		nm.L3ForwardStore.removeL3ForwardEntryFromCache(req.BigIpInstanceId, *l3Forward)
+		nm.L3ForwardStore.removeL3ForwardEntryFromCache(req.BigIp.InstanceId, *l3Forward)
 	case Delete:
 		log.Warningf("delete event")
 		// check if the l3 forward already exists
-		if !nm.L3ForwardStore.getL3ForwardEntry(req.BigIpInstanceId, *l3Forward) {
+		if !nm.L3ForwardStore.getL3ForwardEntry(req.BigIp.InstanceId, *l3Forward) {
 			log.Debugf("%v l3 forward does not exist hence skipping the deletion: %v", networkManagerPrefix, l3Forward)
 			return
 		}
 		// delete the l3 forward
-		err := nm.DeleteL3Forward(req.BigIpInstanceId, l3Forward.ID)
+		err := nm.DeleteL3Forward(req.BigIp.InstanceId, l3Forward.ID)
 		if err != nil {
-			log.Errorf("%v error while deleting l3 forward %v", networkManagerPrefix, err)
+			bigipStatus.L3Status = &cisapiv1.L3Status{
+				Message:       Delete + Failed,
+				Error:         fmt.Sprintf("%v error while deleting l3 forward %v", networkManagerPrefix, err),
+				LastSubmitted: metav1.Now(),
+			}
+			nm.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
 			req.retryTimeout = getRetryTimeout(req.retryTimeout)
 			// as the request is failed retrying the request
 			nm.NetworkChan <- req
 			return
 		}
+		bigipStatus.L3Status = &cisapiv1.L3Status{
+			Message:       Ok,
+			LastSubmitted: metav1.Now(),
+		}
+		nm.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
 		log.Debugf("%v successfully deleted l3 forward %v", networkManagerPrefix, l3Forward)
-		nm.L3ForwardStore.deleteL3ForwardEntry(req.BigIpInstanceId, l3Forward.Config)
+		nm.L3ForwardStore.deleteL3ForwardEntry(req.BigIp.InstanceId, l3Forward.Config)
 	}
 }
 

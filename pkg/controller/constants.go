@@ -6,7 +6,6 @@ import (
 )
 
 const (
-
 	// DefaultCustomResourceLabel is a label used for F5 Custom Resources.
 	DefaultCustomResourceLabel = "f5cr in (true)"
 	// VirtualServer is a F5 Custom Resource Kind.
@@ -154,6 +153,9 @@ const (
 	timeoutSmall  = 5 * time.Second
 	timeoutMedium = 30 * time.Second
 	timeoutLarge  = 180 * time.Second
+
+	Ok              = "Ok"
+	UnknownResponse = "unknown response"
 )
 
 const (
@@ -239,3 +241,10 @@ const CmDeclareApi = "/api/v1/spaces/default/appsvcs/declare"
 const CmDeclareTaskApi = "/api/v1/spaces/default/appsvcs/task/"
 
 const CmDeclareInfoApi = "/api/v1/spaces/default/appsvcs/info"
+
+// Constants for Errors
+const (
+	NetworkConfigInvalid   = "network config is invalid"
+	NamespaceConfigInvalid = "namespace config is invalid"
+	DeployConfigInvalid    = "deploy config is invalid"
+)

@@ -6,10 +6,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	"io"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 )
@@ -18,16 +20,20 @@ const (
 	//CM login url
 	CMLoginURL              = "/api/login"
 	CMAccessTokenExpiration = 5 * time.Minute
+	TokenFetchFailed        = "Failed to fetch token"
+	Ok                      = "OK"
+	RetryInterval           = time.Duration(10)
 )
 
 // TokenManager is responsible for managing the authentication token.
 type TokenManager struct {
-	mu           sync.Mutex
-	token        string
-	ServerURL    string
-	credentials  Credentials
-	SslInsecure  bool
-	TrustedCerts string
+	mu            sync.Mutex
+	token         string
+	ServerURL     string
+	credentials   Credentials
+	SslInsecure   bool
+	TrustedCerts  string
+	StatusManager statusmanager.StatusManagerInterface
 }
 
 // Credentials represent the username and password used for authentication.
@@ -44,12 +50,13 @@ type TokenResponse struct {
 }
 
 // NewTokenManager creates a new instance of TokenManager.
-func NewTokenManager(serverURL string, credentials Credentials, trustedCerts string, sslInsecure bool) *TokenManager {
+func NewTokenManager(serverURL string, credentials Credentials, trustedCerts string, sslInsecure bool, statusManager statusmanager.StatusManagerInterface) *TokenManager {
 	return &TokenManager{
-		ServerURL:    serverURL,
-		credentials:  credentials,
-		TrustedCerts: trustedCerts,
-		SslInsecure:  sslInsecure,
+		ServerURL:     serverURL,
+		credentials:   credentials,
+		TrustedCerts:  trustedCerts,
+		SslInsecure:   sslInsecure,
+		StatusManager: statusManager,
 	}
 }
 
@@ -61,12 +68,14 @@ func (tm *TokenManager) GetToken() string {
 	return token
 }
 
-// FetchToken retrieves a new token from the CM.
-func (tm *TokenManager) FetchToken() error {
+// SyncTokenWithoutRetry retrieves a new token from the CM.
+func (tm *TokenManager) SyncTokenWithoutRetry() (err error, exit bool) {
+	var errMessage error
 	// Prepare the request payload
 	payload, err := json.Marshal(tm.credentials)
 	if err != nil {
-		return err
+		errMessage = fmt.Errorf("marshaling failed for credentials %v. error: %v", tm.credentials, err.Error())
+		return errMessage, false
 	}
 
 	// Configure CA certificates
@@ -95,32 +104,41 @@ func (tm *TokenManager) FetchToken() error {
 	// Send POST request for token
 	resp, err := client.Post(tm.ServerURL+CMLoginURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
-		log.Errorf("[Token Manager] Unable to establish connection with Central Manager, Probable reasons might be: invalid custom-certs (or) custom-certs not provided using --trusted-certs-cfgmap flag")
-		os.Exit(1)
+		errMessage = fmt.Errorf("unable to establish connection with Central Manager, Probable reasons might be: invalid custom-certs (or) custom-certs not provided using --trusted-certs-cfgmap flag")
+		return errMessage, true
 	}
 	defer resp.Body.Close()
 
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		errMessage = fmt.Errorf("unable to read response body %v. error: %v", resp.Body, err.Error())
+		return errMessage, false
 	}
 
 	// Check for successful response
 	if resp.StatusCode != http.StatusOK {
 		switch resp.StatusCode {
 		case http.StatusUnauthorized:
-			log.Errorf("[Token Manager] Unauthorized to fetch token from Central Manager. "+
+			errMessage = fmt.Errorf("unauthorized to fetch token from Central Manager. "+
 				"Please check the credentials, status code: %d, response: %s", resp.StatusCode, body)
-			os.Exit(1)
+			return errMessage, true
 		case http.StatusServiceUnavailable:
-			return fmt.Errorf("[Token Manager] failed to get token due to service unavailability, "+
+			tm.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.CMStatus{
+				Message: TokenFetchFailed,
+				Error: fmt.Sprintf("failed to get token due to service unavailability, "+
+					"status code: %d, response: %s", resp.StatusCode, body),
+				LastUpdated: metav1.Now(),
+			})
+			errMessage = fmt.Errorf("failed to get token due to service unavailability, "+
 				"status code: %d, response: %s", resp.StatusCode, body)
+			return errMessage, false
 		case http.StatusNotFound, http.StatusMovedPermanently:
-			log.Infof("[Token Manager] requested page/api not found, status code: %d, response: %s", resp.StatusCode, body)
-			os.Exit(1)
+			errMessage = fmt.Errorf("requested page/api not found, status code: %d, response: %s", resp.StatusCode, body)
+			return errMessage, true
 		default:
-			return fmt.Errorf("failed to get token, status code: %d, response: %s", resp.StatusCode, body)
+			errMessage = fmt.Errorf("failed to get token, status code: %d, response: %s", resp.StatusCode, body)
+			return errMessage, false
 		}
 	}
 
@@ -128,44 +146,54 @@ func (tm *TokenManager) FetchToken() error {
 	tokenResponse := TokenResponse{}
 	err = json.Unmarshal(body, &tokenResponse)
 	if err != nil {
-		return err
+		errMessage = fmt.Errorf("unmarshaling failed for token response %v. error: %v", body, err.Error())
+		return errMessage, false
 	}
 
 	// Keep the token updated in the TokenManager
 	tm.mu.Lock()
 	tm.token = tokenResponse.AccessToken
 	tm.mu.Unlock()
-
-	return nil
+	log.Debugf("[Token Manager] Successfully fetched token from Central Manager")
+	return nil, false
 }
 
-// SyncToken maintains valid token. It fetches a new token before expiry.
-func (tm *TokenManager) SyncToken(stopCh chan struct{}) {
-	// retryInterval is the time to wait before retrying to fetch token on the event of failure
-	retryInterval := time.Duration(10)
+// Start maintains valid token. It fetches a new token before expiry.
+func (tm *TokenManager) Start(stopCh chan struct{}) {
 	// Set ticker to 1 minute less than token expiry time to ensure token is refreshed on time
 	tokenUpdateTicker := time.Tick(CMAccessTokenExpiration - 1*time.Minute)
 	for {
 		select {
 		case <-tokenUpdateTicker:
-			tm.syncTokenHelper(retryInterval)
+			tm.SyncToken()
 		case <-stopCh:
 			log.Debug("[Token Manager] Stopping synchronizing token")
+			close(stopCh)
 			return
 		}
 	}
 }
 
-// syncTokenHelper is a helper function to fetch token and retry on failure
-func (tm *TokenManager) syncTokenHelper(retryInterval time.Duration) {
+// SyncToken is a helper function to fetch token and retry on failure
+func (tm *TokenManager) SyncToken() {
 	for {
-		time.Sleep(retryInterval * time.Second)
-		err := tm.FetchToken()
+		err, exit := tm.SyncTokenWithoutRetry()
 		if err != nil {
-			log.Errorf("[Token Manager] Error fetching token from Central Manager: %s", err)
-			log.Debugf("[Token Manager] Retrying to fetch token in %d seconds", retryInterval)
+			tm.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", exit, &cisapiv1.CMStatus{
+				Message:     TokenFetchFailed,
+				Error:       fmt.Sprintf("%v", err.Error()),
+				LastUpdated: metav1.Now(),
+			})
+			if !exit {
+				log.Debugf("[Token Manager] Retrying to fetch token in %d seconds", RetryInterval)
+				time.Sleep(RetryInterval * time.Second)
+			}
 		} else {
-			log.Debugf("[Token Manager] Successfully fetched token from Central Manager")
+			// update the CM status
+			tm.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.CMStatus{
+				Message:     Ok,
+				LastUpdated: metav1.Now(),
+			})
 			break
 		}
 	}

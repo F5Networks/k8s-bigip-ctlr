@@ -2,42 +2,53 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
 	"strings"
 )
 
-func (ctlr *Controller) setupInformers() error {
+func (ctlr *Controller) addInformers() {
 	for n := range ctlr.namespaces {
 		if err := ctlr.addNamespacedInformers(n, false); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
-			return err
 		}
 	}
 	nodeInf := ctlr.getNodeInformer("")
 	ctlr.multiClusterNodeInformers[""] = &nodeInf
 	ctlr.addNodeEventUpdateHandler(&nodeInf)
-	return nil
 }
 
 func (ctlr *Controller) initController() {
 	// Initialize the controller with base resources in CIS config CR
 	key := strings.Split(ctlr.CISConfigCRKey, "/")
-	configCR, err := ctlr.clientsets.kubeCRClient.CisV1().DeployConfigs(key[0]).Get(context.TODO(), key[1], metaV1.GetOptions{})
+	configCR, err := ctlr.clientsets.KubeCRClient.CisV1().DeployConfigs(key[0]).Get(context.TODO(), key[1], metaV1.GetOptions{})
 	if err != nil {
-		log.Errorf("%v", err)
-		os.Exit(1)
+		log.Fatalf("%v", err)
 	}
 
 	ctlr.updateResourceSelectorConfig(configCR.Spec.BaseConfig)
 	ctlr.updateBigIpConfigMap(configCR.Spec.BigIpConfig)
 
 	// process the CNI config
-	ctlr.processCNIConfig(configCR)
+	err = ctlr.processCNIConfig(configCR)
+	if err != nil {
+		ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", true, &cisapiv1.NetworkConfigStatus{
+			Message:     NetworkConfigInvalid,
+			Error:       fmt.Sprintf("Error processing network config %v, error: %v ", configCR.Spec.NetworkConfig, err),
+			LastUpdated: metaV1.Now(),
+		})
+	} else {
+		ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.NetworkConfigStatus{
+			Message:     Ok,
+			Error:       "",
+			LastUpdated: metaV1.Now(),
+		})
+	}
 	// create the network manager if required
 	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
 		// create a new network manager
@@ -190,7 +201,7 @@ func (ctlr *Controller) resetControllerForNamespaceLabel() {
 	ctlr.resources = NewResourceStore()
 	// reinitialize the informers
 	ctlr.initController()
-	ctlr.setupInformers()
+	ctlr.addInformers()
 	ctlr.startInformers()
 	// process the resources
 	ctlr.initState = true

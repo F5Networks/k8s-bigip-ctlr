@@ -1,6 +1,7 @@
 package tokenmanager
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager/mockmanager"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
@@ -17,10 +18,11 @@ var _ = Describe("Token Manager Tests", func() {
 			BeforeEach(func() {
 				// Mock the token server
 				server = ghttp.NewServer()
+				mockStatusManager := mockmanager.NewMockStatusManager()
 				tokenManager = NewTokenManager(server.URL(), Credentials{
 					Username: "admin",
 					Password: "admin",
-				}, "", true)
+				}, "", true, mockStatusManager)
 			})
 			AfterEach(func() {
 				// Stop the mock token server
@@ -37,8 +39,7 @@ var _ = Describe("Token Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCode, response),
 					))
-				err := tokenManager.FetchToken()
-				Expect(err).NotTo(BeNil(), "Error should not be nil")
+				tokenManager.SyncTokenWithoutRetry()
 				token := tokenManager.GetToken()
 				Expect(token).To(BeEmpty(), "Token should be empty")
 			})
@@ -53,8 +54,7 @@ var _ = Describe("Token Manager Tests", func() {
 						ghttp.VerifyRequest("POST", "/api/login"),
 						ghttp.RespondWithJSONEncoded(statusCode, response),
 					))
-				err := tokenManager.FetchToken()
-				Expect(err).To(BeNil(), "Error should be nil")
+				tokenManager.SyncTokenWithoutRetry()
 				token := tokenManager.GetToken()
 				Expect(token).To(Equal(response.AccessToken), "Token should not be nil")
 			})

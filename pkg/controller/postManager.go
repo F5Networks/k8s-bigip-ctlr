@@ -22,7 +22,10 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	"io"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"strings"
 	"time"
@@ -222,7 +225,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 		postMgr.handleResponseStatusNotFound(responseMap, cfg)
 	default:
 		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleResponseOthers(responseMap, cfg)
+		postMgr.handleResponseOthers(responseMap, cfg, httpResp.StatusCode)
 	}
 }
 
@@ -507,6 +510,22 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 	} else {
 		unknownResponse = true
 	}
+	bigipStatus := cisv1.BigIPStatus{
+		BigIPAddress: cfg.targetAddress,
+	}
+	if unknownResponse {
+		bigipStatus.AS3Status = &cisv1.AS3Status{
+			Message:       UnknownResponse,
+			Error:         fmt.Sprintf("Unknown response from BIG-IP: %v", responseMap),
+			LastSubmitted: metav1.Now(),
+		}
+	} else {
+		bigipStatus.AS3Status = &cisv1.AS3Status{
+			Message:       Ok,
+			LastSubmitted: metav1.Now(),
+		}
+	}
+	postMgr.tokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}
@@ -627,6 +646,23 @@ func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}
 	} else {
 		unknownResponse = true
 	}
+	bigipStatus := cisv1.BigIPStatus{
+		BigIPAddress: cfg.targetAddress,
+	}
+	if unknownResponse {
+		bigipStatus.AS3Status = &cisv1.AS3Status{
+			Message:       UnknownResponse,
+			Error:         fmt.Sprintf("Unknown response from BIG-IP: %v", responseMap),
+			LastSubmitted: metav1.Now(),
+		}
+	} else {
+		bigipStatus.AS3Status = &cisv1.AS3Status{
+			Message:       http.StatusText(http.StatusMultiStatus),
+			Error:         fmt.Sprintf("Unknown response from BIG-IP: %v", responseMap),
+			LastSubmitted: metav1.Now(),
+		}
+	}
+	postMgr.tokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}
@@ -638,6 +674,14 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 		cfg.acceptedTaskId = respId
 		log.Debugf("[AS3]%v Response from BIG-IP: code 201/202 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, respId, timeoutMedium)
 	}
+	postMgr.tokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false,
+		&cisv1.BigIPStatus{
+			BigIPAddress: cfg.targetAddress,
+			AS3Status: &cisv1.AS3Status{
+				Message:       http.StatusText(http.StatusAccepted),
+				LastSubmitted: metav1.Now(),
+			},
+		})
 }
 
 func (postMgr *PostManager) handleDocumentAPIResponseAccepted(responseMap map[string]interface{}, docID string, cfg *as3Config) {
@@ -648,35 +692,59 @@ func (postMgr *PostManager) handleDocumentAPIResponseAccepted(responseMap map[st
 }
 
 func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg *as3Config) {
+	var errorMsg string
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
+		errorMsg = fmt.Sprintf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
+	} else {
+		errorMsg = fmt.Sprintf("%v[AS3]%v Unknown response from BIG-IP: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, responseMap)
 	}
 	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", postMgr.postManagerPrefix, timeoutMedium)
+	postMgr.tokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false,
+		&cisv1.BigIPStatus{
+			BigIPAddress: cfg.targetAddress,
+			AS3Status: &cisv1.AS3Status{
+				Message:       http.StatusText(http.StatusServiceUnavailable),
+				Error:         errorMsg,
+				LastSubmitted: metav1.Now(),
+			},
+		})
 	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, cfg, "", false)
 }
 
 func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, cfg *as3Config) {
 	unknownResponse := false
+	var errorMsg string
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
+		errorMsg = fmt.Sprintf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
 	} else {
+		errorMsg = fmt.Sprintf("Unknown response from BIG-IP: %v", responseMap)
 		unknownResponse = true
 	}
+	postMgr.tokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false,
+		&cisv1.BigIPStatus{
+			BigIPAddress: cfg.targetAddress,
+			AS3Status: &cisv1.AS3Status{
+				Message:       http.StatusText(http.StatusNotFound),
+				Error:         errorMsg,
+				LastSubmitted: metav1.Now(),
+			},
+		})
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}
 	postMgr.updateTenantResponseCode(http.StatusNotFound, cfg, "", false)
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *as3Config) {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *as3Config, httpCode int) {
 	unknownResponse := false
+	var errorMsg string
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			if v, ok := value.(map[string]interface{}); ok {
 				code, ok1 := v["code"].(float64)
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
-					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					errorMsg = fmt.Sprintf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					postMgr.updateTenantResponseCode(int(code), cfg, tenant, false)
 				} else {
 					unknownResponse = true
@@ -686,7 +754,7 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 			}
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
+		errorMsg = fmt.Sprintf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, err["code"])
 		if code, ok := err["code"].(float64); ok {
 			postMgr.updateTenantResponseCode(int(code), cfg, "", false)
 		} else {
@@ -694,11 +762,24 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 		}
 	} else {
 		unknownResponse = true
-		log.Errorf("%v[AS3]%v Big-IP Responded with code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, responseMap["code"])
+		errorMsg = fmt.Sprintf("%v[AS3]%v Big-IP Responded with code: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, responseMap["code"])
 		if code, ok := responseMap["code"].(float64); ok {
 			postMgr.updateTenantResponseCode(int(code), cfg, "", false)
 		}
 	}
+	if errorMsg == "" && unknownResponse {
+		errorMsg = fmt.Sprintf("%v[AS3]%v Unknown response from BIG-IP: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, responseMap)
+	}
+
+	postMgr.tokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false,
+		&cisv1.BigIPStatus{
+			BigIPAddress: cfg.targetAddress,
+			AS3Status: &cisv1.AS3Status{
+				Message:       http.StatusText(httpCode),
+				Error:         errorMsg,
+				LastSubmitted: metav1.Now(),
+			},
+		})
 	if postMgr.AS3PostManager.AS3Config.DebugAS3 || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}

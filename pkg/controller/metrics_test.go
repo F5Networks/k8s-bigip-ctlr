@@ -24,7 +24,7 @@ var _ = Describe("Metrics", func() {
 		server.AppendHandlers(
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/readyz"),
-				ghttp.RespondWithJSONEncoded(http.StatusOK, "Ok"),
+				ghttp.RespondWithJSONEncoded(http.StatusOK, Ok),
 			))
 		// Override the base URL of the client to point to the mock server
 		config := &rest.Config{
@@ -32,12 +32,12 @@ var _ = Describe("Metrics", func() {
 		}
 		client, err := kubernetes.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
-		mockCtlr.clientsets.kubeClient = client
+		mockCtlr.clientsets.KubeClient = client
 		go mockCtlr.enableHttpEndpoint("0.0.0.0:8080")
 		time.Sleep(3 * time.Second)
 		resp, err := makeHTTPRequest("http://0.0.0.0:8080/health")
 		Expect(err).To(BeNil())
-		Expect(resp).To(Equal("Ok"))
+		Expect(resp).To(Equal(Ok))
 	})
 })
 

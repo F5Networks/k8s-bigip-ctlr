@@ -7,6 +7,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
@@ -904,25 +905,33 @@ func (ctlr *Controller) processGlobalDeployConfigCR() {
 	if !exist || configCR == nil || err != nil {
 		log.Warningf("Ensure DeployConfig CR is created in CIS monitored namespace")
 		// If informer fails to fetch config CR which may occur if cis just started which means informers may not have
-		// synced properly then try to fetch using kubeClient
-		configCR, err = ctlr.clientsets.kubeCRClient.CisV1().DeployConfigs(ns).Get(context.TODO(), configCRName, metaV1.GetOptions{})
+		// synced properly then try to fetch using KubeClient
+		configCR, err = ctlr.clientsets.KubeCRClient.CisV1().DeployConfigs(ns).Get(context.TODO(), configCRName, metaV1.GetOptions{})
 	}
 	// Exit gracefully if Extended config CR is not found
 	if err != nil || configCR == nil {
-		log.Errorf("%v Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
+		log.Errorf("%v Unable to Get DeployConfig CR: %v, %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
 		os.Exit(1)
 	}
 	if ctlr.managedResources.ManageRoutes {
 		err = ctlr.setNamespaceLabelMode(configCR)
 		if err != nil {
-			log.Errorf("%v invalid configuration: %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
-			os.Exit(1)
+			ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", true, &cisapiv1.ControllerStatus{
+				Type:        ctlr.multiClusterMode,
+				Message:     NamespaceConfigInvalid,
+				Error:       err.Error(),
+				LastUpdated: metaV1.Now(),
+			})
 		}
 	}
 	err, _ = ctlr.processConfigCR(configCR, false)
 	if err != nil {
-		log.Errorf("%v Unable to Process Extended Config Map: %v, %v", ctlr.getMultiClusterLog(), ctlr.CISConfigCRKey, err)
-		os.Exit(1)
+		ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", true, &cisapiv1.ControllerStatus{
+			Type:        ctlr.multiClusterMode,
+			Message:     DeployConfigInvalid,
+			Error:       err.Error(),
+			LastUpdated: metaV1.Now(),
+		})
 	}
 }
 
@@ -1587,7 +1596,7 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 		})
 		// updating to the new status
 		route.Status.Ingress = routeStatusIngress
-		_, err := ctlr.clientsets.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+		_, err := ctlr.clientsets.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
 		if err == nil {
 			log.Infof("Admitted Route -  %v", route.ObjectMeta.Name)
 			return
@@ -1604,7 +1613,7 @@ func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 	unmonitoredOptions := metaV1.ListOptions{
 		LabelSelector: strings.ReplaceAll(ctlr.resourceSelectorConfig.RouteLabel, " in ", " notin "),
 	}
-	unmonitoredRoutes, err := ctlr.clientsets.routeClientV1.Routes("").List(context.TODO(), unmonitoredOptions)
+	unmonitoredRoutes, err := ctlr.clientsets.RouteClientV1.Routes("").List(context.TODO(), unmonitoredOptions)
 	if err != nil {
 		log.Errorf("[CORE] Error listing all Routes: %v", err)
 		return
@@ -1648,7 +1657,7 @@ func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
 			erased := false
 			retryCount := 0
 			for !erased && retryCount < 3 {
-				_, err := ctlr.clientsets.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+				_, err := ctlr.clientsets.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
 				if err != nil {
 					log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
 					retryCount++
@@ -1894,7 +1903,7 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 			ctlr.resources.invertedNamespaceLabelMap[namespaceGroup] = namespaceGroup
 		} else {
 			nsLabel := fmt.Sprintf("%v,%v", ctlr.resourceSelectorConfig.NamespaceLabel, namespaceGroup)
-			nss, err := ctlr.clientsets.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
+			nss, err := ctlr.clientsets.KubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
 			if err != nil {
 				log.Errorf("%v Unable to Fetch Namespaces: %v", ctlr.getMultiClusterLog(), err)
 				return nil
@@ -2226,7 +2235,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	// Create kube client using the provided kubeconfig for the respective cluster
 	kubeClient, err := clustermanager.CreateKubeClientFromKubeConfig(&kubeConfig)
 	if err != nil {
-		return fmt.Errorf("[MultiCluster] failed to create kubeClient from kube-config fetched from secret %s for the "+
+		return fmt.Errorf("[MultiCluster] failed to create KubeClient from kube-config fetched from secret %s for the "+
 			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
 	}
 	// Update the clusterKubeConfig store
@@ -2280,8 +2289,8 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	}
 	if !exist {
 		log.Debugf("[MultiCluster] Fetching secret: %s for cluster: %s using kubeclient", secretName, clusterName)
-		// During start up the informers may not be updated so, try to fetch secret using kubeClient
-		kubeConfigSecret, err = ctlr.clientsets.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
+		// During start up the informers may not be updated so, try to fetch secret using KubeClient
+		kubeConfigSecret, err = ctlr.clientsets.KubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
 			metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("[MultiCluster] error occurred while fetching Secret: %s for the cluster: %s, Error: %v",

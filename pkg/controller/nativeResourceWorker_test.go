@@ -28,10 +28,10 @@ var _ = Describe("Routes", func() {
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.managedResources.ManageRoutes = true
 		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
-		mockCtlr.clientsets.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
-		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.nrInformers = make(map[string]*NRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
@@ -193,7 +193,7 @@ var _ = Describe("Routes", func() {
 			mockCtlr.updateRouteAdmitStatus(rskey, "Route Admitted", "", v1.ConditionTrue)
 			route := mockCtlr.fetchRoute(rskey)
 			Expect(len(route1.Status.Ingress)).To(BeEquivalentTo(1), "Incorrect route admit status")
-			mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.clientsets.RouteClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
 			mockCtlr.resourceSelectorConfig.RouteLabel = " pro in (pro) "
 			mockCtlr.processedHostPath.processedHostPathMap["foo.com/foo"] = route1.ObjectMeta.CreationTimestamp
 			mockCtlr.eraseAllRouteAdmitStatus()
@@ -294,11 +294,11 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addRoute(route4)
 			_, _ = mockCtlr.processConfigCR(configCR, false)
 			mockCtlr.addRoute(route5)
-			mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
-			mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
-			mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
-			mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
-			mockCtlr.clientsets.routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
+			mockCtlr.clientsets.RouteClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.clientsets.RouteClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
+			mockCtlr.clientsets.RouteClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
+			mockCtlr.clientsets.RouteClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
+			mockCtlr.clientsets.RouteClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			Expect(mockCtlr.checkValidRoute(route1, rgPlcSSLProfiles{})).To(BeFalse())
@@ -2107,10 +2107,10 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.managedResources.ManageRoutes = true
-		mockCtlr.clientsets.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
-		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.nrInformers = make(map[string]*NRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nsInformers = make(map[string]*NSInformer)
@@ -2265,10 +2265,10 @@ var _ = Describe("Multi Cluster with Routes", func() {
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.managedResources.ManageRoutes = true
 		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
-		mockCtlr.clientsets.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
-		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.nrInformers = make(map[string]*NRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
@@ -2607,10 +2607,10 @@ var _ = Describe("Multi Cluster with CRD", func() {
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.managedResources.ManageCustomResources = true
 		mockCtlr.CISConfigCRKey = "kube-system/global-cm"
-		mockCtlr.clientsets.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces["default"] = true
-		mockCtlr.clientsets.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.nrInformers = make(map[string]*NRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.resourceSelectorConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)

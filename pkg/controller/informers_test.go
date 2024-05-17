@@ -46,7 +46,7 @@ var _ = Describe("Informers Tests", func() {
 				BigIpLabel:   "bigip1",
 				BigIpAddress: "10.8.3.11",
 			}
-			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+			mockCtlr.bigIpConfigMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 		})
 		It("Resource Informers", func() {
 			err := mockCtlr.addNamespacedInformers(namespace, false)
@@ -85,10 +85,10 @@ var _ = Describe("Informers Tests", func() {
 				BigIpAddress:     "10.8.3.11",
 				DefaultPartition: "test",
 			}
-			mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
+			mockCtlr.bigIpConfigMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
 			mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				postChan:     make(chan agentConfig, 1),
@@ -412,14 +412,14 @@ var _ = Describe("Informers Tests", func() {
 					ExternalDNS:  make(map[string]int),
 				},
 			}
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				postChan:     make(chan agentConfig, 1),
 				PostParams:   PostParams{},
 			}
 
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 
 			mockCtlr.enqueueExternalDNS(edns)
 			Expect(mockCtlr.processResources()).To(Equal(true))

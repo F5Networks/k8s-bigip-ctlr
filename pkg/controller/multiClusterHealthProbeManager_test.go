@@ -53,7 +53,7 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 				Timeout: 1,
 			},
 		}
-		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+		bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 			PostParams:       mockCtlr.PostParams,
 			defaultPartition: "test",

@@ -43,13 +43,13 @@ var _ = Describe("Worker Tests", func() {
 	var bigipConfig cisapiv1.BigIpConfig
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.bigIpMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
+		mockCtlr.bigIpConfigMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
 		bigipConfig = cisapiv1.BigIpConfig{
 			BigIpLabel:       "bigip1",
 			DefaultPartition: "test",
 			BigIpAddress:     "10.8.3.11",
 		}
-		mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+		mockCtlr.bigIpConfigMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 		svc1 = test.NewService(
 			"svc1",
 			"1",
@@ -89,7 +89,7 @@ var _ = Describe("Worker Tests", func() {
 				ServiceIPAddress: nil,
 			})
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
-		bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+		bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 			postChan:            make(chan agentConfig, 1),
 			tokenManager:        mockCtlr.CMTokenManager,
@@ -111,7 +111,7 @@ var _ = Describe("Worker Tests", func() {
 				VirtualServer: make(map[string]int),
 			},
 		}
-		mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+		mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
@@ -198,7 +198,7 @@ var _ = Describe("Worker Tests", func() {
 	Describe("IPAM", func() {
 		DEFAULT_PARTITION = "test"
 		BeforeEach(func() {
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				PostParams:   PostParams{},
@@ -909,12 +909,12 @@ var _ = Describe("Worker Tests", func() {
 			_ = mockCtlr.processLBServices(svc1, false)
 			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(0), "Resource Config should be empty")
 
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 				tokenManager: mockCtlr.CMTokenManager,
 				PostParams:   PostParams{},
 			}
-			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{}
+			mockCtlr.bigIpConfigMap[bigipConfig] = BigIpResourceConfig{}
 			mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			//mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
@@ -1193,7 +1193,7 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				)
-				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+				bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 					tokenManager: mockCtlr.CMTokenManager,
 					PostParams:   PostParams{},
@@ -1436,7 +1436,7 @@ var _ = Describe("Worker Tests", func() {
 	//		mockCtlr.crInformers["default"] = &CRInformer{}
 	//		mockCtlr.comInformers["default"] = &CommonInformer{}
 	//		mockCtlr.resources.poolMemCache = make(map[MultiClusterServiceKey]*poolMembersInfo)
-	//		mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig = LTMConfig{}
+	//		mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig = LTMConfig{}
 	//		mockCtlr.oldNodes = []Node{{Name: "node-1", Addr: "10.10.10.1"}, {Name: "node-2", Addr: "10.10.10.2"}}
 	//	})
 	//	It("verify pool member update", func() {
@@ -1485,7 +1485,7 @@ var _ = Describe("Worker Tests", func() {
 	//		Expect(len(rsCfg.Pools[0].Members)).To(Equal(3), "Members should be increased")
 	//		mockCtlr.PoolMemberType = NodePort
 	//		mockCtlr.updateSvcDepResources("test-resource", rsCfg)
-	//		mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"] = &PartitionConfig{ResourceMap: ResourceMap{}}
+	//		mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"] = &PartitionConfig{ResourceMap: ResourceMap{}}
 	//		mockCtlr.resources.setResourceConfig("test", "test-resource", rsCfg)
 	//		rsCfgCopy := mockCtlr.getVirtualServer("test", "test-resource")
 	//		Expect(rsCfgCopy).ToNot(BeNil())
@@ -1527,7 +1527,7 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 			err := mockCtlr.addNamespacedInformers(namespace, false)
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
@@ -1547,7 +1547,7 @@ var _ = Describe("Worker Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			mockPM.AS3PostManager.firstPost = false
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = mockPM.PostManager
 			mockCtlr.RequestHandler.userAgent = "as3"
 			mockCtlr.ipamHandler.IpamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
@@ -1888,53 +1888,53 @@ var _ = Describe("Worker Tests", func() {
 			//	mockCtlr.addVirtualServer(vs)
 			//	mockCtlr.processResources()
 			//	// Should process VS now
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig)).To(Equal(1), "Virtual Server not Processed")
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig)).To(Equal(1), "Virtual Server not Processed")
 			//
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(Equal("/Common/test"), "http profile analytics not processed correctly")
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(Equal("/Common/test"), "http profile analytics not processed correctly")
 			//
 			//	// only secured vs should have http analytics profile
 			//	policy.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTPS
 			//	mockCtlr.enqueuePolicy(policy, Update)
 			//	mockCtlr.processResources()
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(Equal("/Common/test"), "http profile analytics not processed correctly")
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(BeEmpty(), "http profile analytics not processed correctly")
 			//
 			//	// only unsecured vs should have http analytics profile
 			//	policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = HTTP
 			//	mockCtlr.enqueuePolicy(policy, Update)
 			//	mockCtlr.processResources()
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(Equal("/Common/test"), "http profile analytics not processed correctly")
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(BeEmpty(), "http profile analytics not processed correctly")
 			//
 			//	// both vs should have http analytics profile
 			//	policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.Apply = ""
 			//	mockCtlr.enqueuePolicy(policy, Update)
 			//	mockCtlr.processResources()
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(Equal("/Common/test"), "http profile analytics not processed correctly")
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(Equal("/Common/test"), "http profile analytics not processed correctly")
 			//
 			//	// both vs should not have http analytics profile
 			//	policy.Spec.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP = ""
 			//	mockCtlr.enqueuePolicy(policy, Update)
 			//	mockCtlr.processResources()
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(BeEmpty(), "http profile analytics not processed correctly")
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig["test"].ResourceMap["crd_10_8_0_1_443"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile.BigIP).
 			//		To(BeEmpty(), "http profile analytics not processed correctly")
 			//
 			//})
 
 			It("Virtual Server with IPAM", func() {
-				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+				bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				go mockCtlr.RequestHandler.startRequestHandler()
 				go mockCtlr.responseHandler(mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan)
 				httpMrfRouterEnabled := true
@@ -2070,9 +2070,9 @@ var _ = Describe("Worker Tests", func() {
 					To(BeTrue(), "http mrf route not processed correctly")
 
 				agentCfg := agentConfig{
-					id:        0,
-					as3Config: as3Config{failedTenants: make(map[string]struct{})},
-					BigIpKey:  bigIpKey,
+					id:          0,
+					as3Config:   as3Config{failedTenants: make(map[string]struct{})},
+					BigIpConfig: bigIpKey,
 				}
 
 				time.Sleep(10 * time.Millisecond)
@@ -2083,7 +2083,7 @@ var _ = Describe("Worker Tests", func() {
 					gtmConfig: mockCtlr.resources.getGTMConfigCopy(bigipConfig)}
 				config := ResourceConfigRequest{
 					bigIpResourceConfig: bigipResourceConfig,
-					bigIpKey:            bigIpKey,
+					bigIpConfig:         bigIpKey,
 				}
 				config.reqMeta = mockCtlr.Controller.enqueueReq(bigipResourceConfig, bigIpKey)
 				mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan <- &agentCfg
@@ -2230,7 +2230,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server Validation", func() {
-				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+				bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				go mockCtlr.RequestHandler.startRequestHandler()
 				go mockCtlr.responseHandler(mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan)
 
@@ -2610,7 +2610,7 @@ var _ = Describe("Worker Tests", func() {
 			//
 			//	mockCtlr.addEDNS(newEDNS)
 			//	mockCtlr.processResources()
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig)).To(Equal(1),
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig)).To(Equal(1),
 			//		"EDNS not processed")
 			//
 			//	mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
@@ -2626,24 +2626,24 @@ var _ = Describe("Worker Tests", func() {
 			//	mockCtlr.addTransportServer(&ts1)
 			//	mockCtlr.processResources()
 			//	partition := mockCtlr.getPartitionForBIGIP("")
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig)).
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig)).
 			//		To(Equal(1), "Invalid Partition Count")
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].ltmConfig[partition].ResourceMap)).
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].ltmConfig[partition].ResourceMap)).
 			//		To(Equal(2), "Invalid TS Count")
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
 			//		To(Equal(1), "EDNS not processed with Transport Server")
-			//	Expect(mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members[0]).
+			//	Expect(mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members[0]).
 			//		To(Equal("/test/Shared/crd_10_1_1_1_0"),
 			//			"Invalid EDNS Pool members")
 			//
 			//	mockCtlr.deleteTransportServer(ts)
 			//	mockCtlr.processResources()
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
 			//		To(Equal(0), "Invalid pool member count")
 			//
 			//	mockCtlr.deleteEDNS(newEDNS)
 			//	mockCtlr.processResources()
-			//	Expect(len(mockCtlr.resources.bigIpMap[bigIpKey].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs)).
+			//	Expect(len(mockCtlr.resources.bigIpConfigMap[bigIpConfig].gtmConfig[DEFAULT_GTM_PARTITION].WideIPs)).
 			//		To(Equal(0), "EDNS  not deleted")
 			//
 			//})
@@ -2889,7 +2889,7 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 			err := mockCtlr.addNamespacedInformers(namespace, false)
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
@@ -2909,7 +2909,7 @@ var _ = Describe("Worker Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			mockPM.AS3PostManager.firstPost = false
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = mockPM.PostManager
 			mockCtlr.RequestHandler.userAgent = "as3"
 
@@ -3769,7 +3769,7 @@ var _ = Describe("Worker Tests", func() {
 
 			})
 			It("Process Pass-through Route", func() {
-				bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+				bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 				go mockCtlr.RequestHandler.startRequestHandler()
 				go mockCtlr.responseHandler(mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan)
 				mockCtlr.initState = true
@@ -3837,7 +3837,7 @@ var _ = Describe("Worker Tests", func() {
 				}
 				config := ResourceConfigRequest{
 					bigIpResourceConfig: bigipConfig,
-					bigIpKey:            bigIpKey,
+					bigIpConfig:         bigIpKey,
 				}
 				config.reqMeta = mockCtlr.Controller.enqueueReq(bigipConfig, bigIpKey)
 				mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan <- &rscUpdateMeta
@@ -3850,9 +3850,9 @@ var _ = Describe("Worker Tests", func() {
 	Describe("Processing VS, TS, IL, SvcLB on pod update", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.bigIpMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
-			mockCtlr.bigIpMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", BigIpAddress: "10.8.3.11", DefaultPartition: "test"}] = BigIpResourceConfig{}
-			bigIpKey := BigIpKey{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
+			mockCtlr.bigIpConfigMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
+			mockCtlr.bigIpConfigMap[cisapiv1.BigIpConfig{BigIpLabel: "bigip1", BigIpAddress: "10.8.3.11", DefaultPartition: "test"}] = BigIpResourceConfig{}
+			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
 				tokenManager:        mockCtlr.CMTokenManager,
 				postChan:            make(chan agentConfig, 1),
@@ -3875,7 +3875,7 @@ var _ = Describe("Worker Tests", func() {
 					TransportServer: make(map[string]int),
 				},
 			}
-			mockCtlr.requestMap = &requestMap{sync.Mutex{}, make(map[BigIpKey]requestMeta)}
+			mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 				mockCtlr.clientsets.KubeCRClient,
@@ -3920,7 +3920,7 @@ var _ = Describe("Worker Tests", func() {
 				DefaultPartition: "test",
 				BigIpAddress:     "10.8.3.11",
 			}
-			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+			mockCtlr.bigIpConfigMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 
 			// Create service
 			svc1 := "svc1"

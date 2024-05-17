@@ -62,11 +62,8 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 				log.Debugf("%v Processing Node Updates %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
 				// Update node cache
 				nodeInf.oldNodes = newNodes
-				if ctlr.multiClusterResources.clusterSvcMap != nil {
-					if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-						ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-					}
-				}
+				// Update pool members for the cluster
+				ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 			}
 		}
 	} else {
@@ -80,15 +77,12 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 }
 
 func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
-	if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-		for svcKey := range svcKeys {
-			ctlr.updatePoolMembersForService(svcKey, false)
-		}
-		key := &rqKey{
-			kind: NodeUpdate,
-		}
-		ctlr.resourceQueue.Add(key)
+	// Add a request to the resource queue to update the pool members
+	key := &rqKey{
+		kind:        NodeUpdate,
+		clusterName: clusterName,
 	}
+	ctlr.resourceQueue.Add(key)
 }
 
 // Return a copy of the node cache
@@ -344,18 +338,20 @@ func (ctlr *Controller) processStaticRouteUpdate() {
 		}
 		if len(staticRouteMap) > 0 {
 			routeStore := make(networkmanager.RouteStore)
-			for bigIpKey, bigIpConfig := range ctlr.resources.bigIpMap {
-				if len(bigIpConfig.ltmConfig) > 0 {
-					if instanceId, ok := ctlr.networkManager.DeviceMap[bigIpKey.BigIpAddress]; ok {
+			ctlr.requestMap.RLock()
+			for bigIpConfig, rMeta := range ctlr.requestMap.requestMap {
+				if len(rMeta.partitionMap) > 0 {
+					if instanceId, ok := ctlr.networkManager.DeviceMap[bigIpConfig.BigIpAddress]; ok {
 						routeStore[networkmanager.BigIP{
-							IPaddress:  bigIpKey.BigIpAddress,
+							IPaddress:  bigIpConfig.BigIpAddress,
 							InstanceId: instanceId,
 						}] = staticRouteMap
 					} else {
-						log.Warningf("Unable to find instanceId for bigip %v", bigIpKey.BigIpAddress)
+						log.Warningf("Unable to find instanceId for bigip %v", bigIpConfig.BigIpAddress)
 					}
 				}
 			}
+			ctlr.requestMap.RUnlock()
 			ctlr.networkManager.NetworkRequestHandler(routeStore)
 		}
 	}

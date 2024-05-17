@@ -65,7 +65,7 @@ func (postMgr *PostManager) postManager() {
 			_ = <-time.After(time.Duration(postMgr.AS3PostManager.AS3Config.PostDelayAS3) * time.Second)
 		}
 		// Set the target address for the as3 request
-		config.as3Config.targetAddress = config.BigIpKey.BigIpAddress
+		config.as3Config.targetAddress = config.BigIpConfig.BigIpAddress
 
 		//Handle AS3 post
 		postMgr.publishConfig(&config.as3Config)

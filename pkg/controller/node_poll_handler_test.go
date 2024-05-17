@@ -8,6 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/util/workqueue"
+	"sync"
 )
 
 var _ = Describe("Node Poller Handler", func() {
@@ -101,17 +103,18 @@ var _ = Describe("Node Poller Handler", func() {
 		networkManager.DeviceMap["10.8.3.11"] = "dummy-id"
 		networkManager.L3ForwardStore.InstanceStaticRoutes["dummy-id"] = networkmanager.StaticRouteMap{}
 		mockCtlr.networkManager = networkManager
-		mockCtlr.resources = NewResourceStore()
-		bigipconfig := cisapiv1.BigIpConfig{
+		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+		mockCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
+		rMeta := requestMeta{
+			partitionMap: make(map[string]map[string]string),
+		}
+		rMeta.partitionMap[DEFAULT_PARTITION] = make(map[string]string)
+		mockCtlr.requestMap.requestMap[cisapiv1.BigIpConfig{
 			BigIpLabel:       "bigip1",
 			BigIpAddress:     "10.8.3.11",
-			DefaultPartition: "test",
-		}
-		mockCtlr.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: make(map[string]*PartitionConfig, 0), gtmConfig: make(GTMConfig)}
-		ltmConfig := make(map[string]*PartitionConfig, 0)
-		ltmConfig["test"] = &PartitionConfig{}
-		mockCtlr.resources.bigIpMap[bigipconfig] = BigIpResourceConfig{ltmConfig: ltmConfig, gtmConfig: make(GTMConfig)}
-
+			DefaultPartition: DEFAULT_PARTITION,
+		}] = rMeta
 		// Static routes with Node taints, CNI flannel, no podCIDR
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
@@ -124,11 +127,10 @@ var _ = Describe("Node Poller Handler", func() {
 				},
 				nil),
 		}
+		mockCtlr.StaticRoutingMode = true
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
-		mockCtlr.StaticRoutingMode = true
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
 		// Nodes without taints, CNI flannel, no podCIDR
@@ -136,7 +138,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Spec.Taints = []v1.Taint{}
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
 		// Nodes without taints, CNI flannel, with podCIDR, InternalNodeIP
@@ -148,7 +149,6 @@ var _ = Describe("Node Poller Handler", func() {
 			}
 			mockCtlr.updateStatusNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(1))
 		req, ok := <-networkManager.NetworkChan
 		Expect(ok).To(Equal(true))
@@ -170,7 +170,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"invalid\":\"invalid\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		//TODO add logic to test the below
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
@@ -182,7 +181,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-subnets"] = "{\"default\":\"10.244.0.0/28\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
 		// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
@@ -192,7 +190,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["k8s.ovn.org/node-primary-ifaddr"] = "{\"invalid\":\"invalid\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		//TODO add logic to test the below
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
@@ -203,7 +200,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations[OVNK8sNodeIPAnnotation] = "{\"ipv4\":\"10.244.0.0/28\"}"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		//TODO add logic to test the below
 		Expect(len(networkManager.NetworkChan)).To(Equal(1))
 		req, ok = <-networkManager.NetworkChan
@@ -221,7 +217,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations[OVNK8sNodeIPAnnotation2] = "[\"10.244.0.10\"]"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(1))
 		req, ok = <-networkManager.NetworkChan
 		Expect(ok).To(Equal(true))
@@ -239,7 +234,6 @@ var _ = Describe("Node Poller Handler", func() {
 			delete(nodeObjs[i].Annotations, OVNK8sNodeIPAnnotation)
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
 		// OrchestrationCNI = ovn_k8s and valid node network CIDRs
@@ -251,7 +245,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations[OvnK8sNodeIPAnnotation3] = "[\"10.244.0.12/28\"]"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(1))
 		req, ok = <-networkManager.NetworkChan
 		Expect(ok).To(Equal(true))
@@ -268,7 +261,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations[OvnK8sNodeIPAnnotation3] = "[\"1.2.3.4/28\"]"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
 		// OrchestrationCNI = ovn_k8s and invalid node network CIDRs
@@ -279,7 +271,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations[OvnK8sNodeIPAnnotation3] = "[{\"ipv4\":\"10.244.0.11/28\"}]"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(0))
 
 		// OrchestrationCNI = CILIUM_Static with no valid cilium-k8s annotation
@@ -295,7 +286,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["network.cilium.io/ipv4-pod-cidr"] = "10.244.0.0/28"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(1))
 		req, ok = <-networkManager.NetworkChan
 		Expect(ok).To(Equal(true))
@@ -312,7 +302,6 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs[i].Annotations["io.cilium.network.ipv4-pod-cidr"] = "10.244.0.0/28"
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
-		mockCtlr.SetupNodeProcessing("")
 		Expect(len(networkManager.NetworkChan)).To(Equal(1))
 		req, ok = <-networkManager.NetworkChan
 		Expect(ok).To(Equal(true))
@@ -320,6 +309,7 @@ var _ = Describe("Node Poller Handler", func() {
 		l3Forward = req.NetworkConfig.(networkmanager.L3Forward)
 		Expect(l3Forward.Name).To(ContainSubstring("worker1"))
 		Expect(l3Forward.Config.Gateway).To(Equal("1.2.3.4"))
+		mockCtlr.resourceQueue.ShutDown()
 	})
 
 	//Describe("Processes CIS monitored resources on node update", func() {

@@ -2,7 +2,7 @@ package controller
 
 import (
 	"encoding/json"
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"strings"
@@ -20,10 +20,10 @@ var _ = Describe("Backend Tests", func() {
 		var requestHandler *RequestHandler
 		BeforeEach(func() {
 			requestHandler = newMockAgent("as3")
-			requestHandler.PostManagers.PostManagerMap[BigIpKey{}] = &PostManager{
+			requestHandler.PostManagers.PostManagerMap[cisapiv1.BigIpConfig{}] = &PostManager{
 				PostParams: PostParams{},
 				AS3PostManager: &AS3PostManager{
-					AS3Config: v1.AS3Config{},
+					AS3Config: cisapiv1.AS3Config{},
 				}}
 			mem1 = PoolMember{
 				Address:         "1.2.3.5",
@@ -237,7 +237,7 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigIpKey:            BigIpKey{},
+				bigIpConfig:         cisapiv1.BigIpConfig{},
 			}
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
@@ -245,7 +245,7 @@ var _ = Describe("Backend Tests", func() {
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 			pm := &PostManager{
 				AS3PostManager: &AS3PostManager{
-					AS3Config: v1.AS3Config{},
+					AS3Config: cisapiv1.AS3Config{},
 				},
 				tokenManager:        &tokenmanager.TokenManager{},
 				cachedTenantDeclMap: make(map[string]as3Tenant),
@@ -280,7 +280,7 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
-				bigIpKey:            BigIpKey{},
+				bigIpConfig:         cisapiv1.BigIpConfig{},
 			}
 
 			zero := 0
@@ -288,7 +288,7 @@ var _ = Describe("Backend Tests", func() {
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			pm := &PostManager{
 				AS3PostManager: &AS3PostManager{
-					AS3Config: v1.AS3Config{},
+					AS3Config: cisapiv1.AS3Config{},
 				},
 				tokenManager:        &tokenmanager.TokenManager{},
 				cachedTenantDeclMap: make(map[string]as3Tenant),
@@ -304,7 +304,7 @@ var _ = Describe("Backend Tests", func() {
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
-				bigIpKey:            BigIpKey{},
+				bigIpConfig:         cisapiv1.BigIpConfig{},
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 			}
 
@@ -312,7 +312,7 @@ var _ = Describe("Backend Tests", func() {
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			pm := &PostManager{
 				AS3PostManager: &AS3PostManager{
-					AS3Config: v1.AS3Config{},
+					AS3Config: cisapiv1.AS3Config{},
 				},
 				tokenManager:        &tokenmanager.TokenManager{},
 				cachedTenantDeclMap: make(map[string]as3Tenant),
@@ -366,24 +366,24 @@ var _ = Describe("Backend Tests", func() {
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
 			}}, http.MethodGet)
 			requestHandler = newMockAgent("as3")
-			requestHandler.PostManagers.PostManagerMap[BigIpKey{}] = &PostManager{
+			requestHandler.PostManagers.PostManagerMap[cisapiv1.BigIpConfig{}] = &PostManager{
 				PostParams: PostParams{
 					httpClient: client},
 				AS3PostManager: &AS3PostManager{
-					AS3Config: v1.AS3Config{},
+					AS3Config: cisapiv1.AS3Config{},
 				}}
 			requestHandler.HAMode = true
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
-				bigIpKey: BigIpKey{},
+				bigIpConfig: cisapiv1.BigIpConfig{},
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{
 					"test": &PartitionConfig{ResourceMap: make(ResourceMap)},
 				}},
 			}
 			pm := &PostManager{
 				AS3PostManager: &AS3PostManager{
-					AS3Config: v1.AS3Config{},
+					AS3Config: cisapiv1.AS3Config{},
 				},
 				cachedTenantDeclMap: make(map[string]as3Tenant),
 				postChan:            make(chan agentConfig, 1),

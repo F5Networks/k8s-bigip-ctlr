@@ -35,7 +35,7 @@ var _ = Describe("Resource Config Tests", func() {
 				},
 			)
 			bigipConfig = cisapiv1.BigIpConfig{BigIpLabel: "bigip1", BigIpAddress: "10.8.3.11", DefaultPartition: "test"}
-			mockCtlr.bigIpMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+			mockCtlr.bigIpConfigMap[bigipConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 		})
 
 		It("Virtual Ports with Default Ports", func() {

@@ -790,6 +790,12 @@ var _ = Describe("Worker Tests", func() {
 				Expect(address).To(Equal("192.168.1.1"), "Should not return empty virtual address")
 				Expect(err).To(BeNil(), "error should be nil")
 			})
+
+			It("Verifies Common partition is not allowed in VS", func() {
+				vrt3.Spec.Partition = CommonPartition
+				Expect(mockCtlr.checkValidVirtualServer(vrt3)).To(BeFalse(), "VS with Common partition "+
+					"should not be allowed")
+			})
 		})
 	})
 	Describe("Endpoints", func() {
@@ -2517,6 +2523,9 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid TS count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
 
+				// Verify TS with Common partition is not allowed
+				ts.Spec.Partition = CommonPartition
+				Expect(mockCtlr.checkValidTransportServer(ts)).To(BeFalse(), "TS with Common partition is not allowed")
 			})
 		})
 
@@ -2847,6 +2856,9 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid IL count")
 
+				// Verify IL with Common partition is not allowed
+				ingressLink1.Spec.Partition = CommonPartition
+				Expect(mockCtlr.checkValidIngressLink(ingressLink1)).To(BeFalse(), "IL with Common partition is not allowed")
 			})
 		})
 	})

@@ -1040,7 +1040,12 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		}
 		var partition string
 		if len(ergc.BigIpPartition) > 0 {
-			partition = ergc.BigIpPartition
+			if ergc.BigIpPartition != CommonPartition {
+				partition = ergc.BigIpPartition
+			} else {
+				return fmt.Errorf("partition Common is not allowed in RouteGroup, "+
+					"skipping RouteGroup: %s processing", routeGroup), false
+			}
 		} else {
 			partition = ctlr.Partition
 		}

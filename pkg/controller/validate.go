@@ -42,6 +42,13 @@ func (ctlr *Controller) checkValidVirtualServer(
 		log.Infof("VirtualServer %s is invalid", vsName)
 		return false
 	}
+
+	// Check if Partition is set as Common
+	if vsResource.Spec.Partition == CommonPartition {
+		log.Errorf("VirtualServer %s cannot be created in Common partition", vsName)
+		return false
+	}
+
 	// Check if HTTPTraffic is set for insecure VS
 	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
 		log.Errorf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
@@ -101,6 +108,12 @@ func (ctlr *Controller) checkValidTransportServer(
 		return false
 	}
 
+	// Check if Partition is set as Common
+	if tsResource.Spec.Partition == CommonPartition {
+		log.Errorf("TransportServer %s cannot be created in Common partition", vsName)
+		return false
+	}
+
 	bindAddr := tsResource.Spec.VirtualServerAddress
 
 	if ctlr.ipamCli == nil {
@@ -154,6 +167,12 @@ func (ctlr *Controller) checkValidIngressLink(
 	_, virtualFound, _ := crInf.ilInformer.GetIndexer().GetByKey(ilkey)
 	if !virtualFound {
 		log.Infof("IngressLink %s is invalid", ilName)
+		return false
+	}
+
+	// Check if Partition is set as Common
+	if il.Spec.Partition == CommonPartition {
+		log.Errorf("IngressLink %s cannot be created in Common partition", ilName)
 		return false
 	}
 

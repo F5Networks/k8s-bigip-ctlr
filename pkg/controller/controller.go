@@ -18,6 +18,10 @@ package controller
 
 import (
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
@@ -26,9 +30,6 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
-	"strings"
-	"sync"
-	"time"
 
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -73,6 +74,9 @@ func RunController(params Params) *Controller {
 
 	// enable http endpoint
 	go ctlr.enableHttpEndpoint(params.HttpAddress)
+
+	// setup ipam
+	ctlr.setupIPAM(params)
 
 	go ctlr.Start()
 

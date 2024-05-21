@@ -626,6 +626,13 @@ func (ctlr *Controller) processResources() bool {
 	case HACIS:
 		log.Debugf("posting declaration on primary cluster down event")
 	case NodeUpdate:
+		if &ctlr.multiClusterResources.clusterSvcMap != nil {
+			if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[rKey.clusterName]; ok {
+				for svcKey := range svcKeys {
+					ctlr.updatePoolMembersForService(svcKey, false)
+				}
+			}
+		}
 		log.Debugf("posting declaration on node update")
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
@@ -662,15 +669,13 @@ func (ctlr *Controller) processResources() bool {
 		// Put each BIGIPConfig per bigip  pair into specific requestChannel
 		for bigip, bigipConfig := range ctlr.resources.bigIpMap {
 			if (!reflect.DeepEqual(bigipConfig.ltmConfig, LTMConfig{}) || !reflect.DeepEqual(bigipConfig.gtmConfig, GTMConfig{})) && ctlr.resources.isConfigUpdated(bigip) {
-				for _, bigIpKey := range getBigIpList(bigip) {
-					config := ResourceConfigRequest{
-						bigIpKey:            bigIpKey,
-						bigIpResourceConfig: bigipConfig,
-						poolMemberType:      ctlr.PoolMemberType,
-					}
-					config.reqMeta = ctlr.enqueueReq(bigipConfig, bigIpKey)
-					ctlr.RequestHandler.EnqueueRequestConfig(config)
+				config := ResourceConfigRequest{
+					bigIpConfig:         bigip,
+					bigIpResourceConfig: bigipConfig,
+					poolMemberType:      ctlr.PoolMemberType,
 				}
+				config.reqMeta = ctlr.enqueueReq(bigipConfig, bigip)
+				ctlr.RequestHandler.EnqueueRequestConfig(config)
 			}
 		}
 		ctlr.initState = false
@@ -678,12 +683,6 @@ func (ctlr *Controller) processResources() bool {
 
 	}
 	return true
-}
-
-func getBigIpList(config cisapiv1.BigIpConfig) []BigIpKey {
-	var bigIpList []BigIpKey
-	bigIpList = append(bigIpList, BigIpKey{BigIpAddress: config.BigIpAddress, BigIpLabel: config.BigIpLabel})
-	return bigIpList
 }
 
 // getServiceForEndpoints returns the service associated with endpoints.
@@ -3811,7 +3810,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		}
 
 	}()
-	// get bigIpKey and start/stop agent if needed
+	// get bigIpConfig and start/stop agent if needed
 	bigipconfig := configCR.Spec.BigIpConfig
 	ctlr.handleBigipConfigUpdates(bigipconfig)
 	if ctlr.StaticRoutingMode && ctlr.PoolMemberType != NodePort {
@@ -4216,7 +4215,7 @@ func (ctlr *Controller) getResourceServicePort(ns string,
 func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) {
 	//check if bigip config is existing or not in the bigipMap
 	var existingBigipConfig []cisapiv1.BigIpConfig
-	for bigipConfig, _ := range ctlr.bigIpMap {
+	for bigipConfig, _ := range ctlr.bigIpConfigMap {
 		existingBigipConfig = append(existingBigipConfig, bigipConfig)
 	}
 	sort.Sort(BIGIPConfigs(existingBigipConfig))
@@ -4226,15 +4225,13 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 		for _, existingConfig := range existingBigipConfig {
 			if !slices.Contains(config, existingConfig) {
 				// stop agent
-				for _, bigIpKey := range getBigIpList(existingConfig) {
-					ctlr.RequestHandler.stopPostManager(bigIpKey)
-					//remove bigipconfig from bigipMap
-					delete(ctlr.bigIpMap, existingConfig)
-					// remove the bigip from the deploy config status
-					ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.BigIPStatus{
-						BigIPAddress: bigIpKey.BigIpAddress,
-					})
-				}
+				ctlr.RequestHandler.stopPostManager(existingConfig)
+				//remove bigipconfig from bigipMap
+				delete(ctlr.bigIpConfigMap, existingConfig)
+				// remove the bigip from the deploy config status
+				ctlr.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &cisapiv1.BigIPStatus{
+					BigIPAddress: existingConfig.BigIpAddress,
+				})
 			}
 		}
 		// check if bigip config is added
@@ -4243,7 +4240,7 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 				// start agent
 				ctlr.RequestHandler.startPostManager(newConfig)
 				//update bigipMap with new bigipconfig
-				ctlr.bigIpMap[newConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+				ctlr.bigIpConfigMap[newConfig] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
 			}
 		}
 	}
@@ -4251,7 +4248,7 @@ func (ctlr *Controller) handleBigipConfigUpdates(config []cisapiv1.BigIpConfig) 
 
 func (ctlr *Controller) getPartitionForBIGIP(bigipLabel string) string {
 	//get partition from bigip
-	for bigipconfig, _ := range ctlr.bigIpMap {
+	for bigipconfig, _ := range ctlr.bigIpConfigMap {
 		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
 		//Phase1 getting partition from bigipconfig index 0
 		if bigipLabel == "" {
@@ -4267,7 +4264,7 @@ func (ctlr *Controller) getPartitionForBIGIP(bigipLabel string) string {
 
 func (ctlr *Controller) getBIGIPConfig(bigipLabel string) cisapiv1.BigIpConfig {
 	//get partition from bigip
-	for bigipconfig, _ := range ctlr.bigIpMap {
+	for bigipconfig, _ := range ctlr.bigIpConfigMap {
 		//TODO: get bigipLabel from route resource or service address cr and get parition from specific bigip agent
 		//Phase1 getting partition from bigipconfig index 0
 		if bigipLabel == "" {

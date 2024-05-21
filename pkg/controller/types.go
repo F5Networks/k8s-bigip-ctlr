@@ -77,7 +77,7 @@ type (
 		managedResources       ManagedResources
 		resourceSelectorConfig ResourceSelectorConfig
 		CMTokenManager         *tokenmanager.TokenManager
-		bigIpMap               BigIpMap
+		bigIpConfigMap         BigIpConfigMap
 		respChan               chan *agentConfig
 		networkManager         *networkmanager.NetworkManager
 		ControllerIdentifier   string
@@ -314,8 +314,8 @@ type (
 
 	// ResourceStore contain processed LTM and GTM resource data
 	ResourceStore struct {
-		bigIpMap      BigIpMap
-		bigIpMapCache BigIpMap
+		bigIpMap      BigIpConfigMap
+		bigIpMapCache BigIpConfigMap
 		nplStore      NPLStore
 		supplementContextCache
 	}
@@ -384,22 +384,17 @@ type (
 
 	// ResourceConfigRequest Each BigIPConfig per BigIP HA pair to put into the queue to process
 	ResourceConfigRequest struct {
-		bigIpKey            BigIpKey
+		bigIpConfig         cisapiv1.BigIpConfig
 		bigIpResourceConfig BigIpResourceConfig
 		reqMeta             requestMeta
 		poolMemberType      string
 	}
 
-	// BigIpMap Where key is the BigIP structure and value is the bigip-next configuration
-	BigIpMap map[cisapiv1.BigIpConfig]BigIpResourceConfig
+	// BigIpConfigMap Where key is the BigIP structure and value is the bigip-next configuration
+	BigIpConfigMap map[cisapiv1.BigIpConfig]BigIpResourceConfig
 
 	// BigIP struct to hold the bigip address and label for HA pairs
 	BIGIPConfigs []cisapiv1.BigIpConfig
-
-	BigIpKey struct {
-		BigIpAddress string
-		BigIpLabel   string
-	}
 
 	// BigIpResourceConfig struct to hold the bigip-next ltm and gtm configuration
 	BigIpResourceConfig struct {
@@ -668,8 +663,8 @@ type (
 	}
 
 	requestMap struct {
-		sync.Mutex
-		requestMap map[BigIpKey]requestMeta
+		sync.RWMutex
+		requestMap map[cisapiv1.BigIpConfig]requestMeta
 	}
 
 	requestMeta struct {
@@ -749,7 +744,7 @@ type (
 
 	PostManagers struct {
 		sync.RWMutex
-		PostManagerMap map[BigIpKey]*PostManager
+		PostManagerMap map[cisapiv1.BigIpConfig]*PostManager
 	}
 	AS3PostManager struct {
 		AS3VersionInfo  as3VersionInfo
@@ -784,11 +779,11 @@ type (
 
 	//agentConfig holds as3config and l3config to put onto post channel
 	agentConfig struct {
-		as3Config as3Config
-		l3Config  l3Config
-		id        int
-		BigIpKey  BigIpKey
-		reqMeta   requestMeta
+		as3Config   as3Config
+		l3Config    l3Config
+		id          int
+		BigIpConfig cisapiv1.BigIpConfig
+		reqMeta     requestMeta
 	}
 	//as3Config to put into post channel
 	as3Config struct {

@@ -52,8 +52,8 @@ func newMultiClusterResourceStore() *MultiClusterResourceStore {
 
 // Init is Receiver to initialize the object.
 func (rs *ResourceStore) Init() {
-	rs.bigIpMap = make(BigIpMap)
-	rs.bigIpMapCache = make(BigIpMap)
+	rs.bigIpMap = make(BigIpConfigMap)
+	rs.bigIpMapCache = make(BigIpConfigMap)
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)

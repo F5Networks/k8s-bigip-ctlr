@@ -1153,13 +1153,13 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg).To(BeNil())
 
 			zero := 0
-			partitionConfig := &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			partitionConfig.ResourceMap["virtualServer"] = &ResourceConfig{
+			rs.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+
+			rs.ltmConfig["default"].ResourceMap["virtualServer"] = &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer",
 				},
 			}
-			rs.ltmConfig.Store("default", partitionConfig)
 
 			rsCfg, err = rs.getResourceConfig("default", "virtualServer")
 			Expect(err).To(BeNil())
@@ -1169,18 +1169,17 @@ var _ = Describe("Resource Config Tests", func() {
 
 		It("Get all Resources", func() {
 			zero := 0
-			partitionConfig := &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			partitionConfig.ResourceMap["virtualServer1"] = &ResourceConfig{
+			rs.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			rs.ltmConfig["default"].ResourceMap["virtualServer1"] = &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer1",
 				},
 			}
-			partitionConfig.ResourceMap["virtualServer2"] = &ResourceConfig{
+			rs.ltmConfig["default"].ResourceMap["virtualServer2"] = &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer2",
 				},
 			}
-			rs.ltmConfig.Store("default", partitionConfig)
 
 			ltmCfg := rs.getLTMConfigDeepCopy()
 			Expect(len(ltmCfg)).To(Equal(1), "Wrong number of Partitions")

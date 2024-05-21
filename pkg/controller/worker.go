@@ -646,7 +646,14 @@ func (ctlr *Controller) processResources() bool {
 	case HACIS:
 		log.Infof("posting declaration on primary cluster down event")
 	case NodeUpdate:
-		log.Infof("posting declaration on node update")
+		if &ctlr.multiClusterResources.clusterSvcMap != nil {
+			if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[rKey.clusterName]; ok {
+				for svcKey := range svcKeys {
+					ctlr.updatePoolMembersForService(svcKey, false)
+				}
+			}
+		}
+		log.Debugf("posting declaration on node update")
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}

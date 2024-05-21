@@ -526,7 +526,7 @@ while computing the final ratio.<br>
 
 **Note:** 
 * Cluster wise ratio for traffic distribution is supported in HA as well as non-HA CIS environment.
-* Ratio is only supported for NextGen Routes and Virtual Server CR.
+* Ratio is only supported for NextGen Routes and Virtual and Transport Server CR.
 * Setting cluster adminState in conjunction with cluster ratio will affect the overall traffic distribution across clusters.
   As the clusters marked as disable or offline will not receive traffic, so any ratio defined for these clusters will be rendered ineffective.
   Thus, in such a scenario it's recommended to set the cluster ratio to 0 for all the clusters marked with disable/offline.

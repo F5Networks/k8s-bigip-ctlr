@@ -120,6 +120,7 @@ type (
 		Session         string `json:"session,omitempty"`
 		AdminState      string `json:"adminState,omitempty"`
 		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
+		Ratio           int    `json:"Ratio,omitempty"`
 	}
 
 	// Pool config

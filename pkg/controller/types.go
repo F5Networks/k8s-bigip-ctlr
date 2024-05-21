@@ -418,24 +418,25 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name                 string                                  `json:"name"`
-		Partition            string                                  `json:"-"`
-		ServiceName          string                                  `json:"-"`
-		ServiceNamespace     string                                  `json:"-"`
-		ServicePort          intstr.IntOrString                      `json:"-"`
-		Balance              string                                  `json:"loadBalancingMethod,omitempty"`
-		Members              []PoolMember                            `json:"members"`
-		NodeMemberLabel      string                                  `json:"-"`
-		MonitorNames         []MonitorName                           `json:"monitors,omitempty"`
-		MinimumMonitors      intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
-		ReselectTries        int32                                   `json:"reselectTries,omitempty"`
-		ServiceDownAction    string                                  `json:"serviceDownAction,omitempty"`
-		SlowRampTime         int32                                   `json:"slowRampTime,omitempty"`
-		Weight               int32                                   `json:"weight,omitempty"`
-		AlternateBackends    []AlternateBackend                      `json:"alternateBackends"`
-		MultiClusterServices []cisapiv1.MultiClusterServiceReference `json:"_"`
-		Cluster              string                                  `json:"-"`
-		ConnectionLimit      int32                                   `json:"-"`
+		Name                   string                                  `json:"name"`
+		Partition              string                                  `json:"-"`
+		ServiceName            string                                  `json:"-"`
+		ServiceNamespace       string                                  `json:"-"`
+		ServicePort            intstr.IntOrString                      `json:"-"`
+		Balance                string                                  `json:"loadBalancingMethod,omitempty"`
+		Members                []PoolMember                            `json:"members"`
+		NodeMemberLabel        string                                  `json:"-"`
+		MonitorNames           []MonitorName                           `json:"monitors,omitempty"`
+		MinimumMonitors        intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
+		ReselectTries          int32                                   `json:"reselectTries,omitempty"`
+		ServiceDownAction      string                                  `json:"serviceDownAction,omitempty"`
+		SlowRampTime           int32                                   `json:"slowRampTime,omitempty"`
+		Weight                 int32                                   `json:"weight,omitempty"`
+		AlternateBackends      []AlternateBackend                      `json:"alternateBackends"`
+		MultiClusterServices   []cisapiv1.MultiClusterServiceReference `json:"_"`
+		Cluster                string                                  `json:"-"`
+		ConnectionLimit        int32                                   `json:"-"`
+		SinglePoolRatioEnabled bool                                    `json:"-"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -1003,6 +1004,7 @@ type (
 		ShareNodes       bool     `json:"shareNodes,omitempty"`
 		AdminState       string   `json:"adminState,omitempty"`
 		ConnectionLimit  int32    `json:"connectionLimit,omitempty"`
+		Ratio            int      `json:"ratio,omitempty"`
 	}
 
 	// as3ResourcePointer maps to following in AS3 Resources
@@ -1160,6 +1162,7 @@ type (
 		Session         string `json:"session,omitempty"`
 		AdminState      string `json:"adminState,omitempty"`
 		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
+		Ratio           int    `json:"ratio,omitempty"`
 	}
 )
 

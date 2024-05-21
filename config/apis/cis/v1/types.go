@@ -139,6 +139,7 @@ type TSPool struct {
 	ServiceDownAction    string                         `json:"serviceDownAction,omitempty"`
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
 	Weight               *int32                         `json:"weight,omitempty"`
+	AlternateBackends    []AlternateBackend             `json:"alternateBackends,omitempty"`
 	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
 }
 

@@ -10,6 +10,7 @@ Added Functionality
     * Multi Cluster
     * CRD
       * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3337>`_: Support for access profile and per request policy in policy CRD and VS CRD
+      * `Issue 3352 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3352>`_: Add support for alternate backend,weight and ratio for transport server
     * Support for Calico CNI with Static Routing Mode, See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/StaticRoute/README.md>`_
 
 Bug Fixes

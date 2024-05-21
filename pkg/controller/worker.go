@@ -498,7 +498,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 
 		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
+		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 			log.Debugf("Skipping service '%v' as it's not used by any CIS monitored resource", svcKey)
 			break
 		}
@@ -521,7 +521,7 @@ func (ctlr *Controller) processResources() bool {
 			clusterName: rKey.clusterName,
 		}
 		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
+		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 			log.Debugf("Skipping endpoint '%v/%v' as it's not used by any CIS monitored resource", ep.Namespace, ep.Name)
 			break
 		}
@@ -551,7 +551,7 @@ func (ctlr *Controller) processResources() bool {
 			clusterName: rKey.clusterName,
 		}
 		// Don't process the service as it's not used by any resource
-		if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
+		if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 			log.Debugf("Skipping pod '%v/%v' as it's not used by any CIS monitored resource", pod.Namespace, pod.Name)
 			break
 		}
@@ -1988,26 +1988,20 @@ func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKe
 		rsKey:     rsKey,
 	}
 	multiClusterSvcConfig := MultiClusterServiceConfig{svcPort: svcPort}
-	var multiClusterSvcPoolMap MultiClusterServicePoolMap
-	if valInt, ok := ctlr.multiClusterResources.clusterSvcMap.Load(key.clusterName); !ok {
-		multiClusterSvcPoolMap = make(MultiClusterServicePoolMap)
-	} else {
-		multiClusterSvcPoolMap = valInt.(MultiClusterServicePoolMap)
+	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName]; !ok {
+		ctlr.multiClusterResources.clusterSvcMap[key.clusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	}
-	if _, ok := multiClusterSvcPoolMap[key]; !ok {
-		multiClusterSvcPoolMap[key] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key]; !ok {
+		ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key] = make(map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	}
-	if _, ok := multiClusterSvcPoolMap[key][multiClusterSvcConfig]; !ok {
-		multiClusterSvcPoolMap[key][multiClusterSvcConfig] = make(map[PoolIdentifier]struct{})
+	if _, ok := ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig]; !ok {
+		ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig] = make(map[PoolIdentifier]struct{})
 	}
-	multiClusterSvcPoolMap[key][multiClusterSvcConfig][poolId] = struct{}{}
-	// store the updated map
-	ctlr.multiClusterResources.clusterSvcMap.Store(key.clusterName, multiClusterSvcPoolMap)
+	ctlr.multiClusterResources.clusterSvcMap[key.clusterName][key][multiClusterSvcConfig][poolId] = struct{}{}
 }
 
 func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKey, svcPortUpdated bool) {
-	if sKey, ok := ctlr.multiClusterResources.clusterSvcMap.Load(svcKey.clusterName); ok {
-		serviceKey, _ := sKey.(MultiClusterServicePoolMap)
+	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
 		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
 			for _, poolIds := range svcPorts {
 				for poolId := range poolIds {
@@ -2184,11 +2178,11 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		namespace:   serviceNamespace,
 		clusterName: clusterName,
 	}
-	if _, ok := ctlr.resources.poolMemCache.Load(svcKey); !ok {
+	if _, ok := ctlr.resources.poolMemCache[svcKey]; !ok {
 		log.Debugf("Adding service '%v' in CIS cache %v", svcKey, getClusterLog(clusterName))
-		ctlr.resources.poolMemCache.Store(svcKey, &poolMembersInfo{
+		ctlr.resources.poolMemCache[svcKey] = &poolMembersInfo{
 			memberMap: make(map[portRef][]PoolMember),
-		})
+		}
 	}
 	err, svc := ctlr.fetchService(svcKey)
 	if err != nil {
@@ -2214,8 +2208,7 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 
 func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString) []PoolMember {
 	var poolMembers []PoolMember
-	poolMemInt, ok := ctlr.resources.poolMemCache.Load(mSvcKey)
-	poolMemInfo, _ := poolMemInt.(*poolMembersInfo)
+	poolMemInfo, ok := ctlr.resources.poolMemCache[mSvcKey]
 	if !ok || len(poolMemInfo.memberMap) == 0 {
 		log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort  %v:%v%v", mSvcKey, servicePort.Type, servicePort.IntVal, servicePort.StrVal)
 		return poolMembers
@@ -2231,12 +2224,7 @@ func (ctlr *Controller) getPoolMembersForEndpoints(mSvcKey MultiClusterServiceKe
 
 func (ctlr *Controller) getPoolMembersForService(mSvcKey MultiClusterServiceKey, servicePort intstr.IntOrString, nodeMemberLabel string) []PoolMember {
 	var poolMembers []PoolMember
-	poolMemInt, ok := ctlr.resources.poolMemCache.Load(mSvcKey)
-	if !ok {
-		log.Errorf("[CORE]Service could not be fetched from CIS cache", mSvcKey)
-		return poolMembers
-	}
-	poolMemInfo, _ := poolMemInt.(*poolMembersInfo)
+	poolMemInfo, _ := ctlr.resources.poolMemCache[mSvcKey]
 	var poolMemType = ctlr.PoolMemberType
 	if poolMemType == Auto {
 		poolMemType = string(poolMemInfo.svcType)
@@ -2763,8 +2751,7 @@ func (ctlr *Controller) processService(
 		clusterName: clusterName,
 	}
 
-	pmInt, _ := ctlr.resources.poolMemCache.Load(svcKey)
-	pmi, _ := pmInt.(*poolMembersInfo)
+	pmi, _ := ctlr.resources.poolMemCache[svcKey]
 	pmi.portSpec = svc.Spec.Ports
 	pmi.svcType = svc.Spec.Type
 	nodes := ctlr.getNodesFromCache(svcKey.clusterName)
@@ -2838,14 +2825,14 @@ func (ctlr *Controller) processService(
 			pmi.memberMap[portKey] = members
 		}
 	}
-	ctlr.resources.poolMemCache.Store(svcKey, pmi)
+	ctlr.resources.poolMemCache[svcKey] = pmi
 	return nil
 }
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig.Load(DEFAULT_GTM_PARTITION); ok {
-		if processedWIP, ok := gtmPartitionConfig.(GTMPartitionConfig).WideIPs[edns.Spec.DomainName]; ok {
+	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
+		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
 			if processedWIP.UID != string(edns.UID) {
 				log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
 				return
@@ -2854,13 +2841,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	}
 
 	if isDelete {
-		pcInt, ok := ctlr.resources.gtmConfig.Load(DEFAULT_GTM_PARTITION)
-		if !ok {
+		if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
 			return
 		}
-		if partitionConfig, ok := pcInt.(GTMPartitionConfig); ok {
-			delete(partitionConfig.WideIPs, edns.Spec.DomainName)
-		}
+
+		delete(ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -3011,16 +2996,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}
-	var gtmPartitionConfig GTMPartitionConfig
-	if pcInt, ok := ctlr.resources.gtmConfig.Load(DEFAULT_GTM_PARTITION); !ok {
-		gtmPartitionConfig = GTMPartitionConfig{
+	if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
+		ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION] = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
-	} else {
-		gtmPartitionConfig = pcInt.(GTMPartitionConfig)
 	}
-	gtmPartitionConfig.WideIPs[edns.Spec.DomainName] = wip
-	ctlr.resources.gtmConfig.Store(DEFAULT_GTM_PARTITION, gtmPartitionConfig)
+
+	ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
 	return
 }
 

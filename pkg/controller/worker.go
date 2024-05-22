@@ -1539,7 +1539,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			}
 			if _, ok := uniquePaths[pool.Path]; ok {
 				// path already exists for the same host
-				log.Debugf("Discarding the VirtualServer %v/%v due to duplicate path",
+				log.Warningf("Discarding the VirtualServer %v/%v due to duplicate path",
 					vrt.ObjectMeta.Namespace, vrt.ObjectMeta.Name)
 				isUnique = false
 				break
@@ -4245,6 +4245,11 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
 	if err != nil {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
+	}
+	// Check if Partition is set to Common, which is not allowed
+	if es.DefaultRouteGroupConfig.BigIpPartition == CommonPartition {
+		return fmt.Errorf("invalid partition %v provided in defaultRouteGroup of configmap: %v/%v",
+			CommonPartition, cm.Namespace, cm.Name), false
 	}
 	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
 	clusterConfigUpdated := false

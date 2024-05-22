@@ -18,6 +18,7 @@ Bug Fixes
 * `Issue 3371 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3371`_: CIS added irules cannot have "event disable all"
 * `Issue 3402 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3402`_: TLS iRule fails after recent browser updates
 * Fix for EDNS pool member empty issue.
+* `Issue 3414 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3414`_: CIS is deleting referenced SSL Profile it did not create
 
 
 2.16.1

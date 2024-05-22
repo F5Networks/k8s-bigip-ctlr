@@ -309,7 +309,9 @@ func (agent *Agent) agentWorker() {
 			agent.postTenantsDeclaration(decl, rsConfig, priorityTenants)
 		}
 		// Updating the remaining tenants
-		agent.postTenantsDeclaration(decl, rsConfig, updatedTenants)
+		if len(updatedTenants) > 0 {
+			agent.postTenantsDeclaration(decl, rsConfig, updatedTenants)
+		}
 
 		agent.declUpdate.Unlock()
 	}

@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/util/workqueue"
 )
 
 var _ = Describe("Node Poller Handler", func() {
@@ -99,6 +100,8 @@ var _ = Describe("Node Poller Handler", func() {
 		mockCtlr.namespaces = make(map[string]bool)
 		mockCtlr.namespaces[namespace] = true
 		mockCtlr.addNamespacedInformers(namespace, false)
+		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 
 		// Static routes with Node taints
 		nodeAddr1 := v1.NodeAddress{
@@ -354,6 +357,7 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
+		mockCtlr.resourceQueue.ShutDown()
 
 	})
 

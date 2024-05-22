@@ -67,9 +67,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 				log.Debugf("Processing Node Updates for local cluster")
 				// Update node cache
 				ctlr.oldNodes = newNodes
-				if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-					ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-				}
+				ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 			}
 		} else {
 			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
@@ -78,11 +76,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 					log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
 					// Update node cache
 					nodeInf.oldNodes = newNodes
-					if ctlr.multiClusterResources.clusterSvcMap != nil {
-						if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-							ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-						}
-					}
+					ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
 				}
 			}
 		}
@@ -101,15 +95,12 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 }
 
 func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
-	if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
-		for svcKey, _ := range svcKeys {
-			ctlr.updatePoolMembersForService(svcKey, false)
-		}
-		key := &rqKey{
-			kind: NodeUpdate,
-		}
-		ctlr.resourceQueue.Add(key)
+	// Add a request to the resource queue to update the pool members
+	key := &rqKey{
+		kind:        NodeUpdate,
+		clusterName: clusterName,
 	}
+	ctlr.resourceQueue.Add(key)
 }
 
 // Return a copy of the node cache

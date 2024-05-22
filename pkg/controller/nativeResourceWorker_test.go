@@ -1421,6 +1421,44 @@ extendedRouteSpec:
 			Expect(ok).To(BeTrue())
 		})
 
+		It("Extended Route Spec with Common partition in RouteGroups and defaultRouteGroup of baseRouteSpec", func() {
+			// Verify Common partition is not allowed for defaultRouteGroup of baseRouteSpec
+			data["extendedSpec"] = `
+baseRouteSpec:
+    defaultRouteGroup:
+        bigIpPartition: Common
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: false
+    - namespace: new
+      vserverAddr: 10.8.3.12
+      allowOverride: false
+      bigIpPartition: Common
+`
+			err, ok := mockCtlr.processConfigMap(cm, false)
+			Expect(err).NotTo(BeNil(), "Common partition in defaultRouteGroup of baseRouteSpec should not be allowed")
+			Expect(ok).To(BeFalse(), "Common partition in defaultRouteGroup of baseRouteSpec should not be allowed")
+
+			// Verify Common partition is not allowed for RouteGroup
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: false
+    - namespace: new
+      vserverAddr: 10.8.3.12
+      allowOverride: false
+      bigIpPartition: Common
+`
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).NotTo(BeNil(), "Common partition in RouteGroups should not be allowed")
+			Expect(ok).To(BeFalse(), "Common partition in RouteGroups should not be allowed")
+
+		})
+
 		It("Extended Route Spec Allow local", func() {
 			data["extendedSpec"] = `
 extendedRouteSpec:

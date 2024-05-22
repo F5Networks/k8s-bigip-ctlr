@@ -2,6 +2,7 @@ package as3
 
 import (
 	"encoding/json"
+	"fmt"
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
@@ -192,9 +193,9 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {
 				poolObj := appObj[string(pn)].(map[string]interface{})
-				eps, err := rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace)
-				// If there is some error while fetching the endpoint from API server then skip processing further
-				if nil != err {
+				eps, ok := am.AgentCfgSvcCache[fmt.Sprintf("%s/%s/%s", tnt, app, pn)]
+				// If there is some error while fetching the endpoint from cache
+				if !ok {
 					return nil, nil, err
 				}
 				// Handle an empty value
@@ -202,8 +203,8 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					continue
 				}
 				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
+				var poolMembers []map[string]interface{}
 				if am.poolMemberType == NodePortLocal {
-					var poolMembers []map[string]interface{}
 					for _, v := range eps {
 						var ips []string
 						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
@@ -220,16 +221,25 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 							poolMembers = append(poolMembers, poolMember)
 						}
 					}
-
-					poolObj["members"] = poolMembers
 				} else {
-					var ips []string
 					var port int32
 					for _, v := range eps {
+						var ips []string
 						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
 							ips = append(ips, v.Address)
 							members = append(members, v)
 							port = v.Port
+							//copy poolMem to poolMember to preserve all other fields defined on the pool member
+							poolMember := make(map[string]interface{})
+							for key, value := range poolMem {
+								poolMember[key] = value
+							}
+							poolMember["serverAddresses"] = ips
+							poolMember["servicePort"] = float64(v.Port)
+							if v.AdminState != "" {
+								poolMember["adminState"] = v.AdminState
+							}
+							poolMembers = append(poolMembers, poolMember)
 						}
 					}
 
@@ -237,19 +247,27 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 						ipMap := make(map[string]bool)
 						members = append(members, eps...)
 						for _, v := range eps {
+							var ips []string
 							if _, ok := ipMap[v.Address]; !ok {
 								ipMap[v.Address] = true
 								ips = append(ips, v.Address)
+								//copy poolMem to poolMember to preserve all other fields defined on the pool member
+								poolMember := make(map[string]interface{})
+								for key, value := range poolMem {
+									poolMember[key] = value
+								}
+								poolMember["serverAddresses"] = ips
+								poolMember["servicePort"] = float64(eps[0].Port)
+								if v.AdminState != "" {
+									poolMember["adminState"] = v.AdminState
+								}
+								poolMembers = append(poolMembers, poolMember)
 							}
 						}
-						port = eps[0].Port
 					}
-
-					// Replace pool member IP addresses
-					poolMem["serverAddresses"] = ips
-					// Replace port number
-					poolMem["servicePort"] = port
 				}
+				// update the pool members
+				poolObj["members"] = poolMembers
 			}
 		}
 		tenantMap[string(tnt)] = tenantObj

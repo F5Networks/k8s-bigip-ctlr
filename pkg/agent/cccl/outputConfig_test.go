@@ -20,7 +20,6 @@ var _ = Describe("Agent AS3 Tests", func() {
 		}
 		cm = NewCCCLManager(&Params{ConfigWriter: mw,
 			EventChan: make(chan interface{}, 1)})
-		cm.PoolMembers = make(map[Member]struct{})
 		cm.Profs = make(map[SecretKey]CustomProfile)
 		clientSecret := SecretKey{Name: "test-client-secret", ResourceName: "test_virtual_secure"}
 		serverSecret := SecretKey{Name: "test-server-secret", ResourceName: "test_virtual_secure"}

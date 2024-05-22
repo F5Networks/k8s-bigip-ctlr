@@ -238,6 +238,11 @@ type Params struct {
 	StaticRouteNodeCIDR string
 }
 
+type SvcEndPointsCache struct {
+	members  []Member
+	poolPath string
+}
+
 // Configuration options for Routes in OpenShift
 type RouteConfig struct {
 	RouteVSAddr string
@@ -246,11 +251,6 @@ type RouteConfig struct {
 	HttpsVs     string
 	ClientSSL   string
 	ServerSSL   string
-}
-
-type SvcEndPointsCache struct {
-	members     []Member
-	labelString string
 }
 
 var K8SCoreServices = map[string]bool{
@@ -1626,13 +1626,14 @@ func (appMgr *Manager) syncConfigMaps(
 				"cis.f5.com/as3-app=" + appLabel + "," +
 				"cis.f5.com/as3-pool=" + poolLabel
 
-			key := sKey.Namespace + "/" + sKey.ServiceName
+			cacheKey := sKey.Namespace + "/" + sKey.ServiceName
 
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
+				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
 				if sKey.Operation == OprTypeDisable && appMgr.poolMemberType == ClusterIP {
-					if svcCache, ok := appMgr.agentCfgMapSvcCache[key]; ok {
-						if svcCache.labelString == selector && svcCache.members != nil {
+					if svcCache, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
+						if svcCache.poolPath == selector && svcCache.members != nil {
 							pod, _ := sKey.Object.(*v1.Pod)
 							for _, member := range svcCache.members {
 								if pod != nil && member.Address == pod.Status.PodIP {
@@ -1650,30 +1651,30 @@ func (appMgr *Manager) syncConfigMaps(
 				if err != nil {
 					return err
 				}
-				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
+				if _, ok := appMgr.agentCfgMapSvcCache[cacheKey]; !ok {
 					if len(members) != 0 {
-						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
-							members:     members,
-							labelString: selector,
+						appMgr.agentCfgMapSvcCache[cacheKey] = &SvcEndPointsCache{
+							members:  members,
+							poolPath: poolPath,
 						}
 						stats.poolsUpdated += 1
 						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				} else {
 					sc := &SvcEndPointsCache{
-						members:     members,
-						labelString: selector,
+						members:  members,
+						poolPath: poolPath,
 					}
-					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[key].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[key]) {
+					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[cacheKey].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[cacheKey]) {
 						stats.poolsUpdated += 1
-						appMgr.agentCfgMapSvcCache[key] = sc
+						appMgr.agentCfgMapSvcCache[cacheKey] = sc
 						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				}
 			} else {
-				if _, ok := appMgr.agentCfgMapSvcCache[key]; ok {
+				if _, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
 					stats.poolsUpdated += 1
-					delete(appMgr.agentCfgMapSvcCache, key)
+					delete(appMgr.agentCfgMapSvcCache, cacheKey)
 				}
 			}
 		}

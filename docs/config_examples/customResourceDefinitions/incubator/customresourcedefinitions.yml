@@ -400,7 +400,7 @@ spec:
                   minimum: 1
                   maximum: 65535
               x-kubernetes-validations:
-                - rule: "self.partition != Common"
+                - rule: "self.partition != 'Common'"
                   message: "Partition cannot be set as Common"
             status:
               type: object
@@ -761,7 +761,7 @@ spec:
                 - pool
                 - mode
               x-kubernetes-validations:
-                - rule: "self.partition != Common"
+                - rule: "self.partition != 'Common'"
                   message: "Partition cannot be set as Common"
             status:
               type: object
@@ -981,7 +981,7 @@ spec:
                       type: object
                   type: object
               x-kubernetes-validations:
-                - rule: "self.partition != Common"
+                - rule: "self.partition != 'Common'"
                   message: "Partition cannot be set as Common"
             status:
               type: object

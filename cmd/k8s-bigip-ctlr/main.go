@@ -1192,7 +1192,7 @@ func main() {
 	}
 	defer appMgr.AgentCIS.DeInit()
 
-	if *filterTenants {
+	if *filterTenants && !disableDefaultPartition {
 		appMgr.AgentCIS.Clean(resource.DEFAULT_PARTITION)
 	}
 	if *agent == cisAgent.AS3Agent && !(*disableTeems) {

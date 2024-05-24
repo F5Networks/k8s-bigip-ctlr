@@ -8,25 +8,68 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
-const Disabled = "disabled"
-const Offline = "offline"
+const Disable = "disable"
 
-type PodIp string
-type PoolPath string
+type PatchRequest struct {
+	poolPath     string
+	memberIP     string
+	sessionState string
+	ports        string
+	gracePeriod  int64
+}
 
-type PoolMemberMap map[PodIp]PoolPath
+// PatchDeployer patch deployer works on patch channel and patches the request
+func (am *AS3Manager) PatchDeployer() {
+	for patchReq := range am.PatchChan {
+		go am.patchPoolMember(patchReq)
+	}
+}
+
+func (am *AS3Manager) patchPoolMember(req PatchRequest) {
+	ports := strings.Split(req.ports, ",")
+	for _, p := range ports {
+		port, _ := strconv.Atoi(p)
+		port32 := int32(port)
+		go func(graceTermination int64) {
+			// Create a channel to receive a signal after the timeout
+			timeout := time.Duration(graceTermination) * time.Second
+			timeoutCh := time.After(timeout)
+			count := 1
+			// retry until the grace period
+			for {
+				// delete the pod from the cache after the timeout
+				select {
+				case <-timeoutCh:
+					log.Debugf("[PatchRequest] grace period expired for the patch request. %v", req)
+					return
+				default:
+					// Continue the loop until the timeout
+					err := am.updatePoolMemberState(req.poolPath, req.memberIP, req.sessionState, port32)
+					if err == nil {
+						return
+					} else {
+						log.Errorf("[PatchRequest] Error patching pool member, Retrying in %v seconds: %v", count, err)
+						time.Sleep(time.Duration(count) * time.Second)
+						count = count * 2
+					}
+				}
+			}
+		}(req.gracePeriod)
+	}
+}
 
 // function to updatePoolMemberState
-func (am *AS3Manager) updatePoolMemberState(poolPath, ip, sessionState string, port int) error {
+func (am *AS3Manager) updatePoolMemberState(poolPath, ip, sessionState string, port int32) error {
+	log.Debugf("[PatchRequest] Patching pool member %s:%d in pool %s", ip, port, poolPath)
 	var state string
 	switch sessionState {
-	case Disabled:
+	case Disable:
 		state = "user-up"
-	case Offline:
-		state = "user-down"
 	default:
 		return fmt.Errorf("invalid session state: %s", sessionState)
 	}
@@ -44,7 +87,7 @@ func (am *AS3Manager) updatePoolMemberState(poolPath, ip, sessionState string, p
 }
 
 // function to fetchPoolMemberURI
-func (postMgr *PostManager) fetchPoolMemberURI(poolPath, ip string, port int) string {
+func (postMgr *PostManager) fetchPoolMemberURI(poolPath, ip string, port int32) string {
 	pfn := strings.Split(poolPath, "/")
 	ipport := fmt.Sprintf("~%s~%s:%d", pfn[0], ip, port)
 	if IsIpv6(ip) {
@@ -56,10 +99,11 @@ func (postMgr *PostManager) fetchPoolMemberURI(poolPath, ip string, port int) st
 }
 
 func (postMgr *PostManager) PatchObject(url, data string) error {
+	log.Debugf("[PatchRequest] Patching object: %s", url)
 	httpReqBody := bytes.NewBuffer([]byte(data))
 	req, err := http.NewRequest("PATCH", url, httpReqBody)
 	if err != nil {
-		log.Errorf("[PoolMemberUpdate] Creating new HTTP request error: %v ", err)
+		log.Errorf("[PatchRequest] Creating new HTTP request error: %v ", err)
 		return err
 	}
 
@@ -67,18 +111,20 @@ func (postMgr *PostManager) PatchObject(url, data string) error {
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil {
-		log.Errorf("[PoolMemberUpdate] Received empty response: ", httpResp)
+		log.Errorf("[PatchRequest] Received empty response: ", httpResp)
 		return err
 	}
 	if responseMap == nil {
-		log.Errorf("[PoolMemberUpdate] Received empty responseMap", responseMap)
+		log.Errorf("[PatchRequest] Received empty responseMap", responseMap)
 		return err
 	}
 
 	switch httpResp.StatusCode {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted:
+		log.Debugf("[PatchRequest] Patch request successful: %v", responseMap)
 		return nil
 	default:
+		log.Errorf("[PatchRequest] Patch request failed: %v", responseMap)
 		return err
 	}
 }

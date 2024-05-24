@@ -1322,6 +1322,7 @@ func getAS3Params() *as3.Params {
 		PoolMemberType:            *poolMemberType,
 		HTTPClientMetrics:         *httpClientMetrics,
 		DisableDefaultPartition:   disableDefaultPartition,
+		EnablePatchChannel:        *podGracefulShutdown,
 	}
 }
 

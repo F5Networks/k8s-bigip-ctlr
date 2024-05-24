@@ -25,6 +25,7 @@ type Initializer interface {
 // Deployer is the interface which wraps basic Deploy method
 type Deployer interface {
 	Deploy(req interface{}) error
+	PatchPoolMember(req interface{}) error
 }
 
 // De-Initializer is the interface which wraps basic De-Init method.

@@ -193,7 +193,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {
 				poolObj := appObj[string(pn)].(map[string]interface{})
-				eps, ok := am.AgentCfgSvcCache[fmt.Sprintf("%s/%s/%s", tnt, app, pn)]
+				eps, ok := am.AgentCfgSvcCache[fmt.Sprintf("/%s/%s/%s", tnt, app, pn)]
 				// If there is some error while fetching the endpoint from cache
 				if !ok {
 					return nil, nil, err

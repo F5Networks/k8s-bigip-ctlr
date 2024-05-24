@@ -144,8 +144,12 @@ func (appMgr *Manager) checkValidEndpoints(
 		return false, nil
 	}
 	// handle the pod graceful shutdown
-	if appMgr.podGracefulShutdown && operation == OprTypeDelete {
-		appMgr.processPodGracefulShutdown(eps, appInf)
+	if appMgr.PodSvcCfgMapCache != nil {
+		// return if pod graceful shut down event is handled,
+		// it will add the endpoint event again after pod completes the graceful shutdown
+		if appMgr.udpatePodCacheForGracefulShutDown(eps, appInf, operation) {
+			return false, nil
+		}
 	}
 	key := &serviceQueueKey{
 		ServiceName:  eps.ObjectMeta.Name,

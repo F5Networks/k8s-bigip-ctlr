@@ -452,11 +452,12 @@ var _ = Describe("AS3Manager Tests", func() {
 				RsMap: ResourceConfigMap{},
 			}
 			resourceRequest := ResourceRequest{
-				Resources: agentresource,
-				Profs:     map[SecretKey]CustomProfile{},
-				IrulesMap: IRulesMap{},
-				IntDgMap:  InternalDataGroupMap{},
-				IntF5Res:  InternalF5ResourcesGroup{},
+				Resources:        agentresource,
+				Profs:            map[SecretKey]CustomProfile{},
+				IrulesMap:        IRulesMap{},
+				IntDgMap:         InternalDataGroupMap{},
+				IntF5Res:         InternalF5ResourcesGroup{},
+				AgentCfgSvcCache: make(map[string][]Member),
 			}
 			resourceRequest.AgentCfgmaps = append(
 				mockMgr.ResourceRequest.AgentCfgmaps,

@@ -530,6 +530,8 @@ const DefaultIngressClass = "ingressclass.kubernetes.io/is-default-class"
 const NodePortLocal = "nodeportlocal"
 const NodePort = "nodeport"
 const ClusterIP = "clusterip"
+const PodStatusEnabled = "enabled"
+const PodStatusDisabled = "disabled"
 
 // Multicluster annotations
 const MultiClusterServicesAnnotation = "virtual-server.f5.com/multiClusterServices"

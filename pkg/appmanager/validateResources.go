@@ -144,7 +144,7 @@ func (appMgr *Manager) checkValidEndpoints(
 		return false, nil
 	}
 	// handle the pod graceful shutdown
-	if appMgr.PodSvcCfgMapCache != nil {
+	if appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
 		// return if pod graceful shut down event is handled,
 		// it will add the endpoint event again after pod completes the graceful shutdown
 		if appMgr.udpatePodCacheForGracefulShutDown(eps, appInf, operation) {

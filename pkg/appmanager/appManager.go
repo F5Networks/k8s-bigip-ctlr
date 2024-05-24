@@ -63,10 +63,16 @@ type ResourceMap map[int32][]*ResourceConfig
 // RoutesMap consists of List of route names indexed by namespace
 type RoutesMap map[string][]string
 
-type PodGracePeriod struct {
-	podIps      string
+type PodSvcCache struct {
+	podDetails  *sync.Map
+	svcPodCache *sync.Map
+}
+
+type PodDetails struct {
+	podIp       string
 	gracePeriod int64
-	svcKey      string
+	epKey       string
+	status      string
 }
 
 type Manager struct {
@@ -76,7 +82,7 @@ type Manager struct {
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
-	PodSvcCfgMapCache   *sync.Map
+	podSvcCache         PodSvcCache
 	kubeClient          kubernetes.Interface
 	restClientv1        rest.Interface
 	restClientv1beta1   rest.Interface
@@ -420,7 +426,10 @@ func NewManager(params *Params) *Manager {
 		staticRouteNodeCIDR:    params.StaticRouteNodeCIDR,
 	}
 	if params.PodGracefulShutdown {
-		manager.PodSvcCfgMapCache = &sync.Map{}
+		manager.podSvcCache = PodSvcCache{
+			podDetails:  &sync.Map{},
+			svcPodCache: &sync.Map{},
+		}
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -805,8 +814,8 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
-	//enable podinformer for nodeport local
-	if appMgr.poolMemberType == NodePortLocal || appMgr.PodSvcCfgMapCache != nil {
+	//enable podinformer for nodeport local and pod graceful shutdown
+	if appMgr.poolMemberType == NodePortLocal || (appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil) {
 		appInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -1054,7 +1063,7 @@ func (appMgr *Manager) enqueueEndpointsUpdate(old, cur interface{}, operation st
 		return
 	}
 	// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
-	if len(oldep.Subsets[0].Addresses) > len(newep.Subsets[0].Addresses) && appMgr.PodSvcCfgMapCache != nil {
+	if len(oldep.Subsets[0].Addresses) > len(newep.Subsets[0].Addresses) && (appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil) {
 		operation = OprTypeDisable
 	}
 	if ok, keys := appMgr.checkValidEndpoints(newep, operation); ok {
@@ -1672,13 +1681,11 @@ func (appMgr *Manager) syncConfigMaps(
 					log.Debugf("Vivek: Disabling pool member for service %v", key)
 					if svcCache, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
 						if svcCache.poolPath == selector && svcCache.members != nil {
-							podGracePeriod, _ := sKey.Object.(PodGracePeriod)
+							podDetails, _ := sKey.Object.(PodDetails)
 							for _, member := range svcCache.members {
-								for _, podIp := range strings.Split(podGracePeriod.podIps, ",") {
-									if podIp == member.Address {
-										member.AdminState = "disable"
-										stats.poolsUpdated += 1
-									}
+								if podDetails.podIp == member.Address {
+									member.AdminState = "disable"
+									stats.poolsUpdated += 1
 								}
 								if stats.poolsUpdated > 0 {
 									return nil
@@ -4039,6 +4046,7 @@ func (appMgr *Manager) processStaticRouteUpdate(
 
 func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf *appInformer, operation string) bool {
 	var forgetEvent bool
+	epKey := fmt.Sprintf("%s/%s", eps.Namespace, eps.Name)
 	if operation == OprTypeDisable || operation == OprTypeDelete {
 		var deletedItems []string
 		if operation == OprTypeDisable {
@@ -4047,10 +4055,10 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 			for _, item := range eps.Subsets[0].Addresses {
 				elementMap[item.IP] = true
 			}
-			appMgr.PodSvcCfgMapCache.Range(func(key, value interface{}) bool {
+			appMgr.podSvcCache.podDetails.Range(func(key, value interface{}) bool {
 				ip := key.(string)
-				podGracePeriod := value.(PodGracePeriod)
-				if !elementMap[ip] && podGracePeriod.svcKey == fmt.Sprintf("%s/%s", eps.Namespace, eps.Name) {
+				podDetails := value.(PodDetails)
+				if !elementMap[ip] && podDetails.epKey == epKey {
 					deletedItems = append(deletedItems, ip)
 				}
 				return true
@@ -4065,11 +4073,14 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 
 		// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
 		for _, addr := range deletedItems {
-			if value, ok := appMgr.PodSvcCfgMapCache.Load(addr); ok {
-				if podGracePeriod, ok := value.(PodGracePeriod); ok {
-					if podGracePeriod.svcKey == fmt.Sprintf("%s/%s", eps.Namespace, eps.Name) {
+			if value, ok := appMgr.podSvcCache.podDetails.Load(addr); ok {
+				if podDetails, ok := value.(PodDetails); ok {
+					if podDetails.epKey == epKey {
+						// udpate the pod status to disabled
+						podDetails.status = PodStatusDisabled
+						appMgr.podSvcCache.podDetails.Store(addr, podDetails)
 						// disable the endpoint to disable new connections
-						appMgr.enqueueEndpointDisable(eps, podGracePeriod)
+						appMgr.enqueueEndpointDisable(eps, podDetails)
 						forgetEvent = true
 						go func(graceTermination int64) {
 							// Create a channel to receive a signal after the timeout
@@ -4080,7 +4091,13 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 								// delete the pod from the cache after the timeout
 								select {
 								case <-timeoutCh:
-									appMgr.PodSvcCfgMapCache.Delete(addr)
+									appMgr.podSvcCache.podDetails.Delete(addr)
+									// delete the entry from svc pod cache
+									if ips, ok := appMgr.podSvcCache.svcPodCache.Load(epKey); ok {
+										podMap := ips.(*map[string]struct{})
+										delete(*podMap, addr)
+										appMgr.podSvcCache.svcPodCache.Store(epKey, podMap)
+									}
 									log.Debugf("Vivek: Deleted the %v from pod cache", addr)
 									// disable the endpoint to disable new connections
 									appMgr.enqueueEndpoints(eps, OprTypeUpdate)
@@ -4089,10 +4106,14 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 									// Continue the loop until the timeout
 								}
 							}
-						}(podGracePeriod.gracePeriod)
+						}(podDetails.gracePeriod)
 					}
 				}
 			}
+		}
+		if operation == OprTypeDelete {
+			// delete the entry from the cache
+			appMgr.podSvcCache.svcPodCache.Delete(epKey)
 		}
 	} else {
 		// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
@@ -4109,26 +4130,28 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 			if found {
 				pod, _ := obj.(*v1.Pod)
 				// udpate the pod cache for graceful shutdown
-				appMgr.PodSvcCfgMapCache.Store(pod.Status.PodIP,
-					PodGracePeriod{
-						podIps:      podIPsToString(pod.Status.PodIPs),
+				appMgr.podSvcCache.podDetails.Store(pod.Status.PodIP,
+					PodDetails{
+						podIp:       pod.Status.PodIP,
 						gracePeriod: *pod.Spec.TerminationGracePeriodSeconds,
-						svcKey:      fmt.Sprintf("%s/%s", eps.Namespace, eps.Name),
+						epKey:       epKey,
+						status:      PodStatusEnabled,
 					})
+				// update the svc pod cache
+				if ips, ok := appMgr.podSvcCache.svcPodCache.Load(epKey); ok {
+					podMap := ips.(*map[string]struct{})
+					(*podMap)[pod.Status.PodIP] = struct{}{}
+					appMgr.podSvcCache.svcPodCache.Store(epKey, podMap)
+				} else {
+					podMap := make(map[string]struct{})
+					podMap[pod.Status.PodIP] = struct{}{}
+					appMgr.podSvcCache.svcPodCache.Store(epKey, &podMap)
+				}
 				log.Debugf("Vivek: Updated the cache endpoint %v event for pod ip %v", operation, pod.Status.PodIP)
 			}
 		}
 	}
 	return forgetEvent
-}
-
-// Convert []v1.PodIP to a hashable string
-func podIPsToString(podIPs []v1.PodIP) string {
-	var strIPs []string
-	for _, podIP := range podIPs {
-		strIPs = append(strIPs, podIP.IP)
-	}
-	return strings.Join(strIPs, ",")
 }
 
 // EnqueueEndpointDisable enqueues the endpoint disable event

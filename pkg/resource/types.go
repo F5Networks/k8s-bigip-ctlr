@@ -528,9 +528,8 @@ const CISControllerName = "f5.com/cntr-ingress-svcs"
 const DefaultIngressClass = "ingressclass.kubernetes.io/is-default-class"
 const NodePortLocal = "nodeportlocal"
 const NodePort = "nodeport"
-const ClusterIP = "clusterip"
-const PodStatusEnabled = "enabled"
-const PodStatusDisabled = "disabled"
+const PodStatusEnable = "enable"
+const PodStatusDisable = "disable"
 
 // Multicluster annotations
 const MultiClusterServicesAnnotation = "virtual-server.f5.com/multiClusterServices"

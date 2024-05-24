@@ -63,6 +63,12 @@ type ResourceMap map[int32][]*ResourceConfig
 // RoutesMap consists of List of route names indexed by namespace
 type RoutesMap map[string][]string
 
+type PodGracePeriod struct {
+	podIps      string
+	gracePeriod int64
+	svcKey      string
+}
+
 type Manager struct {
 	resources           *Resources
 	customProfiles      *CustomProfileStore
@@ -70,6 +76,7 @@ type Manager struct {
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
+	PodSvcCfgMapCache   *sync.Map
 	kubeClient          kubernetes.Interface
 	restClientv1        rest.Interface
 	restClientv1beta1   rest.Interface
@@ -128,7 +135,6 @@ type Manager struct {
 	manageConfigMaps       bool
 	configMapLabel         string
 	hubMode                bool
-	podGracefulShutdown    bool
 	manageIngress          bool
 	manageIngressClassOnly bool
 	ingressClass           string
@@ -390,7 +396,6 @@ func NewManager(params *Params) *Manager {
 		mergedRulesMap:         make(map[string]map[string]MergedRuleEntry),
 		manageConfigMaps:       params.ManageConfigMaps,
 		hubMode:                params.HubMode,
-		podGracefulShutdown:    params.PodGracefulShutdown,
 		manageIngress:          params.ManageIngress,
 		manageIngressClassOnly: params.ManageIngressClassOnly,
 		ingressClass:           params.IngressClass,
@@ -413,6 +418,9 @@ func NewManager(params *Params) *Manager {
 		staticRoutingMode:      params.StaticRoutingMode,
 		orchestrationCNI:       params.OrchestrationCNI,
 		staticRouteNodeCIDR:    params.StaticRouteNodeCIDR,
+	}
+	if params.PodGracefulShutdown {
+		manager.PodSvcCfgMapCache = &sync.Map{}
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -798,7 +806,7 @@ func (appMgr *Manager) newAppInformer(
 		),
 	}
 	//enable podinformer for nodeport local
-	if appMgr.poolMemberType == NodePortLocal {
+	if appMgr.poolMemberType == NodePortLocal || appMgr.PodSvcCfgMapCache != nil {
 		appInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -936,7 +944,7 @@ func (appMgr *Manager) newAppInformer(
 		appInf.endptInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeCreate) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpoints(cur, OprTypeUpdate) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpointsUpdate(old, cur, OprTypeUpdate) },
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeDelete) },
 			},
 			resyncPeriod,
@@ -1023,6 +1031,10 @@ func (appMgr *Manager) enqueueService(obj interface{}, operation string) {
 	}
 }
 
+// enqueue endpoint wil be called in two cases
+// 1. When endpoint is created
+// 2. When endpoints are scaled down, in case of pod-graceful-shutdown is enabled
+// 3 When endpoint is deleted
 func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidEndpoints(obj, operation); ok {
 		for _, key := range keys {
@@ -1032,11 +1044,36 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
 	}
 }
 
-func (appMgr *Manager) enqueuePod(obj interface{}, operation string) {
-	if ok, keys := appMgr.checkValidPod(obj, operation); ok {
+// enqueueEndpointsUpdate will be called when endpoints are updated
+// 1. When endpoints are scaled up, it will just enqueue to the queue
+// 2. When pod-graceful-shutdown is enabled, it will check if the endpoints are scaled down
+func (appMgr *Manager) enqueueEndpointsUpdate(old, cur interface{}, operation string) {
+	oldep := old.(*v1.Endpoints)
+	newep := cur.(*v1.Endpoints)
+	if reflect.DeepEqual(oldep.Subsets, newep.Subsets) {
+		return
+	}
+	// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+	if len(oldep.Subsets[0].Addresses) > len(newep.Subsets[0].Addresses) && appMgr.PodSvcCfgMapCache != nil {
+		operation = OprTypeDisable
+	}
+	if ok, keys := appMgr.checkValidEndpoints(newep, operation); ok {
 		for _, key := range keys {
 			key.Operation = operation
 			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueuePod(obj interface{}, operation string) {
+	// only enqueue pod for nodeport local
+	// don't enqueue pod for pod-graceful-shutdown as it will be handled by endpoints
+	if appMgr.poolMemberType == NodePortLocal {
+		if ok, keys := appMgr.checkValidPod(obj, operation); ok {
+			for _, key := range keys {
+				key.Operation = operation
+				appMgr.vsQueue.Add(*key)
+			}
 		}
 	}
 }
@@ -1632,17 +1669,21 @@ func (appMgr *Manager) syncConfigMaps(
 			if tntOk && appOk && poolOk {
 				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
 				if sKey.Operation == OprTypeDisable && appMgr.poolMemberType == ClusterIP {
+					log.Debugf("Vivek: Disabling pool member for service %v", key)
 					if svcCache, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
 						if svcCache.poolPath == selector && svcCache.members != nil {
-							pod, _ := sKey.Object.(*v1.Pod)
+							podGracePeriod, _ := sKey.Object.(PodGracePeriod)
 							for _, member := range svcCache.members {
-								if pod != nil && member.Address == pod.Status.PodIP {
-									member.AdminState = "disable"
-									stats.poolsUpdated += 1
+								for _, podIp := range strings.Split(podGracePeriod.podIps, ",") {
+									if podIp == member.Address {
+										member.AdminState = "disable"
+										stats.poolsUpdated += 1
+									}
+								}
+								if stats.poolsUpdated > 0 {
 									return nil
 								}
 							}
-
 						}
 					}
 				}
@@ -3996,16 +4037,69 @@ func (appMgr *Manager) processStaticRouteUpdate(
 	}
 }
 
-func (appMgr *Manager) processPodGracefulShutdown(eps *v1.Endpoints, inf *appInformer) {
-	// waitGroup to wait for all goroutines to complete
-	var wg sync.WaitGroup
+func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf *appInformer, operation string) bool {
+	var forgetEvent bool
+	if operation == OprTypeDisable || operation == OprTypeDelete {
+		var deletedItems []string
+		if operation == OprTypeDisable {
+			// fetch the deleted pod from the cache and delete it
+			elementMap := make(map[string]bool)
+			for _, item := range eps.Subsets[0].Addresses {
+				elementMap[item.IP] = true
+			}
+			appMgr.PodSvcCfgMapCache.Range(func(key, value interface{}) bool {
+				ip := key.(string)
+				podGracePeriod := value.(PodGracePeriod)
+				if !elementMap[ip] && podGracePeriod.svcKey == fmt.Sprintf("%s/%s", eps.Namespace, eps.Name) {
+					deletedItems = append(deletedItems, ip)
+				}
+				return true
+			})
+		}
+		if operation == OprTypeDelete {
+			// if endpoint object is deleted then we need to handle all the pods
+			for _, item := range eps.Subsets[0].Addresses {
+				deletedItems = append(deletedItems, item.IP)
+			}
+		}
 
-	for _, subset := range eps.Subsets {
-		for _, addr := range subset.Addresses {
+		// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+		for _, addr := range deletedItems {
+			if value, ok := appMgr.PodSvcCfgMapCache.Load(addr); ok {
+				if podGracePeriod, ok := value.(PodGracePeriod); ok {
+					if podGracePeriod.svcKey == fmt.Sprintf("%s/%s", eps.Namespace, eps.Name) {
+						// disable the endpoint to disable new connections
+						appMgr.enqueueEndpointDisable(eps, podGracePeriod)
+						forgetEvent = true
+						go func(graceTermination int64) {
+							// Create a channel to receive a signal after the timeout
+							timeout := time.Duration(graceTermination) * time.Second
+							timeoutCh := time.After(timeout)
+
+							for {
+								// delete the pod from the cache after the timeout
+								select {
+								case <-timeoutCh:
+									appMgr.PodSvcCfgMapCache.Delete(addr)
+									log.Debugf("Vivek: Deleted the %v from pod cache", addr)
+									// disable the endpoint to disable new connections
+									appMgr.enqueueEndpoints(eps, OprTypeUpdate)
+									return
+								default:
+									// Continue the loop until the timeout
+								}
+							}
+						}(podGracePeriod.gracePeriod)
+					}
+				}
+			}
+		}
+	} else {
+		// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+		for _, addr := range eps.Subsets[0].Addresses {
 			if addr.TargetRef == nil {
 				continue
 			}
-
 			obj, found, err := inf.podInformer.GetStore().GetByKey(addr.TargetRef.Namespace + "/" + addr.TargetRef.Name)
 			// if err is not nil it means pod is not found
 			if err != nil || !found {
@@ -4013,46 +4107,33 @@ func (appMgr *Manager) processPodGracefulShutdown(eps *v1.Endpoints, inf *appInf
 			}
 
 			if found {
-				// disable the endpoint to disable new connections
-				appMgr.enqueueEndpointDisable(eps, obj)
 				pod, _ := obj.(*v1.Pod)
-
-				// Increment the wait group counter
-				wg.Add(1)
-
-				go func(pod *v1.Pod) {
-					defer wg.Done()
-
-					// Create a channel to receive a signal after the timeout
-					timeout := time.Duration(*pod.Spec.TerminationGracePeriodSeconds) * time.Second
-					timeoutCh := time.After(timeout)
-
-					for {
-						_, found, err := inf.podInformer.GetStore().GetByKey(addr.TargetRef.Namespace + "/" + addr.TargetRef.Name)
-						// if err is not nil it means pod is not found
-						if err != nil || !found {
-							return
-						}
-
-						select {
-						case <-timeoutCh:
-							// Timeout reached, exit the loop
-							return
-						default:
-							// Continue the loop until the timeout
-						}
-					}
-				}(pod)
+				// udpate the pod cache for graceful shutdown
+				appMgr.PodSvcCfgMapCache.Store(pod.Status.PodIP,
+					PodGracePeriod{
+						podIps:      podIPsToString(pod.Status.PodIPs),
+						gracePeriod: *pod.Spec.TerminationGracePeriodSeconds,
+						svcKey:      fmt.Sprintf("%s/%s", eps.Namespace, eps.Name),
+					})
+				log.Debugf("Vivek: Updated the cache endpoint %v event for pod ip %v", operation, pod.Status.PodIP)
 			}
 		}
 	}
+	return forgetEvent
+}
 
-	// Wait for all goroutines to complete
-	wg.Wait()
+// Convert []v1.PodIP to a hashable string
+func podIPsToString(podIPs []v1.PodIP) string {
+	var strIPs []string
+	for _, podIP := range podIPs {
+		strIPs = append(strIPs, podIP.IP)
+	}
+	return strings.Join(strIPs, ",")
 }
 
 // EnqueueEndpointDisable enqueues the endpoint disable event
 func (appMgr *Manager) enqueueEndpointDisable(eps *v1.Endpoints, obj interface{}) {
+	log.Debugf("Vivek: enqueueing pod ip for disable %v", obj)
 	key := &serviceQueueKey{
 		ServiceName:  eps.ObjectMeta.Name,
 		Namespace:    eps.ObjectMeta.Namespace,

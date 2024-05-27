@@ -1683,10 +1683,10 @@ func (appMgr *Manager) syncConfigMaps(
 			if tntOk && appOk && poolOk {
 				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
 				if sKey.Operation == OprTypeDisable && appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
-					log.Debugf("[PodGracefulShutdown] Disabling pool member for service %v", key)
 					if svcCache, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
 						if svcCache.poolPath == selector && svcCache.members != nil {
 							podDetails, _ := sKey.Object.(PodDetails)
+							log.Debugf("[PodGracefulShutdown] Disabling pool member for pod %v", podDetails)
 							err := appMgr.AgentCIS.PatchPoolMember(PatchRequest{
 								poolPath:     poolPath,
 								memberIP:     podDetails.podIp,
@@ -1701,11 +1701,17 @@ func (appMgr *Manager) syncConfigMaps(
 						}
 					}
 				}
-				//TODO: Sorting endpoints members
 				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
 				if err != nil {
 					return err
 				}
+				// Let's sort the members to make sure the order is consistent
+				sort.Slice(members, func(i, j int) bool {
+					if members[i].Address == members[j].Address {
+						return members[i].Port < members[j].Port
+					}
+					return members[i].Address < members[j].Address
+				})
 				if _, ok := appMgr.agentCfgMapSvcCache[cacheKey]; !ok {
 					if len(members) != 0 {
 						appMgr.agentCfgMapSvcCache[cacheKey] = &SvcEndPointsCache{
@@ -3416,7 +3422,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 
 	var svcItems []v1.Service
 
-	if appMgr.hubMode {
+	if appMgr.hubMode && !infFound {
 		// Leaving the old way for hubMode for now.
 		svcListOptions := metav1.ListOptions{
 			LabelSelector: selector,
@@ -3433,7 +3439,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			return nil, err
 		}
 		svcItems = services.Items
-	} else {
+	} else if infFound {
 		svcInformer := appInf.svcInformer
 		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
 		ls, _ := createLabel(selector)
@@ -3443,6 +3449,9 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			svcItems = append(svcItems, *svcListed[n])
 		}
 
+	} else {
+		log.Errorf("[CORE] Namespace informer not found for namespace %v", namespace)
+		return nil, fmt.Errorf("namespace informer not found for namespace %v", namespace)
 	}
 
 	if len(svcItems) > 1 {
@@ -3491,14 +3500,8 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 					continue
 				}
 			}
-			item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 			var eps *v1.Endpoints
-			if !found {
-				if !appMgr.hubMode {
-					msg := "Endpoints for service " + svcKey + " not found!"
-					log.Debug(msg)
-					continue
-				}
+			if appMgr.hubMode && !infFound {
 				endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
 					metav1.ListOptions{
 						FieldSelector: "metadata.name=" + service.Name,
@@ -3514,7 +3517,14 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 				}
 				eps = &endpointsList.Items[0]
 			} else {
-				eps, _ = item.(*v1.Endpoints)
+				item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
+				if !found {
+					msg := "Endpoints for service " + svcKey + " not found!"
+					log.Debug(msg)
+					continue
+				} else {
+					eps, _ = item.(*v1.Endpoints)
+				}
 			}
 
 			for _, subset := range eps.Subsets {
@@ -4090,7 +4100,7 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 						log.Debugf("[PodGracefulShutdown] Updated the pod status to disable for ip address %v", addr)
 						appMgr.enqueueEndpointDisable(eps, podDetails)
 						forgetEvent = true
-						go func(graceTermination int64) {
+						go func(graceTermination int64, address string, ep string, eps *v1.Endpoints) {
 							// Create a channel to receive a signal after the timeout
 							timeout := time.Duration(graceTermination) * time.Second
 							timeoutCh := time.After(timeout)
@@ -4098,23 +4108,23 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 								// delete the pod from the cache after the timeout
 								select {
 								case <-timeoutCh:
-									appMgr.podSvcCache.podDetails.Delete(addr)
+									appMgr.podSvcCache.podDetails.Delete(address)
 									// delete the entry from svc pod cache
-									if ips, ok := appMgr.podSvcCache.svcPodCache.Load(epKey); ok {
+									if ips, ok := appMgr.podSvcCache.svcPodCache.Load(ep); ok {
 										podMap := ips.(*map[string]struct{})
-										delete(*podMap, addr)
-										appMgr.podSvcCache.svcPodCache.Store(epKey, podMap)
-										log.Debugf("[PodGracefulShutdown] Deleted the %v from pod cache", addr)
+										delete(*podMap, address)
+										appMgr.podSvcCache.svcPodCache.Store(ep, podMap)
+										log.Debugf("[CORE] Deleted the %v from pod cache", address)
 									}
 									// disable the endpoint to disable new connections
-									log.Debugf("[PodGracefulShutdown] Enqueue the pod with ip address %v to remove as pool member", addr)
+									log.Debugf("[PodGracefulShutdown] Enqueue the pod with ip address %v to remove as pool member", address)
 									appMgr.enqueueEndpoints(eps, OprTypeUpdate)
 									return
 								default:
 									// Continue the loop until the timeout
 								}
 							}
-						}(podDetails.gracePeriod)
+						}(podDetails.gracePeriod, addr, epKey, eps)
 					}
 				}
 			}
@@ -4138,30 +4148,30 @@ func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf 
 
 			if found {
 				pod, _ := obj.(*v1.Pod)
-				var ports string
+				var ports []string
 				for _, port := range eps.Subsets[0].Ports {
-					ports = ports + fmt.Sprintf("%d", port.Port) + ","
+					ports = append(ports, strconv.Itoa(int(port.Port)))
 				}
 				// udpate the pod cache for graceful shutdown
-				appMgr.podSvcCache.podDetails.Store(pod.Status.PodIP,
+				appMgr.podSvcCache.podDetails.Store(addr.IP,
 					PodDetails{
-						podIp:       pod.Status.PodIP,
+						podIp:       addr.IP,
 						gracePeriod: *pod.Spec.TerminationGracePeriodSeconds,
 						epKey:       epKey,
-						podPorts:    ports,
+						podPorts:    strings.Join(ports, ","),
 						status:      PodStatusEnable,
 					})
 				// update the svc pod cache
 				if ips, ok := appMgr.podSvcCache.svcPodCache.Load(epKey); ok {
 					podMap := ips.(*map[string]struct{})
-					(*podMap)[pod.Status.PodIP] = struct{}{}
+					(*podMap)[addr.IP] = struct{}{}
 					appMgr.podSvcCache.svcPodCache.Store(epKey, podMap)
 				} else {
 					podMap := make(map[string]struct{})
-					podMap[pod.Status.PodIP] = struct{}{}
+					podMap[addr.IP] = struct{}{}
 					appMgr.podSvcCache.svcPodCache.Store(epKey, &podMap)
 				}
-				log.Debugf("[PodGracefulShutdown] Updated the cache endpoint %v event for pod ip %v", operation, pod.Status.PodIP)
+				log.Debugf("[CORE] Updated the cache endpoint %v event for pod ip %v", operation, addr.IP)
 			}
 		}
 	}

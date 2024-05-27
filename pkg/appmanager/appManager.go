@@ -1290,7 +1290,11 @@ func (appMgr *Manager) getQueueLength() int {
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		var services []interface{}
 		var err error
-		appInf, _ := appMgr.getNamespaceInformer(ns)
+		var appInf *appInformer
+		var found bool
+		if appInf, found = appMgr.getNamespaceInformer(ns); !found {
+			continue
+		}
 		if ns == "" {
 			services = appInf.svcInformer.GetIndexer().List()
 		} else {

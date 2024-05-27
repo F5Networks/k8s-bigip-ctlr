@@ -4395,7 +4395,9 @@ var _ = Describe("AppManager Tests", func() {
 				readyIps := []string{"10.2.96.3", "10.2.96.4"}
 				endpts1 := test.NewEndpoints(svcName1, "1", "node0", namespace,
 					readyIps, nil, convertSvcPortsToEndpointPorts(svcPorts))
-				appInf.endptInformer.GetStore().Add(endpts1)
+				mockMgr.appMgr.kubeClient.CoreV1().Endpoints(namespace).Create(context.TODO(), endpts1, metav1.CreateOptions{})
+				//appInf.endptInformer.GetStore().Add(endpts1)
+				delete(mockMgr.appMgr.appInformers, namespace)
 				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
 				Expect(members).NotTo(BeNil())
 				Expect(len(members)).To(Equal(2))

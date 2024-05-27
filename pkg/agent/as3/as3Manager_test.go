@@ -53,6 +53,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			As3SchemaVersion: "3.50.0",
 		})
 		mockMgr.Resources = &AgentResources{}
+		mockMgr.ResourceRequest.AgentCfgSvcCache = make(map[string][]Member)
 	})
 	AfterEach(func() {
 		mockMgr.shutdown()
@@ -122,6 +123,14 @@ var _ = Describe("AS3Manager Tests", func() {
 				},
 			)
 			as3config := &AS3Config{}
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App1/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App1/web_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App2/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App2/web_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App1/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App1/web_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App2/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App2/web_pool"], _ = mockGetEndPoints("", "")
 			as3config.configmaps, _, _ = mockMgr.prepareResourceAS3ConfigMaps()
 			result := mockMgr.getUnifiedDeclaration(as3config)
 			Expect(string(result)).To(MatchJSON(unified), "Failed to Create JSON with correct configuration")
@@ -157,6 +166,14 @@ var _ = Describe("AS3Manager Tests", func() {
 					},
 				},
 			)
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App1/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App1/web_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App2/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant1/App2/web_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App1/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App1/web_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App2/db_pool"], _ = mockGetEndPoints("", "")
+			mockMgr.ResourceRequest.AgentCfgSvcCache["/Tenant2/App2/web_pool"], _ = mockGetEndPoints("", "")
 			as3config := &AS3Config{}
 			as3config.configmaps, _, _ = mockMgr.prepareResourceAS3ConfigMaps()
 
@@ -472,6 +489,10 @@ var _ = Describe("AS3Manager Tests", func() {
 					},
 				},
 			)
+			resourceRequest.AgentCfgSvcCache["/Tenant1/App1/db_pool"], _ = mockGetEndPoints("", "")
+			resourceRequest.AgentCfgSvcCache["/Tenant1/App1/web_pool"], _ = mockGetEndPoints("", "")
+			resourceRequest.AgentCfgSvcCache["/Tenant1/App2/db_pool"], _ = mockGetEndPoints("", "")
+			resourceRequest.AgentCfgSvcCache["/Tenant1/App2/web_pool"], _ = mockGetEndPoints("", "")
 			mockMgr.as3ActiveConfig.unifiedDeclaration = as3Declaration(readConfigFile(configPath + "as3config_multi_cm_unified.json"))
 			result, output, _ := mockMgr.postAS3Declaration(resourceRequest)
 			Expect(result).To(BeTrue(), "Posting Failed")

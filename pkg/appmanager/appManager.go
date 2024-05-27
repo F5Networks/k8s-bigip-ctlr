@@ -63,14 +63,6 @@ type ResourceMap map[int32][]*ResourceConfig
 // RoutesMap consists of List of route names indexed by namespace
 type RoutesMap map[string][]string
 
-type PatchRequest struct {
-	poolPath     string
-	memberIP     string
-	sessionState string
-	ports        string
-	gracePeriod  int64
-}
-
 type PodSvcCache struct {
 	podDetails  *sync.Map
 	svcPodCache *sync.Map
@@ -1686,25 +1678,6 @@ func (appMgr *Manager) syncConfigMaps(
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
 				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
-				if sKey.Operation == OprTypeDisable && appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
-					if svcCache, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
-						if svcCache.poolPath == selector && svcCache.members != nil {
-							podDetails, _ := sKey.Object.(PodDetails)
-							log.Debugf("[PodGracefulShutdown] Disabling pool member for pod %v", podDetails)
-							err := appMgr.AgentCIS.PatchPoolMember(PatchRequest{
-								poolPath:     poolPath,
-								memberIP:     podDetails.podIp,
-								sessionState: podDetails.status,
-								ports:        podDetails.podPorts,
-								gracePeriod:  podDetails.gracePeriod,
-							})
-							if err != nil {
-								log.Errorf("[PodGracefulShutdown] Error disabling pool member for service %v: %v", key, err)
-							}
-							// enqueue the pool member to disable it
-						}
-					}
-				}
 				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
 				if err != nil {
 					return err

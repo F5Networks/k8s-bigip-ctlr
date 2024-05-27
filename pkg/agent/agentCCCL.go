@@ -28,10 +28,6 @@ func (ag *agentCCCL) Deploy(req interface{}) error {
 	return nil
 }
 
-func (ag *agentCCCL) PatchPoolMember(req interface{}) error {
-	return nil
-}
-
 func (ag *agentCCCL) GetBigipRegKey() string {
 	return ""
 }

@@ -123,7 +123,6 @@ type AS3Manager struct {
 	as3LogLevel               *string
 	as3DeclarationPersistence *bool
 	disableDefaultPartition   bool
-	PatchChan                 chan PatchRequest
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -161,7 +160,6 @@ type Params struct {
 	PoolMemberType            string
 	HTTPClientMetrics         bool
 	DisableDefaultPartition   bool
-	EnablePatchChannel        bool
 }
 
 type failureContext struct {
@@ -206,9 +204,6 @@ func NewAS3Manager(params *Params) *AS3Manager {
 			HTTPClientMetrics: params.HTTPClientMetrics,
 		}),
 		disableDefaultPartition: params.DisableDefaultPartition,
-	}
-	if params.EnablePatchChannel {
-		as3Manager.PatchChan = make(chan PatchRequest, 1)
 	}
 	if as3Manager.tls13CipherGroupReference == "" {
 		as3Manager.tls13CipherGroupReference = "/Common/f5-default"

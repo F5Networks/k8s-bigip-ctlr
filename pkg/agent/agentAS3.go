@@ -20,10 +20,6 @@ func (ag *agentAS3) Init(params interface{}) error {
 		go ag.ConfigDeployer()
 	}
 
-	if ag.PatchChan != nil {
-		go ag.PatchDeployer()
-	}
-
 	err := ag.IsBigIPAppServicesAvailable()
 	if err != nil {
 		return err
@@ -45,13 +41,6 @@ func (ag *agentAS3) Deploy(req interface{}) error {
 	case ag.ReqChan <- msgReq:
 	case <-ag.ReqChan:
 		ag.ReqChan <- msgReq
-	}
-	return nil
-}
-
-func (ag *agentAS3) PatchPoolMember(req interface{}) error {
-	if ag.PatchChan != nil {
-		ag.PatchChan <- req.(PatchRequest)
 	}
 	return nil
 }

@@ -19,6 +19,7 @@ Bug Fixes
 * `Issue 3402 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3402`_: TLS iRule fails after recent browser updates
 * Fix for EDNS pool member empty issue.
 * `Issue 3414 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3414`_: CIS is deleting referenced SSL Profile it did not create
+* `Issue 3434 https://github.com/F5Networks/k8s-bigip-ctlr/issues/3434`_: Fix crash in CIS startup after using namespace-label parameter
 
 
 2.16.1

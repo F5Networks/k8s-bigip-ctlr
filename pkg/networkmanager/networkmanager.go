@@ -30,7 +30,7 @@ const (
 	networkManagerPrefix = "[NetworkManager]"
 	timeoutSmall         = 2 * time.Second
 	timeoutLarge         = 180 * time.Second
-	DefaultL3Network     = "Default L3-Network"
+	DefaultL3Network     = "Default"
 	Ok                   = "Ok"
 )
 
@@ -287,28 +287,33 @@ func (nm *NetworkManager) DeleteL3Forward(instanceId, l3ForwardID string) error 
 
 	// Set authorization header
 	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
+	log.Debugf("%v PNK DeleteL3Forward url %v req %v", networkManagerPrefix, url, req)
 
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
+	log.Debugf("%v PNK DeleteL3Forward resp %v err %v", networkManagerPrefix, resp, err)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
+	log.Debugf("%v PNK DeleteL3Forward resp.StatusCode %v != http.StatusAccepted %v ", networkManagerPrefix, resp.StatusCode, http.StatusAccepted)
 	// Check response status code
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+		return fmt.Errorf("%v API request failed with status code: %d", networkManagerPrefix, resp.StatusCode)
 	}
 
 	var response map[string]interface{}
 	if err = json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return err
 	}
+	log.Debugf("%v PNK DeleteL3Forward response %v err %v", networkManagerPrefix, response, err)
 	// Get the task URI from the response
 	taskRef, _ := GetTaskURIAndObjectIdFromResponse(response)
 	if taskRef == "" {
-		return fmt.Errorf("task URI not found in response")
+		return fmt.Errorf("%v task URI not found in response", networkManagerPrefix)
 	}
+	log.Debugf("%v PNK DeleteL3Forward taskRef %v", networkManagerPrefix, taskRef)
 	// Get the task status
 	var taskStatus, failureReason string
 	for {
@@ -318,11 +323,12 @@ func (nm *NetworkManager) DeleteL3Forward(instanceId, l3ForwardID string) error 
 			break
 		}
 	}
+	log.Debugf("%v PNK DeleteL3Forward taskStatus %v failureReason %v err %v", networkManagerPrefix, taskStatus, failureReason, err)
 	if taskStatus != Completed {
 		if err != nil {
-			return fmt.Errorf("task did not completed with error: %s", err)
+			return fmt.Errorf("%v task did not completed with error: %s", networkManagerPrefix, err)
 		}
-		return fmt.Errorf("task did not completed with status: %s and failure reason: %s", taskStatus, failureReason)
+		return fmt.Errorf("%v task did not completed with status: %s and failure reason: %s", networkManagerPrefix, taskStatus, failureReason)
 	}
 	return nil
 }
@@ -331,7 +337,8 @@ func (nm *NetworkManager) DeleteL3Forward(instanceId, l3ForwardID string) error 
 func (nm *NetworkManager) GetTaskStatus(taskRef string) (string, string, error) {
 
 	// Create request
-	req, err := http.NewRequest("GET", nm.CMTokenManager.ServerURL+TaskBaseURI+taskRef, nil)
+	req, err := http.NewRequest("GET", nm.CMTokenManager.ServerURL+taskRef, nil)
+	log.Debugf("%v PNK GetTaskStatus req %v err %v", networkManagerPrefix, req, err)
 	if err != nil {
 		return "", "", err
 	}
@@ -339,16 +346,19 @@ func (nm *NetworkManager) GetTaskStatus(taskRef string) (string, string, error) 
 	// Set authorization header
 	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
 
+	log.Debugf("%v PNK GetTaskStatus full req %v ", networkManagerPrefix, req)
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
+	log.Debugf("%v PNK GetTaskStatus resp %v err %v", networkManagerPrefix, resp, err)
 	if err != nil {
 		return "", "", err
 	}
 	defer resp.Body.Close()
 
+	log.Debugf("%v PNK GetTaskStatus resp.StatusCode %v != http.StatusOK %v ", networkManagerPrefix, resp.StatusCode, http.StatusOK)
 	// Check response status code
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+		return "", "", fmt.Errorf("%v API request failed with status code: %d", networkManagerPrefix, resp.StatusCode)
 	}
 
 	// Decode JSON response
@@ -356,7 +366,7 @@ func (nm *NetworkManager) GetTaskStatus(taskRef string) (string, string, error) 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return "", "", err
 	}
-
+	log.Debugf("%v PNK GetTaskStatus response %v err %v", networkManagerPrefix, response, err)
 	if status, ok := response["status"].(string); ok {
 		failureReason, ok := response["failure_reason"].(string)
 		if !ok {
@@ -388,16 +398,19 @@ func (nm *NetworkManager) PostL3Forward(apiURL, authToken string, l3ForwardReq *
 	// Set authorization header
 	req.Header.Set("Authorization", "Bearer "+authToken)
 
+	log.Debugf("%v PNK PostL3Forward req %v", networkManagerPrefix, req)
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
+	log.Debugf("%v PNK PostL3Forward resp %v err %v", networkManagerPrefix, resp, err)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
+	log.Debugf("%v PNK PostL3Forward resp.StatusCode %v != http.StatusAccepted %v ", networkManagerPrefix, resp.StatusCode, http.StatusAccepted)
 	// Check response status code
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+		return fmt.Errorf("%v API request failed with status code: %d", networkManagerPrefix, resp.StatusCode)
 	}
 
 	var response map[string]interface{}
@@ -408,8 +421,9 @@ func (nm *NetworkManager) PostL3Forward(apiURL, authToken string, l3ForwardReq *
 	// Get the task URI from the response
 	taskRef, objectId := GetTaskURIAndObjectIdFromResponse(response)
 	if taskRef == "" {
-		return fmt.Errorf("task URI not found in response")
+		return fmt.Errorf("%v task URI not found in response", networkManagerPrefix)
 	}
+	log.Debugf("%v PNK PostL3Forward taskRef %v objectId %v", networkManagerPrefix, taskRef, objectId)
 
 	// Get the task status
 	var taskStatus, failureReason string
@@ -420,11 +434,12 @@ func (nm *NetworkManager) PostL3Forward(apiURL, authToken string, l3ForwardReq *
 			break
 		}
 	}
+	log.Debugf("%v PNK PostL3Forward taskStatus %v failureReason %v err %v", networkManagerPrefix, taskStatus, failureReason, err)
 	if taskStatus != Completed {
 		if err != nil {
-			return fmt.Errorf("task did not completed with error: %s", err)
+			return fmt.Errorf("%v task did not completed with error: %s", networkManagerPrefix, err)
 		}
-		return fmt.Errorf("task did not completed with status: %s and failure reason: %s", taskStatus, failureReason)
+		return fmt.Errorf("%v task did not completed with status: %s and failure reason: %s", networkManagerPrefix, taskStatus, failureReason)
 	}
 
 	// set the task id for the l3 forward
@@ -451,16 +466,27 @@ func GetTaskURIAndObjectIdFromResponse(response map[string]interface{}) (string,
 }
 
 func (nm *NetworkManager) NetworkRequestHandler(store interface{}) {
+	log.Debugf("%v PNK NetworkRequestHandler store %v ", networkManagerPrefix, store)
 	switch store.(type) {
 	case RouteStore:
 		routeStore := store.(RouteStore)
 		// Create the new l3 forwards
 		for bigip, rMap := range routeStore {
 			nm.L3ForwardStore.RLock()
+			log.Debugf("%v PNK NetworkRequestHandler rMap %v ", networkManagerPrefix, rMap)
+			log.Debugf("%v PNK NetworkRequestHandler nm.L3ForwardStore.InstanceStaticRoutes %v ", networkManagerPrefix, nm.L3ForwardStore.InstanceStaticRoutes)
+			log.Debugf("%v PNK NetworkRequestHandler nm.L3ForwardStore.CachedInstanceStaticRoutes %v ", networkManagerPrefix, nm.L3ForwardStore.CachedInstanceStaticRoutes)
+			// Create Scenerio
+			// rmap : Master, worker0, worker1 (live but not applied)
+			// instanceStaticRoutes : Master, worker0
+			// cachedIsr: Master, worker0
+			// cachedInstanceStaticRoutes : None
+
 			if cachedIsr, ok := nm.L3ForwardStore.InstanceStaticRoutes[bigip.InstanceId]; ok {
 				// enqueue the deleted routes
 				for config, l3Forward := range cachedIsr {
 					if _, ok := rMap[config]; !ok {
+						log.Debugf("%v PNK Delete NetworkRequestHandler config %v ", networkManagerPrefix, config)
 						nm.NetworkChan <- &NetworkConfigRequest{
 							NetworkConfig: l3Forward,
 							BigIp:         bigip,
@@ -471,6 +497,7 @@ func (nm *NetworkManager) NetworkRequestHandler(store interface{}) {
 				// enqueue the created routes
 				for config, l3Forward := range rMap {
 					if _, ok := cachedIsr[config]; !ok {
+						log.Debugf("%v PNK Create NetworkRequestHandler config %v ", networkManagerPrefix, config)
 						nm.NetworkChan <- &NetworkConfigRequest{
 							NetworkConfig: l3Forward,
 							BigIp:         bigip,
@@ -487,6 +514,7 @@ func (nm *NetworkManager) NetworkRequestHandler(store interface{}) {
 
 func (nm *NetworkManager) NetworkConfigHandler() {
 	for req := range nm.NetworkChan {
+		log.Debugf("%v PNK Received on Channel NetworkConfigHandler req %v ", networkManagerPrefix, req)
 		switch req.NetworkConfig.(type) {
 		case L3Forward:
 			l3Forward := req.NetworkConfig.(L3Forward)
@@ -510,6 +538,8 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 	bigipStatus := cisapiv1.BigIPStatus{
 		BigIPAddress: req.BigIp.IPaddress,
 	}
+	log.Debugf("%v PNK HandleL3ForwardRequest req.Action %v ", networkManagerPrefix, req.Action)
+	log.Debugf("%v PNK HandleL3ForwardRequest req %v ", networkManagerPrefix, req)
 	switch req.Action {
 	case Create:
 		// check if the l3 forward already exists
@@ -518,16 +548,20 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 			return
 		}
 
+		log.Debugf("%v PNK create event Entry not exists in getL3ForwardEntry", networkManagerPrefix)
 		// check if the entry is present in the cache
 		// if present(true) means event is in progress - skip the processing of event
 		// if not(false) means this is a new event and will be processed further
 		if nm.L3ForwardStore.checkL3ForwardEntryInCache(req.BigIp.InstanceId, req.retryTimeout, *l3Forward) {
 			return
 		}
+		log.Debugf("%v PNK create event Entry not exists in checkL3ForwardEntryInCache", networkManagerPrefix)
 
 		// create the l3 forward
 		err := nm.PostL3Forward(nm.CMTokenManager.ServerURL+InstancesURI+req.BigIp.InstanceId+L3Forwards, nm.CMTokenManager.GetToken(), l3Forward)
+		log.Debugf("%v PNK create event PostL3Forward", networkManagerPrefix)
 		if err != nil {
+			log.Debugf("%v PNK error while creating l3 forward %v", networkManagerPrefix, err)
 			bigipStatus.L3Status = &cisapiv1.L3Status{
 				Message:       Create + Failed,
 				Error:         fmt.Sprintf("%v error while creating l3 forward %v", networkManagerPrefix, err),
@@ -545,11 +579,14 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 			LastSubmitted: metav1.Now(),
 		}
 		nm.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
+		log.Debugf("%v PNK successfully created l3 forward Add Request %v", networkManagerPrefix, l3Forward)
 		nm.L3ForwardStore.addL3ForwardEntry(req.BigIp.InstanceId, *l3Forward)
+		log.Debugf("%v PNK successfully created l3 forward addL3ForwardEntry Add Request addL3ForwardEntry %v", networkManagerPrefix, l3Forward)
 		// once event is processed remove entry from cache
-		nm.L3ForwardStore.removeL3ForwardEntryFromCache(req.BigIp.InstanceId, *l3Forward)
+		// nm.L3ForwardStore.addL3ForwardEntryFromCache(req.BigIp.InstanceId, *l3Forward)
+		// log.Debugf("%v PNK successfully created l3 forward Add Request addL3ForwardEntry addL3ForwardEntryFromCache %v", networkManagerPrefix, l3Forward)
 	case Delete:
-		log.Warningf("delete event")
+		log.Warningf("%v delete event", networkManagerPrefix)
 		// check if the l3 forward already exists
 		if !nm.L3ForwardStore.getL3ForwardEntry(req.BigIp.InstanceId, *l3Forward) {
 			log.Debugf("%v l3 forward does not exist hence skipping the deletion: %v", networkManagerPrefix, l3Forward)
@@ -557,7 +594,9 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 		}
 		// delete the l3 forward
 		err := nm.DeleteL3Forward(req.BigIp.InstanceId, l3Forward.ID)
+		log.Debugf("%v PNK delete event DeleteL3Forward err: %v", networkManagerPrefix, err)
 		if err != nil {
+			log.Debugf("%v PNK error while deleting l3 forward %v", networkManagerPrefix, err)
 			bigipStatus.L3Status = &cisapiv1.L3Status{
 				Message:       Delete + Failed,
 				Error:         fmt.Sprintf("%v error while deleting l3 forward %v", networkManagerPrefix, err),
@@ -576,6 +615,10 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 		nm.CMTokenManager.StatusManager.AddRequest(statusmanager.DeployConfig, "", "", false, &bigipStatus)
 		log.Debugf("%v successfully deleted l3 forward %v", networkManagerPrefix, l3Forward)
 		nm.L3ForwardStore.deleteL3ForwardEntry(req.BigIp.InstanceId, l3Forward.Config)
+		log.Debugf("%v PNK successfully deleted l3 forward deleteL3ForwardEntry %v", networkManagerPrefix, l3Forward)
+		// once event is processed remove entry from cache
+		nm.L3ForwardStore.removeL3ForwardEntryFromCache(req.BigIp.InstanceId, *l3Forward)
+		log.Debugf("%v PNK successfully deleted l3 forward removeL3ForwardEntryFromCache %v", networkManagerPrefix, l3Forward)
 	}
 }
 
@@ -585,6 +628,8 @@ func (fs *L3ForwardStore) deleteL3ForwardEntry(instanceId string, config StaticR
 	if isr, ok := fs.InstanceStaticRoutes[instanceId]; ok {
 		delete(isr, config)
 	}
+	// log.Debugf("%v PNK deleteL3ForwardEntry  fs.CachedInstanceStaticRoutes %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes)
+	// log.Debugf("%v PNK deleteL3ForwardEntry config %v", networkManagerPrefix, config)
 }
 
 func (fs *L3ForwardStore) getL3ForwardEntry(instanceId string, l3Forward L3Forward) bool {
@@ -592,9 +637,12 @@ func (fs *L3ForwardStore) getL3ForwardEntry(instanceId string, l3Forward L3Forwa
 	defer fs.RUnlock()
 	if isr, ok := fs.InstanceStaticRoutes[instanceId]; ok {
 		if _, ok = isr[l3Forward.Config]; ok {
+			log.Debugf("%v PNK L3Forward *** Exists ******* getL3ForwardEntry  fs.InstanceStaticRoutes[instanceId] %v", networkManagerPrefix, fs.InstanceStaticRoutes[instanceId])
 			return ok
 		}
 	}
+	// log.Debugf("%v PNK getL3ForwardEntry  fs.CachedInstanceStaticRoutes %v", networkManagerPrefix, fs.InstanceStaticRoutes)
+	// log.Debugf("%v PNK getL3ForwardEntry l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
 	return false
 }
 
@@ -605,13 +653,21 @@ func (fs *L3ForwardStore) checkL3ForwardEntryInCache(bigIpInstanceId string, ret
 	if retryTimeOut > 0 {
 		return false
 	}
+	// log.Debugf("%v PNK before checkL3ForwardEntryInCache  fs.CachedInstanceStaticRoutes[bigIpInstanceId] %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes[bigIpInstanceId])
+	// log.Debugf("%v PNK before checkL3ForwardEntryInCache l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
 	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId]; !ok {
 		fs.CachedInstanceStaticRoutes[bigIpInstanceId] = map[StaticRouteConfig]struct{}{}
 	}
 	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config]; !ok {
 		fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config] = struct{}{}
+		// log.Debugf("%v PNK Filled checkL3ForwardEntryInCache  fs.CachedInstanceStaticRoutes[bigIpInstanceId] %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes[bigIpInstanceId])
+		// log.Debugf("%v PNK Filled checkL3ForwardEntryInCache l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
+
 		return false
 	}
+	// log.Debugf("%v PNK after checkL3ForwardEntryInCache  fs.CachedInstanceStaticRoutes[bigIpInstanceId] %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes[bigIpInstanceId])
+	// log.Debugf("%v PNK after checkL3ForwardEntryInCache l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
+
 	return true
 }
 
@@ -623,17 +679,46 @@ func (fs *L3ForwardStore) removeL3ForwardEntryFromCache(bigIpInstanceId string, 
 			delete(fs.CachedInstanceStaticRoutes[bigIpInstanceId], l3Forward.Config)
 		}
 	}
+	// log.Debugf("%v PNK removeL3ForwardEntryFromCache  fs.CachedInstanceStaticRoutes %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes)
+	// log.Debugf("%v PNK removeL3ForwardEntryFromCache l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
+}
+
+func (fs *L3ForwardStore) addL3ForwardEntryFromCache(bigIpInstanceId string, l3Forward L3Forward) {
+	fs.Lock()
+	defer fs.Unlock()
+
+	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId]; !ok {
+		fs.CachedInstanceStaticRoutes[bigIpInstanceId] = map[StaticRouteConfig]struct{}{}
+	}
+	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config]; !ok {
+		fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config] = struct{}{}
+	}
+	// if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId]; ok {
+	// 	if _, ok := fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config]; !ok {
+	// 		fs.CachedInstanceStaticRoutes[bigIpInstanceId][l3Forward.Config] = struct{}{}
+	// 	}
+	// }
+	// log.Debugf("%v PNK addL3ForwardEntryFromCache  fs.CachedInstanceStaticRoutes %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes)
+	// log.Debugf("%v PNK addL3ForwardEntryFromCache l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
 }
 
 func (fs *L3ForwardStore) addL3ForwardEntry(instanceId string, l3Forward L3Forward) {
+	// log.Debugf("%v PNK before addL3ForwardEntry  fs.CachedInstanceStaticRoutes %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes)
+	// log.Debugf("%v PNK before addL3ForwardEntry l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
 	fs.Lock()
 	defer fs.Unlock()
 	if isr, ok := fs.InstanceStaticRoutes[instanceId]; ok {
 		isr[l3Forward.Config] = l3Forward
 	}
+	// log.Debugf("%v PNK after addL3ForwardEntry  fs.CachedInstanceStaticRoutes %v", networkManagerPrefix, fs.CachedInstanceStaticRoutes)
+	// log.Debugf("%v PNK after addL3ForwardEntry l3Forward.Config %v", networkManagerPrefix, l3Forward.Config)
 }
 
 func getRetryTimeout(retryTimeout int) int {
+	// // Reset to 0 after 64 seconds
+	if retryTimeout >= 64 {
+		retryTimeout = 0
+	}
 	if retryTimeout == 0 {
 		retryTimeout = 1
 	} else {

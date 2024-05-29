@@ -80,6 +80,7 @@ func (sm *StatusManager) Stop() {
 }
 
 func (sm *StatusManager) AddRequest(kind, namespace, name string, exit bool, request interface{}) {
+	log.Debugf("NetworkManager PNK Status Manager Adding request: %s/%s/%s", kind, namespace, name)
 	if kind == DeployConfig {
 		sm.deployConfigResource.RLock()
 		name = sm.deployConfigResource.name

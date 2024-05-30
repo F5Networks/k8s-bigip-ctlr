@@ -117,6 +117,11 @@ func NewController(params Params, statusManager *statusmanager.StatusManager) *C
 
 	// fetch the CM token
 	ctlr.CMTokenManager.SyncToken()
+	cmVer, err := ctlr.CMTokenManager.GetCMVersion()
+	if err != nil {
+		log.Errorf("error getting CM version: %v", err)
+	}
+	ctlr.CMTokenManager.CMVersion = cmVer
 
 	ctlr.resourceQueue = workqueue.NewRateLimitingQueueWithConfig(
 		workqueue.DefaultControllerRateLimiter(),

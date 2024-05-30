@@ -12,6 +12,7 @@ import (
 	"io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +20,7 @@ import (
 const (
 	//CM login url
 	CMLoginURL              = "/api/login"
+	CMVersionURL            = "/api/v1/system/infra/info"
 	CMAccessTokenExpiration = 5 * time.Minute
 	TokenFetchFailed        = "Failed to fetch token"
 	Ok                      = "OK"
@@ -33,6 +35,8 @@ type TokenManager struct {
 	credentials   Credentials
 	SslInsecure   bool
 	TrustedCerts  string
+	httpClient    *http.Client
+	CMVersion     string
 	StatusManager statusmanager.StatusManagerInterface
 }
 
@@ -57,6 +61,7 @@ func NewTokenManager(serverURL string, credentials Credentials, trustedCerts str
 		TrustedCerts:  trustedCerts,
 		SslInsecure:   sslInsecure,
 		StatusManager: statusManager,
+		httpClient:    getHttpClient(trustedCerts, sslInsecure),
 	}
 }
 
@@ -66,6 +71,31 @@ func (tm *TokenManager) GetToken() string {
 	token := tm.token
 	tm.mu.Unlock()
 	return token
+}
+
+func getHttpClient(trustedCerts string, sslInsecure bool) *http.Client {
+	// Configure CA certificates
+	rootCAs, _ := x509.SystemCertPool()
+	if rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+
+	certs := []byte(trustedCerts)
+
+	// Append our certs to the system pool
+	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+		log.Debug("[Token Manager] No certs appended, using only system certs")
+	}
+
+	// Create an insecure/secure client based on the SslInsecure flag
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: sslInsecure,
+			RootCAs:            rootCAs,
+		},
+	}
+
+	return &http.Client{Transport: tr}
 }
 
 // SyncTokenWithoutRetry retrieves a new token from the CM.
@@ -78,31 +108,8 @@ func (tm *TokenManager) SyncTokenWithoutRetry() (err error, exit bool) {
 		return errMessage, false
 	}
 
-	// Configure CA certificates
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
-
-	certs := []byte(tm.TrustedCerts)
-
-	// Append our certs to the system pool
-	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-		log.Debug("[Token Manager] No certs appended, using only system certs")
-	}
-
-	// Create an insecure/secure client based on the SslInsecure flag
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: tm.SslInsecure,
-			RootCAs:            rootCAs,
-		},
-	}
-
-	client := &http.Client{Transport: tr}
-
 	// Send POST request for token
-	resp, err := client.Post(tm.ServerURL+CMLoginURL, "application/json", bytes.NewBuffer(payload))
+	resp, err := tm.httpClient.Post(tm.ServerURL+CMLoginURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		errMessage = fmt.Errorf("unable to establish connection with Central Manager, Probable reasons might be: invalid custom-certs (or) custom-certs not provided using --trusted-certs-cfgmap flag")
 		return errMessage, true
@@ -196,5 +203,43 @@ func (tm *TokenManager) SyncToken() {
 			})
 			break
 		}
+	}
+}
+
+func (tm *TokenManager) GetCMVersion() (string, error) {
+	url := tm.ServerURL + CMVersionURL
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Errorf("Creating new HTTP request error: %v ", err)
+		return "", err
+	}
+
+	log.Debugf("posting GET CM version request on %v", url)
+	// add authorization header to the req
+	req.Header.Add("Authorization", "Bearer "+tm.GetToken())
+
+	httpResp, err := tm.httpClient.Do(req)
+
+	if err != nil {
+		return "", err
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API request failed with status code: %d", httpResp.StatusCode)
+	}
+
+	defer httpResp.Body.Close()
+
+	// Decode JSON response
+	var response map[string]interface{}
+	if err := json.NewDecoder(httpResp.Body).Decode(&response); err != nil {
+		return "", err
+	}
+
+	version := strings.Replace(response["version"].(string), "BIG-IP-Next-CentralManager-", "", -1)
+
+	if len(strings.Split(version, "-")) > 1 {
+		return strings.Split(version, "-")[0], nil
+	} else {
+		return "", fmt.Errorf("error fetching CM version")
 	}
 }

@@ -881,7 +881,11 @@ spec:
                       additionalProperties:
                         type: string
                       type: object
+                  required:
+                    - matchLabels
                   type: object
+              required:
+                - selector
             status:
               type: object
               properties:

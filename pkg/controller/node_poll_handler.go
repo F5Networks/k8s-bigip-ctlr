@@ -210,7 +210,7 @@ func (ctlr *Controller) processStaticRouteUpdate() {
 			}
 			l3Forward := networkmanager.L3Forward{
 				Config: networkmanager.StaticRouteConfig{},
-				VRF:    networkmanager.DefaultL3Network,
+				VRF:    ctlr.networkManager.DefaultL3Network,
 			}
 			// For ovn-k8s get pod subnet and node ip from annotation
 			if ctlr.OrchestrationCNI == OVN_K8S {

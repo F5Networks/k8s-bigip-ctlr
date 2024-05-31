@@ -1256,4 +1256,76 @@ spec:
                       type: string
                   type: object
               type: object
+            status:
+              type: object
+              properties:
+                controllerStatus:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    message:
+                      type: string
+                    error:
+                      type: string
+                    lastUpdated:
+                      type: string
+                      format: date-time
+                bigIpStatus:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      bigIpAddress:
+                        type: string
+                      as3Status:
+                        type: object
+                        properties:
+                          message:
+                            type: string
+                          error:
+                            type: string
+                          lastSubmitted:
+                            type: string
+                            format: date-time
+                          lastSuccessful:
+                            type: string
+                            format: date-time
+                      l3Status:
+                        type: object
+                        properties:
+                          message:
+                            type: string
+                          error:
+                            type: string
+                          lastSubmitted:
+                            type: string
+                            format: date-time
+                          lastSuccessful:
+                            type: string
+                            format: date-time
+                    required:
+                    - bigIpAddress
+                cmStatus:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+                    error:
+                      type: string
+                    lastUpdated:
+                      type: string
+                      format: date-time
+                networkConfigStatus:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+                    error:
+                      type: string
+                    lastUpdated:
+                      type: string
+                      format: date-time
           type: object
+      subresources:
+        status: { }

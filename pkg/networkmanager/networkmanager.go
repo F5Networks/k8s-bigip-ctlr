@@ -153,6 +153,28 @@ func getDefaultL3Network(tm *tokenmanager.TokenManager) string {
 	return DefaultL3Network
 }
 
+func getTaskApi(tm *tokenmanager.TokenManager) string {
+	if tm.CMVersion != "" {
+		verLst := strings.Split(tm.CMVersion, ".")
+		if len(verLst) == 3 {
+			v1, err1 := strconv.ParseFloat(verLst[0]+"."+verLst[1], 64)
+			v2, err2 := strconv.Atoi(verLst[2])
+			if err1 != nil {
+				log.Errorf("error parsing float CM version: %v, error: %v", tm.CMVersion, err1)
+			}
+			if err2 != nil {
+				log.Errorf("error parsing int CM version: %v, error: %v", tm.CMVersion, err2)
+			}
+			if err1 == nil && err2 == nil {
+				if v1 < 20.2 || (v1 == 20.2 && v2 < 1) {
+					return TaskBaseURI
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // SetInstanceIds performs an HTTP GET request to the API, extracts address and ID mappings, and stores them
 func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig, controllerID string) error {
 
@@ -359,11 +381,11 @@ func (nm *NetworkManager) DeleteL3Forward(instanceId, l3ForwardID string) error 
 func (nm *NetworkManager) GetTaskStatus(taskRef string) (string, string, error) {
 
 	// Create request
-	req, err := http.NewRequest("GET", nm.CMTokenManager.ServerURL+TaskBaseURI+taskRef, nil)
+	taskApi := getTaskApi(nm.CMTokenManager)
+	req, err := http.NewRequest("GET", nm.CMTokenManager.ServerURL+taskApi+taskRef, nil)
 	if err != nil {
 		return "", "", err
 	}
-
 	// Set authorization header
 	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
 
@@ -662,6 +684,10 @@ func (fs *L3ForwardStore) addL3ForwardEntry(instanceId string, l3Forward L3Forwa
 }
 
 func getRetryTimeout(retryTimeout int) int {
+	// // Reset to 0 after 64 seconds
+	if retryTimeout >= 64 {
+		retryTimeout = 0
+	}
 	if retryTimeout == 0 {
 		retryTimeout = 1
 	} else {

@@ -140,7 +140,7 @@ var _ = Describe("Network Manager Tests", func() {
 }`, Completed)
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", TaskBaseURI+TaskRef),
+						ghttp.VerifyRequest("GET", TaskRef),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, stringToJson(routeTaskSuccessResponse)),
 					))
 
@@ -181,7 +181,7 @@ var _ = Describe("Network Manager Tests", func() {
 }`, Completed)
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", TaskBaseURI+TaskRef),
+						ghttp.VerifyRequest("GET", TaskRef),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, stringToJson(routeTaskSuccessResponse)),
 					))
 				routeStore[BigIP{
@@ -259,7 +259,7 @@ var _ = Describe("Network Manager Tests", func() {
 }`, Failed)
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", TaskBaseURI+TaskRef),
+						ghttp.VerifyRequest("GET", TaskRef),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, stringToJson(routeTaskFailureResponse)),
 					))
 
@@ -302,7 +302,7 @@ var _ = Describe("Network Manager Tests", func() {
 }`, Failed)
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", TaskBaseURI+TaskRef),
+						ghttp.VerifyRequest("GET", TaskRef),
 						ghttp.RespondWithJSONEncoded(statusCodeOk, stringToJson(routeTaskFailureResponse)),
 					))
 

@@ -12,37 +12,40 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	InstancesURI         = "/api/v1/spaces/default/instances/"
-	InventoryURI         = "/api/device/v1/inventory"
-	L3Forwards           = "/l3forwards"
-	TaskBaseURI          = "/api/task-manager"
-	L3RouteGateway       = "L3RouteGateway"
-	Completed            = "COMPLETED"
-	Failed               = "FAILED"
-	Create               = "CREATE"
-	Delete               = "DELETE"
-	networkManagerPrefix = "[NetworkManager]"
-	timeoutSmall         = 2 * time.Second
-	timeoutLarge         = 180 * time.Second
-	DefaultL3Network     = "Default L3-Network"
-	Ok                   = "Ok"
+	InstancesURI           = "/api/v1/spaces/default/instances/"
+	InventoryURI           = "/api/device/v1/inventory"
+	L3Forwards             = "/l3forwards"
+	TaskBaseURI            = "/api/task-manager"
+	L3RouteGateway         = "L3RouteGateway"
+	Completed              = "COMPLETED"
+	Failed                 = "FAILED"
+	Create                 = "CREATE"
+	Delete                 = "DELETE"
+	networkManagerPrefix   = "[NetworkManager]"
+	timeoutSmall           = 2 * time.Second
+	timeoutLarge           = 180 * time.Second
+	DefaultL3Network       = "Default"
+	LegacyDefaultL3Network = "Default L3-Network"
+	Ok                     = "Ok"
 )
 
 // NetworkManager is responsible for managing the network objects on central manager.
 type (
 	NetworkManager struct {
-		CMTokenManager *tokenmanager.TokenManager
-		L3ForwardStore *L3ForwardStore
-		DeviceMap      map[string]string
-		ClusterName    string
-		NetworkChan    chan *NetworkConfigRequest
-		httpClient     *http.Client
+		CMTokenManager   *tokenmanager.TokenManager
+		L3ForwardStore   *L3ForwardStore
+		DeviceMap        map[string]string
+		ClusterName      string
+		NetworkChan      chan *NetworkConfigRequest
+		httpClient       *http.Client
+		DefaultL3Network string
 	}
 
 	BigIP struct {
@@ -115,14 +118,39 @@ func NewNetworkManager(tm *tokenmanager.TokenManager, clusterName string) *Netwo
 		make(map[string]map[StaticRouteConfig]struct{}),
 		sync.RWMutex{},
 	}
+	defaultL3Network := getDefaultL3Network(tm)
+
 	return &NetworkManager{
-		CMTokenManager: tm,
-		ClusterName:    clusterName,
-		DeviceMap:      make(map[string]string),
-		L3ForwardStore: &routeStore,
-		NetworkChan:    make(chan *NetworkConfigRequest, 1),
-		httpClient:     httpClient,
+		CMTokenManager:   tm,
+		ClusterName:      clusterName,
+		DeviceMap:        make(map[string]string),
+		L3ForwardStore:   &routeStore,
+		NetworkChan:      make(chan *NetworkConfigRequest, 1),
+		httpClient:       httpClient,
+		DefaultL3Network: defaultL3Network,
 	}
+}
+
+func getDefaultL3Network(tm *tokenmanager.TokenManager) string {
+	if tm.CMVersion != "" {
+		verLst := strings.Split(tm.CMVersion, ".")
+		if len(verLst) == 3 {
+			v1, err1 := strconv.ParseFloat(verLst[0]+"."+verLst[1], 64)
+			v2, err2 := strconv.Atoi(verLst[2])
+			if err1 != nil {
+				log.Errorf("error parsing float CM version: %v, error: %v", tm.CMVersion, err1)
+			}
+			if err2 != nil {
+				log.Errorf("error parsing int CM version: %v, error: %v", tm.CMVersion, err2)
+			}
+			if err1 == nil && err2 == nil {
+				if v1 < 20.2 || (v1 == 20.2 && v2 < 1) {
+					return LegacyDefaultL3Network
+				}
+			}
+		}
+	}
+	return DefaultL3Network
 }
 
 // SetInstanceIds performs an HTTP GET request to the API, extracts address and ID mappings, and stores them

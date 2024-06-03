@@ -3,13 +3,14 @@ package statusmanager
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sync"
+
 	v1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/vlogger"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
-	"reflect"
-	"sync"
 )
 
 type (
@@ -254,27 +255,35 @@ func (sm *StatusManager) updateBigIPStatus(configCR *v1.DeployConfig, bigipStatu
 		}
 		// Update the status of the existing bigip in the deploy config status
 		if bigipStatus.L3Status == nil {
-			if bigipStatus.AS3Status.Message == Ok || bigipStatus.AS3Status.Message == Accepted {
-				configCR.Status.BigIPStatus[index].AS3Status.Message = bigipStatus.AS3Status.Message
-				configCR.Status.BigIPStatus[index].AS3Status.Error = ""
-				configCR.Status.BigIPStatus[index].AS3Status.LastSubmitted = bigipStatus.AS3Status.LastSubmitted
-				configCR.Status.BigIPStatus[index].AS3Status.LastSuccessful = bigipStatus.AS3Status.LastSubmitted
+			if configCR.Status.BigIPStatus[index].AS3Status != nil {
+				if bigipStatus.AS3Status.Message == Ok || bigipStatus.AS3Status.Message == Accepted {
+					configCR.Status.BigIPStatus[index].AS3Status.Message = bigipStatus.AS3Status.Message
+					configCR.Status.BigIPStatus[index].AS3Status.Error = ""
+					configCR.Status.BigIPStatus[index].AS3Status.LastSubmitted = bigipStatus.AS3Status.LastSubmitted
+					configCR.Status.BigIPStatus[index].AS3Status.LastSuccessful = bigipStatus.AS3Status.LastSubmitted
+				} else {
+					configCR.Status.BigIPStatus[index].AS3Status.Message = bigipStatus.AS3Status.Message
+					configCR.Status.BigIPStatus[index].AS3Status.Error = bigipStatus.AS3Status.Error
+					configCR.Status.BigIPStatus[index].AS3Status.LastSubmitted = bigipStatus.AS3Status.LastSubmitted
+				}
 			} else {
-				configCR.Status.BigIPStatus[index].AS3Status.Message = bigipStatus.AS3Status.Message
-				configCR.Status.BigIPStatus[index].AS3Status.Error = bigipStatus.AS3Status.Error
-				configCR.Status.BigIPStatus[index].AS3Status.LastSubmitted = bigipStatus.AS3Status.LastSubmitted
+				configCR.Status.BigIPStatus[index].AS3Status = bigipStatus.AS3Status
 			}
 		}
 		if bigipStatus.AS3Status == nil {
-			if bigipStatus.L3Status.Message == Ok || bigipStatus.L3Status.Message == Accepted {
-				configCR.Status.BigIPStatus[index].L3Status.Message = bigipStatus.L3Status.Message
-				configCR.Status.BigIPStatus[index].L3Status.Error = ""
-				configCR.Status.BigIPStatus[index].L3Status.LastSubmitted = bigipStatus.L3Status.LastSubmitted
-				configCR.Status.BigIPStatus[index].L3Status.LastSuccessful = bigipStatus.L3Status.LastSubmitted
+			if configCR.Status.BigIPStatus[index].L3Status != nil {
+				if bigipStatus.L3Status.Message == Ok || bigipStatus.L3Status.Message == Accepted {
+					configCR.Status.BigIPStatus[index].L3Status.Message = bigipStatus.L3Status.Message
+					configCR.Status.BigIPStatus[index].L3Status.Error = ""
+					configCR.Status.BigIPStatus[index].L3Status.LastSubmitted = bigipStatus.L3Status.LastSubmitted
+					configCR.Status.BigIPStatus[index].L3Status.LastSuccessful = bigipStatus.L3Status.LastSubmitted
+				} else {
+					configCR.Status.BigIPStatus[index].L3Status.Message = bigipStatus.L3Status.Message
+					configCR.Status.BigIPStatus[index].L3Status.Error = bigipStatus.L3Status.Error
+					configCR.Status.BigIPStatus[index].L3Status.LastSubmitted = bigipStatus.L3Status.LastSubmitted
+				}
 			} else {
-				configCR.Status.BigIPStatus[index].L3Status.Message = bigipStatus.L3Status.Message
-				configCR.Status.BigIPStatus[index].L3Status.Error = bigipStatus.L3Status.Error
-				configCR.Status.BigIPStatus[index].L3Status.LastSubmitted = bigipStatus.L3Status.LastSubmitted
+				configCR.Status.BigIPStatus[index].L3Status = bigipStatus.L3Status
 			}
 		}
 	}

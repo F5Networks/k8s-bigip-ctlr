@@ -591,21 +591,25 @@ func (ctlr *Controller) processResources() bool {
 
 		if ctlr.managedResources.ManageCustomResources {
 			if rscDelete {
-				for _, vrt := range ctlr.getAllVirtualServers(nsName) {
-					err := ctlr.processVirtualServers(vrt, true)
-					if err != nil {
-						// TODO
-						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-						isRetryableError = true
+				if ctlr.managedResources.ManageVirtualServer {
+					for _, vrt := range ctlr.getAllVirtualServers(nsName) {
+						err := ctlr.processVirtualServers(vrt, true)
+						if err != nil {
+							// TODO
+							utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+							isRetryableError = true
+						}
 					}
 				}
 
-				for _, ts := range ctlr.getAllTransportServers(nsName) {
-					err := ctlr.processTransportServers(ts, true)
-					if err != nil {
-						// TODO
-						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-						isRetryableError = true
+				if ctlr.managedResources.ManageTransportServer {
+					for _, ts := range ctlr.getAllTransportServers(nsName) {
+						err := ctlr.processTransportServers(ts, true)
+						if err != nil {
+							// TODO
+							utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+							isRetryableError = true
+						}
 					}
 				}
 
@@ -816,6 +820,10 @@ func (ctlr *Controller) getAllVirtualServers(namespace string) []*cisapiv1.Virtu
 	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	if crInf.vsInformer == nil {
+		log.Errorf("virtual server informer not found for namespace: %v ", namespace)
 		return nil
 	}
 	var orderedVSs []interface{}
@@ -2290,6 +2298,10 @@ func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.Tra
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
+	if crInf.tsInformer == nil {
+		log.Errorf("transport server informer not found for namespace: %v ", namespace)
+		return nil
+	}
 	var orderedTSs []interface{}
 	var err error
 
@@ -3250,6 +3262,10 @@ func (ctlr *Controller) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	if crInf.ilInformer == nil {
+		log.Errorf("ingressLink informer not found for namespace: %v ", namespace)
 		return nil
 	}
 	var orderedIngLinks []interface{}

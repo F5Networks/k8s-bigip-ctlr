@@ -1,4 +1,4 @@
 apiVersion: v1
 description: A Helm chart to Deploy Ingress resources for the f5-bigip-ctlr
 name: f5-bigip-ingress
-version: 0.0.4
+version: 0.0.5

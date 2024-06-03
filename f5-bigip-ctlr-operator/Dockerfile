@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM registry.redhat.io/openshift4/ose-helm-operator:v4.14
+FROM registry.redhat.io/openshift4/ose-helm-operator:v4.15
 
 ENV HOME=/opt/helm
 
@@ -7,7 +7,7 @@ ENV HOME=/opt/helm
 LABEL name="F5 Container Ingress Services Operator" \
       maintainer="f5_cis_operators@f5.com" \
       vendor="F5 Networks Inc." \
-      version="v1.16.0" \
+      version="v1.17.0" \
       release="1" \
       summary="Container Ingress Services Operator for F5 BIG-IP" \
       description="F5 BIG-IP Controller Operator is a Service Operator which installs F5 BIG-IP Controller (Container Ingress Services) on Kubernetes and OpenShift platforms and respective supported versions."

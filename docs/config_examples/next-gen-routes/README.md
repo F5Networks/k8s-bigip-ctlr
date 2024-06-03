@@ -682,7 +682,7 @@ spec:
 | A/B Deployment             | YES           | YES             | 
 | Policy CR                  | NO            | YES             | 
 
-Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details.
+Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/next-gen-routes) for more details.
 
 
 ## Known issues
@@ -736,7 +736,7 @@ Yes you can continue using the rewriteAppRoot in route annotations.
 ### Any changes in RBAC? 
 No.
 ### How do I use policy CR with routes?
-You can define the policy CR in Extended ConfigMap [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy). </br>
+You can define the policy CR in Extended ConfigMap [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy). </br>
 Make sure that Policy CR is created in a namespace which CIS is monitoring.
 ### How do I apply different policies/profiles to HTTP and HTTPS virtual servers?
 You can use both PolicyCR and httpServerPolicyCR in route group to apply different policies/profiles to HTTP and HTTPS VS.</br>

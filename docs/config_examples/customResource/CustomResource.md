@@ -40,7 +40,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 
 **VirtualServer Components**
@@ -198,7 +198,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer
    
 ## TLSProfile
    * TLSProfile is used to specify the TLS termination for a single/list of services in a VirtualServer Custom Resource. TLS termination relies on SNI. Any non-SNI traffic received on port 443 may result in connection issues. 
@@ -206,7 +206,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 
 **TLSProfile Components**
@@ -249,14 +249,14 @@ different terminations(for same domain), one with edge and another with re-encry
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServerWithTLSProfile
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile
 
 ## TransportServer
    * TransportServer resource expose non-HTTP traffic configuration for a virtual server address in BIG-IP.
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 
 **TransportServer Components**
@@ -336,14 +336,14 @@ different terminations(for same domain), one with edge and another with re-encry
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/TransportServer
 
 ## ExternalDNS
    * ExternalDNS CRD's allows you to control DNS records dynamically via Kubernetes/OSCP resources in a DNS provider-agnostic way.
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 
 **ExternalDNS Components**
@@ -395,16 +395,16 @@ Known Issues:
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/ExternalDNS
 
 
 ## IngressLink
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/IngressLink/README.md
+Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/IngressLink/README.md
 
 ## Policy CRD 
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy
+Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy
 
 
 # Note

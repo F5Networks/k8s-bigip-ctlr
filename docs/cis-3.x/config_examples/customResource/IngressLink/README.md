@@ -35,7 +35,7 @@ Create IngressLink Custom Resource definition as follows:
 * On the Main tab, click **Local Traffic > iRules**.
 * Click **Create**.
 * In the Name field, type name as "Proxy_Protocol_iRule".
-* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/IngressLink/Proxy_Protocol_iRule) file.
+* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResource/IngressLink/Proxy_Protocol_iRule) file.
 * Click **Finished**.
 
 ### 3. Install the CIS Controller.

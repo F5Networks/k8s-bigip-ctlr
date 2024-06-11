@@ -123,6 +123,7 @@ type AS3Manager struct {
 	as3LogLevel               *string
 	as3DeclarationPersistence *bool
 	disableDefaultPartition   bool
+	hubMode                   bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -160,6 +161,7 @@ type Params struct {
 	PoolMemberType            string
 	HTTPClientMetrics         bool
 	DisableDefaultPartition   bool
+	HubMode                   bool
 }
 
 type failureContext struct {
@@ -204,6 +206,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 			HTTPClientMetrics: params.HTTPClientMetrics,
 		}),
 		disableDefaultPartition: params.DisableDefaultPartition,
+		hubMode:                 params.HubMode,
 	}
 	if as3Manager.tls13CipherGroupReference == "" {
 		as3Manager.tls13CipherGroupReference = "/Common/f5-default"

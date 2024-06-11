@@ -193,10 +193,20 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {
 				poolObj := appObj[string(pn)].(map[string]interface{})
-				eps, ok := am.AgentCfgSvcCache[fmt.Sprintf("/%s/%s/%s", tnt, app, pn)]
+				plname := fmt.Sprintf("/%s/%s/%s", tnt, app, pn)
+				var eps []Member
+				eps, ok = am.AgentCfgSvcCache[plname]
 				// If there is some error while fetching the endpoint from cache
 				if !ok {
-					return nil, nil, err
+					log.Debugf("Unable to fetch endpoints from cache for pool %s", plname)
+					// fetch the endpoints from the cluster
+					if am.hubMode {
+						eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace, true)
+						// If there is some error while fetching the endpoint from API server then skip processing further
+						if nil != err {
+							return nil, nil, err
+						}
+					}
 				}
 				// Handle an empty value
 				if len(eps) == 0 {

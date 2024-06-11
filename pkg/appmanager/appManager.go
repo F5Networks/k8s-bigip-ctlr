@@ -353,7 +353,6 @@ const (
 	Secrets        = "secrets"
 	IngressClasses = "ingressclasses"
 
-	hubModeInterval  = 30 * time.Second //Hubmode ConfigMap resync interval
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
 	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
 	// CNI
@@ -879,11 +878,6 @@ func (appMgr *Manager) newAppInformer(
 			options.LabelSelector = appMgr.configMapLabel
 		}
 		log.Infof("[CORE] Watching ConfigMap resources.")
-		//If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
-		syncInterval := resyncPeriod
-		if appMgr.hubMode {
-			syncInterval = hubModeInterval
-		}
 		appInf.cfgMapInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -892,7 +886,7 @@ func (appMgr *Manager) newAppInformer(
 				cfgMapOptions,
 			),
 			&v1.ConfigMap{},
-			syncInterval,
+			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	} else {
@@ -921,11 +915,6 @@ func (appMgr *Manager) newAppInformer(
 
 	if false != appMgr.manageConfigMaps {
 		log.Infof("[CORE] Handling ConfigMap resource events.")
-		// If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
-		syncInterval := resyncPeriod
-		if appMgr.hubMode {
-			syncInterval = hubModeInterval
-		}
 		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeCreate) },
@@ -936,7 +925,7 @@ func (appMgr *Manager) newAppInformer(
 				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeDelete) },
 			},
-			syncInterval,
+			resyncPeriod,
 		)
 	} else {
 		log.Infof("[CORE] Not handling ConfigMap resource events.")
@@ -1061,6 +1050,9 @@ func (appMgr *Manager) enqueueEndpointsUpdate(old, cur interface{}, operation st
 	oldep := old.(*v1.Endpoints)
 	newep := cur.(*v1.Endpoints)
 	if reflect.DeepEqual(oldep.Subsets, newep.Subsets) {
+		return
+	}
+	if len(oldep.Subsets) == 0 || len(newep.Subsets) == 0 {
 		return
 	}
 	// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
@@ -1678,7 +1670,7 @@ func (appMgr *Manager) syncConfigMaps(
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
 				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
-				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
+				members, err := appMgr.getEndpoints(selector, sKey.Namespace, false)
 				if err != nil {
 					return err
 				}
@@ -1696,7 +1688,6 @@ func (appMgr *Manager) syncConfigMaps(
 							poolPath: poolPath,
 						}
 						stats.poolsUpdated += 1
-						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				} else {
 					sc := &SvcEndPointsCache{
@@ -1706,7 +1697,6 @@ func (appMgr *Manager) syncConfigMaps(
 					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[cacheKey].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[cacheKey]) {
 						stats.poolsUpdated += 1
 						appMgr.agentCfgMapSvcCache[cacheKey] = sc
-						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				}
 			} else {
@@ -3391,15 +3381,15 @@ func createLabel(label string) (labels.Selector, error) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error) {
+func (appMgr *Manager) getEndpoints(selector, namespace string, allNamespaces bool) ([]Member, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
-	appInf, infFound := appMgr.getNamespaceInformer(namespace)
+	appInf, _ := appMgr.getNamespaceInformer(namespace)
 
 	var svcItems []v1.Service
 
-	if appMgr.hubMode && !infFound {
+	if allNamespaces {
 		// Leaving the old way for hubMode for now.
 		svcListOptions := metav1.ListOptions{
 			LabelSelector: selector,
@@ -3416,7 +3406,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			return nil, err
 		}
 		svcItems = services.Items
-	} else if infFound {
+	} else {
 		svcInformer := appInf.svcInformer
 		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
 		ls, _ := createLabel(selector)
@@ -3426,9 +3416,6 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			svcItems = append(svcItems, *svcListed[n])
 		}
 
-	} else {
-		log.Errorf("[CORE] Namespace informer not found for namespace %v", namespace)
-		return nil, fmt.Errorf("namespace informer not found for namespace %v", namespace)
 	}
 
 	if len(svcItems) > 1 {
@@ -3452,33 +3439,31 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			if appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
 				// return if pod graceful shut down event is handled,
 				// it will add the endpoint event again after pod completes the graceful shutdown
-				if infFound {
-					if pods, ok := appMgr.podSvcCache.svcPodCache.Load(svcKey); ok {
-						for k := range *(pods.(*map[string]struct{})) {
-							if podDetailInt, ok := appMgr.podSvcCache.podDetails.Load(k); ok {
-								podDetails := podDetailInt.(PodDetails)
-								for _, p := range strings.Split(podDetails.podPorts, ",") {
-									port, _ := strconv.Atoi(p)
-									member := Member{
-										Address:    k,
-										Port:       int32(port),
-										SvcPort:    appMgr.getServicePortFromTargetPort(svcPorts, int32(port)),
-										AdminState: podDetails.status,
-									}
-									if _, ok := uniqueMembersMap[member]; !ok {
-										uniqueMembersMap[member] = struct{}{}
-										members = append(members, member)
-									}
+				if pods, ok := appMgr.podSvcCache.svcPodCache.Load(svcKey); ok {
+					for k := range *(pods.(*map[string]struct{})) {
+						if podDetailInt, ok := appMgr.podSvcCache.podDetails.Load(k); ok {
+							podDetails := podDetailInt.(PodDetails)
+							for _, p := range strings.Split(podDetails.podPorts, ",") {
+								port, _ := strconv.Atoi(p)
+								member := Member{
+									Address:    k,
+									Port:       int32(port),
+									SvcPort:    appMgr.getServicePortFromTargetPort(svcPorts, int32(port)),
+									AdminState: podDetails.status,
+								}
+								if _, ok := uniqueMembersMap[member]; !ok {
+									uniqueMembersMap[member] = struct{}{}
+									members = append(members, member)
 								}
 							}
 						}
 					}
-					// continue to work with all services
-					continue
 				}
+				// continue to work with all services
+				continue
 			}
 			var eps *v1.Endpoints
-			if appMgr.hubMode && !infFound {
+			if allNamespaces {
 				endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
 					metav1.ListOptions{
 						FieldSelector: "metadata.name=" + service.Name,
@@ -3551,6 +3536,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 				log.Debug(msg)
 			}*/
 		}
+		log.Debugf("[CORE] Discovered members for service %v/%v is %v", service.Namespace, service.Name, members)
 	}
 	return members, nil
 }

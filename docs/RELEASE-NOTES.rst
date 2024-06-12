@@ -1,7 +1,7 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.17.0
 -------------
 
 Added Functionality

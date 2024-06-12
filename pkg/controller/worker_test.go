@@ -5,6 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
+	"sort"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
@@ -12,12 +19,6 @@ import (
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/workqueue"
-	"net/http"
-	"reflect"
-	"sort"
-	"strconv"
-	"sync"
-	"time"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
@@ -697,6 +698,44 @@ var _ = Describe("Worker Tests", func() {
 					"Invalid VS count")
 				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
 					To(Equal(2), "Invalid host count")
+			})
+
+			It("Verify VS processing with same name and hostgroup but multiple Hosts in different namespaces", func() {
+				// This test case verifies that when there are two VirtualServers with the same configurations only differing
+				// in the hostname and namespace, on deletion of one VirtualServer doesn't remove the VirtualServer LTM
+				// configuration for the other VS.
+				// Add namespace informer for foo namespace
+				_ = mockCtlr.addNamespacedInformers("foo", false)
+				vrt2.Spec.HostGroup = "test"
+				vrt2.Namespace = "default"
+				// The following VS is created in foo namespace and host test3.com, but with the same name and hostgroup as vrt2
+				vrt3.Namespace = "foo"
+				vrt3.Spec.HostGroup = "test"
+				vrt3.Spec.Host = "test3.com"
+				vrt3.Name = vrt2.Name
+				mockCtlr.namespaces = map[string]bool{
+					"default": true,
+					"foo":     true,
+				}
+				mockCtlr.addVirtualServer(vrt2)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1), "Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+					To(Equal(1), "Invalid host count")
+				mockCtlr.addVirtualServer(vrt3)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1),
+					"Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+					To(Equal(2), "Invalid host count")
+
+				// Delete one VS(vrt2) and verify that Virtual server LTM configuration should be removed for
+				// vrt2 only and vrt3 config should be present.
+				mockCtlr.deleteVirtualServer(vrt2)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1), "Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+					To(Equal(1), "Invalid host count")
 			})
 
 			It("HostGroup with wrong custom port", func() {

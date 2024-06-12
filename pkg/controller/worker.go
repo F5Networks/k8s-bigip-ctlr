@@ -22,16 +22,17 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"gopkg.in/yaml.v2"
-	listerscorev1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"gopkg.in/yaml.v2"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -1416,7 +1417,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 
 	for _, vrt := range allVirtuals {
 		// skip the deleted virtual in the event of deletion
-		if isVSDeleted && vrt.Name == currentVS.Name {
+		if isVSDeleted && vrt.Name == currentVS.Name && vrt.ObjectMeta.Namespace == currentVS.ObjectMeta.Namespace {
 			continue
 		}
 

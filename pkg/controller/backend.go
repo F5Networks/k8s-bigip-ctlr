@@ -644,7 +644,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	for tenant := range agent.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
 			// Remove partition
-			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant, cisLabel)
+			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant, cisLabel, config)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
@@ -656,7 +656,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		partitionConfig.PriorityMutex.RUnlock()
 		if len(partitionConfig.ResourceMap) == 0 {
 			// Remove partition
-			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName, cisLabel)
+			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName, cisLabel, config)
 			continue
 		}
 		// Create Shared as3Application object
@@ -689,7 +689,7 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	return adc
 }
 
-func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string) as3Tenant {
+func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string, config ResourceConfigRequest) as3Tenant {
 	if defaultPartition == tenant {
 		// Flush Partition contents
 		sharedApp := as3Application{}
@@ -698,6 +698,7 @@ func getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string) as3T
 		return as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
+			"defaultRouteDomain": config.defaultRouteDomain,
 			"label":              cisLabel,
 		}
 	}

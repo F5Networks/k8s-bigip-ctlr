@@ -474,10 +474,16 @@ var _ = Describe("Backend Tests", func() {
 			Expect(val).NotTo(BeNil())
 		})
 		It("Test Deleted Partition", func() {
+			config := ResourceConfigRequest{
+				ltmConfig:          make(LTMConfig),
+				shareNodes:         true,
+				gtmConfig:          GTMConfig{},
+				defaultRouteDomain: 1,
+			}
 			cisLabel := "test"
-			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel)
+			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel, config)
 			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
-			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel)
+			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel, config)
 			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})

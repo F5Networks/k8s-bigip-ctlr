@@ -6,6 +6,7 @@ metadata:
   labels:
     f5type: virtual-server
     as3: "true"
+    isTenantNameServiceNamespace: "true"
 data:
   template: |
     {

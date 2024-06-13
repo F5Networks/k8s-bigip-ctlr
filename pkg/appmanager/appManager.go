@@ -1052,13 +1052,15 @@ func (appMgr *Manager) enqueueEndpointsUpdate(old, cur interface{}, operation st
 	if reflect.DeepEqual(oldep.Subsets, newep.Subsets) {
 		return
 	}
-	if len(oldep.Subsets) == 0 || len(newep.Subsets) == 0 {
-		return
+	if appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
+		if len(oldep.Subsets) == 0 || len(newep.Subsets) == 0 {
+			operation = OprTypeDisable
+		} else if len(oldep.Subsets[0].Addresses) > len(newep.Subsets[0].Addresses) {
+			// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+			operation = OprTypeDisable
+		}
 	}
-	// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
-	if len(oldep.Subsets[0].Addresses) > len(newep.Subsets[0].Addresses) && (appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil) {
-		operation = OprTypeDisable
-	}
+
 	if ok, keys := appMgr.checkValidEndpoints(newep, operation); ok {
 		for _, key := range keys {
 			key.Operation = operation
@@ -1670,7 +1672,7 @@ func (appMgr *Manager) syncConfigMaps(
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
 				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
-				members, err := appMgr.getEndpoints(selector, sKey.Namespace, false)
+				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
 				if err != nil {
 					return err
 				}
@@ -3381,15 +3383,25 @@ func createLabel(label string) (labels.Selector, error) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string, allNamespaces bool) ([]Member, error) {
+func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
-	appInf, _ := appMgr.getNamespaceInformer(namespace)
+	appInf, infFound := appMgr.getNamespaceInformer(namespace)
 
 	var svcItems []v1.Service
 
-	if allNamespaces {
+	if infFound {
+		svcInformer := appInf.svcInformer
+		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
+		ls, _ := createLabel(selector)
+		svcListed, _ := svcLister.Services(namespace).List(ls)
+
+		for n, _ := range svcListed {
+			svcItems = append(svcItems, *svcListed[n])
+		}
+		log.Debugf("[CORE] Extract service via watch-list informer '%s'", namespace)
+	} else if appMgr.hubMode {
 		// Leaving the old way for hubMode for now.
 		svcListOptions := metav1.ListOptions{
 			LabelSelector: selector,
@@ -3406,16 +3418,9 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, allNamespaces bo
 			return nil, err
 		}
 		svcItems = services.Items
+		log.Debugf("[CORE] Query service via '%v'", selector)
 	} else {
-		svcInformer := appInf.svcInformer
-		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
-		ls, _ := createLabel(selector)
-		svcListed, _ := svcLister.Services(namespace).List(ls)
-
-		for n, _ := range svcListed {
-			svcItems = append(svcItems, *svcListed[n])
-		}
-
+		log.Errorf("[CORE] Can not found informer for %s", namespace)
 	}
 
 	if len(svcItems) > 1 {
@@ -3463,7 +3468,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, allNamespaces bo
 				continue
 			}
 			var eps *v1.Endpoints
-			if allNamespaces {
+			if appMgr.hubMode && !infFound {
 				endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
 					metav1.ListOptions{
 						FieldSelector: "metadata.name=" + service.Name,

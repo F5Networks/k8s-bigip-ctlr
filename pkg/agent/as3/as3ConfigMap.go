@@ -9,13 +9,14 @@ import (
 
 // cfgMap States
 const (
-	F5TypeLabel      = "f5type"
-	VSLabel          = "virtual-server"
-	TrueLabel        = "true"
-	FalseLabel       = "false"
-	OverrideAS3Label = "overrideAS3"
-	AS3Label         = "as3"
-	StagingAS3Label  = "stagingAS3"
+	F5TypeLabel                  = "f5type"
+	VSLabel                      = "virtual-server"
+	TrueLabel                    = "true"
+	FalseLabel                   = "false"
+	OverrideAS3Label             = "overrideAS3"
+	AS3Label                     = "as3"
+	IsTenantNameServiceNamespace = "isTenantNameServiceNamespace"
+	StagingAS3Label              = "stagingAS3"
 )
 
 func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
@@ -201,7 +202,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					log.Debugf("Unable to fetch endpoints from cache for pool %s", plname)
 					// fetch the endpoints from the cluster
 					if am.hubMode {
-						eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace, true)
+						if val, ok := rscCfgMap.Label[IsTenantNameServiceNamespace]; ok && val == TrueLabel {
+							eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), string(tnt))
+						} else {
+							eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace)
+						}
 						// If there is some error while fetching the endpoint from API server then skip processing further
 						if nil != err {
 							return nil, nil, err

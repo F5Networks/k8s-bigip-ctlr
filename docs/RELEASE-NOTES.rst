@@ -18,6 +18,7 @@ Bug Fixes
 * `Issue 3424 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3424>`_: Static routes not added if a label not added to a namespace when --namespace-label used.
 * `Issue 3443 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3443>`_: Fix issue with IPAM IP allocation on resource recreation
 * `Issue 3406 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3406>`_: Upon deleting all the CRD resources, the default route domain of CIS-managed Partition resets to 0
+* `Issue 3405 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3405>`_: Fix Helm Chart does not enable ingressClass after creating it.
 
 Upgrade notes
 ``````````````

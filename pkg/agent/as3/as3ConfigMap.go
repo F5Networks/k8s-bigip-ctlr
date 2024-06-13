@@ -2,7 +2,6 @@ package as3
 
 import (
 	"encoding/json"
-	"fmt"
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
@@ -194,24 +193,15 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {
 				poolObj := appObj[string(pn)].(map[string]interface{})
-				plname := fmt.Sprintf("/%s/%s/%s", tnt, app, pn)
 				var eps []Member
-				eps, ok = am.AgentCfgSvcCache[plname]
-				// If there is some error while fetching the endpoint from cache
-				if !ok {
-					log.Debugf("Unable to fetch endpoints from cache for pool %s", plname)
-					// fetch the endpoints from the cluster
-					if am.hubMode {
-						if val, ok := rscCfgMap.Label[IsTenantNameServiceNamespace]; ok && val == TrueLabel {
-							eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), string(tnt))
-						} else {
-							eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace)
-						}
-						// If there is some error while fetching the endpoint from API server then skip processing further
-						if nil != err {
-							return nil, nil, err
-						}
-					}
+				if val, ok := rscCfgMap.Label[IsTenantNameServiceNamespace]; ok && val == TrueLabel {
+					eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), string(tnt), true)
+				} else {
+					eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace, false)
+				}
+				// If there is some error while fetching the endpoint from API server then skip processing further
+				if nil != err {
+					return nil, nil, err
 				}
 				// Handle an empty value
 				if len(eps) == 0 {

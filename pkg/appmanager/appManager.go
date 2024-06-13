@@ -252,8 +252,8 @@ type Params struct {
 }
 
 type SvcEndPointsCache struct {
-	members  []Member
-	poolPath string
+	members     []Member
+	labelString string
 }
 
 // Configuration options for Routes in OpenShift
@@ -1030,7 +1030,7 @@ func (appMgr *Manager) enqueueService(obj interface{}, operation string) {
 	}
 }
 
-// enqueue endpoint wil be called in two cases
+// enqueue endpoint wil be called in three cases
 // 1. When endpoint is created
 // 2. When endpoints are scaled down, in case of pod-graceful-shutdown is enabled
 // 3 When endpoint is deleted
@@ -1667,44 +1667,36 @@ func (appMgr *Manager) syncConfigMaps(
 				"cis.f5.com/as3-app=" + appLabel + "," +
 				"cis.f5.com/as3-pool=" + poolLabel
 
-			cacheKey := sKey.Namespace + "/" + sKey.ServiceName
+			key := sKey.Namespace + "/" + sKey.ServiceName
 
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
-				poolPath := fmt.Sprintf("/%s/%s/%s", tntLabel, appLabel, poolLabel)
-				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
+				members, err := appMgr.getEndpoints(selector, sKey.Namespace, false)
 				if err != nil {
 					return err
 				}
-				// Let's sort the members to make sure the order is consistent
-				sort.Slice(members, func(i, j int) bool {
-					if members[i].Address == members[j].Address {
-						return members[i].Port < members[j].Port
-					}
-					return members[i].Address < members[j].Address
-				})
-				if _, ok := appMgr.agentCfgMapSvcCache[cacheKey]; !ok {
+				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
 					if len(members) != 0 {
-						appMgr.agentCfgMapSvcCache[cacheKey] = &SvcEndPointsCache{
-							members:  members,
-							poolPath: poolPath,
+						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
+							members:     members,
+							labelString: selector,
 						}
 						stats.poolsUpdated += 1
 					}
 				} else {
 					sc := &SvcEndPointsCache{
-						members:  members,
-						poolPath: poolPath,
+						members:     members,
+						labelString: selector,
 					}
-					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[cacheKey].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[cacheKey]) {
+					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[key].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[key]) {
 						stats.poolsUpdated += 1
-						appMgr.agentCfgMapSvcCache[cacheKey] = sc
+						appMgr.agentCfgMapSvcCache[key] = sc
 					}
 				}
 			} else {
-				if _, ok := appMgr.agentCfgMapSvcCache[cacheKey]; ok {
+				if _, ok := appMgr.agentCfgMapSvcCache[key]; ok {
 					stats.poolsUpdated += 1
-					delete(appMgr.agentCfgMapSvcCache, cacheKey)
+					delete(appMgr.agentCfgMapSvcCache, key)
 				}
 			}
 		}
@@ -3121,7 +3113,7 @@ func (appMgr *Manager) getServicePortFromTargetPort(svcPorts map[int32]int32, ta
 	}
 }
 
-func (appMgr *Manager) getServicePortsFromEndpoint(svc *v1.Service) map[int32]int32 {
+func (appMgr *Manager) getServicePorts(svc *v1.Service) map[int32]int32 {
 	if svc == nil {
 		return nil
 	}
@@ -3372,6 +3364,65 @@ func createLabel(label string) (labels.Selector, error) {
 	return l, nil
 }
 
+// get the service list in case of hub mode
+func (appMgr *Manager) getServicesForHubMode(selector, namespace string, isTenantNameServiceNamespace bool) ([]v1.Service, error) {
+	var svcItems []v1.Service
+	if isTenantNameServiceNamespace {
+		if appInf, infFound := appMgr.getNamespaceInformer(namespace); infFound {
+			svcInformer := appInf.svcInformer
+			svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
+			ls, _ := createLabel(selector)
+			svcListed, _ := svcLister.Services(namespace).List(ls)
+
+			for n, _ := range svcListed {
+				svcItems = append(svcItems, *svcListed[n])
+			}
+			log.Debugf("[CORE] Extract service via watch-list informer '%s'", namespace)
+			return svcItems, nil
+		}
+	}
+	// Leaving the old way for hubMode for now.
+	svcListOptions := metav1.ListOptions{
+		LabelSelector: selector,
+	}
+	services, err := appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+
+	if err != nil {
+		log.Errorf("[CORE] Error getting service list. %v", err)
+		return nil, err
+	}
+	svcItems = services.Items
+	log.Debugf("[CORE] Query service via '%v'", selector)
+	return svcItems, nil
+}
+
+// get the endpoints for the hub mode
+func (appMgr *Manager) getEndpointsForHubMode(svcName, svcNamespace string, isTenantNameServiceNamespace bool) (*v1.Endpoints, error) {
+	var eps *v1.Endpoints
+	if isTenantNameServiceNamespace {
+		if appInf, infFound := appMgr.getNamespaceInformer(svcNamespace); infFound {
+			if item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcNamespace + "/" + svcName); found {
+				eps, _ = item.(*v1.Endpoints)
+			}
+			return eps, nil
+		}
+	}
+	// Leaving the old way for hubMode for now.
+	endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(svcNamespace).List(context.TODO(),
+		metav1.ListOptions{
+			FieldSelector: "metadata.name=" + svcName,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(endpointsList.Items) == 0 {
+		return eps, nil
+	}
+	eps = &endpointsList.Items[0]
+	return eps, nil
+}
+
 // Performs Service discovery for the given AS3 Pool and returns a pool.
 // Service discovery is loosely coupled with Kubernetes Service labels. A Kubernetes Service is treated as a match for
 // an AS3 Pool, if the Kubernetes Service have the following labels and their values matches corresponding AS3
@@ -3383,15 +3434,20 @@ func createLabel(label string) (labels.Selector, error) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error) {
+func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServiceNamespace bool) ([]Member, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
-	appInf, infFound := appMgr.getNamespaceInformer(namespace)
+	appInf, _ := appMgr.getNamespaceInformer(namespace)
 
 	var svcItems []v1.Service
-
-	if infFound {
+	var err error
+	if appMgr.hubMode {
+		svcItems, err = appMgr.getServicesForHubMode(selector, namespace, isTenantNameServiceNamespace)
+		if err != nil {
+			return nil, err
+		}
+	} else {
 		svcInformer := appInf.svcInformer
 		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
 		ls, _ := createLabel(selector)
@@ -3401,26 +3457,6 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 			svcItems = append(svcItems, *svcListed[n])
 		}
 		log.Debugf("[CORE] Extract service via watch-list informer '%s'", namespace)
-	} else if appMgr.hubMode {
-		// Leaving the old way for hubMode for now.
-		svcListOptions := metav1.ListOptions{
-			LabelSelector: selector,
-		}
-
-		var err error
-		// Identify services that matches the given label
-		var services *v1.ServiceList
-
-		services, err = appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
-
-		if err != nil {
-			log.Errorf("[CORE] Error getting service list. %v", err)
-			return nil, err
-		}
-		svcItems = services.Items
-		log.Debugf("[CORE] Query service via '%v'", selector)
-	} else {
-		log.Errorf("[CORE] Can not found informer for %s", namespace)
 	}
 
 	if len(svcItems) > 1 {
@@ -3438,7 +3474,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 
 	for _, service := range svcItems {
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal {
-			svcPorts := appMgr.getServicePortsFromEndpoint(&service) // Controller is in ClusterIP Mode
+			svcPorts := appMgr.getServicePorts(&service) // Controller is in ClusterIP Mode
 			svcKey := service.Namespace + "/" + service.Name
 			// try to get the endpoints from the pod cache if graceful shutdown is enabled
 			if appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
@@ -3468,21 +3504,16 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 				continue
 			}
 			var eps *v1.Endpoints
-			if appMgr.hubMode && !infFound {
-				endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
-					metav1.ListOptions{
-						FieldSelector: "metadata.name=" + service.Name,
-					},
-				)
+			if appMgr.hubMode {
+				eps, err = appMgr.getEndpointsForHubMode(service.Name, service.Namespace, isTenantNameServiceNamespace)
 				if err != nil {
-					log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
+					log.Debugf("[CORE] Error getting endpoints for service %v/%v", service.Namespace, service.Name)
 					return nil, err
 				}
-				if len(endpointsList.Items) == 0 {
-					log.Debugf("[CORE] Endpoints for service %v not found", service.Name)
+				if eps == nil {
+					log.Debugf("[CORE] Endpoints for service %v/%v not found", service.Namespace, service.Name)
 					continue
 				}
-				eps = &endpointsList.Items[0]
 			} else {
 				item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 				if !found {
@@ -3543,6 +3574,13 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 		}
 		log.Debugf("[CORE] Discovered members for service %v/%v is %v", service.Namespace, service.Name, members)
 	}
+	// Let's sort the members to make sure the order is consistent
+	sort.Slice(members, func(i, j int) bool {
+		if members[i].Address == members[j].Address {
+			return members[i].Port < members[j].Port
+		}
+		return members[i].Address < members[j].Address
+	})
 	return members, nil
 }
 

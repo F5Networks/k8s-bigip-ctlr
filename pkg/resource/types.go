@@ -415,7 +415,7 @@ type (
 
 	AgentCfgMap struct {
 		Operation    string
-		GetEndpoints func(string, string) ([]Member, error)
+		GetEndpoints func(string, string, bool) ([]Member, error)
 		Data         string
 		Name         string
 		Namespace    string
@@ -428,13 +428,12 @@ type (
 	}
 
 	ResourceRequest struct {
-		AgentCfgSvcCache map[string][]Member
-		Resources        *AgentResources
-		Profs            map[SecretKey]CustomProfile
-		IrulesMap        IRulesMap
-		IntDgMap         InternalDataGroupMap
-		IntF5Res         InternalF5ResourcesGroup
-		AgentCfgmaps     []*AgentCfgMap
+		Resources    *AgentResources
+		Profs        map[SecretKey]CustomProfile
+		IrulesMap    IRulesMap
+		IntDgMap     InternalDataGroupMap
+		IntF5Res     InternalF5ResourcesGroup
+		AgentCfgmaps []*AgentCfgMap
 	}
 
 	ResourceResponse struct {

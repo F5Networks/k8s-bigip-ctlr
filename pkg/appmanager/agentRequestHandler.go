@@ -70,22 +70,17 @@ func (appMgr *Manager) deployResource() error {
 	for _, cm := range appMgr.agentCfgMap {
 		agentCfgMapLst = append(agentCfgMapLst, cm)
 	}
-	// copy the agentCfgSvcCache
-	agentCfgSvcCache := make(map[string][]Member)
-	for _, v := range appMgr.agentCfgMapSvcCache {
-		agentCfgSvcCache[v.poolPath] = v.members
-	}
+
 	deployCfg := ResourceRequest{
 		Resources: &AgentResources{
 			RsMap:      resourceConfigMap,
 			Partitions: partitions,
 		},
-		Profs:            Profs,
-		IrulesMap:        iRulesMap,
-		IntDgMap:         idgMap,
-		IntF5Res:         intF5Res,
-		AgentCfgmaps:     agentCfgMapLst,
-		AgentCfgSvcCache: agentCfgSvcCache,
+		Profs:        Profs,
+		IrulesMap:    iRulesMap,
+		IntDgMap:     idgMap,
+		IntF5Res:     intF5Res,
+		AgentCfgmaps: agentCfgMapLst,
 	}
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}
 	// Handle resources to agent and deploy to BIG-IP

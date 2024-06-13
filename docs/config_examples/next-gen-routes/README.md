@@ -87,9 +87,9 @@ If it's specified in both the places then allow source range in policy CR has mo
 ### SSL Profiles precedence
 * SSL can be specified in route as certificate(spec certs), route annotation as bigip reference/secret or as default SSL profiles in extended configmap. 
 * If route is defined with both certificate(spec certs) and SSL annotation then route annotation will have more precedence followed by route certificate(spec certs). Default SSL profiles in extended configmap will have the least precedence.
-* Route with SSL profiles annotation reference to bigip [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-bigip-reference-in-ssl-annotaion.yaml)
-* Route with SSL profiles annotation reference to secret [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-k8s-secret-in-ssl-annotation.yaml)
-* Extended configmap with defaultTLS [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml)
+* Route with SSL profiles annotation reference to bigip [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-bigip-reference-in-ssl-annotaion.yaml)
+* Route with SSL profiles annotation reference to secret [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-k8s-secret-in-ssl-annotation.yaml)
+* Extended configmap with defaultTLS [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml)
 
 ### Support for Health Monitors from pod readiness probe using autoMonitor
 CIS uses the readiness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations and autoMonitor is set to readiness-probe in the extended configmap.
@@ -98,12 +98,12 @@ By default, autoMonitor is set to none in the extended configmap.
 This behaviour can be changed by setting autoMonitor in baseRouteSpec of the extended configmap.
 
 ## Migration Guide
-Follow  [Migration Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md)
+Follow  [Migration Guide] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/migration-guide.md)
 
 ## Prerequisites
 
 * Clean up the partition in BIG-IP, where the existing route config is deployed.
-  * Use the POST Method with below endpoint along with this AS3 declaration [Empty Declaration](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/AS3-empty-declaration.json) for cleanup.
+  * Use the POST Method with below endpoint along with this AS3 declaration [Empty Declaration] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/AS3-empty-declaration.json) for cleanup.
 
     mgmt/shared/appsvcs/declare
 
@@ -717,10 +717,10 @@ allow, redirect and none termination supported with edge routes, while re-encryp
 ### Do we support bigIP referenced SSL Profiles annotations on routes?
 Yes you can continue the SSL Profiles in route annotations.
 ### Do we support Kubernetes secrets in SSL Profiles annotations on routes?
-Yes you can define the Kubernetes secret in route's SSL annotations. Please refer to [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-k8s-secret-in-ssl-annotation.yaml).
+Yes you can define the Kubernetes secret in route's SSL annotations. Please refer to [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-k8s-secret-in-ssl-annotation.yaml).
 ### Can we the use legacy default-client-ssl and default-server-ssl CLI parameters?
 No, they are no longer supported as CLI parameters. These CLI parameters are moved to extended configmap -> baseRouteSpec -> defaultTLS -> clientSSL and serverSSL.
-Please refer to [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml).
+Please refer to [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml).
 ### What is the precedence of client and server SSL profiles? 
 CIS considers following precedence order.  Route annotations have the highest priority( followed by) route certificates(spec certs) have next priority (followed by) extended configmap baseRouteSpec default profiles.
 ### What is not supported with the SSL profiles?
@@ -743,7 +743,7 @@ You can use both PolicyCR and httpServerPolicyCR in route group to apply differe
 If only policyCR is used in a route group, then profiles/policies specified in it are applied to both HTTP and HTTPS virtual servers.</br>
 If only httpServerPolicyCR is used in a route group, then profiles/policies specified in it are applied to only HTTP virtual server.</br>
 If both policyCR and httpServerPolicyCR are used in a route group, then profiles/policies specified in policyCR are applied to HTTPS virtual server and profiles/policies specified in httpServerPolicyCR are applied to HTTP virtual server.</br>
-To use the httpServerPolicyCR in Extended ConfigMap, please refer to [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/configmap). </br>
+To use the httpServerPolicyCR in Extended ConfigMap, please refer to [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/configmap). </br>
 Make sure that both policyCR and httpServerPolicyCR are created in a namespace which CIS is monitoring.
 
 

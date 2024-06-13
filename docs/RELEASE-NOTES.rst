@@ -139,7 +139,7 @@ Added Functionality
         * Moved from pod liveness probe based health monitor to readiness probe based health monitor for autoMonitor. See `DeploymentPod Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/deployment/deployment-pod-with-readinessprobe.yaml>`_, `AutoMonitor Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfigWithAutoMonitor.yaml>`_
         * Support for new route annotation **virtual-server.f5.com/pod-concurrent-connections**. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/next-gen-routes/routes/sample-route-with-pod-concurrent-connections-annotation.yaml>`_
     * CRD
-       * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR. See `VirtualServerCR Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/ConnectionMirroring/vs-with-connection-mirroring.yaml>`_, `TransportServerCR Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/TransportServer/ts-with-connection-mirroring.yaml>`_
+       * `Issue 3062 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3062>`_: Support ConnectionMirroring in virtualserver and Transportserver CR. See `VirtualServerCR Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/ConnectionMirroring/vs-with-connection-mirroring.yaml>`_, `TransportServerCR Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/TransportServer/ts-with-connection-mirroring.yaml>`_
        * `Issue 2963 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2963>`_: Support MinimumMonitors in virtualserver CR
     * `Issue 3066 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3066>`_: Support for a/b deployment custom persistence in CRD, nextGen routes with cluster mode. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy/policy-with-ab-persistence.yaml>`_
     * Support for dedicated AS3 GTM agent for GTM Server
@@ -182,12 +182,12 @@ Added Functionality
         * Support for default pool using the single-service ingress
     * CRD
         * NodePortLocal mode support added with all custom resources
-        * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServer/defaultpool/>`_
-        * Support for service typeLB in EDNS CR, See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/serviceTypeLB/service-type-lb-with-hostname.yaml>`_
-        * Support for **persistence** capability for service published through EDNS.  See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns.yaml>`_
-        * Support for wildcard domain in EDNS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns-wildcard-domain.yaml>`_
-        * Support for preferred client subnet in EDNS CR using AS3. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns-client-subnet-preferred.yaml>`_
-        * Support for fallbackLbmode with EDNS CR See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/external-dns-with-lbModeFallback>`_
+        * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/defaultpool/>`_
+        * Support for service typeLB in EDNS CR, See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/serviceTypeLB/service-type-lb-with-hostname.yaml>`_
+        * Support for **persistence** capability for service published through EDNS.  See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns.yaml>`_
+        * Support for wildcard domain in EDNS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-wildcard-domain.yaml>`_
+        * Support for preferred client subnet in EDNS CR using AS3. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-client-subnet-preferred.yaml>`_
+        * Support for fallbackLbmode with EDNS CR See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/external-dns-with-lbModeFallback>`_
         * Support for wildcard domain name with passthrough termination
     * Helm Chart Enhancements
         * Support for latest CRD schema
@@ -236,16 +236,16 @@ Added Functionality
         * Support for a separate policy CR for HTTP VS in NextGen Routes.
         * NextGen Route controller takes precedence over Legacy Route deployment parameters
     * CRD
-        * Support webSocket Profile in Policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-websocket-profile.yaml>`_.
-        * Support for server-side http2 profile using policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_.
-        * Support setting Auto-LastHop option from policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-autoLastHop.yaml>`_.
-        * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only), See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-httpMrfRouter.yaml>`_.
-        * Support for setting http analytics profile from policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-http-analytics-profile.yaml>`_.
-        * Support for configuring multiple iRules with policyCR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-multiple-irules.yaml>`_.
-        * Support for setting client and server ssl profiles from policy CR for NextGen Routes only, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/policy-with-client-server-ssl-profile.yaml>`_.
-        * Support for AB deployment with VS CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/VirtualServerWithTLSProfile/virtual-with-alternatebackends/virtual-with-ab.yaml>`_.
+        * Support webSocket Profile in Policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-websocket-profile.yaml>`_.
+        * Support for server-side http2 profile using policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_.
+        * Support setting Auto-LastHop option from policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-autoLastHop.yaml>`_.
+        * Support setting http mrf router option from policy CR (applied for HTTPS virtual server only), See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-httpMrfRouter.yaml>`_.
+        * Support for setting http analytics profile from policy CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-http-analytics-profile.yaml>`_.
+        * Support for configuring multiple iRules with policyCR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-multiple-irules.yaml>`_.
+        * Support for setting client and server ssl profiles from policy CR for NextGen Routes only, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-client-server-ssl-profile.yaml>`_.
+        * Support for AB deployment with VS CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile/virtual-with-alternatebackends/virtual-with-ab.yaml>`_.
         * Support of ServerSide HTTP2 Profile for VS CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/http2>`_.
-        * Support HTTP Monitor for Transport Server CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/TransportServer/monitors-transport-server.yaml>`_.
+        * Support HTTP Monitor for Transport Server CR, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/TransportServer/monitors-transport-server.yaml>`_.
     * Static route support added for ovn-k8s,flannel, cilium and antrea CNI.
     * New parameter --cilium-name to specify BIG-IP tunnel name for Cilium VXLAN integration
     * Support for kubernetes 1.27
@@ -265,7 +265,7 @@ Bug Fixes
 
 Upgrade notes
 ``````````````
-* Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly `example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_.
+* Extended the support of server-side http2 profile which causes existing PolicyCRD to modify accordingly `example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_.
 * Upgrade the CRDs schema using `CRD Update Guide <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResourceDefinitions/crd_update.md>`_, if you are using custom resources.
 * In AS3 >= v3.44 & CIS >= 2.13.0, CIS sets the first SSL profile (sorted in alphabetical order of their names) as default profile for SNI if multiple client SSL certificates used for a VS as kubernetes secrets. AS3 used to set the default SNI in earlier version.
 
@@ -308,8 +308,8 @@ Added Functionality
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path
     * CRD
-        * Support for ipIntelligencePolicy with policy CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_
-            * Support for configuring ratio on GSLBDomainPool with externaldns CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/externaldns-pool-ratio.yaml>`_
+        * Support for ipIntelligencePolicy with policy CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_
+            * Support for configuring ratio on GSLBDomainPool with externaldns CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-pool-ratio.yaml>`_
         * Support for BIGIP partition with Virtual Server, Transport Server and IngressLink custom resources See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/partition>`_
         * Support for none as value for iRules in policy CR and virtual server CR to disable adding default CIS iRule on BIGIP. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource>`_ for more details.
         * Support for path/pool based WAF for VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/pool-waf>`_
@@ -360,7 +360,7 @@ Known Issues
 
 Upgrade notes
 ``````````````
-* Refer `guide <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md>`_ to migrate to next generation routes.
+* Refer `guide <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/migration-guide.md>`_ to migrate to next generation routes.
 * Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12. Use the networking.k8s.io/v1 API for ingress.
 * Deprecated CommonName support for host certificate verification in secrets,  use subject alternative name(SAN) in certificates instead.
 
@@ -395,7 +395,7 @@ Bug Fixes
 
 Documentation
 `````````````
-* Updated user guides (`See here <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/user_guides/README.md>`_)
+* Updated user guides (`See here <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/user_guides/README.md>`_)
 * `Issue 2606 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2606>`_: Applying setup files from Clouddocs fails.
 
 CIS Helm Chart Fixes
@@ -558,7 +558,7 @@ Added Functionality
         * Custom TCP Client and Server profile support added for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/>`_
         * SNAT pool name support in Policy CR for VirtualServer, TransportServer CRs. See `Example <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_
         * Custom pool name support in VirtualServer and TransportServer CRs. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/customPoolName>`_
-        * GTM global-availability LB method and order precedence support with EDNS CRs. See `Examples <https://github.com/sravyap135/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
+        * GTM global-availability LB method and order precedence support with EDNS CRs. See `Examples <https://github.com/f5networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/ExternalDNS>`_
     * Service Type LoadBalancer:
         * SCTP protocol support in Services of type LoadBalancer. See `official documentation <https://kubernetes.io/docs/reference/networking/service-protocols/#protocol-sctp>`_
         * Added support for attaching Policy CRD as an annotation
@@ -1085,7 +1085,7 @@ Added Functionality
        -   OpenShift 4.5.
        -   AS3 3.21.
 * Custom Resource Definition (CRD) – Preview version available with `virtual-server` and `TLSProfile` custom resources.
-      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/CustomResource.md>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/CustomResource.md>`_.
 * Custom Resource Definition (CRD) – Added Support for k8s Secrets with TLSProfile Custom Resource.
 * Custom Resource Definition (CRD) – Improved the strategy of processing `virtual-server` and `TLSProfile` custom resources.
 * Custom Resource Definition (CRD) – Added support for installation using Helm and Operator.
@@ -1182,7 +1182,7 @@ Added Functionality
 `````````````````````
 * `as3` is the default agent. Use deployment argument `--agent` to configure `cccl` agent.
 * Custom Resource Definition (CRD) – Alpha available with Custom resource `virtual-server`.
-      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/CustomResource.md>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/CustomResource.md>`_.
 * Added new optional deployment arguments:
        -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
        -  `defined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.

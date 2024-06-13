@@ -1,5 +1,16 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * CRD
+      * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3378>`_: Support to control ciphers groups and ssl options in TLSProfile CRD
+
+Bug Fixes
+````````````
 
 Next Release
 -------------
@@ -28,7 +39,7 @@ Added Functionality
     * Support for Calico CNI with Static Routing Mode. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/StaticRoute/README.md>`_.
     * CIS is now compatible with OpenShift 4.15 and Kubernetes 1.31.
     * Improved operator support for OpenShift 4.15.
-
+    
 Bug Fixes
 ````````````
 * `Issue 3371 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3371>`_: CIS added irules cannot have "event disable all".

@@ -15,6 +15,9 @@ Custom resources can appear and disappear in a running cluster through dynamic r
   # export CIS_VERSION=v2.12.0
   # or
   # export CIS_VERSION=2.x-master
+  #
+  # the latter if using a CIS image with :latest label
+  #
   kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
   ```
 

@@ -384,7 +384,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/ExternalDNS/README.md 
+Refer https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/README.md 
 
 **Note**: 
 * To set up external DNS using BIG-IP GTM user needs to first manually configure GSLB → Datacenter and GSLB → Server on BIG-IP common partition.

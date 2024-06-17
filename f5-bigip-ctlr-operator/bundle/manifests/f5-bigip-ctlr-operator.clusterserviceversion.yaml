@@ -50,13 +50,13 @@ metadata:
     categories: Networking
     certified: "false"
     containerImage: registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator@sha256:560aff6297fa8d5c13d830b0186035205abb1785d62f310a268054fbfd3ae7d1
-    createdAt: "2024-01-03T03:01:48Z"
+    createdAt: "2024-06-04"
     description: Operator to install F5 Container Ingress Services (CIS) for BIG-IP.
     operators.operatorframework.io/builder: operator-sdk-v1.26.0
     operators.operatorframework.io/project_layout: helm.sdk.operatorframework.io/v1
     repository: https://github.com/F5Networks/k8s-bigip-ctlr
     support: F5 Operators Team <f5_cis_operators@f5.com>
-  name: f5-bigip-ctlr-operator.v1.16.0
+  name: f5-bigip-ctlr-operator.v1.17.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -110,7 +110,7 @@ spec:
     ### Support for Kubernetes networking.k8s.io/v1 Ingress resources
     Create ingress class resource as follows if you are using networking.k8s.io/v1 ingresses in your openshift environment
     ```
-    oc apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml
+    oc apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml
     ```
     ### Support for CIS CustomResources
     Install CRDs manually as follows if using CIS CustomResources (VirtualServer/TransportServer/IngressLink):
@@ -118,6 +118,11 @@ spec:
     export CIS_VERSION=<cis-version>
     # For example
     # export CIS_VERSION=v2.12.0
+    # or
+    # export CIS_VERSION=2.x-master
+    #
+    # the latter if using a CIS image with :latest label
+    #
     oc create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
     ```
   displayName: F5 Container Ingress Services
@@ -395,7 +400,7 @@ spec:
   minKubeVersion: 1.13.0
   provider:
     name: F5 Networks Inc.
-  version: 1.16.0
+  version: 1.17.0
   relatedImages:
     - name: cntr-ingress-svcs
       image: registry.connect.redhat.com/f5networks/cntr-ingress-svcs@sha256:7ee53dc08596d4078da5bdb8188f3eda337d44ca8a91976667f2612bf54f9948

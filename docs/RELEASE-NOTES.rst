@@ -1,6 +1,19 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * Multi Cluster
+    
+    * CRD
+
+Bug Fixes
+````````````
+
 2.17.0
 -------------
 
@@ -8,12 +21,12 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
-      * Support Alternate backend and cluster Ratio for Transport Server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/customResource/transportServer/ts-with-weight-extended-service.yaml>`_.
+        * Support Alternate backend and cluster Ratio for Transport Server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/customResource/transportServer/ts-with-weight-extended-service.yaml>`_.
     * CRD
-      * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3337>`_: Support for access profile and per request policy in policy CRD and VS CRD. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-profileAccess.yaml>`_.
-      * `Issue 3352 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3352>`_: Add support for alternate backend,weight and ratio for transport server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/TransportServer/ts-with-weight-alternate-backend/ts-with-weight-alternate-backend.yaml>`_.
+        * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3337>`_: Support for access profile and per request policy in policy CRD and VS CRD. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-profileAccess.yaml>`_.
+        * `Issue 3352 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3352>`_: Add support for alternate backend,weight and ratio for transport server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/TransportServer/ts-with-weight-alternate-backend/ts-with-weight-alternate-backend.yaml>`_.
     * Support for Calico CNI with Static Routing Mode. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/StaticRoute/README.md>`_.
-    * CIS compatible with OpenShift 4.15 and Kubernetes 1.31.
+    * CIS is now compatible with OpenShift 4.15 and Kubernetes 1.31.
     * Improved operator support for OpenShift 4.15.
 
 Bug Fixes

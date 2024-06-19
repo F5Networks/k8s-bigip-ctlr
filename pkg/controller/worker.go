@@ -3454,6 +3454,24 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				keysToProcess = append(keysToProcess, ipSpec.Key)
 			}
 		}
+
+		// process resource entries which are present in ipamContext but not in status
+		for k, _ := range ctlr.resources.ipamContext {
+			found := false
+			for _, key := range ipam.Status.IPStatus {
+				if k == key.Key {
+					found = true
+					break
+				}
+			}
+			if !found {
+				keysToProcess = append(keysToProcess, k)
+				delete(ctlr.resources.ipamContext, k)
+			}
+		}
+		if len(ctlr.resources.ipamContext) == 0 {
+			ctlr.ipamHostSpecEmpty = true
+		}
 	}
 
 	for _, pKey := range keysToProcess {

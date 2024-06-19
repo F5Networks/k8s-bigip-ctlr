@@ -380,3 +380,14 @@ Refer Release Notes for [CIS v2.16.0](https://github.com/F5Networks/k8s-bigip-ct
 ### **Upgrading from 2.16.0 to 2.16.1:**
 
 Refer Release Notes for [CIS v2.16.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
+
+
+### **Upgrading from 2.16.1 to 2.17.0:**
+
+Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
+
+### **Upgrading from 2.17.0 to 2.17.1:**
+
+**_Functionality Changes:_**
+
+* From 2.17.0, re-sync period for service in hub mode is same as periodic-sync-interval configured in the CIS deployment parameter *periodic-sync-interval*. For which the default value is 30 seconds. Earlier it was 30 seconds.

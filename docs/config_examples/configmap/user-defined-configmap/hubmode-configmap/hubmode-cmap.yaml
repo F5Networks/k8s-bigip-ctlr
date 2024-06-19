@@ -6,6 +6,8 @@ metadata:
   labels:
     f5type: virtual-server
     as3: "true"
+    # Optional: If you want to use the tenant name as the service namespace, set this to "true" for improved performance
+    # isTenantNameServiceNamespace: "true"
 data:
   template: |
     {

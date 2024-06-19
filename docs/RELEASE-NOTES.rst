@@ -1,16 +1,5 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-Next Release
--------------
-
-Added Functionality
-```````````````````
-**What's new:**
-    * CRD
-      * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3378>`_: Support to control ciphers groups and ssl options in TLSProfile CRD
-
-Bug Fixes
-````````````
 
 Next Release
 -------------
@@ -18,12 +7,18 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
-    * Multi Cluster
-    
     * CRD
+        * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3378>`_: Support to control ciphers groups and ssl options in TLSProfile CRD
+    * Improved performance for Hub Mode using the isTenantNameServiceNamespace label in the AS3 configmap, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/hubmode-configmap/hubmode-cmap.yaml>`_
+    * Pod Graceful Shutdown support for AS3 ConfigMap using CIS deployment parameter *pod-graceful-shutdown*
 
 Bug Fixes
 ````````````
+
+Upgrade notes
+``````````````
+* From this version, re-sync period for service in hub mode is same as periodic-sync-interval configured in the CIS deployment parameter *periodic-sync-interval*. For which the default value is 30 seconds.
+
 
 2.17.0
 -------------

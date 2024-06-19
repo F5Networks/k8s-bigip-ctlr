@@ -70,6 +70,7 @@ func (appMgr *Manager) deployResource() error {
 	for _, cm := range appMgr.agentCfgMap {
 		agentCfgMapLst = append(agentCfgMapLst, cm)
 	}
+
 	deployCfg := ResourceRequest{
 		Resources: &AgentResources{
 			RsMap:      resourceConfigMap,

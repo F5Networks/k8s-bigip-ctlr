@@ -14,6 +14,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3395 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3395>`_: BIGIP controller 2.16.0 removes F5 configuration when removing Kubernetes resources in namespace.
 
 Upgrade notes
 ``````````````

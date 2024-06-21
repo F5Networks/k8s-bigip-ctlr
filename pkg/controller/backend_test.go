@@ -481,9 +481,9 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 			cisLabel := "test"
-			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel, config)
+			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel, &config)
 			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
-			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel, config)
+			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel, &config)
 			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})

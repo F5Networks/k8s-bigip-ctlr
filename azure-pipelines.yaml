@@ -35,113 +35,122 @@ variables:
   goVersion: 1.21.4
 
 stages:
-- stage: PreCheck
-  jobs:
-  - job: Preverification
-    steps:
-    - task: GoTool@0
-      inputs:
-        version: $(goVersion)
-      displayName: Install Go 1.21.4
-    - task: CmdLine@2
-      displayName: Check Go format and Suspicious constructs
-      inputs:
-        script: 'make verify'
-    - task: CmdLine@2
-      displayName: Check documentation
-      inputs:
-        script: 'make docs'
-- stage: ContainerImage
-  dependsOn: PreCheck
-  jobs:
-  - job: BuildContainerImage
-    steps:
-      - script: |
-          echo "##vso[task.setvariable variable=BUILD_VERSION]$(cat next-version.txt)"
-        displayName: Set CIS Version
-      - task: Docker@2
-        displayName: Login to redhat registry
-        inputs:
-          command: login
-          containerRegistry: $(redhatConnection)
-      - task: Docker@2
-        displayName: Login to quay registry
-        inputs:
-          command: login
-          containerRegistry: $(quayConnection)
-      - task: Docker@2
-        displayName: Login to docker registry
-        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-        inputs:
-          command: login
-          containerRegistry: $(dockerConnection)
-      - task: Docker@2
-        displayName: Login to scan registry
-        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-        inputs:
-          command: login
-          containerRegistry: $(scanConnection)
-      - task: Docker@2
-        displayName: Build from Red Hat Universal Base Image
-        inputs:
-          command: build
-          containerRegistry: $(quayConnection)
-          repository: $(imageName)
-          Dockerfile: build-tools/Dockerfile.ubi
-          buildContext: .
-          tags: $(Build.SourceVersion)
-          arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS) --build-arg COVERALLS_TOKEN=$(COVERALLS_TOKEN)"
-      - task: Docker@2
-        displayName: Push image to Quay
-        inputs:
-          command: push
-          containerRegistry: $(quayConnection)
-          repository: $(imageName)
-          tags: $(Build.SourceVersion)
-      - script: |
-          set -ex
-          podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
-          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
-          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
-        condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
-        displayName: 'Push image to Redhat'
-        continueOnError: true
-      - script: |
-          set -ex
-          docker pull $(quay_path):$(Build.SourceVersion)
-          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
-          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(BUILD_VERSION)
-          patch_version=`echo $(BUILD_VERSION) | awk -F '.'  '{print $3}'`
-          if [ "${patch_version}" == "0" ] ; then
-            stripped_version=`echo $(BUILD_VERSION) | rev | cut -c3- | rev`
-            docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):${stripped_version}
-            docker push $(docker_repo):${stripped_version}
-          fi
-          docker push $(docker_repo):latest
-          docker push $(docker_repo):$(BUILD_VERSION)
-        displayName: 'Push image to DockerHub'
-        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-  - job: ScanContainerImage
-    dependsOn: BuildContainerImage
-    steps:
-      - task: CmdLine@2
-        displayName: Install Trivy
-        inputs:
-          script: |
-            sudo apt-get install wget apt-transport-https gnupg lsb-release
-            wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-            echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
-            sudo apt-get update
-            sudo apt-get install trivy
-      - task: CmdLine@2
-        displayName: "Run trivy scan"
-        inputs:
-          script: |
-            trivy image --format template --template "@junit.tpl" -o test.xml --severity HIGH,CRITICAL $(quay_path):$(Build.SourceVersion)
-      - task: PublishTestResults@2
-        inputs:
-          testResultsFormat: 'JUnit'
-          testResultsFiles: '**/test.xml'
-          mergeTestResults: true
-          failTaskOnFailedTests: false
-          testRunTitle: 'Trivy - Vulnerabilities Summary'
+  - stage: PreCheck
+    jobs:
+      - job: Preverification
+        steps:
+          - task: GoTool@0
+            inputs:
+              version: $(goVersion)
+            displayName: Install Go 1.21.4
+          - task: CmdLine@2
+            displayName: Check Go format and Suspicious constructs
+            inputs:
+              script: 'make verify'
+          - task: CmdLine@2
+            displayName: Check documentation
+            inputs:
+              script: 'make docs'
+  - stage: ContainerImage
+    dependsOn: PreCheck
+    jobs:
+      - job: BuildContainerImage
+        steps:
+          - script: |
+              FILE_VALUE=$(cat next-version.txt)
+              echo "##vso[task.setvariable variable=BUILD_VERSION]$FILE_VALUE"
+            displayName: Set CIS Version
+          - script: echo $(BUILD_VERSION)
+            displayName: 'Display the variable value'
+          - task: Docker@2
+            displayName: Login to redhat registry
+            inputs:
+              command: login
+              containerRegistry: $(redhatConnection)
+          - task: Docker@2
+            displayName: Login to quay registry
+            inputs:
+              command: login
+              containerRegistry: $(quayConnection)
+          - task: Docker@2
+            displayName: Login to docker registry
+            condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+            inputs:
+              command: login
+              containerRegistry: $(dockerConnection)
+          - task: Docker@2
+            displayName: Login to scan registry
+            condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+            inputs:
+              command: login
+              containerRegistry: $(scanConnection)
+          - task: Docker@2
+            displayName: Build from Red Hat Universal Base Image
+            inputs:
+              command: build
+              containerRegistry: $(quayConnection)
+              repository: $(imageName)
+              Dockerfile: build-tools/Dockerfile.ubi
+              buildContext: .
+              tags: "$(BUILD_VERSION)-$(Build.SourceVersion)"
+              arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS) --build-arg COVERALLS_TOKEN=$(COVERALLS_TOKEN)"
+          - task: Docker@2
+            displayName: Push image to Quay
+            inputs:
+              command: push
+              containerRegistry: $(quayConnection)
+              repository: $(imageName)
+              tags: "$(BUILD_VERSION)-$(Build.SourceVersion)"
+          - script: |
+              set -ex
+              podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion)
+              podman tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
+              podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
+            condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
+            displayName: 'Push image to Redhat'
+            continueOnError: true
+          - script: |
+              set -ex
+              docker pull $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion)
+              docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):latest
+              docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):$(BUILD_VERSION)
+              patch_version=`echo $(BUILD_VERSION) | awk -F '.'  '{print $3}'`
+              if [ "${patch_version}" == "0" ] ; then
+                stripped_version=`echo $(BUILD_VERSION) | rev | cut -c3- | rev`
+                docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):${stripped_version}
+                docker push $(docker_repo):${stripped_version}
+              fi
+              docker push $(docker_repo):latest
+              docker push $(docker_repo):$(BUILD_VERSION)
+            displayName: 'Push image to DockerHub'
+            condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+      - job: ScanContainerImage
+        dependsOn: BuildContainerImage
+        steps:
+          - script: |
+              FILE_VALUE=$(cat next-version.txt)
+              echo "##vso[task.setvariable variable=BUILD_VERSION]$FILE_VALUE"
+            displayName: Set CIS Version
+          - script: echo $(BUILD_VERSION)
+            displayName: 'Display the variable value'
+          - task: CmdLine@2
+            displayName: Install Trivy
+            inputs:
+              script: |
+                sudo apt-get install wget apt-transport-https gnupg lsb-release
+                wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+                echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+                sudo apt-get update
+                sudo apt-get install trivy
+          - task: CmdLine@2
+            displayName: "Run trivy scan"
+            inputs:
+              script: |
+                trivy image --timeout 10m --format template --template "@junit.tpl" -o test.xml --severity HIGH,CRITICAL $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion)
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/test.xml'
+              mergeTestResults: true
+              failTaskOnFailedTests: false
+              testRunTitle: 'Trivy - Vulnerabilities Summary'

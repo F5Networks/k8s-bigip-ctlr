@@ -16,6 +16,7 @@ Bug Fixes
 ````````````
 * `Issue 3395 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3395>`_: BIGIP controller 2.16.0 removes F5 configuration when removing Kubernetes resources in namespace.
 * `Issue 3424 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3424>`_: Static routes not added if a label not added to a namespace when --namespace-label used.
+* `Issue 3443 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3443>`_: Fix issue with IPAM IP allocation on resource recreation
 
 Upgrade notes
 ``````````````

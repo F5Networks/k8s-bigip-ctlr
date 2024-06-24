@@ -391,3 +391,6 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
 **_Functionality Changes:_**
 
 * From 2.17.0, re-sync period for service in hub mode is same as periodic-sync-interval configured in the CIS deployment parameter *periodic-sync-interval*. For which the default value is 30 seconds. Earlier it was 30 seconds.
+* If --ipam-cluster-label is already enabled with previous versions, it's recommended to remove the ipam CR created by previous version of CIS and recreate again
+    eg: kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam
+  * If you want to enable --ipam-cluster-label in cis or want to modify --ipam-cluster-label config, still it's recommended to remove the ipam CR created by previous version of CIS

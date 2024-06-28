@@ -63,6 +63,19 @@ type ResourceMap map[int32][]*ResourceConfig
 // RoutesMap consists of List of route names indexed by namespace
 type RoutesMap map[string][]string
 
+type PodSvcCache struct {
+	podDetails  *sync.Map
+	svcPodCache *sync.Map
+}
+
+type PodDetails struct {
+	podIp       string
+	gracePeriod int64
+	epKey       string
+	podPorts    string
+	status      string
+}
+
 type Manager struct {
 	resources           *Resources
 	customProfiles      *CustomProfileStore
@@ -70,6 +83,7 @@ type Manager struct {
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
+	podSvcCache         PodSvcCache
 	kubeClient          kubernetes.Interface
 	restClientv1        rest.Interface
 	restClientv1beta1   rest.Interface
@@ -216,6 +230,7 @@ type Params struct {
 	ManageIngress          bool
 	ManageIngressClassOnly bool
 	HubMode                bool
+	PodGracefulShutdown    bool
 	IngressClass           string
 	Agent                  string
 	SchemaLocalPath        string
@@ -236,6 +251,11 @@ type Params struct {
 	StaticRouteNodeCIDR string
 }
 
+type SvcEndPointsCache struct {
+	members     []Member
+	labelString string
+}
+
 // Configuration options for Routes in OpenShift
 type RouteConfig struct {
 	RouteVSAddr string
@@ -244,11 +264,6 @@ type RouteConfig struct {
 	HttpsVs     string
 	ClientSSL   string
 	ServerSSL   string
-}
-
-type SvcEndPointsCache struct {
-	members     []Member
-	labelString string
 }
 
 var K8SCoreServices = map[string]bool{
@@ -338,7 +353,6 @@ const (
 	Secrets        = "secrets"
 	IngressClasses = "ingressclasses"
 
-	hubModeInterval  = 30 * time.Second //Hubmode ConfigMap resync interval
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
 	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
 	// CNI
@@ -410,6 +424,12 @@ func NewManager(params *Params) *Manager {
 		staticRoutingMode:      params.StaticRoutingMode,
 		orchestrationCNI:       params.OrchestrationCNI,
 		staticRouteNodeCIDR:    params.StaticRouteNodeCIDR,
+	}
+	if params.PodGracefulShutdown {
+		manager.podSvcCache = PodSvcCache{
+			podDetails:  &sync.Map{},
+			svcPodCache: &sync.Map{},
+		}
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -794,8 +814,8 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
-	//enable podinformer for nodeport local
-	if appMgr.poolMemberType == NodePortLocal {
+	//enable podinformer for nodeport local and pod graceful shutdown
+	if appMgr.poolMemberType == NodePortLocal || (appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil) {
 		appInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -858,11 +878,6 @@ func (appMgr *Manager) newAppInformer(
 			options.LabelSelector = appMgr.configMapLabel
 		}
 		log.Infof("[CORE] Watching ConfigMap resources.")
-		//If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
-		syncInterval := resyncPeriod
-		if appMgr.hubMode {
-			syncInterval = hubModeInterval
-		}
 		appInf.cfgMapInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -871,7 +886,7 @@ func (appMgr *Manager) newAppInformer(
 				cfgMapOptions,
 			),
 			&v1.ConfigMap{},
-			syncInterval,
+			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	} else {
@@ -900,11 +915,6 @@ func (appMgr *Manager) newAppInformer(
 
 	if false != appMgr.manageConfigMaps {
 		log.Infof("[CORE] Handling ConfigMap resource events.")
-		// If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
-		syncInterval := resyncPeriod
-		if appMgr.hubMode {
-			syncInterval = hubModeInterval
-		}
 		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeCreate) },
@@ -915,7 +925,7 @@ func (appMgr *Manager) newAppInformer(
 				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeDelete) },
 			},
-			syncInterval,
+			resyncPeriod,
 		)
 	} else {
 		log.Infof("[CORE] Not handling ConfigMap resource events.")
@@ -933,7 +943,7 @@ func (appMgr *Manager) newAppInformer(
 		appInf.endptInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeCreate) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpoints(cur, OprTypeUpdate) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpointsUpdate(old, cur, OprTypeUpdate) },
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeDelete) },
 			},
 			resyncPeriod,
@@ -1020,8 +1030,38 @@ func (appMgr *Manager) enqueueService(obj interface{}, operation string) {
 	}
 }
 
+// enqueue endpoint wil be called in three cases
+// 1. When endpoint is created
+// 2. When endpoints are scaled down, in case of pod-graceful-shutdown is enabled
+// 3 When endpoint is deleted
 func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
-	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
+	if ok, keys := appMgr.checkValidEndpoints(obj, operation); ok {
+		for _, key := range keys {
+			key.Operation = operation
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+// enqueueEndpointsUpdate will be called when endpoints are updated
+// 1. When endpoints are scaled up, it will just enqueue to the queue
+// 2. When pod-graceful-shutdown is enabled, it will check if the endpoints are scaled down
+func (appMgr *Manager) enqueueEndpointsUpdate(old, cur interface{}, operation string) {
+	oldep := old.(*v1.Endpoints)
+	newep := cur.(*v1.Endpoints)
+	if reflect.DeepEqual(oldep.Subsets, newep.Subsets) {
+		return
+	}
+	if appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
+		if len(oldep.Subsets) == 0 || len(newep.Subsets) == 0 {
+			operation = OprTypeDisable
+		} else if len(oldep.Subsets[0].Addresses) > len(newep.Subsets[0].Addresses) {
+			// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+			operation = OprTypeDisable
+		}
+	}
+
+	if ok, keys := appMgr.checkValidEndpoints(newep, operation); ok {
 		for _, key := range keys {
 			key.Operation = operation
 			appMgr.vsQueue.Add(*key)
@@ -1030,10 +1070,14 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
 }
 
 func (appMgr *Manager) enqueuePod(obj interface{}, operation string) {
-	if ok, keys := appMgr.checkValidPod(obj, operation); ok {
-		for _, key := range keys {
-			key.Operation = operation
-			appMgr.vsQueue.Add(*key)
+	// only enqueue pod for nodeport local
+	// don't enqueue pod for pod-graceful-shutdown as it will be handled by endpoints
+	if appMgr.poolMemberType == NodePortLocal {
+		if ok, keys := appMgr.checkValidPod(obj, operation); ok {
+			for _, key := range keys {
+				key.Operation = operation
+				appMgr.vsQueue.Add(*key)
+			}
 		}
 	}
 }
@@ -1627,8 +1671,7 @@ func (appMgr *Manager) syncConfigMaps(
 
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
-				//TODO: Sorting endpoints members
-				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
+				members, err := appMgr.getEndpoints(selector, sKey.Namespace, false)
 				if err != nil {
 					return err
 				}
@@ -1639,7 +1682,6 @@ func (appMgr *Manager) syncConfigMaps(
 							labelString: selector,
 						}
 						stats.poolsUpdated += 1
-						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				} else {
 					sc := &SvcEndPointsCache{
@@ -1649,7 +1691,6 @@ func (appMgr *Manager) syncConfigMaps(
 					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[key].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[key]) {
 						stats.poolsUpdated += 1
 						appMgr.agentCfgMapSvcCache[key] = sc
-						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				}
 			} else {
@@ -3072,47 +3113,20 @@ func (appMgr *Manager) getServicePortFromTargetPort(svcPorts map[int32]int32, ta
 	}
 }
 
-func (appMgr *Manager) getServicePortsFromEndpoint(ep *v1.Endpoints) map[int32]int32 {
-	var svc interface{}
-	var exists bool
-	var err error
-
-	if ep == nil {
+func (appMgr *Manager) getServicePorts(svc *v1.Service) map[int32]int32 {
+	if svc == nil {
 		return nil
 	}
-
-	svcKey := fmt.Sprintf("%s/%s", ep.Namespace, ep.Name)
-	comInf, ok := appMgr.getNamespaceInformer(ep.Namespace)
-	if !ok {
-		if !appMgr.hubMode {
-			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
-		}
-		return nil
-	}
-	svc, exists, err = comInf.svcInformer.GetIndexer().GetByKey(svcKey)
-
-	if !exists {
-		log.Errorf("Service not found for endpoint: %v", svcKey)
-		return nil
-	}
-
-	if err != nil {
-		log.Errorf("Error fetching service : %v", svcKey)
-		return nil
-	}
-
 	svcPorts := make(map[int32]int32)
 	var targetPort int32
-	for _, portSpec := range svc.(*v1.Service).Spec.Ports {
+	for _, portSpec := range svc.Spec.Ports {
 		targetPort = portSpec.TargetPort.IntVal
 		if targetPort == 0 {
 			targetPort = portSpec.Port
 		}
 		svcPorts[targetPort] = portSpec.Port
 	}
-
 	return svcPorts
-
 }
 
 func (appMgr *Manager) getEndpointsForNodePort(
@@ -3350,6 +3364,65 @@ func createLabel(label string) (labels.Selector, error) {
 	return l, nil
 }
 
+// get the service list in case of hub mode
+func (appMgr *Manager) getServicesForHubMode(selector, namespace string, isTenantNameServiceNamespace bool) ([]v1.Service, error) {
+	var svcItems []v1.Service
+	if isTenantNameServiceNamespace {
+		if appInf, infFound := appMgr.getNamespaceInformer(namespace); infFound {
+			svcInformer := appInf.svcInformer
+			svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
+			ls, _ := createLabel(selector)
+			svcListed, _ := svcLister.Services(namespace).List(ls)
+
+			for n, _ := range svcListed {
+				svcItems = append(svcItems, *svcListed[n])
+			}
+			log.Debugf("[CORE] Extract service via watch-list informer '%s'", namespace)
+			return svcItems, nil
+		}
+	}
+	// Leaving the old way for hubMode for now.
+	svcListOptions := metav1.ListOptions{
+		LabelSelector: selector,
+	}
+	services, err := appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+
+	if err != nil {
+		log.Errorf("[CORE] Error getting service list. %v", err)
+		return nil, err
+	}
+	svcItems = services.Items
+	log.Debugf("[CORE] Query service via '%v'", selector)
+	return svcItems, nil
+}
+
+// get the endpoints for the hub mode
+func (appMgr *Manager) getEndpointsForHubMode(svcName, svcNamespace string, isTenantNameServiceNamespace bool) (*v1.Endpoints, error) {
+	var eps *v1.Endpoints
+	if isTenantNameServiceNamespace {
+		if appInf, infFound := appMgr.getNamespaceInformer(svcNamespace); infFound {
+			if item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcNamespace + "/" + svcName); found {
+				eps, _ = item.(*v1.Endpoints)
+			}
+			return eps, nil
+		}
+	}
+	// Leaving the old way for hubMode for now.
+	endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(svcNamespace).List(context.TODO(),
+		metav1.ListOptions{
+			FieldSelector: "metadata.name=" + svcName,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(endpointsList.Items) == 0 {
+		return eps, nil
+	}
+	eps = &endpointsList.Items[0]
+	return eps, nil
+}
+
 // Performs Service discovery for the given AS3 Pool and returns a pool.
 // Service discovery is loosely coupled with Kubernetes Service labels. A Kubernetes Service is treated as a match for
 // an AS3 Pool, if the Kubernetes Service have the following labels and their values matches corresponding AS3
@@ -3361,31 +3434,19 @@ func createLabel(label string) (labels.Selector, error) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error) {
+func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServiceNamespace bool) ([]Member, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
 	appInf, _ := appMgr.getNamespaceInformer(namespace)
 
 	var svcItems []v1.Service
-
+	var err error
 	if appMgr.hubMode {
-		// Leaving the old way for hubMode for now.
-		svcListOptions := metav1.ListOptions{
-			LabelSelector: selector,
-		}
-
-		var err error
-		// Identify services that matches the given label
-		var services *v1.ServiceList
-
-		services, err = appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
-
+		svcItems, err = appMgr.getServicesForHubMode(selector, namespace, isTenantNameServiceNamespace)
 		if err != nil {
-			log.Errorf("[CORE] Error getting service list. %v", err)
 			return nil, err
 		}
-		svcItems = services.Items
 	} else {
 		svcInformer := appInf.svcInformer
 		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
@@ -3395,7 +3456,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 		for n, _ := range svcListed {
 			svcItems = append(svcItems, *svcListed[n])
 		}
-
+		log.Debugf("[CORE] Extract service via watch-list informer '%s'", namespace)
 	}
 
 	if len(svcItems) > 1 {
@@ -3412,36 +3473,57 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 	}
 
 	for _, service := range svcItems {
-		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
+		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal {
+			svcPorts := appMgr.getServicePorts(&service) // Controller is in ClusterIP Mode
 			svcKey := service.Namespace + "/" + service.Name
-
-			item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
+			// try to get the endpoints from the pod cache if graceful shutdown is enabled
+			if appMgr.podSvcCache.svcPodCache != nil && appMgr.podSvcCache.podDetails != nil {
+				// return if pod graceful shut down event is handled,
+				// it will add the endpoint event again after pod completes the graceful shutdown
+				if pods, ok := appMgr.podSvcCache.svcPodCache.Load(svcKey); ok {
+					for k := range *(pods.(*map[string]struct{})) {
+						if podDetailInt, ok := appMgr.podSvcCache.podDetails.Load(k); ok {
+							podDetails := podDetailInt.(PodDetails)
+							for _, p := range strings.Split(podDetails.podPorts, ",") {
+								port, _ := strconv.Atoi(p)
+								member := Member{
+									Address:    k,
+									Port:       int32(port),
+									SvcPort:    appMgr.getServicePortFromTargetPort(svcPorts, int32(port)),
+									AdminState: podDetails.status,
+								}
+								if _, ok := uniqueMembersMap[member]; !ok {
+									uniqueMembersMap[member] = struct{}{}
+									members = append(members, member)
+								}
+							}
+						}
+					}
+				}
+				// continue to work with all services
+				continue
+			}
 			var eps *v1.Endpoints
-			if !found {
-				if !appMgr.hubMode {
+			if appMgr.hubMode {
+				eps, err = appMgr.getEndpointsForHubMode(service.Name, service.Namespace, isTenantNameServiceNamespace)
+				if err != nil {
+					log.Debugf("[CORE] Error getting endpoints for service %v/%v", service.Namespace, service.Name)
+					return nil, err
+				}
+				if eps == nil {
+					log.Debugf("[CORE] Endpoints for service %v/%v not found", service.Namespace, service.Name)
+					continue
+				}
+			} else {
+				item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
+				if !found {
 					msg := "Endpoints for service " + svcKey + " not found!"
 					log.Debug(msg)
 					continue
+				} else {
+					eps, _ = item.(*v1.Endpoints)
 				}
-				endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
-					metav1.ListOptions{
-						FieldSelector: "metadata.name=" + service.Name,
-					},
-				)
-				if err != nil {
-					log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
-					return nil, err
-				}
-				if len(endpointsList.Items) == 0 {
-					log.Debugf("[CORE] Endpoints for service %v not found", service.Name)
-					continue
-				}
-				eps = &endpointsList.Items[0]
-			} else {
-				eps, _ = item.(*v1.Endpoints)
 			}
-
-			svcPorts := appMgr.getServicePortsFromEndpoint(eps)
 
 			for _, subset := range eps.Subsets {
 				for _, port := range subset.Ports {
@@ -3490,7 +3572,15 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error
 				log.Debug(msg)
 			}*/
 		}
+		log.Debugf("[CORE] Discovered members for service %v/%v is %v", service.Namespace, service.Name, members)
 	}
+	// Let's sort the members to make sure the order is consistent
+	sort.Slice(members, func(i, j int) bool {
+		if members[i].Address == members[j].Address {
+			return members[i].Port < members[j].Port
+		}
+		return members[i].Address < members[j].Address
+	})
 	return members, nil
 }
 
@@ -3975,6 +4065,137 @@ func (appMgr *Manager) processStaticRouteUpdate(
 			log.Warningf("Did not receive write response in 1s")
 		}
 	}
+}
+
+func (appMgr *Manager) udpatePodCacheForGracefulShutDown(eps *v1.Endpoints, inf *appInformer, operation string) bool {
+	var forgetEvent bool
+	epKey := fmt.Sprintf("%s/%s", eps.Namespace, eps.Name)
+	if operation == OprTypeDisable || operation == OprTypeDelete {
+		var deletedItems []string
+		if operation == OprTypeDisable {
+			// fetch the deleted pod from the cache and delete it
+			elementMap := make(map[string]bool)
+			for _, item := range eps.Subsets[0].Addresses {
+				elementMap[item.IP] = true
+			}
+			appMgr.podSvcCache.podDetails.Range(func(key, value interface{}) bool {
+				ip := key.(string)
+				podDetails := value.(PodDetails)
+				if !elementMap[ip] && podDetails.epKey == epKey {
+					deletedItems = append(deletedItems, ip)
+				}
+				return true
+			})
+		}
+		if operation == OprTypeDelete {
+			// if endpoint object is deleted then we need to handle all the pods
+			for _, item := range eps.Subsets[0].Addresses {
+				deletedItems = append(deletedItems, item.IP)
+			}
+		}
+
+		// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+		for _, addr := range deletedItems {
+			if value, ok := appMgr.podSvcCache.podDetails.Load(addr); ok {
+				if podDetails, ok := value.(PodDetails); ok {
+					if podDetails.epKey == epKey {
+						// udpate the pod status to disabled
+						podDetails.status = PodStatusDisable
+						appMgr.podSvcCache.podDetails.Store(addr, podDetails)
+						// disable the endpoint to disable new connections
+						log.Debugf("[PodGracefulShutdown] Updated the pod status to disable for ip address %v", addr)
+						appMgr.enqueueEndpointDisable(eps, podDetails)
+						forgetEvent = true
+						go func(graceTermination int64, address string, ep string, eps *v1.Endpoints) {
+							// Create a channel to receive a signal after the timeout
+							timeout := time.Duration(graceTermination) * time.Second
+							timeoutCh := time.After(timeout)
+							for {
+								// delete the pod from the cache after the timeout
+								select {
+								case <-timeoutCh:
+									appMgr.podSvcCache.podDetails.Delete(address)
+									// delete the entry from svc pod cache
+									if ips, ok := appMgr.podSvcCache.svcPodCache.Load(ep); ok {
+										podMap := ips.(*map[string]struct{})
+										delete(*podMap, address)
+										appMgr.podSvcCache.svcPodCache.Store(ep, podMap)
+										log.Debugf("[CORE] Deleted the %v from pod cache", address)
+									}
+									// disable the endpoint to disable new connections
+									log.Debugf("[PodGracefulShutdown] Enqueue the pod with ip address %v to remove as pool member", address)
+									appMgr.enqueueEndpoints(eps, OprTypeUpdate)
+									return
+								default:
+									// Continue the loop until the timeout
+								}
+							}
+						}(podDetails.gracePeriod, addr, epKey, eps)
+					}
+				}
+			}
+		}
+		if operation == OprTypeDelete {
+			// delete the entry from the cache
+			log.Debugf("[PodGracefulShutdown] Deleting the pod and service mapping for %v", epKey)
+			appMgr.podSvcCache.svcPodCache.Delete(epKey)
+		}
+	} else {
+		// we are considering index 0 by assuming all the endpoints will have same addresses even though the ports are different
+		for _, addr := range eps.Subsets[0].Addresses {
+			if addr.TargetRef == nil {
+				continue
+			}
+			obj, found, err := inf.podInformer.GetStore().GetByKey(addr.TargetRef.Namespace + "/" + addr.TargetRef.Name)
+			// if err is not nil it means pod is not found
+			if err != nil || !found {
+				continue
+			}
+
+			if found {
+				pod, _ := obj.(*v1.Pod)
+				var ports []string
+				for _, port := range eps.Subsets[0].Ports {
+					ports = append(ports, strconv.Itoa(int(port.Port)))
+				}
+				// udpate the pod cache for graceful shutdown
+				appMgr.podSvcCache.podDetails.Store(addr.IP,
+					PodDetails{
+						podIp:       addr.IP,
+						gracePeriod: *pod.Spec.TerminationGracePeriodSeconds,
+						epKey:       epKey,
+						podPorts:    strings.Join(ports, ","),
+						status:      PodStatusEnable,
+					})
+				// update the svc pod cache
+				if ips, ok := appMgr.podSvcCache.svcPodCache.Load(epKey); ok {
+					podMap := ips.(*map[string]struct{})
+					(*podMap)[addr.IP] = struct{}{}
+					appMgr.podSvcCache.svcPodCache.Store(epKey, podMap)
+				} else {
+					podMap := make(map[string]struct{})
+					podMap[addr.IP] = struct{}{}
+					appMgr.podSvcCache.svcPodCache.Store(epKey, &podMap)
+				}
+				log.Debugf("[CORE] Updated the cache endpoint %v event for pod ip %v", operation, addr.IP)
+			}
+		}
+	}
+	return forgetEvent
+}
+
+// EnqueueEndpointDisable enqueues the endpoint disable event
+func (appMgr *Manager) enqueueEndpointDisable(eps *v1.Endpoints, obj interface{}) {
+	log.Debugf("[PodGracefulShutdown] enqueueing pod ip for disable %v", obj)
+	key := &serviceQueueKey{
+		ServiceName:  eps.ObjectMeta.Name,
+		Namespace:    eps.ObjectMeta.Namespace,
+		ResourceKind: Endpoints,
+		ResourceName: eps.Name,
+		Operation:    OprTypeDisable,
+		Object:       obj,
+	}
+	appMgr.vsQueue.Add(*key)
 }
 
 func parseNodeSubnet(ann, nodeName string) (string, error) {

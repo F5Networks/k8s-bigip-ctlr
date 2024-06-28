@@ -32,12 +32,12 @@ spec:
     ### Support for Kubernetes networking.k8s.io/v1 Ingress resources
     Create ingress class resource as follows if you are using networking.k8s.io/v1 ingresses in your openshift environment
     ```
-    oc apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml
+    oc apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml
     ```
     ### Support for CIS CustomResources
     Install CRDs manually as follows if using CIS CustomResources (VirtualServer/TransportServer/IngressLink):
     ```
-    oc apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml
+    oc apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/crd/Install/customresourcedefinitions.yml
     ```
   displayName: F5 Container Ingress Services
   icon:

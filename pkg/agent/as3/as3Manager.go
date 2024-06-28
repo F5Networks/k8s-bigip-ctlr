@@ -205,7 +205,6 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		}),
 		disableDefaultPartition: params.DisableDefaultPartition,
 	}
-
 	if as3Manager.tls13CipherGroupReference == "" {
 		as3Manager.tls13CipherGroupReference = "/Common/f5-default"
 	}

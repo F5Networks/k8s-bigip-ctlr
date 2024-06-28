@@ -22,16 +22,17 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"gopkg.in/yaml.v2"
-	listerscorev1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"gopkg.in/yaml.v2"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -1416,7 +1417,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 
 	for _, vrt := range allVirtuals {
 		// skip the deleted virtual in the event of deletion
-		if isVSDeleted && vrt.Name == currentVS.Name {
+		if isVSDeleted && vrt.Name == currentVS.Name && vrt.ObjectMeta.Namespace == currentVS.ObjectMeta.Namespace {
 			continue
 		}
 
@@ -1893,14 +1894,14 @@ func (ctlr *Controller) requestIP(ipamLabel string, host string, key string) (st
 func (ctlr *Controller) VerifyIPAMAssociatedHostGroupExists(key string) bool {
 	allTS := ctlr.getAllTSFromMonitoredNamespaces()
 	for _, ts := range allTS {
-		tskey := ts.Spec.HostGroup + "_hg"
+		tskey := ctlr.ipamClusterLabel + ts.Spec.HostGroup + "_hg"
 		if tskey == key {
 			return true
 		}
 	}
 	allVS := ctlr.getAllVSFromMonitoredNamespaces()
 	for _, vs := range allVS {
-		vskey := vs.Spec.HostGroup + "_hg"
+		vskey := ctlr.ipamClusterLabel + vs.Spec.HostGroup + "_hg"
 		if vskey == key {
 			return true
 		}
@@ -3454,6 +3455,24 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				keysToProcess = append(keysToProcess, ipSpec.Key)
 			}
 		}
+
+		// process resource entries which are present in ipamContext but not in status
+		for k, _ := range ctlr.resources.ipamContext {
+			found := false
+			for _, key := range ipam.Status.IPStatus {
+				if k == key.Key {
+					found = true
+					break
+				}
+			}
+			if !found {
+				keysToProcess = append(keysToProcess, k)
+				delete(ctlr.resources.ipamContext, k)
+			}
+		}
+		if len(ctlr.resources.ipamContext) == 0 {
+			ctlr.ipamHostSpecEmpty = true
+		}
 	}
 
 	for _, pKey := range keysToProcess {
@@ -3465,9 +3484,9 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 		var crInf *CRInformer
 		var comInf *CommonInformer
 		var ns string
+		rscName := ctlr.getResourceNameFromIPAMKey(pKey)
+		ns = ctlr.getNamespaceFromIPAMKey(pKey)
 		if rscKind != "hg" {
-			splits := strings.Split(pKey, "/")
-			ns = splits[0]
 			var ok bool
 			crInf, ok = ctlr.getNamespacedCRInformer(ns)
 			comInf, ok = ctlr.getNamespacedCommonInformer(ns)
@@ -3482,7 +3501,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			var vss []*cisapiv1.VirtualServer
 			vss = ctlr.getAllVSFromMonitoredNamespaces()
 			for _, vs := range vss {
-				key := vs.Spec.HostGroup + "_hg"
+				key := ctlr.ipamClusterLabel + vs.Spec.HostGroup + "_hg"
 				if pKey == key {
 					ctlr.TeemData.Lock()
 					ctlr.TeemData.ResourceType.IPAMVS[ns]++
@@ -3498,7 +3517,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			var tss []*cisapiv1.TransportServer
 			tss = ctlr.getAllTSFromMonitoredNamespaces()
 			for _, ts := range tss {
-				key := ts.Spec.HostGroup + "_hg"
+				key := ctlr.ipamClusterLabel + ts.Spec.HostGroup + "_hg"
 				if pKey == key {
 					ctlr.TeemData.Lock()
 					ctlr.TeemData.ResourceType.IPAMTS[ns]++
@@ -3514,7 +3533,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			var vss []*cisapiv1.VirtualServer
 			vss = ctlr.getAllVirtualServers(ns)
 			for _, vs := range vss {
-				key := vs.Namespace + "/" + vs.Spec.Host + "_host"
+				key := ctlr.ipamClusterLabel + vs.Namespace + "/" + vs.Spec.Host + "_host"
 				if pKey == key {
 					ctlr.TeemData.Lock()
 					ctlr.TeemData.ResourceType.IPAMVS[ns]++
@@ -3527,7 +3546,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				}
 			}
 		case "ts":
-			item, exists, err := crInf.tsInformer.GetIndexer().GetByKey(pKey[:idx])
+			item, exists, err := crInf.tsInformer.GetIndexer().GetByKey(rscName)
 			if !exists || err != nil {
 				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 				continue
@@ -3541,7 +3560,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 			}
 		case "il":
-			item, exists, err := crInf.ilInformer.GetIndexer().GetByKey(pKey[:idx])
+			item, exists, err := crInf.ilInformer.GetIndexer().GetByKey(rscName)
 			if !exists || err != nil {
 				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 				continue
@@ -3552,7 +3571,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 			}
 		case "svc":
-			item, exists, err := comInf.svcInformer.GetIndexer().GetByKey(pKey[:idx])
+			item, exists, err := comInf.svcInformer.GetIndexer().GetByKey(rscName)
 			if !exists || err != nil {
 				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 				continue
@@ -3571,6 +3590,31 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 	}
 
 	return nil
+}
+
+func (ctlr *Controller) getResourceNameFromIPAMKey(key string) string {
+	if ctlr.ipamClusterLabel != "" {
+		key = strings.Replace(key, ctlr.ipamClusterLabel, "", 1)
+	}
+	idx := strings.LastIndex(key, "_")
+	return key[:idx]
+}
+
+func (ctlr *Controller) getNamespaceFromIPAMKey(key string) string {
+	parts := strings.Split(key, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+
+	if ctlr.ipamClusterLabel != "" {
+		// If the ipamClusterLabel is enabled, the namespace is in the 2nd part
+		if len(parts) >= 3 {
+			return parts[1]
+		}
+	}
+
+	// if ipamClusterLabel is not enabled or if enabled with old key , the namespace is in the 1st part
+	return parts[0]
 }
 
 func (ctlr *Controller) processIngressLink(

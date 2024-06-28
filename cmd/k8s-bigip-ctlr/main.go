@@ -145,6 +145,7 @@ var (
 	manageConfigMaps       *bool
 	manageIngress          *bool
 	hubMode                *bool
+	podGracefulShutdown    *bool
 	nodeLabelSelector      *string
 	resolveIngNames        *string
 	defaultIngIP           *string
@@ -364,6 +365,8 @@ func _init() {
 		"Optional, specify whether or not to manage ConfigMap resources")
 	hubMode = kubeFlags.Bool("hubmode", false,
 		"Optional, specify whether or not to manage ConfigMap resources in hub-mode")
+	podGracefulShutdown = kubeFlags.Bool("pod-graceful-shutdown", false,
+		"Optional, specify whether or not to consider the pod graceful shutdown")
 	nodeLabelSelector = kubeFlags.String("node-label-selector", "",
 		"Optional, used to watch only for nodes with this label")
 	resolveIngNames = kubeFlags.String("resolve-ingress-names", "",
@@ -1260,6 +1263,7 @@ func getAppManagerParams() appmanager.Params {
 		ManageIngress:          *manageIngress,
 		ManageIngressClassOnly: *manageIngressClassOnly,
 		HubMode:                *hubMode,
+		PodGracefulShutdown:    *podGracefulShutdown,
 		IngressClass:           *ingressClass,
 		TrustedCertsCfgmap:     *trustedCertsCfgmap,
 		DgPath:                 dgPath,

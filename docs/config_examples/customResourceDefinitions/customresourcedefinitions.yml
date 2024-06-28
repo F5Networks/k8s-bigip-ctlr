@@ -118,6 +118,12 @@ spec:
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                profileAccess:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                policyPerRequestAccess:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 botDefense:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -393,6 +399,9 @@ spec:
                   type: integer
                   minimum: 1
                   maximum: 65535
+              x-kubernetes-validations:
+                - rule: "!has(self.partition) || self.partition != 'Common'"
+                  message: "The partition cannot be 'Common' if specified."
             status:
               type: object
               properties:
@@ -641,6 +650,27 @@ spec:
                       anyOf:
                         - type: integer
                         - type: string
+                    weight:
+                      type: integer
+                      minimum: 0
+                      maximum: 100
+                    alternateBackends:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          service:
+                            type: string
+                            pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                          serviceNamespace:
+                            type: string
+                            pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
+                          weight:
+                            type: integer
+                            minimum: 0
+                            maximum: 100
+                        required:
+                          - service
                     serviceNamespace:
                       type: string
                       pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
@@ -719,6 +749,10 @@ spec:
                             anyOf:
                               - type: integer
                               - type: string
+                          weight:
+                            type: integer
+                            minimum: 0
+                            maximum: 100
                   required:
                       - service
                       - servicePort
@@ -726,6 +760,9 @@ spec:
                 - virtualServerPort
                 - pool
                 - mode
+              x-kubernetes-validations:
+                - rule: "!has(self.partition) || self.partition != 'Common'"
+                  message: "The partition cannot be 'Common' if specified."
             status:
               type: object
               properties:
@@ -943,6 +980,9 @@ spec:
                         type: string
                       type: object
                   type: object
+              x-kubernetes-validations:
+                - rule: "!has(self.partition) || self.partition != 'Common'"
+                  message: "The partition cannot be 'Common' if specified."
             status:
               type: object
               properties:
@@ -990,6 +1030,12 @@ spec:
                     waf:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    profileAccess:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    policyPerRequestAccess:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 l3Policies:
                   type: object
                   properties:

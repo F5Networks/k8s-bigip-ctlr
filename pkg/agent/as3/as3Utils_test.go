@@ -1,7 +1,7 @@
 package as3
 
 import (
-	"io/ioutil"
+	"os"
 	"sort"
 
 	. "github.com/onsi/ginkgo"
@@ -12,7 +12,7 @@ var configPath = "../../test/configs/"
 
 func readConfigFile(path string) string {
 	defer GinkgoRecover()
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	RegisterFailHandler(Fail)
 	Expect(err).To(BeNil(), "Configuration files should be located in pkg/test/configs.")
 	return string(data)

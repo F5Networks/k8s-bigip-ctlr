@@ -112,6 +112,7 @@ var _ = Describe("Test Validation", func() {
 			Expect(ret).To(BeTrue())
 			Expect(len(scvKeyList)).To(Equal(1))
 			// enqueue and check queue length
+			mockMgr.appMgr.poolMemberType = resource.NodePortLocal
 			mockMgr.appMgr.enqueuePod(pod1, resource.OprTypeCreate)
 			Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 			// Pod in core ns

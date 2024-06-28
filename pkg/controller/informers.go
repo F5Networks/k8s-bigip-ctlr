@@ -20,10 +20,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/rest"
 
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1356,9 +1357,22 @@ func (nsInfr *NSInformer) stop() {
 }
 
 func (nodeInfr *NodeInformer) start() {
+	var cacheSyncs []cache.InformerSynced
+	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	if nodeInfr.nodeInformer != nil {
 		log.Infof("Starting %v Node Informer", nodeInfr.clusterName)
 		go nodeInfr.nodeInformer.Run(nodeInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, nodeInfr.nodeInformer.HasSynced)
+	}
+	if cache.WaitForNamedCacheSync(
+		"F5 CIS Ingress Controller",
+		infSyncCtx.Done(),
+		cacheSyncs...,
+	) {
+		log.Debug("Successfully synced node informer cache")
+	} else {
+		log.Warningf("Failed to sync node informer cache")
 	}
 }
 

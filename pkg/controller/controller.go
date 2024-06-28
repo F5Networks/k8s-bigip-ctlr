@@ -236,7 +236,7 @@ func NewController(params Params, startController bool) *Controller {
 		ctlr.ipamCli = ipamClient
 		ctlr.ipamClusterLabel = params.IPAMClusterLabel
 		if params.IPAMClusterLabel != "" {
-			ctlr.ipamClusterLabel = params.IPAMClusterLabel + "-"
+			ctlr.ipamClusterLabel = params.IPAMClusterLabel + "/"
 		}
 		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)

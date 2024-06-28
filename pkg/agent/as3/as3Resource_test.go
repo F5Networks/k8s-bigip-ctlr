@@ -27,7 +27,6 @@ var _ = Describe("AS3Manager Tests", func() {
 		agentResource.Partitions[DEFAULT_PARTITION] = struct{}{}
 
 		resourceRequest := ResourceRequest{
-			PoolMembers:  make(map[Member]struct{}),
 			Resources:    &agentResource,
 			Profs:        map[SecretKey]CustomProfile{},
 			IrulesMap:    IRulesMap{},

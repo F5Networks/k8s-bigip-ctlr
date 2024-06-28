@@ -35,7 +35,7 @@ func newMockAS3Manager(params *Params) *mockAS3Manager {
 	}
 }
 
-func mockGetEndPoints(string, string) ([]Member, error) {
+func mockGetEndPoints(string, string, bool) ([]Member, error) {
 	return []Member{{Address: "1.1.1.1", Port: 80, SvcPort: 80},
 		{Address: "2.2.2.2", Port: 80, SvcPort: 80}}, nil
 }
@@ -380,7 +380,6 @@ var _ = Describe("AS3Manager Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			resourceRequest := ResourceRequest{
-				PoolMembers:  make(map[Member]struct{}),
 				Resources:    agentresources,
 				Profs:        map[SecretKey]CustomProfile{},
 				IrulesMap:    IRulesMap{},
@@ -416,7 +415,6 @@ var _ = Describe("AS3Manager Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			resourceRequest := ResourceRequest{
-				PoolMembers:  make(map[Member]struct{}),
 				Resources:    agentresource,
 				Profs:        map[SecretKey]CustomProfile{},
 				IrulesMap:    IRulesMap{},
@@ -454,12 +452,11 @@ var _ = Describe("AS3Manager Tests", func() {
 				RsMap: ResourceConfigMap{},
 			}
 			resourceRequest := ResourceRequest{
-				PoolMembers: make(map[Member]struct{}),
-				Resources:   agentresource,
-				Profs:       map[SecretKey]CustomProfile{},
-				IrulesMap:   IRulesMap{},
-				IntDgMap:    InternalDataGroupMap{},
-				IntF5Res:    InternalF5ResourcesGroup{},
+				Resources: agentresource,
+				Profs:     map[SecretKey]CustomProfile{},
+				IrulesMap: IRulesMap{},
+				IntDgMap:  InternalDataGroupMap{},
+				IntF5Res:  InternalF5ResourcesGroup{},
 			}
 			resourceRequest.AgentCfgmaps = append(
 				mockMgr.ResourceRequest.AgentCfgmaps,

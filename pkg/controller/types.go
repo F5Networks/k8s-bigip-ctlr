@@ -1282,6 +1282,7 @@ type (
 		httpTraffic      string
 		poolPathRefs     []poolPathRef
 		bigIPSSLProfiles BigIPSSLProfiles
+		tlsCipher        TLSCipher
 	}
 )
 
@@ -1334,6 +1335,7 @@ type (
 		Ciphers     string `yaml:"ciphers,omitempty"`
 		CipherGroup string `yaml:"cipherGroup,omitempty"` // by default this is bigip reference
 	}
+
 	DefaultSSLProfile struct {
 		ClientSSL string `yaml:"clientSSL,omitempty"`
 		ServerSSL string `yaml:"serverSSL,omitempty"`

@@ -137,7 +137,12 @@
             {
               "servicePort": 80,
               "serverAddresses": [
-                "1.1.1.1",
+                "1.1.1.1"
+              ]
+            },
+            {
+              "servicePort": 80,
+              "serverAddresses": [
                 "2.2.2.2"
               ]
             }
@@ -152,7 +157,12 @@
             {
               "servicePort": 80,
               "serverAddresses": [
-                "1.1.1.1",
+                "1.1.1.1"
+              ]
+            },
+            {
+              "servicePort": 80,
+              "serverAddresses": [
                 "2.2.2.2"
               ]
             }
@@ -191,7 +201,12 @@
             {
               "servicePort": 80,
               "serverAddresses": [
-                "1.1.1.1",
+                "1.1.1.1"
+              ]
+            },
+            {
+              "servicePort": 80,
+              "serverAddresses": [
                 "2.2.2.2"
               ]
             }

@@ -22,7 +22,7 @@ For guides on this and other solutions for Kubernetes, see the
 
 What's New?
 -----------
-Support for Custom Resource Definitions [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/CustomResource.md)
+Support for Custom Resource Definitions [Documentation] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/CustomResource.md)
 
 Getting Help
 ------------

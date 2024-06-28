@@ -1,0 +1,49 @@
+# for reference only
+# Should be changed as per your cluster requirements
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: bigip-ctlr-clusterrole
+rules:
+  - apiGroups: ["", "extensions", "networking.k8s.io", "route.openshift.io"]
+    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses", "policies", "routes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["", "extensions", "networking.k8s.io", "route.openshift.io"]
+    resources: ["configmaps", "events", "ingresses/status", "services/status", "routes/status"]
+    verbs: ["get", "list", "watch", "update", "create", "patch"]
+  - apiGroups: ["cis.f5.com"]
+    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "transportservers/status", "ingresslinks", "ingresslinks/status", "externaldnses", "policies"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["fic.f5.com"]
+    resources: ["ipams", "ipams/status"]
+    verbs: ["get", "list", "watch", "update", "create", "patch", "delete"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch", "update", "create", "patch"]
+  - apiGroups: ["", "extensions"]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["config.openshift.io/v1"]
+    resources: ["network"]
+    verbs: ["list"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: bigip-ctlr-clusterrole-binding
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bigip-ctlr-clusterrole
+subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: bigip-ctlr
+    namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bigip-ctlr
+  namespace: kube-system

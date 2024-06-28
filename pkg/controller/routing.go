@@ -962,6 +962,12 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
                 reject ; event disable all; return;
                 }
             set sslpath [lindex [split [SSL::payload]] 1]
+			# for http2 protocol we receive the sslpath as '*', hence replacing it with root path,
+			# however it will not handle the http2 path based routing for now.
+			# for http2 currently only host based routing is supported.
+			if { $sslpath equals "*" } { 
+				set sslpath "/"
+			}
 			set domainpath $sslpath
             set routepath ""
             set wc_routepath ""

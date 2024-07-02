@@ -252,11 +252,11 @@ var _ = Describe("Backend Tests", func() {
 				postChan:            make(chan agentConfig, 1),
 				defaultPartition:    "test",
 			}
-			as3Cfg := requestHandler.createAS3Config(config, pm)
+			agentCfg := requestHandler.createDeclarationForBIGIP(config, pm)
 
-			Expect(as3Cfg.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(as3Cfg.data, "pool1")).To(BeTrue())
-			Expect(strings.Contains(as3Cfg.data, "default_pool_svc2")).To(BeTrue())
+			Expect(agentCfg.as3Config.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(agentCfg.as3Config.data, "pool1")).To(BeTrue())
+			Expect(strings.Contains(agentCfg.as3Config.data, "default_pool_svc2")).To(BeTrue())
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}
@@ -295,12 +295,11 @@ var _ = Describe("Backend Tests", func() {
 				postChan:            make(chan agentConfig, 1),
 				defaultPartition:    "test",
 			}
-			as3Cfg := requestHandler.createAS3Config(config, pm)
+			agentCfg := requestHandler.createDeclarationForBIGIP(config, pm)
 
-			Expect(as3Cfg.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(as3Cfg.data, "adminState")).To(BeTrue())
-			Expect(strings.Contains(as3Cfg.data, "connectionLimit")).To(BeTrue())
-
+			Expect(agentCfg.as3Config.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(agentCfg.as3Config.data, "adminState")).To(BeTrue())
+			Expect(strings.Contains(agentCfg.as3Config.data, "connectionLimit")).To(BeTrue())
 		})
 		It("Delete partition", func() {
 			config := ResourceConfigRequest{
@@ -319,9 +318,9 @@ var _ = Describe("Backend Tests", func() {
 				postChan:            make(chan agentConfig, 1),
 				defaultPartition:    "test",
 			}
-			as3Cfg := requestHandler.createAS3Config(config, pm)
+			agentConfig := requestHandler.createDeclarationForBIGIP(config, pm)
 			var as3Config map[string]interface{}
-			_ = json.Unmarshal([]byte(as3Cfg.data), &as3Config)
+			_ = json.Unmarshal([]byte(agentConfig.as3Config.data), &as3Config)
 			deletedTenantDecl := as3Tenant{
 				"class": "Tenant",
 				"label": "test",
@@ -358,14 +357,19 @@ var _ = Describe("Backend Tests", func() {
 
 	Describe("Prepare AS3 Declaration with HAMode", func() {
 		var requestHandler *RequestHandler
+		var pm *mockPostManager
 		tnt := "test"
 		BeforeEach(func() {
-			client, _ := getMockHttpClient([]responceCtx{{
+			response := []responceCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
 				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
-			}}, http.MethodGet)
+			}}
+			client, _ := getMockHttpClient(response, http.MethodGet)
+			pm = newMockPostManger()
+			pm.setResponses(response, http.MethodGet)
 			requestHandler = newMockAgent("as3")
+			pm.PostManager.defaultPartition = "test"
 			requestHandler.PostManagers.PostManagerMap[cisapiv1.BigIpConfig{}] = &PostManager{
 				PostParams: PostParams{
 					httpClient: client},
@@ -381,17 +385,21 @@ var _ = Describe("Backend Tests", func() {
 					"test": &PartitionConfig{ResourceMap: make(ResourceMap)},
 				}},
 			}
-			pm := &PostManager{
-				AS3PostManager: &AS3PostManager{
-					AS3Config: cisapiv1.AS3Config{},
-				},
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				postChan:            make(chan agentConfig, 1),
-				defaultPartition:    "test",
-			}
-			as3Cfg := requestHandler.createAS3Config(config, pm)
-			Expect(as3Cfg.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(as3Cfg.data, "\"class\":\"Tenant\"")).To(BeTrue())
+			pm.PostManager.AS3PostManager.firstPost = false
+			agentCfg := requestHandler.createDeclarationForBIGIP(config, pm.PostManager)
+			Expect(agentCfg.as3Config.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(agentCfg.as3Config.data, "\"class\":\"Tenant\"")).To(BeTrue())
+
+			requestHandler.PrimaryClusterHealthProbeParams.EndPointType = "secondary"
+			requestHandler.PrimaryClusterHealthProbeParams.statusRunning = true
+			agentCfg = requestHandler.createDeclarationForBIGIP(config, pm.PostManager)
+			Expect(agentCfg.as3Config.data).To(Equal(""), "Failed to Create AS3 Declaration")
+
+			requestHandler.PrimaryClusterHealthProbeParams.statusRunning = false
+			pm.PostManager.AS3PostManager.firstPost = true
+			agentCfg = requestHandler.createDeclarationForBIGIP(config, pm.PostManager)
+			Expect(agentCfg.as3Config.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(agentCfg.as3Config.data, "\"class\":\"Tenant\"")).To(BeTrue())
 
 		})
 	})

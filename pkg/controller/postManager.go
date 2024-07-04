@@ -27,7 +27,7 @@ import (
 	"io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
-	"strings"
+	// "strings"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/prometheus"
@@ -72,17 +72,17 @@ func (postMgr *PostManager) postManager() {
 		//TODO: L3 post manger handling
 		//TODO: after post check for failed state and update retry chan
 
-		if !postMgr.AS3Config.DocumentAPI {
-			postMgr.updateTenantCache(&config.as3Config)
-		}
+		// if !postMgr.AS3Config.DocumentAPI {
+		postMgr.updateTenantCache(&config.as3Config)
+		// }
 
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		if !postMgr.AS3Config.DocumentAPI {
-			postMgr.pollTenantStatus(&config.as3Config)
-		}
+		// if !postMgr.AS3Config.DocumentAPI {
+		postMgr.pollTenantStatus(&config.as3Config)
+		// }
 		// notify resourceStatusUpdate response handler on successful tenant update
 		postMgr.respChan <- &config
 	}
@@ -134,25 +134,25 @@ func (postMgr *PostManager) getAS3APIURL(bigipAddress string) string {
 	// TODO: Add tenant filtering when support is added in Central Manger AS3
 	//apiURL := postMgr.tokenManager.ServerURL + CmDeclareApi + strings.Join(tenants, ",")
 	var apiURL string
-	if !postMgr.AS3Config.DocumentAPI {
-		apiURL = postMgr.tokenManager.ServerURL + CmDeclareApi + "?target_address=" + bigipAddress
-	} else {
-		apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi
-	}
+	// if !postMgr.AS3Config.DocumentAPI {
+	apiURL = postMgr.tokenManager.ServerURL + CmDeclareApi + "?target_address=" + bigipAddress
+	// } else {
+	// 	apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi
+	// }
 	return apiURL
 }
 
 func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
 	var apiURL string
-	if !postMgr.AS3Config.DocumentAPI {
-		apiURL = postMgr.tokenManager.ServerURL + CmDeclareTaskApi + taskId
-	} else {
-		ids := strings.Split(taskId, "/")
-		if len(ids) != 2 {
-			return ""
-		}
-		apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi + ids[0] + "/deployments/" + ids[1]
-	}
+	// if !postMgr.AS3Config.DocumentAPI {
+	apiURL = postMgr.tokenManager.ServerURL + CmDeclareTaskApi + taskId
+	// } else {
+	// 	ids := strings.Split(taskId, "/")
+	// 	if len(ids) != 2 {
+	// 		return ""
+	// 	}
+	// 	apiURL = postMgr.tokenManager.ServerURL + CmDocumentApi + ids[0] + "/deployments/" + ids[1]
+	// }
 	return apiURL
 }
 
@@ -160,11 +160,11 @@ func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
 func (postMgr *PostManager) publishConfig(cfg *as3Config) {
 	log.Debugf("[AS3]%v PostManager Accepted the configuration", postMgr.postManagerPrefix)
 	// postConfig updates the tenantResponseMap with response codes
-	if !postMgr.AS3Config.DocumentAPI {
-		postMgr.postConfig(cfg)
-	} else {
-		postMgr.postConfigUsingDocumentAPI(cfg)
-	}
+	// if !postMgr.AS3Config.DocumentAPI {
+	postMgr.postConfig(cfg)
+	// } else {
+	// 	postMgr.postConfigUsingDocumentAPI(cfg)
+	// }
 }
 
 func (postMgr *PostManager) postConfig(cfg *as3Config) {
@@ -229,205 +229,205 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	}
 }
 
-func (postMgr *PostManager) postConfigUsingDocumentAPI(cfg *as3Config) {
-	// log as3 request if it's set
-	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
-		postMgr.logAS3Request(cfg.data)
-	}
-	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
-	var tenants []string
-	if len(cfg.failedTenants) > 0 {
-		for tenant := range cfg.failedTenants {
-			tenants = append(tenants, tenant)
-		}
-	} else {
-		for tenant := range cfg.incomingTenantDeclMap {
-			// CIS with AS3 doesn't allow to write to Common partition.So objects in common partition
-			// should not be updated or deleted by CIS. So removing from tenant map
-			if tenant != "Common" {
-				tenants = append(tenants, tenant)
-			}
-		}
-	}
-	// TODO: support deletion case for custom tenant
-	if len(tenants) == 0 {
-		tenants = append(tenants, postMgr.defaultPartition)
-	}
-	cfg.as3APIURL = postMgr.getAS3APIURL(cfg.targetAddress)
-	method := "POST"
-	declarationID := postMgr.tenantDeclarationIDMap[tenants[0]]
-	if declarationID != "" {
-		if !cfg.deleted {
-			method = "PUT"
-		} else {
-			method = "DELETE"
-		}
-	}
-	if declarationID == "" && method == "DELETE" {
-		log.Errorf("[AS3]%v Document ID is required for deletion of declaration", postMgr.postManagerPrefix)
-		return
-	}
-	// add authorization header to the req
-	if postMgr.tokenManager.GetToken() == "" {
-		log.Debugf("[AS3] Waiting for max 5 seconds for token syncing..")
-		t := 0
-		for t < 5 {
-			time.Sleep(1 * time.Second)
-			if postMgr.tokenManager.GetToken() != "" {
-				log.Debugf("[AS3] Token is now available")
-				break
-			}
-		}
-		if postMgr.tokenManager.GetToken() == "" {
-			log.Errorf("[AS3]%v Creating new HTTP request error: access token missing ", postMgr.postManagerPrefix)
-			return
-		}
-	}
-	if method == "DELETE" {
-		postMgr.deleteDocumentAPI(tenants[0], cfg, declarationID)
-		return
-	}
-	if method == "PUT" {
-		declarationID = postMgr.updateDocumentAPI(tenants[0], cfg, httpReqBody, declarationID)
-		return
-	}
-	declarationID = postMgr.declareDocumentAPI(cfg, httpReqBody, tenants[0], method)
-	if declarationID == "" {
-		return
-	}
-	postMgr.deployDocumentAPI(cfg, declarationID, tenants[0])
-}
+// func (postMgr *PostManager) postConfigUsingDocumentAPI(cfg *as3Config) {
+// 	// log as3 request if it's set
+// 	if postMgr.AS3PostManager.AS3Config.DebugAS3 {
+// 		postMgr.logAS3Request(cfg.data)
+// 	}
+// 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
+// 	var tenants []string
+// 	if len(cfg.failedTenants) > 0 {
+// 		for tenant := range cfg.failedTenants {
+// 			tenants = append(tenants, tenant)
+// 		}
+// 	} else {
+// 		for tenant := range cfg.incomingTenantDeclMap {
+// 			// CIS with AS3 doesn't allow to write to Common partition.So objects in common partition
+// 			// should not be updated or deleted by CIS. So removing from tenant map
+// 			if tenant != "Common" {
+// 				tenants = append(tenants, tenant)
+// 			}
+// 		}
+// 	}
+// 	// TODO: support deletion case for custom tenant
+// 	if len(tenants) == 0 {
+// 		tenants = append(tenants, postMgr.defaultPartition)
+// 	}
+// 	cfg.as3APIURL = postMgr.getAS3APIURL(cfg.targetAddress)
+// 	method := "POST"
+// 	declarationID := postMgr.tenantDeclarationIDMap[tenants[0]]
+// 	if declarationID != "" {
+// 		if !cfg.deleted {
+// 			method = "PUT"
+// 		} else {
+// 			method = "DELETE"
+// 		}
+// 	}
+// 	if declarationID == "" && method == "DELETE" {
+// 		log.Errorf("[AS3]%v Document ID is required for deletion of declaration", postMgr.postManagerPrefix)
+// 		return
+// 	}
+// 	// add authorization header to the req
+// 	if postMgr.tokenManager.GetToken() == "" {
+// 		log.Debugf("[AS3] Waiting for max 5 seconds for token syncing..")
+// 		t := 0
+// 		for t < 5 {
+// 			time.Sleep(1 * time.Second)
+// 			if postMgr.tokenManager.GetToken() != "" {
+// 				log.Debugf("[AS3] Token is now available")
+// 				break
+// 			}
+// 		}
+// 		if postMgr.tokenManager.GetToken() == "" {
+// 			log.Errorf("[AS3]%v Creating new HTTP request error: access token missing ", postMgr.postManagerPrefix)
+// 			return
+// 		}
+// 	}
+// 	if method == "DELETE" {
+// 		postMgr.deleteDocumentAPI(tenants[0], cfg, declarationID)
+// 		return
+// 	}
+// 	if method == "PUT" {
+// 		declarationID = postMgr.updateDocumentAPI(tenants[0], cfg, httpReqBody, declarationID)
+// 		return
+// 	}
+// 	declarationID = postMgr.declareDocumentAPI(cfg, httpReqBody, tenants[0], method)
+// 	if declarationID == "" {
+// 		return
+// 	}
+// 	postMgr.deployDocumentAPI(cfg, declarationID, tenants[0])
+// }
 
-func (postMgr *PostManager) deployDocumentAPI(cfg *as3Config, declarationID string, tenant string) {
-	// Deploy request
-	target := fmt.Sprintf(`{
-		"target": "%s"
-	}`, cfg.targetAddress)
-	httpReqBody := bytes.NewBuffer([]byte(target))
-	deployReq, err := http.NewRequest("POST", fmt.Sprintf(cfg.as3APIURL+declarationID+"/deployments"), httpReqBody)
-	if err != nil {
-		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
-		return
-	}
-	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+"/deployments")
-	// add authorization header to the req
-	deployReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
-	deployReq.Header.Add("Content-Type", "application/json")
+// func (postMgr *PostManager) deployDocumentAPI(cfg *as3Config, declarationID string, tenant string) {
+// 	// Deploy request
+// 	target := fmt.Sprintf(`{
+// 		"target": "%s"
+// 	}`, cfg.targetAddress)
+// 	httpReqBody := bytes.NewBuffer([]byte(target))
+// 	deployReq, err := http.NewRequest("POST", fmt.Sprintf(cfg.as3APIURL+declarationID+"/deployments"), httpReqBody)
+// 	if err != nil {
+// 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
+// 		return
+// 	}
+// 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+"/deployments")
+// 	// add authorization header to the req
+// 	deployReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// 	deployReq.Header.Add("Content-Type", "application/json")
 
-	httpDeployResp, deployResponseMap := postMgr.httpPOST(deployReq)
-	if httpDeployResp == nil || deployResponseMap == nil {
-		return
-	}
+// 	httpDeployResp, deployResponseMap := postMgr.httpPOST(deployReq)
+// 	if httpDeployResp == nil || deployResponseMap == nil {
+// 		return
+// 	}
 
-	if postMgr.AS3PostManager.firstPost {
-		postMgr.AS3PostManager.firstPost = false
-	}
-	switch httpDeployResp.StatusCode {
-	case http.StatusOK:
-		log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleDocumentAPIResponseStatusOK(deployResponseMap, cfg, tenant, httpDeployResp.StatusCode)
-	case http.StatusAccepted:
-		log.Infof("%v[AS3]%v post resulted in ACCEPTED", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
-		postMgr.handleDocumentAPIResponseAccepted(deployResponseMap, declarationID, cfg)
-	default:
-		postMgr.handleDocumentAPIResponseFailureStatus(deployResponseMap, cfg, tenant, httpDeployResp.StatusCode)
-		log.Errorf("[AS3]%v Failed to post declaration to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-	}
-}
+// 	if postMgr.AS3PostManager.firstPost {
+// 		postMgr.AS3PostManager.firstPost = false
+// 	}
+// 	switch httpDeployResp.StatusCode {
+// 	case http.StatusOK:
+// 		log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+// 		postMgr.handleDocumentAPIResponseStatusOK(deployResponseMap, cfg, tenant, httpDeployResp.StatusCode)
+// 	case http.StatusAccepted:
+// 		log.Infof("%v[AS3]%v post resulted in ACCEPTED", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+// 		postMgr.handleDocumentAPIResponseAccepted(deployResponseMap, declarationID, cfg)
+// 	default:
+// 		postMgr.handleDocumentAPIResponseFailureStatus(deployResponseMap, cfg, tenant, httpDeployResp.StatusCode)
+// 		log.Errorf("[AS3]%v Failed to post declaration to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+// 	}
+// }
 
-func (postMgr *PostManager) declareDocumentAPI(cfg *as3Config, httpReqBody io.Reader, tenant string, method string) string {
-	declareReq, err := http.NewRequest(method, cfg.as3APIURL, httpReqBody)
-	if err != nil {
-		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
-		return ""
-	}
-	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-	// add authorization header to the req
-	declareReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// func (postMgr *PostManager) declareDocumentAPI(cfg *as3Config, httpReqBody io.Reader, tenant string, method string) string {
+// 	declareReq, err := http.NewRequest(method, cfg.as3APIURL, httpReqBody)
+// 	if err != nil {
+// 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
+// 		return ""
+// 	}
+// 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+// 	// add authorization header to the req
+// 	declareReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
 
-	httpDeclareResp, declareResponseMap := postMgr.httpPOST(declareReq)
-	if httpDeclareResp == nil || declareResponseMap == nil {
-		return ""
-	}
+// 	httpDeclareResp, declareResponseMap := postMgr.httpPOST(declareReq)
+// 	if httpDeclareResp == nil || declareResponseMap == nil {
+// 		return ""
+// 	}
 
-	// Read the document ID
-	var docID string
-	switch httpDeclareResp.StatusCode {
-	case http.StatusOK:
-		if id, ok := declareResponseMap["id"].(string); ok {
-			docID = id
-			postMgr.tenantDeclarationIDMap[tenant] = docID // Since we are only supporting single tenant as of now
-		}
-		log.Debugf("[AS3]%v Successfully posted declare request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-		if cfg.acceptedTaskId != "" {
-			postMgr.handleDocumentAPIResponseStatusOK(declareResponseMap, cfg, tenant, httpDeclareResp.StatusCode)
-			return ""
-		}
-	default:
-		postMgr.handleDocumentAPIResponseFailureStatus(declareResponseMap, cfg, tenant, httpDeclareResp.StatusCode)
-		log.Errorf("[AS3]%v Failed to post declaration to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-		return ""
-	}
-	return docID
-}
-func (postMgr *PostManager) updateDocumentAPI(tenant string, cfg *as3Config, httpReqBody io.Reader, docID string) string {
-	updateReq, err := http.NewRequest("PUT", cfg.as3APIURL+docID, httpReqBody)
-	if err != nil {
-		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
-		return ""
-	}
-	log.Debugf("[AS3]%v posting update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
-	// add authorization header to the req
-	updateReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
-	updateReq.Header.Add("Content-Type", "application/json")
+// 	// Read the document ID
+// 	var docID string
+// 	switch httpDeclareResp.StatusCode {
+// 	case http.StatusOK:
+// 		if id, ok := declareResponseMap["id"].(string); ok {
+// 			docID = id
+// 			postMgr.tenantDeclarationIDMap[tenant] = docID // Since we are only supporting single tenant as of now
+// 		}
+// 		log.Debugf("[AS3]%v Successfully posted declare request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+// 		if cfg.acceptedTaskId != "" {
+// 			postMgr.handleDocumentAPIResponseStatusOK(declareResponseMap, cfg, tenant, httpDeclareResp.StatusCode)
+// 			return ""
+// 		}
+// 	default:
+// 		postMgr.handleDocumentAPIResponseFailureStatus(declareResponseMap, cfg, tenant, httpDeclareResp.StatusCode)
+// 		log.Errorf("[AS3]%v Failed to post declaration to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+// 		return ""
+// 	}
+// 	return docID
+// }
+// func (postMgr *PostManager) updateDocumentAPI(tenant string, cfg *as3Config, httpReqBody io.Reader, docID string) string {
+// 	updateReq, err := http.NewRequest("PUT", cfg.as3APIURL+docID, httpReqBody)
+// 	if err != nil {
+// 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
+// 		return ""
+// 	}
+// 	log.Debugf("[AS3]%v posting update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
+// 	// add authorization header to the req
+// 	updateReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// 	updateReq.Header.Add("Content-Type", "application/json")
 
-	httpUpdateResp, updateResponseMap := postMgr.httpPOST(updateReq)
-	if httpUpdateResp == nil || updateResponseMap == nil {
-		return ""
-	}
+// 	httpUpdateResp, updateResponseMap := postMgr.httpPOST(updateReq)
+// 	if httpUpdateResp == nil || updateResponseMap == nil {
+// 		return ""
+// 	}
 
-	// Read the document ID
-	switch httpUpdateResp.StatusCode {
-	case http.StatusOK, http.StatusAccepted:
-		if id, ok := updateResponseMap["id"].(string); ok {
-			docID = id
-			postMgr.tenantDeclarationIDMap[tenant] = docID // Since we are only supporting single tenant as of now
-		}
-		postMgr.handleDocumentAPIResponseStatusOK(updateResponseMap, cfg, tenant, httpUpdateResp.StatusCode)
-		log.Debugf("[AS3]%v Successfully posted update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-	default:
-		postMgr.handleDocumentAPIResponseFailureStatus(updateResponseMap, cfg, tenant, httpUpdateResp.StatusCode)
-		log.Errorf("[AS3]%v Failed to post update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
-		return ""
-	}
-	return docID
-}
+// 	// Read the document ID
+// 	switch httpUpdateResp.StatusCode {
+// 	case http.StatusOK, http.StatusAccepted:
+// 		if id, ok := updateResponseMap["id"].(string); ok {
+// 			docID = id
+// 			postMgr.tenantDeclarationIDMap[tenant] = docID // Since we are only supporting single tenant as of now
+// 		}
+// 		postMgr.handleDocumentAPIResponseStatusOK(updateResponseMap, cfg, tenant, httpUpdateResp.StatusCode)
+// 		log.Debugf("[AS3]%v Successfully posted update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+// 	default:
+// 		postMgr.handleDocumentAPIResponseFailureStatus(updateResponseMap, cfg, tenant, httpUpdateResp.StatusCode)
+// 		log.Errorf("[AS3]%v Failed to post update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
+// 		return ""
+// 	}
+// 	return docID
+// }
 
-func (postMgr *PostManager) deleteDocumentAPI(tenant string, cfg *as3Config, docID string) {
-	deleteReq, err := http.NewRequest("DELETE", cfg.as3APIURL+docID, nil)
-	if err != nil {
-		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
-		return
-	}
-	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
-	// add authorization header to the req
-	deleteReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// func (postMgr *PostManager) deleteDocumentAPI(tenant string, cfg *as3Config, docID string) {
+// 	deleteReq, err := http.NewRequest("DELETE", cfg.as3APIURL+docID, nil)
+// 	if err != nil {
+// 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
+// 		return
+// 	}
+// 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
+// 	// add authorization header to the req
+// 	deleteReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
 
-	httpDeclareResp, declareResponseMap := postMgr.httpPOST(deleteReq)
-	if httpDeclareResp == nil || declareResponseMap == nil {
-		return
-	}
-	// TODO: Handle delete response
-	switch httpDeclareResp.StatusCode {
-	case http.StatusOK, http.StatusAccepted:
-		log.Debugf("[AS3]%v Successfully posted delete request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
-		delete(postMgr.tenantDeclarationIDMap, tenant)
-		postMgr.updateTenantResponseCode(200, cfg, tenant, true)
-	default:
-		log.Errorf("[AS3]%v Failed to post delete request for tenant: %v to %v", postMgr.postManagerPrefix, tenant, cfg.as3APIURL+docID)
-		postMgr.updateTenantResponseCode(200, cfg, tenant, true)
-	}
-}
+// 	httpDeclareResp, declareResponseMap := postMgr.httpPOST(deleteReq)
+// 	if httpDeclareResp == nil || declareResponseMap == nil {
+// 		return
+// 	}
+// 	// TODO: Handle delete response
+// 	switch httpDeclareResp.StatusCode {
+// 	case http.StatusOK, http.StatusAccepted:
+// 		log.Debugf("[AS3]%v Successfully posted delete request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
+// 		delete(postMgr.tenantDeclarationIDMap, tenant)
+// 		postMgr.updateTenantResponseCode(200, cfg, tenant, true)
+// 	default:
+// 		log.Errorf("[AS3]%v Failed to post delete request for tenant: %v to %v", postMgr.postManagerPrefix, tenant, cfg.as3APIURL+docID)
+// 		postMgr.updateTenantResponseCode(200, cfg, tenant, true)
+// 	}
+// }
 
 func updateTenantDeletion(tenant string, declaration map[string]interface{}) bool {
 	// We are finding the tenant is deleted based on the AS3 API response,
@@ -531,38 +531,38 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 	}
 }
 
-func (postMgr *PostManager) handleDocumentAPIResponseStatusOK(responseMap map[string]interface{}, cfg *as3Config, tenant string, statusCode int) {
-	// response is for single tenant as multiple tenant is single declaration isn't supported
-	var status, msg interface{}
-	var found bool
-	status, _ = responseMap["status"]
-	if msg, found = responseMap["Message"]; !found {
-		msg, _ = responseMap["message"]
-	}
-	log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant --- message: %v", postMgr.postManagerPrefix, status, msg)
-	postMgr.updateTenantResponseCode(statusCode, cfg, tenant, false)
+// func (postMgr *PostManager) handleDocumentAPIResponseStatusOK(responseMap map[string]interface{}, cfg *as3Config, tenant string, statusCode int) {
+// 	// response is for single tenant as multiple tenant is single declaration isn't supported
+// 	var status, msg interface{}
+// 	var found bool
+// 	status, _ = responseMap["status"]
+// 	if msg, found = responseMap["Message"]; !found {
+// 		msg, _ = responseMap["message"]
+// 	}
+// 	log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant --- message: %v", postMgr.postManagerPrefix, status, msg)
+// 	postMgr.updateTenantResponseCode(statusCode, cfg, tenant, false)
 
-}
+// }
 
-func (postMgr *PostManager) handleDocumentAPIResponseFailureStatus(responseMap map[string]interface{}, cfg *as3Config, tenant string, statusCode int) {
-	// response is for single tenant as multiple tenant in single declaration isn't supported
-	var msg interface{}
-	var found bool
-	if msg, found = responseMap["Message"]; !found {
-		msg, _ = responseMap["message"]
-	}
-	log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v, Error: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, statusCode, msg)
-	postMgr.updateTenantResponseCode(statusCode, cfg, tenant, false)
+// func (postMgr *PostManager) handleDocumentAPIResponseFailureStatus(responseMap map[string]interface{}, cfg *as3Config, tenant string, statusCode int) {
+// 	// response is for single tenant as multiple tenant in single declaration isn't supported
+// 	var msg interface{}
+// 	var found bool
+// 	if msg, found = responseMap["Message"]; !found {
+// 		msg, _ = responseMap["message"]
+// 	}
+// 	log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v, Error: %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, statusCode, msg)
+// 	postMgr.updateTenantResponseCode(statusCode, cfg, tenant, false)
 
-}
+// }
 
 func (postMgr *PostManager) getTenantConfigStatus(id string, cfg *as3Config) {
 	var url string
-	if !postMgr.AS3Config.DocumentAPI {
-		url = postMgr.getAS3TaskIdURL(id)
-	} else {
-		url = postMgr.getAS3TaskIdURL(id)
-	}
+	//if !postMgr.AS3Config.DocumentAPI {
+	url = postMgr.getAS3TaskIdURL(id)
+	//} else {
+	//	url = postMgr.getAS3TaskIdURL(id)
+	//}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Errorf("[AS3]%v Creating new HTTP request error: %v ", postMgr.postManagerPrefix, err)
@@ -578,22 +578,22 @@ func (postMgr *PostManager) getTenantConfigStatus(id string, cfg *as3Config) {
 	}
 
 	declarationKey := "declaration"
-	if postMgr.AS3Config.DocumentAPI {
-		declarationKey = "request"
-	}
+	//if postMgr.AS3Config.DocumentAPI {
+	//	declarationKey = "request"
+	//}
 	if httpResp.StatusCode == http.StatusOK {
 		var results []interface{}
-		if !postMgr.AS3Config.DocumentAPI {
-			results = (responseMap["results"]).([]interface{})
-		} else {
-			if responseMap["response"] != nil {
-				response := (responseMap["response"]).(map[string]interface{})
-				results = (response["results"]).([]interface{})
-			} else {
-				log.Debugf("[AS3]%v response is nil", postMgr.postManagerPrefix)
-				return
-			}
-		}
+		//if !postMgr.AS3Config.DocumentAPI {
+		results = (responseMap["results"]).([]interface{})
+		//} else {
+		//	if responseMap["response"] != nil {
+		//		response := (responseMap["response"]).(map[string]interface{})
+		//		results = (response["results"]).([]interface{})
+		//	} else {
+		//		log.Debugf("[AS3]%v response is nil", postMgr.postManagerPrefix)
+		//		return
+		//	}
+		//}
 		declaration := (responseMap[declarationKey]).(interface{}).(map[string]interface{})
 		// reset the accepted task id
 		cfg.acceptedTaskId = ""
@@ -684,12 +684,12 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 		})
 }
 
-func (postMgr *PostManager) handleDocumentAPIResponseAccepted(responseMap map[string]interface{}, docID string, cfg *as3Config) {
-	var deploymentID string
-	deploymentID, _ = (responseMap["id"]).(string)
-	cfg.acceptedTaskId = docID + "/" + deploymentID
-	log.Debugf("[AS3]%v Response from BIG-IP: code 201/202 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, docID, timeoutMedium)
-}
+// func (postMgr *PostManager) handleDocumentAPIResponseAccepted(responseMap map[string]interface{}, docID string, cfg *as3Config) {
+// 	var deploymentID string
+// 	deploymentID, _ = (responseMap["id"]).(string)
+// 	cfg.acceptedTaskId = docID + "/" + deploymentID
+// 	log.Debugf("[AS3]%v Response from BIG-IP: code 201/202 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, docID, timeoutMedium)
+// }
 
 func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg *as3Config) {
 	var errorMsg string
@@ -956,11 +956,11 @@ func (postMgr *PostManager) logAS3Request(cfg string) {
 	if err != nil {
 		log.Errorf("[AS3]%v Request body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
 	}
-	if !postMgr.AS3Config.DocumentAPI {
-		adc = as3Config["declaration"].(map[string]interface{})
-	} else {
-		adc = as3Config
-	}
+	//if !postMgr.AS3Config.DocumentAPI {
+	adc = as3Config["declaration"].(map[string]interface{})
+	//} else {
+	//	adc = as3Config
+	//}
 	for _, value := range adc {
 		if tenantMap, ok := value.(map[string]interface{}); ok {
 			for _, value2 := range tenantMap {
@@ -1013,11 +1013,11 @@ func (postMgr *PostManager) pollTenantStatus(cfg *as3Config) {
 	// Keep retrying until accepted tenant statuses are updated
 	// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
 	for cfg.acceptedTaskId != "" {
-		if !postMgr.AS3Config.DocumentAPI {
-			<-time.After(timeoutMedium)
-		} else {
-			<-time.After(timeoutSmall)
-		}
+		//if !postMgr.AS3Config.DocumentAPI {
+		<-time.After(timeoutMedium)
+		//} else {
+		//	<-time.After(timeoutSmall)
+		//}
 		cfg.tenantResponseMap = make(map[string]tenantResponse)
 		postMgr.getTenantConfigStatus(cfg.acceptedTaskId, cfg)
 		postMgr.updateTenantCache(cfg)

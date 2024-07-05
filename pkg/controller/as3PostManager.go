@@ -16,7 +16,7 @@ func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3
 	var baseAS3ConfigTemplate string
 	// if !postMgr.AS3Config.DocumentAPI {
 	baseAS3ConfigTemplate = fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
-	postMgr.AS3VersionInfo.as3Release)
+		postMgr.AS3VersionInfo.as3Release)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
 	adc = as3Config["declaration"].(map[string]interface{})
 	// } else {

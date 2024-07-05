@@ -39,23 +39,14 @@ RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
 RUN microdnf update -y && \
-    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs gcc git shadow-utils openssl-devel bzip2-devel libffi-devel zlib-devel make wget tar xz -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
-    cd /usr/src &&  \   
-    wget https://www.python.org/ftp/python/3.9.19/Python-3.9.19.tgz &&  \
-    tar xzf Python-3.9.19.tgz &&  \   
-    cd Python-3.9.19 && \
-    ./configure --enable-optimizations &&  \
-    make altinstall &&  \
-    wget https://bootstrap.pypa.io/get-pip.py &&  /usr/local/bin/python3.9 get-pip.py &&  \
-    cd $APPPATH && rm -rf /usr/src/Python-3.9.19 &&  rm -f /usr/src/Python-3.9.19.tgz  && \
     pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt && \
-    python3.9 -m pip uninstall -y pip && \
+    python3 -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf remove make wget xz tar gcc openssl-devel bzip2-devel libffi-devel zlib-devel libedit openssh openssh-clients perl-Git  perl-TermReadKey git-core git-core-doc git less shadow-utils -y && \
-    microdnf remove kernel-headers glibc-devel libxcrypt-devel -y && \
-    microdnf remove perl-Pod-Perldoc perl-Pod-Usage perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader perl-lib perl-File-Find perl-Error -y && \
+    microdnf remove git perl-Git -y && \
+    microdnf remove perl-Error perl-File-Find perl-lib libedit openssh openssh-clients  perl-TermReadKey git-core git-core-doc less shadow-utils pip git-core-doc cracklib cracklib-dicts emacs-filesystem git-core-doc git-core groff-base gzip less libcbor libdb libeconf libedit libfdisk util-linux util-linux-core libfido2 libpwquality libsemanage libutempter ncurses openssh openssh-clients openssh-8.7p1 pam perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Pod-Perldoc perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Pod-Usage perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader  -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 USER ctlr

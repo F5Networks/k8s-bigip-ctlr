@@ -14,16 +14,16 @@ func (postMgr *AS3PostManager) createAS3Declaration(tenantDeclMap map[string]as3
 	var as3Config map[string]interface{}
 	var adc map[string]interface{}
 	var baseAS3ConfigTemplate string
-	if !postMgr.AS3Config.DocumentAPI {
-		baseAS3ConfigTemplate = fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
-			postMgr.AS3VersionInfo.as3Release)
-		_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
-		adc = as3Config["declaration"].(map[string]interface{})
-	} else {
-		baseAS3ConfigTemplate = baseAS3Config2
-		_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
-		adc = as3Config
-	}
+	// if !postMgr.AS3Config.DocumentAPI {
+	baseAS3ConfigTemplate = fmt.Sprintf(baseAS3Config, postMgr.AS3VersionInfo.as3Version,
+		postMgr.AS3VersionInfo.as3Release)
+	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
+	adc = as3Config["declaration"].(map[string]interface{})
+	// } else {
+	// 	baseAS3ConfigTemplate = baseAS3Config2
+	// 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
+	// 	adc = as3Config
+	// }
 
 	controlObj := make(map[string]interface{})
 	controlObj["class"] = "Controls"

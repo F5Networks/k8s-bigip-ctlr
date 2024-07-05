@@ -954,6 +954,16 @@ var _ = Describe("Worker Tests", func() {
 			_ = mockCtlr.processLBServices(svc1, true)
 			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
+			lbClass := "f5-bigip-ctlr"
+			svc1.Spec.LoadBalancerClass = &lbClass
+			mockCtlr.loadBalancerClass = lbClass
+			_, ok := mockCtlr.shouldProcessServiceTypeLB(svc1)
+			Expect(ok).To(BeTrue(), "Service should be processed")
+			// reset the loadBalancerClass
+			mockCtlr.loadBalancerClass = ""
+			_, ok = mockCtlr.shouldProcessServiceTypeLB(svc1)
+			Expect(ok).To(BeFalse(), "Service should not be processed")
+			svc1.Spec.LoadBalancerClass = nil
 		})
 
 		It("Processing ServiceTypeLoadBalancer with Ipam and static ip", func() {

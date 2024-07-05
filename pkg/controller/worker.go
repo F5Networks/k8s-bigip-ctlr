@@ -170,13 +170,31 @@ func (ctlr *Controller) setInitialResourceCount() {
 					continue
 				}
 			}
-			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 				rscCount++
 			}
 		}
 	}
 
 	ctlr.initialResourceCount = rscCount
+}
+
+// function to determine if CIS should process the service type LoadBalancer
+func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service) (error, bool) {
+	var err error
+	if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
+		return err, false
+	}
+	if svc.Spec.LoadBalancerClass != nil && *svc.Spec.LoadBalancerClass != ctlr.loadBalancerClass {
+		err = fmt.Errorf("Skipping loadBalancer service '%v/%v' as it's not using the loadBalancerClass '%v'", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
+		return err, false
+	}
+	// check if manage load balancer class only is enabled
+	if svc.Spec.LoadBalancerClass == nil && ctlr.manageLoadBalancerClassOnly {
+		err = fmt.Errorf("Skipping loadBalancer service '%v/%v' as CIS is configured to monitor the loadBalancerClass '%v' only", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
+		return err, false
+	}
+	return err, true
 }
 
 // processResources gets resources from the resourceQueue and processes the resource
@@ -205,7 +223,7 @@ func (ctlr *Controller) processResources() bool {
 			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
 			if rKey.kind == Service {
 				if svc, ok := rKey.rsc.(*v1.Service); ok {
-					if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+					if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 						ctlr.initialResourceCount--
 					} else {
 						// return as we don't process other services at start up
@@ -480,7 +498,7 @@ func (ctlr *Controller) processResources() bool {
 			clusterName: rKey.clusterName,
 		}
 
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 			if rKey.event != Create {
 				rsRef := resourceRef{
 					name:      svc.Name,
@@ -496,6 +514,8 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
+		} else {
+			log.Debugf("%v", err)
 		}
 
 		// Don't process the service as it's not used by any resource
@@ -528,13 +548,15 @@ func (ctlr *Controller) processResources() bool {
 		}
 		_ = ctlr.processService(svc, rKey.clusterName)
 
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
+		} else {
+			log.Debugf("%v", err)
 		}
 		// Just update the endpoints instead of processing them entirely
 		ctlr.updatePoolMembersForService(svcKey, false)
@@ -557,7 +579,7 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		_ = ctlr.processService(svc, rKey.clusterName)
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+		if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
@@ -2446,7 +2468,17 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		log.Warningf("service '%v' %s not found", svcKey, getClusterLog(clusterName))
 	}
 	var poolMembers []PoolMember
-	if svc != nil {
+	var svcOk bool
+	// check for load balancer class in service spec
+	if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+		err, svcOk = ctlr.shouldProcessServiceTypeLB(svc)
+		if err != nil {
+			log.Warningf("%v", err)
+		}
+	} else {
+		svcOk = true
+	}
+	if svc != nil && svcOk {
 		_ = ctlr.processService(svc, clusterName)
 		// update the nlpStore cache with pods and their node annotations
 		if ctlr.PoolMemberType == NodePortLocal {
@@ -2869,7 +2901,7 @@ func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
 	}
 	for _, obj := range orderedSVCs {
 		svc := obj.(*v1.Service)
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+		if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 			allLBServices = append(allLBServices, svc)
 		}
 	}
@@ -3690,7 +3722,7 @@ func (ctlr *Controller) processIngressLink(
 			if svc == nil {
 				return nil
 			}
-			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 				ctlr.setLBServiceIngressStatus(svc, ip)
 			}
 		}
@@ -3933,6 +3965,9 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 	svc *v1.Service,
 	ip string,
 ) {
+	if _, ok := ctlr.shouldProcessServiceTypeLB(svc); !ok {
+		return
+	}
 	// Set the ingress status to include the virtual IP
 	lbIngress := v1.LoadBalancerIngress{IP: ip}
 	if len(svc.Status.LoadBalancer.Ingress) == 0 {

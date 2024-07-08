@@ -53,7 +53,7 @@ func processIRulesForAS3(rsCfg *ResourceConfig, app as3Application) {
 	// Skip processing IRules for "None" value
 	for _, v := range rsCfg.Virtual.IRules {
 		if v == "none" {
-			continue
+			return
 		}
 	}
 	// Create irule declaration
@@ -69,7 +69,7 @@ func processDataGroupForAS3(rsCfg *ResourceConfig, app as3Application) {
 	// Skip processing DataGroup for "None" iRule value
 	for _, v := range rsCfg.Virtual.IRules {
 		if v == "none" {
-			continue
+			return
 		}
 	}
 	for _, idg := range rsCfg.IntDgMap {
@@ -92,8 +92,8 @@ func processDataGroupForAS3(rsCfg *ResourceConfig, app as3Application) {
 				// sort above created
 				sort.Slice(app[dg.Name].(*as3DataGroup).Records,
 					func(i, j int) bool {
-						return (app[dg.Name].(*as3DataGroup).Records[i].Key <
-							app[dg.Name].(*as3DataGroup).Records[j].Key)
+						return app[dg.Name].(*as3DataGroup).Records[i].Key <
+							app[dg.Name].(*as3DataGroup).Records[j].Key
 					})
 			}
 		}
@@ -744,7 +744,7 @@ func processCustomProfilesForAS3(rsCfg *ResourceConfig, app as3Application, as3V
 			skey := SecretKey{
 				Name: prof.Name + "-ca",
 			}
-			if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
+			if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil { // this will never be executed
 				// If a profile exist in customProfiles with key as created above
 				// then it indicates that secure-serverssl needs to be added
 				tlsClient.ValidateCertificate = true

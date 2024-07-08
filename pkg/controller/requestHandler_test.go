@@ -2,10 +2,11 @@ package controller
 
 import (
 	"encoding/json"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 	"net/http"
 	"strings"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -55,6 +56,8 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
+			rsCfg.Virtual.TCP.Client = "client1"
+			rsCfg.Virtual.TCP.Server = "server1"
 			rsCfg.Virtual.Policies = []nameRef{
 				{
 					Name:      "policy1",
@@ -156,6 +159,7 @@ var _ = Describe("Backend Tests", func() {
 					TargetPort: 8080,
 					Timeout:    10,
 					Send:       "GET /health",
+					Recv:       "Response /health",
 				},
 				{
 					Name:       "https_monitor",
@@ -164,6 +168,7 @@ var _ = Describe("Backend Tests", func() {
 					TargetPort: 8443,
 					Timeout:    10,
 					Send:       "GET /health",
+					Recv:       "Response /health",
 				},
 				{
 					Name:       "tcp_monitor",
@@ -182,8 +187,9 @@ var _ = Describe("Backend Tests", func() {
 					Context:   "serverside",
 				},
 				ProfileRef{
-					Name:    "serversslnew",
-					Context: "serverside",
+					Name:         "serversslnew",
+					Context:      "serverside",
+					BigIPProfile: true,
 				},
 				ProfileRef{
 					Name:      "clientssl",
@@ -191,8 +197,9 @@ var _ = Describe("Backend Tests", func() {
 					Context:   "clientside",
 				},
 				ProfileRef{
-					Name:    "clientsslnew",
-					Context: "clientside",
+					Name:         "clientsslnew",
+					Context:      "clientside",
+					BigIPProfile: true,
 				},
 			}
 
@@ -202,6 +209,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg2.MetaData.ResourceType = VirtualServer
 			rsCfg2.Virtual.Name = "crd_vs_172.13.14.16"
 			rsCfg.Virtual.PoolName = "default_pool_svc2"
+			rsCfg.Virtual.IRules = []string{"none"}
 			rsCfg2.Pools = Pools{
 				Pool{
 					Name:            "pool1",
@@ -269,7 +277,245 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.Destination = "172.13.14.6:1600"
+			rsCfg.Virtual.TCP.Client = "client1"
+			rsCfg.IntDgMap = InternalDataGroupMap{
+				NameRef{"custom_dg1", DEFAULT_PARTITION}: {
+					"dg1": &InternalDataGroup{
+						Name:      "dg1",
+						Partition: "Common",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "dg1_int",
+								Data: "data group1 data1",
+							},
+						},
+					},
+					"dg2": &InternalDataGroup{
+						Name:      "dg1",
+						Partition: "Common",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "dg2_int",
+								Data: "data group1 data2",
+							},
+						},
+					},
+				},
+			}
+			rsCfg.Virtual.Profiles = ProfileRefs{
+				ProfileRef{
+					Name:         "udpsslnew",
+					Partition:    "Common",
+					Context:      "udp",
+					BigIPProfile: true,
+				},
+				ProfileRef{
+					Name:      "/Common/new/udpsslnew1",
+					Partition: "Common",
+					Context:   "udp",
+				},
+			}
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			cert1 := certificate{Cert: "crthash1", Key: "keyhash1"}
+			cert2 := certificate{Cert: "crthash2", Key: "keyhash2"}
+			rsCfg.customProfiles[SecretKey{
+				Name:         "default_svc_test_com_cssl",
+				ResourceName: "crd_vs_172.13.14.16",
+			}] = CustomProfile{
+				Name:         "cs1",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert1, cert2},
+				SNIDefault:   false,
+			}
+			rsCfg.Pools = Pools{
+				Pool{
+					Name:            "pool1",
+					Members:         []PoolMember{mem1, mem2},
+					MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
+				},
+			}
+
+			config := ResourceConfigRequest{
+				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
+				bigIpConfig:         cisapiv1.BigIpConfig{},
+			}
+
+			zero := 0
+			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
+			pm := &PostManager{
+				AS3PostManager: &AS3PostManager{
+					AS3Config:       cisapiv1.AS3Config{},
+					bigIPAS3Version: 3.51,
+				},
+				tokenManager:        &tokenmanager.TokenManager{},
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				postChan:            make(chan agentConfig, 1),
+				defaultPartition:    "test",
+			}
+			agentCfg := requestHandler.createDeclarationForBIGIP(config, pm)
+
+			Expect(agentCfg.as3Config.data).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(agentCfg.as3Config.data, "adminState")).To(BeTrue())
+			Expect(strings.Contains(agentCfg.as3Config.data, "connectionLimit")).To(BeTrue())
+		})
+		It("Verify Transport Server Declaration with several resources", func() {
+			rsCfg := &ResourceConfig{}
+			enable := true
+			rsCfg.MetaData.Active = true
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = "crd_vs_172.13.14.17"
+			rsCfg.Virtual.Mode = "performance"
+			rsCfg.Virtual.IpProtocol = "tcp"
+			rsCfg.Virtual.TranslateServerAddress = true
+			rsCfg.Virtual.TranslateServerPort = true
+			rsCfg.Virtual.TCP.Client = "client1"
+			rsCfg.Virtual.TCP.Server = "server1"
+			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
+			rsCfg.Virtual.Destination = "172.13.14.6:80"
+			rsCfg.Virtual.IRules = []string{"common/test", "common/http_redirect_irule", "common:ab_deployment_path_irule_1"}
+			rsCfg.Policies = Policies{
+				Policy{
+					Name:     "policy1",
+					Strategy: "first-match",
+					Rules: Rules{
+						&Rule{
+							Conditions: []*condition{
+								{
+									Values: []string{"test.com"},
+									Equals: true,
+								},
+							},
+							Actions: []*action{
+								{
+									Forward:  true,
+									Request:  true,
+									Redirect: true,
+									HTTPURI:  true,
+									HTTPHost: true,
+									Pool:     "default_svc_1",
+								},
+							},
+						},
+					},
+				},
+				Policy{
+					Name:     "policy2",
+					Strategy: "first-match",
+					Rules: Rules{
+						&Rule{
+							Conditions: []*condition{
+								{
+									Host:     true,
+									Values:   []string{"prod.com"},
+									Equals:   true,
+									HTTPHost: true,
+									Request:  true,
+									EndsWith: true,
+								},
+								{
+									PathSegment: true,
+									Index:       1,
+									HTTPURI:     true,
+									Equals:      true,
+									Values:      []string{"/foo"},
+									Request:     true,
+									Name:        "segment1",
+								},
+								{
+									Path:    true,
+									Index:   1,
+									HTTPURI: true,
+									Equals:  true,
+									Values:  []string{"/bar"},
+									Name:    "path1",
+								},
+								{
+									Tcp:     true,
+									Address: true,
+									Values:  []string{"/foobar"},
+								},
+							},
+							Actions: []*action{
+								{
+									Forward:  true,
+									Request:  true,
+									Redirect: true,
+									HTTPURI:  true,
+									HTTPHost: true,
+									Pool:     "default_svc_2",
+									Location: "loc1",
+									Log: true,
+									Message: "Logged message",
+									Replace: true,
+									Value: "bring me thanos",
+									WAF: true,
+									Policy: "/Common/Policy1",
+									Enabled: &enable,
+									Drop: true,
+								},
+							},
+						},
+					},
+				},
+			}
+			rsCfg.IntDgMap = InternalDataGroupMap{
+				NameRef{"custom_dg1", DEFAULT_PARTITION}: {
+					"dg1": &InternalDataGroup{
+						Name:      "dg1",
+						Partition: "Common",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "dg1_int",
+								Data: "data group1 data1",
+							},
+						},
+					},
+					"dg2": &InternalDataGroup{
+						Name:      "dg1",
+						Partition: "Common",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "dg2_int",
+								Data: "data group1 data2",
+							},
+						},
+					},
+				},
+			}
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			cert := certificate{Cert: "crthash"}
+			rsCfg.customProfiles[SecretKey{
+				Name:         "default_svc_test_com_cssl",
+				ResourceName: "crd_vs_172.13.14.17",
+			}] = CustomProfile{
+				Name:         "cs1",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert},
+				CipherGroup:  "cg",
+				SNIDefault:   false,
+			}
+			rsCfg.customProfiles[SecretKey{
+				Name: "default_svc_test_com_cssl-ca",
+			}] = CustomProfile{
+				Name:         "cs2",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert},
+				SNIDefault:   false,
+			}
+			rsCfg.Virtual.ProfileL4 = "/Common/profile4"
+			rsCfg.Virtual.LogProfiles = []string{"/Common/log_profile1", "/Common/log_profile2"}
+			rsCfg.Virtual.ProfileBotDefense = "/Common/Bot"  // not supported currently
+			rsCfg.Virtual.ProfileDOS = "/Common/dos_profile" // not supported currently
+			rsCfg.Virtual.TCP.Server = "server1"
+
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:            "pool1",

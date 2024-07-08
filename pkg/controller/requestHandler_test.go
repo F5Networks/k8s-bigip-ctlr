@@ -53,11 +53,37 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.MetaData.ResourceType = VirtualServer
 			rsCfg.Virtual.Name = "crd_vs_172.13.14.15"
 			rsCfg.Virtual.PoolName = "default_pool_svc1"
-			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
+			rsCfg.Virtual.Destination = "/test/172.13.14.15:8080"
+			rsCfg.Virtual.Partition = "test"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
 			rsCfg.Virtual.TCP.Client = "client1"
-			rsCfg.Virtual.TCP.Server = "server1"
+			rsCfg.IntDgMap = InternalDataGroupMap{
+				NameRef{"crd_vs_172.13.14.15_ssl_passthrough_servername_dg", rsCfg.Virtual.Partition}: {
+					"dg1": &InternalDataGroup{
+						Name:      "dg1",
+						Partition: "Common",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "dg1_int",
+								Data: "data group1 data1",
+							},
+						},
+					},
+					"dg2": &InternalDataGroup{
+						Name:      "dg1",
+						Partition: "Common",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "dg2_int",
+								Data: "data group1 data2",
+							},
+						},
+					},
+				},
+			}
 			rsCfg.Virtual.Policies = []nameRef{
 				{
 					Name:      "policy1",
@@ -201,15 +227,57 @@ var _ = Describe("Backend Tests", func() {
 					Context:      "clientside",
 					BigIPProfile: true,
 				},
+				ProfileRef{
+					Name:         "httpsslnew",
+					Context:      "http",
+					BigIPProfile: true,
+				},
+				ProfileRef{
+					Name:    "httpssl",
+					Context: "http",
+				},
 			}
-
+			rsCfg.Virtual.ProfileMultiplex = "/Common/profile_multiplex_1"
+			rsCfg.ServiceAddress = []ServiceAddress{
+				{
+					RouteAdvertisement: "advertise",
+				},
+			}
+			rsCfg.Virtual.AdditionalVirtualAddresses = []string{"1.2.3.4"}
 			rsCfg2 := &ResourceConfig{}
 			rsCfg2.MetaData.Active = false
 			rsCfg2.MetaData.defaultPoolType = BIGIP
+			rsCfg2.Virtual.Destination = "/test/172.13.14.16:8080"
 			rsCfg2.MetaData.ResourceType = VirtualServer
 			rsCfg2.Virtual.Name = "crd_vs_172.13.14.16"
-			rsCfg.Virtual.PoolName = "default_pool_svc2"
+			rsCfg2.Virtual.PoolName = "default_pool_svc2"
+			rsCfg2.Virtual.TLSTermination = TLSPassthrough
 			rsCfg.Virtual.IRules = []string{"none"}
+			rsCfg2.ServiceAddress = []ServiceAddress{}
+			rsCfg2.Virtual.AdditionalVirtualAddresses = []string{"1.2.3.4"}
+			rsCfg2.Virtual.Policies = []nameRef{
+				{
+					Name:      "policy1",
+					Partition: "test",
+				},
+			}
+			rsCfg2.Virtual.ProfileDOS = "/Common/dos_profile"
+			rsCfg2.Virtual.ProfileBotDefense = "/Common/bot_defense"
+			rsCfg2.MetaData.Protocol = "https"
+			rsCfg2.Virtual.HTTP2.Client = "http2_client"
+			rsCfg2.Virtual.HTTP2.Server = "http2_server"
+			rsCfg2.Virtual.TCP.Client = "client"
+			rsCfg2.Virtual.TCP.Server = "server"
+			routingEnabled := true
+			rsCfg.Virtual.HttpMrfRoutingEnabled = &routingEnabled
+			rsCfg.Virtual.AutoLastHop = "/Common/last_hop"
+			rsCfg.MetaData.Protocol = "https"
+			rsCfg.Virtual.HTTP2.Client = "http2_client"
+			rsCfg2.Virtual.AnalyticsProfiles = AnalyticsProfiles{
+				HTTPAnalyticsProfile: "/Common/analytic_profile",
+			}
+			rsCfg2.Virtual.WAF = "/Common/waf_policy"
+			rsCfg2.Virtual.ProfileWebSocket = "/Common/web_socket"
 			rsCfg2.Pools = Pools{
 				Pool{
 					Name:            "pool1",
@@ -232,7 +300,7 @@ var _ = Describe("Backend Tests", func() {
 			}
 			certOnly := certificate{Cert: "crthash"}
 			rsCfg2.customProfiles[SecretKey{
-				Name:         "default_svc_test_com_sssl",
+				Name:         "default_svc_test_com_sssl-ca",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
 				Name:         "default_svc_test_com_sssl",
@@ -243,6 +311,17 @@ var _ = Describe("Backend Tests", func() {
 				SNIDefault:   false,
 			}
 
+			rsCfg3 := &ResourceConfig{}
+			rsCfg3.MetaData.Active = true
+			rsCfg3.MetaData.ResourceType = VirtualServer
+			rsCfg3.Virtual.Name = "crd_vs_172.13.14.25"
+			rsCfg3.Virtual.PoolName = "default_pool_svc4"
+			rsCfg3.Virtual.Destination = "/test/172.13.14.25:8080"
+			rsCfg3.Virtual.Partition = "test"
+			rsCfg3.MetaData.Protocol = "https"
+			rsCfg3.Virtual.HTTP2.Server = "server"
+			rsCfg3.Virtual.TCP.Server = "server1"
+
 			config := ResourceConfigRequest{
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 				bigIpConfig:         cisapiv1.BigIpConfig{},
@@ -251,6 +330,7 @@ var _ = Describe("Backend Tests", func() {
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.25"] = rsCfg3
 			pm := &PostManager{
 				AS3PostManager: &AS3PostManager{
 					AS3Config: cisapiv1.AS3Config{},
@@ -277,7 +357,10 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.Destination = "172.13.14.6:1600"
-			rsCfg.Virtual.TCP.Client = "client1"
+			rsCfg.Virtual.TCP.Server = "server1"
+			rsCfg.Virtual.Firewall = "/Common/firewall"
+			rsCfg.Virtual.ConnectionMirroring = "/Common/mirror"
+			rsCfg.Virtual.SNAT = "none"
 			rsCfg.IntDgMap = InternalDataGroupMap{
 				NameRef{"custom_dg1", DEFAULT_PARTITION}: {
 					"dg1": &InternalDataGroup{
@@ -374,9 +457,15 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.TCP.Client = "client1"
 			rsCfg.Virtual.TCP.Server = "server1"
+			rsCfg.Virtual.Source = "source"
+			rsCfg.ServiceAddress = []ServiceAddress{
+				{
+					RouteAdvertisement: "advertise",
+				},
+			}
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.Destination = "172.13.14.6:80"
-			rsCfg.Virtual.IRules = []string{"common/test", "common/http_redirect_irule", "common:ab_deployment_path_irule_1"}
+			rsCfg.Virtual.IRules = []string{"common/test", "common/ab_deployment_path_irule", "common:ab_deployment_path_irule_1"}
 			rsCfg.Policies = Policies{
 				Policy{
 					Name:     "policy1",
@@ -448,14 +537,14 @@ var _ = Describe("Backend Tests", func() {
 									HTTPHost: true,
 									Pool:     "default_svc_2",
 									Location: "loc1",
-									Log: true,
-									Message: "Logged message",
-									Replace: true,
-									Value: "bring me thanos",
-									WAF: true,
-									Policy: "/Common/Policy1",
-									Enabled: &enable,
-									Drop: true,
+									Log:      true,
+									Message:  "Logged message",
+									Replace:  true,
+									Value:    "test",
+									WAF:      true,
+									Policy:   "/Common/Policy1",
+									Enabled:  &enable,
+									Drop:     true,
 								},
 							},
 						},
@@ -494,7 +583,7 @@ var _ = Describe("Backend Tests", func() {
 				Name:         "default_svc_test_com_cssl",
 				ResourceName: "crd_vs_172.13.14.17",
 			}] = CustomProfile{
-				Name:         "cs1",
+				Name:         "default_svc_test_com_cssl",
 				Partition:    "test",
 				Context:      "clientside",
 				Certificates: []certificate{cert},
@@ -512,9 +601,8 @@ var _ = Describe("Backend Tests", func() {
 			}
 			rsCfg.Virtual.ProfileL4 = "/Common/profile4"
 			rsCfg.Virtual.LogProfiles = []string{"/Common/log_profile1", "/Common/log_profile2"}
-			rsCfg.Virtual.ProfileBotDefense = "/Common/Bot"  // not supported currently
-			rsCfg.Virtual.ProfileDOS = "/Common/dos_profile" // not supported currently
-			rsCfg.Virtual.TCP.Server = "server1"
+			rsCfg.Virtual.ProfileBotDefense = "/Common/bot_defense"
+			rsCfg.Virtual.ProfileDOS = "/Common/dos_profile"
 
 			rsCfg.Pools = Pools{
 				Pool{
@@ -528,10 +616,41 @@ var _ = Describe("Backend Tests", func() {
 				bigIpResourceConfig: BigIpResourceConfig{ltmConfig: LTMConfig{}},
 				bigIpConfig:         cisapiv1.BigIpConfig{},
 			}
+			rsCfg2 := &ResourceConfig{}
+			rsCfg2.MetaData.Active = true
+			rsCfg2.MetaData.ResourceType = TransportServer
+			rsCfg2.Virtual.Name = "crd_vs_172.13.14.18"
+			rsCfg3 := &ResourceConfig{}
+			rsCfg3.MetaData.Active = true
+			rsCfg3.MetaData.ResourceType = TransportServer
+			rsCfg3.Virtual.Name = "crd_vs_172.13.14.19"
+			rsCfg4 := &ResourceConfig{}
+			rsCfg4.MetaData.Active = true
+			rsCfg4.MetaData.ResourceType = TransportServer
+			rsCfg4.Virtual.Name = "crd_vs_172.13.14.20"
+			rsCfg5 := &ResourceConfig{}
+			rsCfg5.MetaData.Active = true
+			rsCfg5.MetaData.ResourceType = TransportServer
+			rsCfg5.Virtual.Name = "crd_vs_172.13.14.21"
+
+			rsCfg2.Virtual.Mode = "standard"
+			rsCfg2.Virtual.TCP.Client = "client2"
+			rsCfg2.Virtual.IpProtocol = "udp"
+			rsCfg3.Virtual.Mode = "standard"
+			rsCfg3.Virtual.IpProtocol = "sctp"
+			rsCfg4.Virtual.Mode = "performance"
+			rsCfg4.Virtual.IpProtocol = "udp"
+			rsCfg5.Virtual.Mode = "performance"
+			rsCfg5.Virtual.IpProtocol = "sctp"
 
 			zero := 0
 			config.bigIpResourceConfig.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.17"] = rsCfg
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.18"] = rsCfg2
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.19"] = rsCfg3
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.20"] = rsCfg4
+			config.bigIpResourceConfig.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.21"] = rsCfg5
+
 			pm := &PostManager{
 				AS3PostManager: &AS3PostManager{
 					AS3Config: cisapiv1.AS3Config{},

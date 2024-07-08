@@ -50,12 +50,6 @@ func getDeletedTenantDeclaration(cisLabel string) as3Tenant {
 }
 
 func processIRulesForAS3(rsCfg *ResourceConfig, app as3Application) {
-	// Skip processing IRules for "None" value
-	for _, v := range rsCfg.Virtual.IRules {
-		if v == "none" {
-			return
-		}
-	}
 	// Create irule declaration
 	for _, v := range rsCfg.IRulesMap {
 		iRule := &as3IRules{}
@@ -66,12 +60,6 @@ func processIRulesForAS3(rsCfg *ResourceConfig, app as3Application) {
 }
 
 func processDataGroupForAS3(rsCfg *ResourceConfig, app as3Application) {
-	// Skip processing DataGroup for "None" iRule value
-	for _, v := range rsCfg.Virtual.IRules {
-		if v == "none" {
-			return
-		}
-	}
 	for _, idg := range rsCfg.IntDgMap {
 		for _, dg := range idg {
 			dataGroupRecord, found := app[dg.Name]
@@ -744,7 +732,7 @@ func processCustomProfilesForAS3(rsCfg *ResourceConfig, app as3Application, as3V
 			skey := SecretKey{
 				Name: prof.Name + "-ca",
 			}
-			if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil { // this will never be executed
+			if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
 				// If a profile exist in customProfiles with key as created above
 				// then it indicates that secure-serverssl needs to be added
 				tlsClient.ValidateCertificate = true

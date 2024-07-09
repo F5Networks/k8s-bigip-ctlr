@@ -23,6 +23,7 @@ import (
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
+
 	//apm "github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/appmanager"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -38,7 +39,7 @@ import (
 var _ = Describe("Worker Tests", func() {
 	var mockCtlr *mockController
 	var vrt1 *cisapiv1.VirtualServer
-	var ts1  *cisapiv1.TransportServer
+	var ts1 *cisapiv1.TransportServer
 	// var il1 *cisapiv1.IngressLink
 	var svc1 *v1.Service
 	namespace := "default"
@@ -90,20 +91,20 @@ var _ = Describe("Worker Tests", func() {
 				IRules:           nil,
 				ServiceIPAddress: nil,
 			})
-		
-		ts1  = test.NewTransportServer(
+
+		ts1 = test.NewTransportServer(
 			"SampleTS",
 			namespace,
 			cisapiv1.TransportServerSpec{
-				Host:                   "test.com",
-				VirtualServerAddress:   "1.2.3.4",
-				IPAMLabel:              "",
-				VirtualServerName:      "ts1",
-				SNAT:             "auto",
-				AllowVLANs:       nil,
-				IRules:           nil,
-				ServiceIPAddress: nil,
-		})
+				Host:                 "test.com",
+				VirtualServerAddress: "1.2.3.4",
+				IPAMLabel:            "",
+				VirtualServerName:    "ts1",
+				SNAT:                 "auto",
+				AllowVLANs:           nil,
+				IRules:               nil,
+				ServiceIPAddress:     nil,
+			})
 		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
 		bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 		mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
@@ -2547,7 +2548,7 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 					BigIpConfig: bigIpKey,
-					reqMeta: requestMeta{},
+					reqMeta:     requestMeta{},
 				}
 
 				mockNewCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
@@ -2596,7 +2597,7 @@ var _ = Describe("Worker Tests", func() {
 					BigIpConfig: bigIpKey,
 					reqMeta: requestMeta{
 						partitionMap: make(map[string]map[string]string),
-						id: 0,
+						id:           0,
 					},
 				}
 				agentCfg.reqMeta.partitionMap["default"] = make(map[string]string)

@@ -1,18 +1,36 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.17.1
 -------------
 
 Added Functionality
 ```````````````````
 **What's new:**
-    * Multi Cluster
-    
     * CRD
+        * `Issue 3378 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3378>`_: Support to control ciphers groups and ssl options in TLSProfile CRD, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile/tls-with-tlsCipher/>`_
+    * Improved performance for Hub Mode using the isTenantNameServiceNamespace label in the AS3 configmap, See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/hubmode-configmap/hubmode-cmap.yaml>`_
+    * Pod Graceful Shutdown support for AS3 ConfigMap using CIS deployment parameter *pod-graceful-shutdown*
 
 Bug Fixes
 ````````````
+* `Issue 3395 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3395>`_: BIG-IP controller 2.16.0 removes F5 configuration when removing Kubernetes resources in namespace.
+* `Issue 3424 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3424>`_: Static routes are not added if a label is not added to a namespace when using `--namespace-label` flag.
+* `Issue 3443 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3443>`_: Addressed the problem with IPAM IP allocation on resource recreation.
+* `Issue 3406 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3406>`_: Upon deletion of all CRD resources, the default route domain of the CIS-managed Partition resets to 0.
+* `Issue 3405 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3405>`_: Resolved the issue where Helm Chart does not enable ingressClass after creating it.
+*  Resolved the issue where LB Services remain stuck in a Pending state when using IPAM.
+
+Upgrade notes
+``````````````
+Starting with CIS version 2.17.1:
+  * Re-sync period for the service in hub mode is the same as the periodic sync interval configured in the CIS deployment parameter periodic-sync-interval, for which the default value is 30 seconds.
+  * If the `--ipam-cluster-label` is already enabled in previous versions, it's recommended to remove the ipam CR created by the previous version of CIS and recreate it. For example, you can use the command:
+
+    ``kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam``
+
+    * If you wish to enable `--ipam-cluster-label` in CIS or modify the `--ipam-cluster-label` configuration, it is still recommended to remove the ipam CR created by the previous version of CIS.
+
 
 2.17.0
 -------------
@@ -28,7 +46,7 @@ Added Functionality
     * Support for Calico CNI with Static Routing Mode. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/StaticRoute/README.md>`_.
     * CIS is now compatible with OpenShift 4.15 and Kubernetes 1.31.
     * Improved operator support for OpenShift 4.15.
-
+    
 Bug Fixes
 ````````````
 * `Issue 3371 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3371>`_: CIS added irules cannot have "event disable all".

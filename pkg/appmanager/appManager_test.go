@@ -300,7 +300,7 @@ func (m *mockAppManager) deleteService(svc *v1.Service) bool {
 }
 
 func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
-	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	ok, keys := m.appMgr.checkValidEndpoints(ep, OprTypeCreate)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Add(ep)
@@ -316,7 +316,7 @@ func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
 }
 
 func (m *mockAppManager) updateEndpoints(ep *v1.Endpoints) bool {
-	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	ok, keys := m.appMgr.checkValidEndpoints(ep, OprTypeUpdate)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Update(ep)
@@ -332,7 +332,7 @@ func (m *mockAppManager) updateEndpoints(ep *v1.Endpoints) bool {
 }
 
 func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
-	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	ok, keys := m.appMgr.checkValidEndpoints(ep, OprTypeDelete)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Delete(ep)
@@ -1263,7 +1263,7 @@ var _ = Describe("AppManager Tests", func() {
 						Session: "user-enabled",
 					},
 				}
-				mems, _ := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default")
+				mems, _ := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default", false)
 				Expect(mems).To(Equal(expMembers))
 			})
 
@@ -4364,7 +4364,7 @@ var _ = Describe("AppManager Tests", func() {
 					mockMgr.appMgr.isNodePort = true
 				}()
 				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
-				members, _ := mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ := mockMgr.appMgr.getEndpoints("test", namespace, false)
 				Expect(members).To(BeNil())
 
 				// Add service
@@ -4379,24 +4379,26 @@ var _ = Describe("AppManager Tests", func() {
 				svc2.Labels["test"] = "true"
 				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc1, metav1.CreateOptions{})
 				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc2, metav1.CreateOptions{})
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
 				Expect(members).To(BeNil())
 
 				// Set isNodePort to false, no endpoints
 				mockMgr.appMgr.isNodePort = false
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
 				Expect(members).To(BeNil())
 
 				// Set isNodePort to false, no endpoints
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
 				Expect(members).To(BeNil())
 
 				// Add endpoints
 				readyIps := []string{"10.2.96.3", "10.2.96.4"}
 				endpts1 := test.NewEndpoints(svcName1, "1", "node0", namespace,
 					readyIps, nil, convertSvcPortsToEndpointPorts(svcPorts))
-				appInf.endptInformer.GetStore().Add(endpts1)
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace)
+				mockMgr.appMgr.kubeClient.CoreV1().Endpoints(namespace).Create(context.TODO(), endpts1, metav1.CreateOptions{})
+				//appInf.endptInformer.GetStore().Add(endpts1)
+				delete(mockMgr.appMgr.appInformers, namespace)
+				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
 				Expect(members).NotTo(BeNil())
 				Expect(len(members)).To(Equal(2))
 

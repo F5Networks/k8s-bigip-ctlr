@@ -97,6 +97,9 @@ spec:
         command:
         - /app/bin/k8s-bigip-ctlr
         args:
+{{- if .Values.ingressClass.ingressClassName }}
+        - --ingress-class={{ .Values.ingressClass.ingressClassName | default "f5" }}
+{{- end }}
         - --credentials-directory
         - /tmp/creds
         {{- $ns := .Values.args.namespaces }}

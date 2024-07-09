@@ -45,8 +45,8 @@ Compatibility Matrix
 | v2.15.1     | v17.0          | v1.29              | v4.14.0*                                                      | Yes | Yes                | v3.48       | v0.1.9      | v0.0.4            | v0.0.28           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.16.0     | v17.0          | v1.29              | v4.14.0*                                                      | Yes | Yes                | v3.50       | v0.1.9      | v0.0.4            | v0.0.29           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.16.1     | v17.0          | v1.29              | v4.14.0*                                                      | Yes | Yes                | v3.50       | v0.1.10     | v0.0.4            | v0.0.29           | Red Hat Enterprise Linux release 9.1 (Plow)         |
-| v2.17.0     | v17.0          | v1.31              | v4.15.0*                                                      | Yes | Yes                | v3.50       | v0.1.11     | v0.0.5            | v0.0.30           | Red Hat Enterprise Linux release 9.1 (Plow)         |
-
+| v2.17.0     | v17.0          | v1.31              | v4.15.0*                                                      | Yes | Yes                | v3.50       | v0.1.10     | v0.0.5            | v0.0.30           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.17.1     | v17.0          | v1.31              | v4.15.0*                                                      | Yes | Yes                | v3.50       | v0.1.10     | v0.0.5            | v0.0.31           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
 Compatibility Matrix for Multi Cluster Support
@@ -380,3 +380,17 @@ Refer Release Notes for [CIS v2.16.0](https://github.com/F5Networks/k8s-bigip-ct
 ### **Upgrading from 2.16.0 to 2.16.1:**
 
 Refer Release Notes for [CIS v2.16.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
+
+
+### **Upgrading from 2.16.1 to 2.17.0:**
+
+Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)
+
+### **Upgrading from 2.17.0 to 2.17.1:**
+
+**_Functionality Changes:_**
+
+* From 2.17.0, re-sync period for service in hub mode is same as periodic-sync-interval configured in the CIS deployment parameter *periodic-sync-interval*. For which the default value is 30 seconds. Earlier it was 30 seconds.
+* If --ipam-cluster-label is already enabled with previous versions, it's recommended to remove the ipam CR created by previous version of CIS and recreate again
+    eg: kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam
+  * If you want to enable --ipam-cluster-label in cis or want to modify --ipam-cluster-label config, still it's recommended to remove the ipam CR created by previous version of CIS

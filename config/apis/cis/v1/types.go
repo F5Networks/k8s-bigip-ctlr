@@ -194,8 +194,16 @@ type TLSProfile struct {
 
 // TLSProfileSpec is spec for TLSServer
 type TLSProfileSpec struct {
-	Hosts []string `json:"hosts"`
-	TLS   TLS      `json:"tls"`
+	Hosts     []string         `json:"hosts"`
+	TLS       TLS              `json:"tls"`
+	TLSCipher TLSProfileCipher `json:"tlsCipher"`
+}
+
+// TLSProfileCipher contains required fields for TLSProfileCipher
+type TLSProfileCipher struct {
+	TLSVersion  string `json:"tlsVersion"`
+	Ciphers     string `json:"ciphers"`
+	CipherGroup string `json:"cipherGroup"`
 }
 
 // TLS contains required fields for TLS termination

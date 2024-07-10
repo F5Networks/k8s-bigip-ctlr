@@ -4258,10 +4258,7 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 					return svc
 				}
 			}
-			return nil
-		}
-
-		if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+		} else if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
 			return svc
 		}
 	}

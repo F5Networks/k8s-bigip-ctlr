@@ -50,12 +50,6 @@ func getDeletedTenantDeclaration(cisLabel string) as3Tenant {
 }
 
 func processIRulesForAS3(rsCfg *ResourceConfig, app as3Application) {
-	// Skip processing IRules for "None" value
-	for _, v := range rsCfg.Virtual.IRules {
-		if v == "none" {
-			continue
-		}
-	}
 	// Create irule declaration
 	for _, v := range rsCfg.IRulesMap {
 		iRule := &as3IRules{}
@@ -66,12 +60,6 @@ func processIRulesForAS3(rsCfg *ResourceConfig, app as3Application) {
 }
 
 func processDataGroupForAS3(rsCfg *ResourceConfig, app as3Application) {
-	// Skip processing DataGroup for "None" iRule value
-	for _, v := range rsCfg.Virtual.IRules {
-		if v == "none" {
-			continue
-		}
-	}
 	for _, idg := range rsCfg.IntDgMap {
 		for _, dg := range idg {
 			dataGroupRecord, found := app[dg.Name]
@@ -92,8 +80,8 @@ func processDataGroupForAS3(rsCfg *ResourceConfig, app as3Application) {
 				// sort above created
 				sort.Slice(app[dg.Name].(*as3DataGroup).Records,
 					func(i, j int) bool {
-						return (app[dg.Name].(*as3DataGroup).Records[i].Key <
-							app[dg.Name].(*as3DataGroup).Records[j].Key)
+						return app[dg.Name].(*as3DataGroup).Records[i].Key <
+							app[dg.Name].(*as3DataGroup).Records[j].Key
 					})
 			}
 		}

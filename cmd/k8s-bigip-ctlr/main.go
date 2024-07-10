@@ -135,40 +135,41 @@ var (
 	disableTeems     *bool
 	enableIPV6       *bool
 
-	namespaces             *[]string
-	useNodeInternal        *bool
-	poolMemberType         *string
-	inCluster              *bool
-	kubeConfig             *string
-	namespaceLabel         *string
-	manageRoutes           *bool
-	manageConfigMaps       *bool
-	manageIngress          *bool
-	hubMode                *bool
-	podGracefulShutdown    *bool
-	nodeLabelSelector      *string
-	resolveIngNames        *string
-	defaultIngIP           *string
-	vsSnatPoolName         *string
-	useSecrets             *bool
-	schemaLocal            *string
-	manageIngressClassOnly *bool
-	ingressClass           *string
-
-	bigIPURL                  *string
-	bigIPUsername             *string
-	bigIPPassword             *string
-	bigIPPartitions           *[]string
-	credsDir                  *string
-	as3Validation             *bool
-	sslInsecure               *bool
-	ipam                      *bool
-	ipamClusterLabel          *string
-	enableTLS                 *string
-	tls13CipherGroupReference *string
-	ciphers                   *string
-	trustedCerts              *string
-	as3PostDelay              *int
+	namespaces                  *[]string
+	useNodeInternal             *bool
+	poolMemberType              *string
+	inCluster                   *bool
+	kubeConfig                  *string
+	namespaceLabel              *string
+	manageRoutes                *bool
+	manageConfigMaps            *bool
+	manageIngress               *bool
+	hubMode                     *bool
+	podGracefulShutdown         *bool
+	nodeLabelSelector           *string
+	resolveIngNames             *string
+	defaultIngIP                *string
+	vsSnatPoolName              *string
+	useSecrets                  *bool
+	schemaLocal                 *string
+	manageIngressClassOnly      *bool
+	ingressClass                *string
+	loadBalancerClass           *string
+	manageLoadBalancerClassOnly *bool
+	bigIPURL                    *string
+	bigIPUsername               *string
+	bigIPPassword               *string
+	bigIPPartitions             *[]string
+	credsDir                    *string
+	as3Validation               *bool
+	sslInsecure                 *bool
+	ipam                        *bool
+	ipamClusterLabel            *string
+	enableTLS                   *string
+	tls13CipherGroupReference   *string
+	ciphers                     *string
+	trustedCerts                *string
+	as3PostDelay                *int
 
 	trustedCertsCfgmap      *string
 	agent                   *string
@@ -395,6 +396,14 @@ func _init() {
 
 	// If the flag is specified with no argument, default to LOOKUP
 	kubeFlags.Lookup("resolve-ingress-names").NoOptDefVal = "LOOKUP"
+
+	// load balancer class
+	loadBalancerClass = kubeFlags.String("load-balancer-class", "",
+		"Optional, If you specify load-balancer-class, CIS considers services only that matches the specified class."+
+			"CIS will ignore services that have this field set and does not match with the provided load-balancer-class")
+	manageLoadBalancerClassOnly = kubeFlags.Bool("manage-load-balancer-class-only", false,
+		"Optional, default `false`. Process all load balancer services with loadBalancerClass only."+
+			"If set to false, CIS process all the load balancer service without loadBalancerClass and service that have the loadBalancerClass specified by the load-balancer-class parameter")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsagesWrapped(width))
@@ -947,6 +956,8 @@ func initController(
 			OrchestrationCNI:            *orchestrationCNI,
 			StaticRouteNodeCIDR:         *staticRouteNodeCIDR,
 			MultiClusterMode:            *multiClusterMode,
+			LoadBalancerClass:           *loadBalancerClass,
+			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
 		},
 		true,
 	)

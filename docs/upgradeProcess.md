@@ -394,3 +394,10 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
 * If --ipam-cluster-label is already enabled with previous versions, it's recommended to remove the ipam CR created by previous version of CIS and recreate again
     eg: kubectl -n kube-system delete ipam <CIS_deployment_name>.<CIS_managed_bigip_partition>.ipam
   * If you want to enable --ipam-cluster-label in cis or want to modify --ipam-cluster-label config, still it's recommended to remove the ipam CR created by previous version of CIS
+
+### **Upgrading from 2.17.1 to 2.18.0:**
+
+**_Functionality Changes:_**
+  * By default, from CIS version 2.18.0 onwards, CIS will process all the services that do not have the loadBalancerClass field set in the service spec. CIS will not process the services that have the loadBalancerClass field set in the service spec.
+  * The Load Balancer Class supports all the Custom Resources (VirtualServer, TransportServer, and IngressLink) and the loadBalancer service, and you cannot disable it. You need to either remove the loadBalancerClass field from the service or configure the CIS deployment parameter `load-balancer-class` to the same value as the loadBalancerClass field in the service.
+  * Also see the deployment parameter `manage-load-balancer-class-only`, to control the behavior of CIS for services with loadBalancerClass field set in the service spec.

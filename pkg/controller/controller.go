@@ -87,16 +87,18 @@ func RunController(params Params) *Controller {
 func NewController(params Params, statusManager *statusmanager.StatusManager) *Controller {
 
 	ctlr := &Controller{
-		resources:             NewResourceStore(),
-		UseNodeInternal:       params.UseNodeInternal,
-		initState:             true,
-		defaultRouteDomain:    params.DefaultRouteDomain,
-		multiClusterConfigs:   clustermanager.NewMultiClusterConfig(),
-		multiClusterResources: newMultiClusterResourceStore(),
-		multiClusterMode:      params.MultiClusterMode,
-		clusterRatio:          make(map[string]*int),
-		clusterAdminState:     make(map[string]cisapiv1.AdminState),
-		respChan:              make(chan *agentConfig, 1),
+		resources:                   NewResourceStore(),
+		UseNodeInternal:             params.UseNodeInternal,
+		initState:                   true,
+		defaultRouteDomain:          params.DefaultRouteDomain,
+		multiClusterConfigs:         clustermanager.NewMultiClusterConfig(),
+		multiClusterResources:       newMultiClusterResourceStore(),
+		multiClusterMode:            params.MultiClusterMode,
+		loadBalancerClass:           params.LoadBalancerClass,
+		manageLoadBalancerClassOnly: params.ManageLoadBalancerClassOnly,
+		clusterRatio:                make(map[string]*int),
+		clusterAdminState:           make(map[string]cisapiv1.AdminState),
+		respChan:                    make(chan *agentConfig, 1),
 		CMTokenManager: tokenmanager.NewTokenManager(
 			params.CMConfigDetails.URL,
 			tokenmanager.Credentials{Username: params.CMConfigDetails.UserName, Password: params.CMConfigDetails.Password},

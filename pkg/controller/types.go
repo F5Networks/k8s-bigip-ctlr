@@ -48,39 +48,41 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		resources              *ResourceStore
-		clientsets             *ClientSets
-		namespacesMutex        sync.Mutex
-		namespaces             map[string]bool
-		initialResourceCount   int
-		resourceQueue          workqueue.RateLimitingInterface
-		PostParams             PostParams
-		RequestHandler         *RequestHandler
-		PoolMemberType         string
-		UseNodeInternal        bool
-		initState              bool
-		shareNodes             bool
-		ipamHandler            *ipmanager.IPAMHandler
-		defaultRouteDomain     int
-		TeemData               *teem.TeemsData
-		requestMap             *requestMap
-		StaticRoutingMode      bool
-		OrchestrationCNI       string
-		StaticRouteNodeCIDR    string
-		cacheIPAMHostSpecs     CacheIPAM
-		multiClusterConfigs    *clustermanager.MultiClusterConfig
-		multiClusterResources  *MultiClusterResourceStore
-		multiClusterMode       string
-		haModeType             cisapiv1.HAModeType
-		clusterRatio           map[string]*int
-		clusterAdminState      map[string]cisapiv1.AdminState
-		managedResources       ManagedResources
-		resourceSelectorConfig ResourceSelectorConfig
-		CMTokenManager         *tokenmanager.TokenManager
-		bigIpConfigMap         BigIpConfigMap
-		respChan               chan *agentConfig
-		networkManager         *networkmanager.NetworkManager
-		ControllerIdentifier   string
+		resources                   *ResourceStore
+		clientsets                  *ClientSets
+		namespacesMutex             sync.Mutex
+		namespaces                  map[string]bool
+		initialResourceCount        int
+		resourceQueue               workqueue.RateLimitingInterface
+		PostParams                  PostParams
+		RequestHandler              *RequestHandler
+		PoolMemberType              string
+		UseNodeInternal             bool
+		initState                   bool
+		shareNodes                  bool
+		ipamHandler                 *ipmanager.IPAMHandler
+		defaultRouteDomain          int
+		TeemData                    *teem.TeemsData
+		requestMap                  *requestMap
+		StaticRoutingMode           bool
+		OrchestrationCNI            string
+		StaticRouteNodeCIDR         string
+		cacheIPAMHostSpecs          CacheIPAM
+		multiClusterConfigs         *clustermanager.MultiClusterConfig
+		multiClusterResources       *MultiClusterResourceStore
+		multiClusterMode            string
+		haModeType                  cisapiv1.HAModeType
+		clusterRatio                map[string]*int
+		clusterAdminState           map[string]cisapiv1.AdminState
+		managedResources            ManagedResources
+		resourceSelectorConfig      ResourceSelectorConfig
+		CMTokenManager              *tokenmanager.TokenManager
+		bigIpConfigMap              BigIpConfigMap
+		respChan                    chan *agentConfig
+		networkManager              *networkmanager.NetworkManager
+		ControllerIdentifier        string
+		loadBalancerClass           string
+		manageLoadBalancerClassOnly bool
 		resourceContext
 	}
 	ClientSets struct {
@@ -120,22 +122,24 @@ type (
 
 	// Params defines parameters
 	Params struct {
-		Config                *rest.Config
-		ClientSets            *ClientSets
-		Namespaces            []string
-		UserAgent             string
-		UseNodeInternal       bool
-		NodePollInterval      int
-		IPAM                  bool
-		DefaultRouteDomain    int
-		CISConfigCRKey        string
-		MultiClusterMode      string
-		CMConfigDetails       *CMConfig
-		CMTrustedCerts        string
-		CMSSLInsecure         bool
-		HttpAddress           string
-		ManageCustomResources bool
-		httpClientMetrics     bool
+		Config                      *rest.Config
+		ClientSets                  *ClientSets
+		Namespaces                  []string
+		UserAgent                   string
+		UseNodeInternal             bool
+		NodePollInterval            int
+		IPAM                        bool
+		DefaultRouteDomain          int
+		CISConfigCRKey              string
+		MultiClusterMode            string
+		CMConfigDetails             *CMConfig
+		CMTrustedCerts              string
+		CMSSLInsecure               bool
+		HttpAddress                 string
+		ManageCustomResources       bool
+		httpClientMetrics           bool
+		LoadBalancerClass           string
+		ManageLoadBalancerClassOnly bool
 	}
 
 	// CMConfig defines the Central Manager config

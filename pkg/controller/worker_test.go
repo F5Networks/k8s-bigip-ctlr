@@ -980,6 +980,16 @@ var _ = Describe("Worker Tests", func() {
 			partition := mockCtlr.getPartitionForBIGIP("")
 			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
+			lbClass := "f5-bigip-ctlr"
+			svc1.Spec.LoadBalancerClass = &lbClass
+			mockCtlr.loadBalancerClass = lbClass
+			_, ok := mockCtlr.shouldProcessServiceTypeLB(svc1)
+			Expect(ok).To(BeTrue(), "Service should be processed")
+			// reset the loadBalancerClass
+			mockCtlr.loadBalancerClass = ""
+			_, ok = mockCtlr.shouldProcessServiceTypeLB(svc1)
+			Expect(ok).To(BeFalse(), "Service should not be processed")
+			svc1.Spec.LoadBalancerClass = nil
 		})
 
 		It("Processing External DNS", func() {

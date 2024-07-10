@@ -79,9 +79,11 @@ var (
 	disableTeems    *bool
 	useNodeInternal *bool
 
-	kubeConfig            *string
-	manageCustomResources *bool
-	manageRoutes          *bool
+	kubeConfig                  *string
+	manageCustomResources       *bool
+	manageRoutes                *bool
+	loadBalancerClass           *string
+	manageLoadBalancerClassOnly *bool
 
 	cmURL       *string
 	cmUsername  *string
@@ -164,6 +166,14 @@ func _init() {
 	}
 	manageCustomResources = kubeFlags.Bool("manage-custom-resources", true,
 		"Optional, specify whether or not to manage custom resources i.e. transportserver")
+	// load balancer class
+	loadBalancerClass = kubeFlags.String("load-balancer-class", "",
+		"Optional, If you specify load-balancer-class, CIS considers services only that matches the specified class."+
+			"CIS will ignore services that have this field set and does not match with the provided load-balancer-class")
+	manageLoadBalancerClassOnly = kubeFlags.Bool("manage-load-balancer-class-only", false,
+		"Optional, default `false`. Process all load balancer services with loadBalancerClass only."+
+			"If set to false, CIS process all the load balancer service without loadBalancerClass and service that have the loadBalancerClass specified by the load-balancer-class parameter")
+
 	// setting manageRoutes to false by default
 	tmpval := false
 	manageRoutes = &tmpval
@@ -391,14 +401,16 @@ func initController(
 				UserName: *cmUsername,
 				Password: *cmPassword,
 			},
-			CMTrustedCerts:        getBIGIPTrustedCerts(),
-			CMSSLInsecure:         *sslInsecure,
-			CISConfigCRKey:        *CISConfigCR,
-			HttpAddress:           *httpAddress,
-			ManageCustomResources: *manageCustomResources,
-			UseNodeInternal:       *useNodeInternal,
-			MultiClusterMode:      *multiClusterMode,
-			IPAM:                  *ipam,
+			CMTrustedCerts:              getBIGIPTrustedCerts(),
+			CMSSLInsecure:               *sslInsecure,
+			CISConfigCRKey:              *CISConfigCR,
+			HttpAddress:                 *httpAddress,
+			ManageCustomResources:       *manageCustomResources,
+			UseNodeInternal:             *useNodeInternal,
+			MultiClusterMode:            *multiClusterMode,
+			LoadBalancerClass:           *loadBalancerClass,
+			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
+			IPAM:                        *ipam,
 		},
 	)
 

@@ -14,6 +14,7 @@ Added Functionality
 Bug Fixes
 ````````````
 * `Issue 3401 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3401>`_: Fix for invalid iRule generation for HTTP/2 full proxy mode
+* `Issue 3466 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3466>`_: Fix scaling issue in NodeportLocal mode
 
 Upgrade notes
 ``````````````

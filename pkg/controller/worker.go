@@ -4177,12 +4177,31 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 // GetPodsForService returns podList with labels set to svc selector
 func (ctlr *Controller) GetPodsForService(namespace, serviceName, clusterName string, nplAnnotationRequired bool) []*v1.Pod {
 	svcKey := namespace + "/" + serviceName
-	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
-		return nil
+
+	var svc interface{}
+	var found bool
+	var err error
+
+	var comInf *CommonInformer
+	var poolInf *MultiClusterPoolInformer
+	var podList []*v1.Pod
+	var ok bool
+	if clusterName == "" {
+		comInf, ok = ctlr.getNamespacedCommonInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return nil
+		}
+		svc, found, err = comInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	} else {
+		poolInf, ok = ctlr.getNamespaceMultiClusterPoolInformer(namespace, clusterName)
+		if !ok {
+			log.Errorf("[MultiCluster] Informer not found for namespace %v and cluster %v", namespace, clusterName)
+			return nil
+		}
+		svc, found, err = poolInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	}
-	svc, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcKey)
+
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
 		return nil
@@ -4208,7 +4227,11 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName, clusterName st
 		return nil
 	}
 	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
-	podList, err := listerscorev1.NewPodLister(comInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
+	if clusterName == "" {
+		podList, err = listerscorev1.NewPodLister(comInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
+	} else {
+		podList, err = listerscorev1.NewPodLister(poolInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
+	}
 	if err != nil {
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
 		return nil

@@ -208,12 +208,12 @@ var _ = Describe("Worker Tests", func() {
 		})
 
 		It("Create IPAM Custom Resource", func() {
-			err := mockCtlr.createIPAMResource()
+			err := mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
 		})
 
 		It("Get IPAM Resource", func() {
-			_ = mockCtlr.createIPAMResource()
+			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 			ipamCR := mockCtlr.getIPAMCR()
 			Expect(ipamCR).NotTo(BeNil(), "Failed to GET IPAM")
 			mockCtlr.ipamCR = mockCtlr.ipamCR + "invalid"
@@ -231,7 +231,7 @@ var _ = Describe("Worker Tests", func() {
 			testSpec["key"] = "ns/name"
 
 			for sp, val := range testSpec {
-				_ = mockCtlr.createIPAMResource()
+				_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 				var key, host, errHint string
 				if sp == "host" {
 					host = val
@@ -320,7 +320,7 @@ var _ = Describe("Worker Tests", func() {
 			testSpec["key"] = "ns/name"
 
 			for sp, val := range testSpec {
-				_ = mockCtlr.createIPAMResource()
+				_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 				var key, host, errHint string
 				if sp == "host" {
 					host = val
@@ -927,7 +927,7 @@ var _ = Describe("Worker Tests", func() {
 			_ = mockCtlr.processLBServices(svc1, false)
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
 
-			_ = mockCtlr.createIPAMResource()
+			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 			ipamCR := mockCtlr.getIPAMCR()
 
 			ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
@@ -987,7 +987,7 @@ var _ = Describe("Worker Tests", func() {
 			svc1.Annotations = make(map[string]string)
 			svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
 
-			_ = mockCtlr.createIPAMResource()
+			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 			ipamCR := mockCtlr.getIPAMCR()
 
 			ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
@@ -1286,7 +1286,7 @@ var _ = Describe("Worker Tests", func() {
 				svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(
 					context.TODO(), svc1, metav1.UpdateOptions{})
 
-				_ = mockCtlr.createIPAMResource()
+				_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 				ipamCR := mockCtlr.getIPAMCR()
 
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
@@ -1617,7 +1617,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.Agent.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			_ = mockCtlr.createIPAMResource()
+			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 
 			policy = &cisapiv1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2976,7 +2976,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.Agent.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			_ = mockCtlr.createIPAMResource()
+			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
 
 		})
 		AfterEach(func() {

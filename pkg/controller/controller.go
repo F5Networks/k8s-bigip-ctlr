@@ -99,7 +99,7 @@ const (
 
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
-	IPAMNamespace = "kube-system"
+	DefaultIPAMNamespace = "kube-system"
 	//Name for ipam CR
 	ipamCRName = "ipam"
 
@@ -228,10 +228,13 @@ func NewController(params Params, startController bool) *Controller {
 	}
 
 	if params.IPAM {
+		if !ctlr.validateIPAMConfig(params.IpamNamespace) {
+			log.Warningf("[IPAM] IPAM Namespace %s not found in the list of monitored namespaces", params.IpamNamespace)
+		}
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
 			EventHandlers: ctlr.getEventHandlerForIPAM(),
-			Namespaces:    []string{IPAMNamespace},
+			Namespaces:    []string{params.IpamNamespace},
 		}
 
 		ipamClient := ipammachinery.NewIPAMClient(ipamParams)
@@ -242,7 +245,7 @@ func NewController(params Params, startController bool) *Controller {
 		}
 		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
-		_ = ctlr.createIPAMResource()
+		_ = ctlr.createIPAMResource(params.IpamNamespace)
 	}
 	// setup vxlan manager
 	if len(params.VXLANName) > 0 && len(params.VXLANMode) > 0 {
@@ -301,6 +304,21 @@ func (ctlr *Controller) setOtherSDNType() {
 	}
 }
 
+// validate IPAM configuration
+func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
+	// verify the ipam configuration
+	for ns, _ := range ctlr.namespaces {
+		if ns == "" {
+			return true
+		} else {
+			if ns == ipamNamespace {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
 	err := ipammachinery.RegisterCRD(ctlr.kubeAPIClient)
@@ -310,7 +328,7 @@ func (ctlr *Controller) registerIPAMCRD() {
 }
 
 // Create IPAM CRD
-func (ctlr *Controller) createIPAMResource() error {
+func (ctlr *Controller) createIPAMResource(ipamNamespace string) error {
 
 	frameIPAMResourceName := func() string {
 		prtn := ""
@@ -344,7 +362,7 @@ func (ctlr *Controller) createIPAMResource() error {
 	f5ipam := &ficV1.IPAM{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      crName,
-			Namespace: IPAMNamespace,
+			Namespace: ipamNamespace,
 		},
 		Spec: ficV1.IPAMSpec{
 			HostSpecs: make([]*ficV1.HostSpec, 0),
@@ -353,7 +371,7 @@ func (ctlr *Controller) createIPAMResource() error {
 			IPStatus: make([]*ficV1.IPSpec, 0),
 		},
 	}
-	ctlr.ipamCR = IPAMNamespace + "/" + crName
+	ctlr.ipamCR = ipamNamespace + "/" + crName
 
 	ipamCR, err := ctlr.ipamCli.Create(f5ipam)
 	if err == nil {

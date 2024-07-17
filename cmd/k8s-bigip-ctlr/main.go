@@ -165,6 +165,7 @@ var (
 	sslInsecure                 *bool
 	ipam                        *bool
 	ipamClusterLabel            *string
+	ipamNamespace               *string
 	enableTLS                   *string
 	tls13CipherGroupReference   *string
 	ciphers                     *string
@@ -303,10 +304,6 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
-	ipam = bigIPFlags.Bool("ipam", false,
-		"Optional, when set to true, enable ipam feature for CRD.")
-	ipamClusterLabel = bigIPFlags.String("ipam-cluster-label", "",
-		"Optional, Valid for Infoblox IPAM provider only. Prepends the value of this label to form the key. Generally advised to use in MultiCluster Environment")
 	as3PostDelay = bigIPFlags.Int("as3-post-delay", 0,
 		"Optional, time (in seconds) that CIS waits to post the available AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
@@ -394,6 +391,13 @@ func _init() {
 			"Additionally, the Ingress controller processes Ingress resources that do not have that annotation,"+
 			"which can be disabled by setting the `-manage-ingress-class-only` flag")
 
+	// ipam related flags
+	ipam = kubeFlags.Bool("ipam", false,
+		"Optional, when set to true, enable ipam feature for CRD.")
+	ipamClusterLabel = kubeFlags.String("ipam-cluster-label", "",
+		"Optional, Valid for Infoblox IPAM provider only. Prepends the value of this label to form the key. Generally advised to use in MultiCluster Environment")
+	ipamNamespace = kubeFlags.String("ipam-namespace", "kube-system",
+		"Optional, Specify the namespace of ipam custom resource. Default value is kube-system")
 	// If the flag is specified with no argument, default to LOOKUP
 	kubeFlags.Lookup("resolve-ingress-names").NoOptDefVal = "LOOKUP"
 
@@ -947,6 +951,7 @@ func initController(
 			NodeLabelSelector:           *nodeLabelSelector,
 			IPAM:                        *ipam,
 			IPAMClusterLabel:            *ipamClusterLabel,
+			IpamNamespace:               *ipamNamespace,
 			ShareNodes:                  *shareNodes,
 			DefaultRouteDomain:          *defaultRouteDomain,
 			Mode:                        controller.ControllerMode(*controllerMode),

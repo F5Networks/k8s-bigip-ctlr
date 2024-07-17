@@ -614,7 +614,7 @@ var _ = Describe("Informers Tests", func() {
 
 		It("IPAM", func() {
 			fakeIpamCli := ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli)
+			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli, "kube-system")
 			mockCtlr.ipamHandler.IPAMCR = "default/SampleIPAM"
 
 			hostSpec := &ficV1.HostSpec{

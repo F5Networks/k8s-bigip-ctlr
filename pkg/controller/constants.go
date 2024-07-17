@@ -54,8 +54,6 @@ const (
 	DefaultRetryInterval = 15
 
 	PolicyControlForward = "forwarding"
-	// Namespace for IPAM CRD
-	IPAMNamespace = "kube-system"
 	//Name for ipam CR
 	ipamCRName = "ipam"
 

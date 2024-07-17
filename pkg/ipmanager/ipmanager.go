@@ -16,11 +16,12 @@ import (
 
 type (
 	IPAMHandler struct {
-		done           chan bool
-		kubeIPAMClient *extClient.Clientset
-		IPAMCR         string
-		ctlrId         string
-		IpamCli        *ipammachinery.IPAMClient
+		done            chan bool
+		kubeIPAMClient  *extClient.Clientset
+		IPAMCR          string
+		IPAMCRNamespace string
+		ctlrId          string
+		IpamCli         *ipammachinery.IPAMClient
 		// key of the map is IPSpec.Key
 		ipamCache         ipamCache
 		FirstPostResponse bool
@@ -40,16 +41,15 @@ type (
 )
 
 const (
-	IPAMNamespace = "kube-system"
-	ipamCRName    = "ipam"
-	NotEnabled    = iota
+	ipamCRName = "ipam"
+	NotEnabled = iota
 	InvalidInput
 	NotRequested
 	Requested
 	Allocated
 )
 
-func NewIpamHandler(ctlrId string, config *rest.Config, ipamCli *ipammachinery.IPAMClient) *IPAMHandler {
+func NewIpamHandler(ctlrId string, config *rest.Config, ipamCli *ipammachinery.IPAMClient, ipamNamespace string) *IPAMHandler {
 	// setup kube client for ipam
 	kubeIPAMClient, err := extClient.NewForConfig(config)
 	if err != nil {
@@ -65,6 +65,7 @@ func NewIpamHandler(ctlrId string, config *rest.Config, ipamCli *ipammachinery.I
 			sync.RWMutex{},
 		},
 		IpamResourceStore: make(map[ficV1.HostSpec]map[ResourceRef]struct{}),
+		IPAMCRNamespace:   ipamNamespace,
 	}
 }
 
@@ -111,7 +112,7 @@ func (h *IPAMHandler) CreateIPAMResource() error {
 	f5ipam := &ficV1.IPAM{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      crName,
-			Namespace: IPAMNamespace,
+			Namespace: h.IPAMCRNamespace,
 		},
 		Spec: ficV1.IPAMSpec{
 			HostSpecs: make([]*ficV1.HostSpec, 0),
@@ -120,7 +121,7 @@ func (h *IPAMHandler) CreateIPAMResource() error {
 			IPStatus: make([]*ficV1.IPSpec, 0),
 		},
 	}
-	h.IPAMCR = IPAMNamespace + "/" + crName
+	h.IPAMCR = h.IPAMCRNamespace + "/" + crName
 
 	ipamCR, err := h.IpamCli.Create(f5ipam)
 	if err == nil {

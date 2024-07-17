@@ -136,6 +136,7 @@ type (
 		HttpAddress           string
 		ManageCustomResources bool
 		httpClientMetrics     bool
+		IPAMNamespace         string
 	}
 
 	// CMConfig defines the Central Manager config

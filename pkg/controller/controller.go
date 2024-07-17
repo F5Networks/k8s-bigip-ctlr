@@ -153,20 +153,39 @@ func (ctlr *Controller) NewRequestHandler(userAgent string, httpClientMetrics bo
 
 func (ctlr *Controller) setupIPAM(params Params) {
 	if params.IPAM {
+		if !ctlr.validateIPAMConfig(params.IPAMNamespace) {
+			log.Warningf("[IPAM] IPAM Namespace %s not found in the list of monitored namespaces", params.IPAMNamespace)
+		}
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
 			EventHandlers: ctlr.getEventHandlerForIPAM(),
-			Namespaces:    []string{IPAMNamespace},
+			Namespaces:    []string{params.IPAMNamespace},
 		}
 
 		ipamClient := ipammachinery.NewIPAMClient(ipamParams)
 
-		ctlr.ipamHandler = ipmanager.NewIpamHandler(ctlr.ControllerIdentifier, params.Config, ipamClient)
+		ctlr.ipamHandler = ipmanager.NewIpamHandler(ctlr.ControllerIdentifier, params.Config, ipamClient, params.IPAMNamespace)
 
 		ctlr.ipamHandler.RegisterIPAMCRD()
 		time.Sleep(3 * time.Second)
 		_ = ctlr.ipamHandler.CreateIPAMResource()
 	}
+}
+
+// validate the ipam namespace
+// validate IPAM configuration
+func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
+	// verify the ipam configuration
+	for ns, _ := range ctlr.namespaces {
+		if ns == "" {
+			return true
+		} else {
+			if ns == ipamNamespace {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // createLabelSelector returns label used to identify F5 specific

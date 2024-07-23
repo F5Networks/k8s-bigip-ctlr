@@ -83,12 +83,13 @@ var (
 	manageCustomResources *bool
 	manageRoutes          *bool
 
-	cmURL       *string
-	cmUsername  *string
-	cmPassword  *string
-	credsDir    *string
-	sslInsecure *bool
-	ipam        *bool
+	cmURL         *string
+	cmUsername    *string
+	cmPassword    *string
+	credsDir      *string
+	sslInsecure   *bool
+	ipam          *bool
+	ipamNamespace *string
 
 	trustedCertsCfgmap *string
 
@@ -169,6 +170,8 @@ func _init() {
 	manageRoutes = &tmpval
 	ipam = kubeFlags.Bool("ipam", false,
 		"Optional, when set to true, enable ipam feature for CRD.")
+	ipamNamespace = kubeFlags.String("ipam-namespace", "kube-system",
+		"Optional, Specify the namespace of ipam custom resource. Default value is kube-system")
 	// MultiCluster Flags
 	multiClusterMode = multiClusterFlags.String("multi-cluster-mode", "",
 		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
@@ -399,6 +402,7 @@ func initController(
 			UseNodeInternal:       *useNodeInternal,
 			MultiClusterMode:      *multiClusterMode,
 			IPAM:                  *ipam,
+			IPAMNamespace:         *ipamNamespace,
 		},
 	)
 

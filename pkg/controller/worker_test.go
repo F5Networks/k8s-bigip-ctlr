@@ -221,7 +221,7 @@ var _ = Describe("Worker Tests", func() {
 				PostParams:   PostParams{},
 			}
 			fakeIpamCli := ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli)
+			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli, "kube-system")
 		})
 
 		It("Create IPAM Custom Resource", func() {

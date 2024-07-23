@@ -60,7 +60,7 @@ func newMockController() *mockController {
 			PostParams:       PostParams{},
 			clientsets:       &ClientSets{},
 			managedResources: ManagedResources{ManageVirtualServer: true, ManageIL: true, ManageEDNS: true, ManageTransportServer: true, ManageTLSProfile: true, ManageSecrets: true},
-			ipamHandler:      ipmanager.NewIpamHandler("test", &rest.Config{}, nil),
+			ipamHandler:      ipmanager.NewIpamHandler("test", &rest.Config{}, nil, "kube-system"),
 		},
 	}
 }

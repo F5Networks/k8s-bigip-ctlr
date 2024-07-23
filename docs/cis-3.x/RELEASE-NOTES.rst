@@ -1,6 +1,13 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+Added Functionality
+```````````````````
+**What's new:**
+    * Support for CIS deployment parameter "ipam-namespace" to configure the namespace for IPAM CR
+
 3.0.0-beta-2
 -------------
 

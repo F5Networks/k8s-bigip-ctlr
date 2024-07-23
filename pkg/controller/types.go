@@ -142,6 +142,7 @@ type (
 		MultiClusterMode            string
 		LoadBalancerClass           string
 		ManageLoadBalancerClassOnly bool
+		IpamNamespace               string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer

@@ -63,4 +63,16 @@ var _ = Describe("OtherSDNType", func() {
 		Expect(ctlrK8s.processedHostPath).To(BeNil(), "processedHostPath object should be nil")
 		Expect(ctlrK8s.shareNodes).To(BeTrue(), "shareNodes should be enable")
 	})
+	It("Validate the IPAM configuration", func() {
+		ctlr := NewController(Params{
+			Config: &rest.Config{},
+		}, false)
+		delete(ctlr.namespaces, "")
+		Expect(ctlr.validateIPAMConfig("kube-system")).To(BeFalse(), "ipam namespace should not be valid")
+		ctlr.namespaces["kube-system"] = true
+		Expect(ctlr.validateIPAMConfig("kube-system")).To(BeTrue(), "ipam namespace should be valid")
+		Expect(ctlr.validateIPAMConfig("default")).To(BeFalse(), "ipam namespace should not be valid")
+		ctlr.namespaces[""] = true
+		Expect(ctlr.validateIPAMConfig("default")).To(BeTrue(), "ipam namespace should be valid")
+	})
 })

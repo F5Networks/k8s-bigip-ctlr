@@ -27,9 +27,6 @@ github.com/emicklei/go-restful/v3/log
 # github.com/evanphx/json-patch v4.12.0+incompatible
 ## explicit
 github.com/evanphx/json-patch
-# github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
-## explicit; go 1.13
-github.com/f5devcentral/go-bigip/f5teem
 # github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
 ## explicit; go 1.16
 github.com/f5devcentral/mockhttpclient

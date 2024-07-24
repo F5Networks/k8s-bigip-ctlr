@@ -2749,7 +2749,9 @@ func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, clu
 
 func ParseWhitelistSourceRangeAnnotations(annotation string) []string {
 	var annotationVals []string
-
+	if annotation == "" {
+		return annotationVals
+	}
 	numSeps := strings.Count(annotation, ",")
 	if numSeps > 0 {
 		splits := strings.Split(annotation, ",")

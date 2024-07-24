@@ -252,6 +252,26 @@ var _ = Describe("Status Manager Tests", func() {
 				Expect(cr.Status.NetworkConfigStatus.LastUpdated).To(Equal(timeStamp), "Last updated time should be equal")
 			})
 
+			It("Update the HA status", func() {
+				// update the ok status
+				sm.AddRequest(DeployConfig, "sampleConfigCR", "default", false, &cisapiv1.HAStatus{
+					PrimaryEndPointStatus: Ok,
+				})
+				time.Sleep(1 * time.Second)
+				cr := sm.GetDeployConfigCR("sampleConfigCR", "default")
+				Expect(cr).ToNot(BeNil(), "CR should not be nil")
+				Expect(cr.Status.HAStatus[0].PrimaryEndPointStatus).To(Equal(Ok), "HA status should be Ok")
+			})
+			It("Update the Kubernetes status", func() {
+				// update the ok status
+				sm.AddRequest(DeployConfig, "sampleConfigCR", "default", false, &cisapiv1.K8SClusterStatus{
+					Message: Ok,
+				})
+				time.Sleep(1 * time.Second)
+				cr := sm.GetDeployConfigCR("sampleConfigCR", "default")
+				Expect(cr).ToNot(BeNil(), "CR should not be nil")
+				Expect(cr.Status.K8SClusterStatus[0].Message).To(Equal(Ok), "K8s Cluster status should be Ok")
+			})
 		})
 	})
 })

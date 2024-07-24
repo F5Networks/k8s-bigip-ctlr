@@ -505,3 +505,55 @@ var _ = Describe("Node Poller Handler", func() {
 	//	})
 	//})
 })
+
+var _ = Describe("parseNodeSubnet", func() {
+	Context("when annotation is correctly formatted with a string subnet", func() {
+		It("should return the subnet", func() {
+			ann := `{"default": "192.168.1.0/24"}`
+			nodeName := "test-node"
+			subnet, err := parseNodeSubnet(ann, nodeName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(subnet).To(Equal("192.168.1.0/24"))
+		})
+	})
+
+	Context("when annotation is correctly formatted with a list of subnets", func() {
+		It("should return the first valid IPv4 subnet", func() {
+			ann := `{"default": ["2001:db8::/32", "192.168.1.0/24"]}`
+			nodeName := "test-node"
+			subnet, err := parseNodeSubnet(ann, nodeName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(subnet).To(Equal("192.168.1.0/24"))
+		})
+
+		It("should skip invalid subnets and return the first valid IPv4 subnet", func() {
+			ann := `{"default": ["invalid-subnet", "192.168.1.0/24"]}`
+			nodeName := "test-node"
+			subnet, err := parseNodeSubnet(ann, nodeName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(subnet).To(Equal("192.168.1.0/24"))
+		})
+	})
+
+	Context("when annotation has unsupported format", func() {
+		It("should return an error", func() {
+			ann := `{"default": 12345}`
+			nodeName := "test-node"
+			subnet, err := parseNodeSubnet(ann, nodeName)
+			Expect(err).To(HaveOccurred())
+			Expect(subnet).To(BeEmpty())
+			Expect(err.Error()).To(Equal("Unsupported annotation format"))
+		})
+	})
+
+	Context("when annotation is missing the default key", func() {
+		It("should return an error", func() {
+			ann := `{"other": "192.168.1.0/24"}`
+			nodeName := "test-node"
+			subnet, err := parseNodeSubnet(ann, nodeName)
+			Expect(err).To(HaveOccurred())
+			Expect(subnet).To(BeEmpty())
+			Expect(err.Error()).To(ContainSubstring("annotation for node 'test-node' has invalid format"))
+		})
+	})
+})

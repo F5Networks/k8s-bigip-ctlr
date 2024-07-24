@@ -4144,3 +4144,72 @@ var _ = Describe("Worker Tests", func() {
 		})
 	})
 })
+
+var _ = Describe("fetchNodesFromClusters", func() {
+	var (
+		mockCtlr            *mockController
+		multiClusterConfigs *clustermanager.MultiClusterConfig
+		cluster1            clustermanager.ClusterConfig
+		cluster2            clustermanager.ClusterConfig
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		cluster1Client := k8sfake.NewSimpleClientset(
+			&v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "node1",
+					Labels: map[string]string{"label": "value"},
+				},
+			},
+		)
+
+		cluster2Client := k8sfake.NewSimpleClientset(
+			&v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "node2",
+					Labels: map[string]string{"label": "value"},
+				},
+			},
+		)
+
+		cluster1 = clustermanager.ClusterConfig{KubeClient: cluster1Client}
+		cluster2 = clustermanager.ClusterConfig{KubeClient: cluster2Client}
+
+		multiClusterConfigs = &clustermanager.MultiClusterConfig{
+			ClusterConfigs: map[string]clustermanager.ClusterConfig{
+				"cluster1": cluster1,
+				"cluster2": cluster2,
+			},
+		}
+
+		mockCtlr.multiClusterConfigs = multiClusterConfigs
+		mockCtlr.resourceSelectorConfig = ResourceSelectorConfig{
+			NodeLabel: "label=value",
+		}
+
+	})
+
+	It("should fetch nodes from multiple clusters", func() {
+		nodes := mockCtlr.fetchNodesFromClusters()
+		Expect(nodes).To(HaveLen(2))
+		Expect(nodes).To(ContainElement(&v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "node1",
+				Labels: map[string]string{"label": "value"},
+			},
+		}))
+		Expect(nodes).To(ContainElement(&v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "node2",
+				Labels: map[string]string{"label": "value"},
+			},
+		}))
+	})
+
+	It("should handle empty clusters gracefully", func() {
+		mockCtlr.multiClusterConfigs.ClusterConfigs = map[string]clustermanager.ClusterConfig{}
+		nodes := mockCtlr.fetchNodesFromClusters()
+		Expect(nodes).To(BeEmpty())
+	})
+})

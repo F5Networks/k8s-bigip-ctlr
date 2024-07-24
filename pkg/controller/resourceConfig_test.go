@@ -1646,3 +1646,142 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 	})
 })
+
+var _ = Describe("split_ip_with_route_domain", func() {
+	var (
+		address string
+		ip      string
+		rd      string
+	)
+
+	JustBeforeEach(func() {
+		ip, rd = split_ip_with_route_domain(address)
+	})
+
+	Context("when the address contains a valid route domain", func() {
+		BeforeEach(func() {
+			address = "192.168.1.1%10"
+		})
+
+		It("should split the IP and the route domain correctly", func() {
+			Expect(ip).To(Equal("192.168.1.1"))
+			Expect(rd).To(Equal("10"))
+		})
+	})
+
+	Context("when the address contains an invalid route domain", func() {
+		BeforeEach(func() {
+			address = "192.168.1.1%10f"
+		})
+
+		It("should return the entire address as the IP", func() {
+			Expect(ip).To(Equal("192.168.1.1%10f"))
+			Expect(rd).To(BeEmpty())
+		})
+	})
+
+	Context("when the address does not contain a route domain", func() {
+		BeforeEach(func() {
+			address = "192.168.1.1"
+		})
+
+		It("should return the IP without a route domain", func() {
+			Expect(ip).To(Equal("192.168.1.1"))
+			Expect(rd).To(BeEmpty())
+		})
+	})
+
+	Context("when the address is an IPv6 address with a valid route domain", func() {
+		BeforeEach(func() {
+			address = "2001:0db8:85a3:0000:0000:8a2e:0370:7334%42"
+		})
+
+		It("should split the IP and the route domain correctly", func() {
+			Expect(ip).To(Equal("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))
+			Expect(rd).To(Equal("42"))
+		})
+	})
+
+	Context("when the address is an IPv6 address without a route domain", func() {
+		BeforeEach(func() {
+			address = "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+		})
+
+		It("should return the IP without a route domain", func() {
+			Expect(ip).To(Equal("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))
+			Expect(rd).To(BeEmpty())
+		})
+	})
+})
+
+var _ = Describe("ParseWhitelistSourceRangeAnnotations", func() {
+	var (
+		annotation string
+		result     []string
+	)
+
+	JustBeforeEach(func() {
+		result = ParseWhitelistSourceRangeAnnotations(annotation)
+	})
+
+	Context("when the annotation contains a single valid CIDR", func() {
+		BeforeEach(func() {
+			annotation = "192.168.1.0/24"
+		})
+
+		It("should return the CIDR in the result", func() {
+			Expect(result).To(ContainElement("192.168.1.0/24"))
+		})
+	})
+
+	Context("when the annotation contains multiple valid CIDRs", func() {
+		BeforeEach(func() {
+			annotation = "192.168.1.0/24, 10.0.0.0/8"
+		})
+
+		It("should return all CIDRs in the result", func() {
+			Expect(result).To(ContainElements("192.168.1.0/24", "10.0.0.0/8"))
+		})
+	})
+
+	Context("when the annotation contains an invalid CIDR", func() {
+		BeforeEach(func() {
+			annotation = "192.168.1.0/24, invalidCIDR"
+		})
+
+		It("should return the valid CIDR and skip the invalid one", func() {
+			Expect(result).To(ContainElement("192.168.1.0/24"))
+			Expect(result).To(ContainElement("invalidCIDR"))
+		})
+	})
+
+	Context("when the annotation contains no commas", func() {
+		BeforeEach(func() {
+			annotation = "192.168.1.0/24"
+		})
+
+		It("should return the single value", func() {
+			Expect(result).To(ContainElement("192.168.1.0/24"))
+		})
+	})
+
+	Context("when the annotation contains extra spaces", func() {
+		BeforeEach(func() {
+			annotation = "192.168.1.0/24,  10.0.0.0/8"
+		})
+
+		It("should trim the spaces and return the CIDRs", func() {
+			Expect(result).To(ContainElements("192.168.1.0/24", "10.0.0.0/8"))
+		})
+	})
+
+	Context("when the annotation is empty", func() {
+		BeforeEach(func() {
+			annotation = ""
+		})
+
+		It("should return an empty result", func() {
+			Expect(result).To(BeEmpty())
+		})
+	})
+})

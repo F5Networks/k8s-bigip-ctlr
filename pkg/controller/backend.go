@@ -989,6 +989,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 	}
 
+	//set ftp profile for only TS
+	if cfg.Virtual.FTPProfile != "" {
+		log.Warningf("FTP Profile is not supported for Virtual Server")
+	}
+
 	if cfg.MetaData.Protocol == "https" {
 		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
 			if cfg.Virtual.HTTP2.Client == "" {
@@ -1702,6 +1707,12 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 			svc.Class = "Service_SCTP"
 		} else {
 			svc.Class = "Service_TCP"
+			//set ftp profile for only TCP
+			if cfg.Virtual.FTPProfile != "" {
+				svc.ProfileFTP = &as3ResourcePointer{
+					BigIP: cfg.Virtual.FTPProfile,
+				}
+			}
 		}
 	} else if cfg.Virtual.Mode == "performance" {
 		svc.Class = "Service_L4"

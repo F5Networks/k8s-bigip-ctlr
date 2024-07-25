@@ -442,6 +442,7 @@ type ProfileSpec struct {
 	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
 	ProfileWebSocket      string            `json:"profileWebSocket,omitempty"`
 	HTMLProfile           string            `json:"htmlProfile,omitempty"`
+	FTPProfile            string            `json:"ftpProfile,omitempty"`
 }
 
 type ProfileVSSpec struct {

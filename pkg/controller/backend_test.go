@@ -57,6 +57,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
+			rsCfg.Virtual.FTPProfile = "/Common/ftpProfile1"
 			rsCfg.Virtual.Policies = []nameRef{
 				{
 					Name:      "policy1",
@@ -253,6 +254,7 @@ var _ = Describe("Backend Tests", func() {
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "default_pool_svc2")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "profileFTP")).To(BeFalse())
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}
@@ -261,6 +263,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Name = "crd_vs_172.13.14.16"
 			rsCfg.Virtual.Mode = "standard"
 			rsCfg.Virtual.IpProtocol = "tcp"
+			rsCfg.Virtual.FTPProfile = "/Common/ftpProfile1"
 			rsCfg.Virtual.TranslateServerAddress = true
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
@@ -290,6 +293,7 @@ var _ = Describe("Backend Tests", func() {
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "adminState")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "connectionLimit")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "profileFTP")).To(BeTrue())
 
 		})
 		It("Delete partition", func() {

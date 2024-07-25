@@ -1877,7 +1877,7 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.IRules)).To(Equal(4), "irules not propely attached")
 				//check websocket profile
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.ProfileWebSocket).To(Equal("/Common/websocket"))
-				//check websocket profile
+				//check html profile
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HTMLProfile).To(Equal("/Common/htmlProfile"))
 				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
 					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {

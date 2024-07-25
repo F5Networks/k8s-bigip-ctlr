@@ -989,11 +989,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 	}
 
-	//set ftp profile for only TS
-	if cfg.Virtual.FTPProfile != "" {
-		log.Warningf("FTP Profile is not supported for Virtual Server")
-	}
-
 	if cfg.MetaData.Protocol == "https" {
 		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
 			if cfg.Virtual.HTTP2.Client == "" {

@@ -18,14 +18,16 @@ package resource
 
 import (
 	"fmt"
-	"k8s.io/api/core/v1"
-	netv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
 	"os"
 	"sort"
 
+	v1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"encoding/json"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -2215,8 +2217,9 @@ var _ = Describe("Resource Config Tests", func() {
 		It("Test AgentCfgMap Init", func() {
 			cm := &AgentCfgMap{}
 			label := make(map[string]string)
+			annotation := ""
 			getEP := func(string, string, bool) ([]Member, error) { return nil, nil }
-			cm.Init("test1", "default", "", label, getEP)
+			cm.Init("test1", "default", "", label, annotation, getEP)
 			Expect(cm.Name).To(Equal("test1"))
 			Expect(cm.Namespace).To(Equal("default"))
 		})

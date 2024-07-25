@@ -37,12 +37,14 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
 
 func init() {
@@ -249,6 +251,17 @@ func (m *mockAppManager) deleteConfigMap(cm *v1.ConfigMap) bool {
 		}
 	}
 	return ok
+}
+
+func (m *mockAppManager) addPod(pod *v1.Pod) bool {
+	appInf, _ := m.appMgr.getNamespaceInformer(pod.ObjectMeta.Namespace)
+	appInf.podInformer.GetStore().Add(pod)
+	return true
+}
+func (m *mockAppManager) updatePod(pod *v1.Pod) bool {
+	appInf, _ := m.appMgr.getNamespaceInformer(pod.ObjectMeta.Namespace)
+	appInf.podInformer.GetStore().Update(pod)
+	return true
 }
 
 func (m *mockAppManager) addService(svc *v1.Service) bool {
@@ -4683,6 +4696,345 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(len(namespaces)).To(Equal(2))
 				Expect(namespaces[0]).To(Equal("ns3"))
 				Expect(namespaces[1]).To(Equal("ns4"))
+			})
+		})
+		Describe("Test Disable Pool Members for AS3 configmap", func() {
+			Context("Verify handleDisableMembersAnnotation", func() {
+				var (
+					disableMembers string
+					cm             *v1.ConfigMap
+					namespace      = "default"
+					sKey           = serviceQueueKey{
+						Namespace:    namespace,
+						ResourceKind: Configmaps,
+						ResourceName: "cm1",
+					}
+				)
+				BeforeEach(func() {
+					err := mockMgr.startNonLabelMode([]string{namespace})
+					Expect(err).To(BeNil())
+					selector, err := labels.Parse(DefaultConfigMapLabel)
+					Expect(err).To(BeNil())
+					mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+				})
+				It("should return false if ConfigMap is nil", func() {
+					Expect(mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)).To(BeFalse())
+				})
+
+				It("should handle scenarios when informers not found or empty disable members", func() {
+					// appInformer not initialised for a namespace
+					cm = &v1.ConfigMap{}
+					sKey.Namespace = "unwatched"
+					result := mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+					Expect(result).To(BeFalse())
+					// appInformer initialized but pool member type is not cluster
+					mockMgr.appMgr.poolMemberType = NodePort
+					sKey.Namespace = namespace
+					result = mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+					Expect(result).To(BeFalse())
+					// appInformer initialized and pool member type is cluster, no disable members and pod informer not has not been created
+					mockMgr.appMgr.poolMemberType = Cluster
+					sKey.Namespace = namespace
+					mockMgr.appMgr.appInformers[namespace].podInformer = nil
+					// deployment informer already created
+					mockMgr.appMgr.appInformers[namespace].deploymentInformer = cache.NewSharedIndexInformer(
+						cache.NewFilteredListWatchFromClient(
+							mockMgr.appMgr.kubeClient.AppsV1().RESTClient(),
+							"deployments",
+							sKey.Namespace,
+							func(options *metav1.ListOptions) {
+								options.LabelSelector = ""
+							},
+						),
+						&appsv1.Deployment{},
+						0,
+						cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+					)
+					result = mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+					Expect(result).To(BeFalse())
+					// appInformer not initialised
+					mockMgr.appMgr.appInformers = nil
+					result = mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+					Expect(result).To(BeFalse())
+				})
+
+				It("should store disableMembers when provided", func() {
+					cm = &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+						Name:      "cm1",
+						Namespace: namespace,
+					}}
+					disableMembers = "deploy1,deploy2"
+					mockMgr.appMgr.poolMemberType = Cluster
+					sKey.Namespace = namespace
+					mockMgr.appMgr.appInformers[namespace].podInformer = nil
+					mockMgr.appMgr.appInformers[namespace].deploymentInformer = cache.NewSharedIndexInformer(
+						cache.NewFilteredListWatchFromClient(
+							mockMgr.appMgr.kubeClient.AppsV1().RESTClient(),
+							"deployments",
+							sKey.Namespace,
+							func(options *metav1.ListOptions) {
+								options.LabelSelector = ""
+							},
+						),
+						&appsv1.Deployment{},
+						0,
+						cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+					)
+					result := mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+					Expect(result).To(BeTrue())
+					Expect(mockMgr.appMgr.membersToDisable["default"]).To(HaveKey("deploy1"))
+					Expect(mockMgr.appMgr.membersToDisable["default"]).To(HaveKey("deploy2"))
+					// Should not store anything in disable members map if annotation is empty
+					disableMembers = ""
+					mockMgr.appMgr.membersToDisable = make(map[string]map[string]struct{})
+					result = mockMgr.appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+					Expect(result).To(BeFalse())
+					Expect(len(mockMgr.appMgr.membersToDisable)).To(BeZero())
+				})
+			})
+
+			Context("Verify getDeploysAndRsMatchingSvcLabel", func() {
+				var (
+					service   *v1.Service
+					namespace = "default"
+				)
+				BeforeEach(func() {
+					err := mockMgr.startNonLabelMode([]string{namespace})
+					Expect(err).To(BeNil())
+					selector, err := labels.Parse(DefaultConfigMapLabel)
+					Expect(err).To(BeNil())
+					mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+					appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
+					appInf.deploymentInformer = cache.NewSharedIndexInformer(
+						cache.NewFilteredListWatchFromClient(
+							mockMgr.appMgr.kubeClient.AppsV1().RESTClient(),
+							"deployments",
+							namespace,
+							func(options *metav1.ListOptions) {
+								options.LabelSelector = ""
+							},
+						),
+						&appsv1.Deployment{},
+						0,
+						cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+					)
+
+				})
+				It("should return empty results when service is nil", func() {
+					deploys, rs := mockMgr.appMgr.getDeploysAndRsMatchingSvcLabel(nil)
+					Expect(deploys).To(BeEmpty())
+					Expect(rs).To(BeEmpty())
+				})
+
+				It("should return empty results when informers are not found", func() {
+					mockMgr.appMgr.appInformers = nil
+					deploys, rs := mockMgr.appMgr.getDeploysAndRsMatchingSvcLabel(service)
+					Expect(deploys).To(BeEmpty())
+					Expect(rs).To(BeEmpty())
+				})
+
+				It("should return empty results when deployment informer is not found", func() {
+					mockMgr.appMgr.appInformers["default"].deploymentInformer = nil
+					deploys, rs := mockMgr.appMgr.getDeploysAndRsMatchingSvcLabel(service)
+					Expect(deploys).To(BeEmpty())
+					Expect(rs).To(BeEmpty())
+				})
+
+				It("should return matching deployments and replica sets when service has matching deployments", func() {
+					// Setup the mock informers and objects here
+					deployment := &appsv1.Deployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-deploy",
+							Namespace: namespace,
+						},
+						Spec: appsv1.DeploymentSpec{
+							Selector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "test"},
+							},
+						},
+						Status: appsv1.DeploymentStatus{
+							Conditions: []appsv1.DeploymentCondition{
+								{
+									Type:    "Progressing",
+									Reason:  "NewReplicaSetAvailable",
+									Message: `ReplicaSet "test-rs" has successfully progressed.`,
+								},
+							},
+						},
+					}
+
+					// Mock the informer behavior
+					mockMgr.appMgr.appInformers[namespace].deploymentInformer.GetStore().Add(deployment)
+
+					// Add the deployment to membersToDisable map
+					mockMgr.appMgr.membersToDisable = map[string]map[string]struct{}{
+						"default": {
+							"test-deploy": {},
+						},
+					}
+
+					deploys, rs := mockMgr.appMgr.getDeploysAndRsMatchingSvcLabel(service)
+					Expect(deploys).NotTo(ContainElement("test-deploy"))
+					Expect(rs).NotTo(HaveKey("test-rs"))
+					service = &v1.Service{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "svc",
+							Namespace: namespace,
+						},
+						Spec: v1.ServiceSpec{
+							Selector: map[string]string{"app": "test"},
+						},
+					}
+					deploys, rs = mockMgr.appMgr.getDeploysAndRsMatchingSvcLabel(service)
+					Expect(deploys).To(ContainElement("test-deploy"))
+					Expect(rs).To(HaveKey("test-rs"))
+				})
+			})
+
+			Context("Verify getReplicaSetFromDeployment", func() {
+				It("should return an empty string if deployment is nil", func() {
+					result := mockMgr.appMgr.getReplicaSetFromDeployment(nil)
+					Expect(result).To(BeEmpty())
+				})
+
+				It("should return an empty string if deployment has no conditions", func() {
+					deployment := &appsv1.Deployment{
+						Status: appsv1.DeploymentStatus{
+							Conditions: []appsv1.DeploymentCondition{},
+						},
+					}
+					result := mockMgr.appMgr.getReplicaSetFromDeployment(deployment)
+					Expect(result).To(BeEmpty())
+				})
+
+				It("should return the replicaset name if deployment has the correct condition", func() {
+					deployment := &appsv1.Deployment{
+						Status: appsv1.DeploymentStatus{
+							Conditions: []appsv1.DeploymentCondition{
+								{
+									Type:    "Progressing",
+									Reason:  "NewReplicaSetAvailable",
+									Message: "ReplicaSet \"test-replicaset\" has successfully progressed.",
+								},
+							},
+						},
+					}
+					result := mockMgr.appMgr.getReplicaSetFromDeployment(deployment)
+					Expect(result).To(Equal("test-replicaset"))
+				})
+
+				It("should return empty string if the condition message does not match the expected format", func() {
+					deployment := &appsv1.Deployment{
+						Status: appsv1.DeploymentStatus{
+							Conditions: []appsv1.DeploymentCondition{
+								{
+									Type:    "Progressing",
+									Reason:  "NewReplicaSetAvailable",
+									Message: "Unexpected format message",
+								},
+							},
+						},
+					}
+					result := mockMgr.appMgr.getReplicaSetFromDeployment(deployment)
+					Expect(result).To(BeEmpty())
+				})
+			})
+
+			Context("Verify doesPodNameMatchWithDeployments", func() {
+				It("should be able to handle pod name matching correctly", func() {
+					Expect(doesPodNameMatchWithDeployments("", []string{})).To(BeFalse())
+					Expect(doesPodNameMatchWithDeployments("test1-1234", []string{})).To(BeFalse())
+					Expect(doesPodNameMatchWithDeployments("test1-1234", []string{"test2"})).To(BeFalse())
+					Expect(doesPodNameMatchWithDeployments("test1-1234", []string{"test2", "test1"})).To(BeTrue())
+					Expect(doesPodNameMatchWithDeployments("test1-1234", []string{"test"})).To(BeFalse())
+				})
+			})
+
+			Context("checkIfPodIsOwnedByTargetReplicaSet", func() {
+				BeforeEach(func() {
+					namespace := "default"
+					err := mockMgr.startNonLabelMode([]string{namespace})
+					Expect(err).To(BeNil())
+					selector, err := labels.Parse(DefaultConfigMapLabel)
+					Expect(err).To(BeNil())
+					mockMgr.appMgr.AddNamespace(namespace, selector, 0)
+					appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
+					appInf.podInformer = cache.NewSharedIndexInformer(
+						cache.NewFilteredListWatchFromClient(
+							mockMgr.appMgr.restClientv1,
+							"pods",
+							namespace,
+							func(options *metav1.ListOptions) {
+								options.LabelSelector = ""
+							},
+						),
+						&v1.Pod{},
+						0,
+						cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+					)
+
+				})
+				It("should return false if namespace informer is not initialized", func() {
+					result := mockMgr.appMgr.checkIfPodIsOwnedByTargetReplicaSet("pod1", "namespace1", map[string]struct{}{})
+					Expect(result).To(BeFalse())
+				})
+
+				It("should return false if pod is not found", func() {
+					podName := "pod1"
+					namespace := "default"
+					result := mockMgr.appMgr.checkIfPodIsOwnedByTargetReplicaSet(podName, namespace, map[string]struct{}{})
+					Expect(result).To(BeFalse())
+				})
+
+				It("should return false if pod is found but not owned by a replicaset", func() {
+					podName := "pod1"
+					namespace := "default"
+					rs := map[string]struct{}{
+						"rs1": {},
+					}
+					pod := &v1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      podName,
+							Namespace: namespace,
+						},
+					}
+					mockMgr.addPod(pod)
+					result := mockMgr.appMgr.checkIfPodIsOwnedByTargetReplicaSet(podName, namespace, map[string]struct{}{})
+					Expect(result).To(BeFalse())
+					pod.OwnerReferences = []metav1.OwnerReference{
+						{
+							Kind: "ReplicaSet",
+							Name: "rs2",
+						},
+					}
+					mockMgr.updatePod(pod)
+					result = mockMgr.appMgr.checkIfPodIsOwnedByTargetReplicaSet(podName, namespace, rs)
+					Expect(result).To(BeFalse())
+
+				})
+
+				It("should return true if pod is owned by a matching replicaset", func() {
+					podName := "pod1"
+					namespace := "default"
+					pod := &v1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      podName,
+							Namespace: namespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Kind: "ReplicaSet",
+									Name: "rs1",
+								},
+							},
+						},
+					}
+					mockMgr.addPod(pod)
+					rs := map[string]struct{}{
+						"rs1": {},
+					}
+					result := mockMgr.appMgr.checkIfPodIsOwnedByTargetReplicaSet(podName, namespace, rs)
+					Expect(result).To(BeTrue())
+				})
 			})
 		})
 	})

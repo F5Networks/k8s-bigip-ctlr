@@ -166,9 +166,9 @@ func (tm *TokenManager) SyncTokenWithoutRetry() (err error, exit bool) {
 }
 
 // Start maintains valid token. It fetches a new token before expiry.
-func (tm *TokenManager) Start(stopCh chan struct{}) {
+func (tm *TokenManager) Start(stopCh chan struct{}, duration time.Duration) {
 	// Set ticker to 1 minute less than token expiry time to ensure token is refreshed on time
-	tokenUpdateTicker := time.Tick(CMAccessTokenExpiration - 1*time.Minute)
+	tokenUpdateTicker := time.Tick(duration - 60*time.Second)
 	for {
 		select {
 		case <-tokenUpdateTicker:

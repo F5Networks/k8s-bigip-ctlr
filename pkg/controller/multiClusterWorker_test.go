@@ -1,6 +1,7 @@
 package controller
 
 import (
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
 	. "github.com/onsi/ginkgo"
@@ -60,5 +61,87 @@ var _ = Describe("MultiClusterWorker", func() {
 		port, err := mockCtlr.getSvcPortFromHACluster(svcKey.namespace, svcKey.serviceName, "port0", "")
 		Expect(err).NotTo(BeNil())
 		Expect(port).To(BeZero())
+	})
+})
+
+var _ = Describe("Test Cluster config updated", func() {
+	var (
+		mockCtlr *mockController
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.clusterRatio = make(map[string]*int)
+		mockCtlr.clusterAdminState = make(map[string]cisapiv1.AdminState)
+		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+	})
+
+	Context("getClusterConfigState", func() {
+		It("should return the current cluster state with empty ratios and admin states", func() {
+			state := mockCtlr.getClusterConfigState()
+			Expect(state.clusterRatio).To(BeEmpty())
+			Expect(state.clusterAdminState).To(BeEmpty())
+		})
+
+		It("should return the current cluster state with existing ratios and admin states", func() {
+			ratio1 := 1
+			mockCtlr.clusterRatio["cluster1"] = &ratio1
+			mockCtlr.clusterAdminState["cluster1"] = "enabled"
+
+			state := mockCtlr.getClusterConfigState()
+			Expect(state.clusterRatio).To(HaveKeyWithValue("cluster1", 1))
+			Expect(state.clusterAdminState).To(HaveKey("cluster1"))
+		})
+	})
+
+	Context("isClusterConfigUpdated", func() {
+		var oldState clusterConfigState
+
+		BeforeEach(func() {
+			oldState = clusterConfigState{
+				clusterRatio:      make(map[string]int),
+				clusterAdminState: make(map[string]cisapiv1.AdminState),
+			}
+		})
+
+		It("should return false if there are no updates to the cluster ratio or admin state", func() {
+			Expect(mockCtlr.isClusterConfigUpdated(oldState)).To(BeFalse())
+		})
+
+		It("should return true if the cluster ratio is updated", func() {
+			ratio1 := 1
+			mockCtlr.clusterRatio["cluster1"] = &ratio1
+			Expect(mockCtlr.isClusterConfigUpdated(oldState)).To(BeTrue())
+		})
+
+		It("should return true if the cluster admin state is updated", func() {
+			mockCtlr.clusterAdminState["cluster1"] = "enabled"
+			Expect(mockCtlr.isClusterConfigUpdated(oldState)).To(BeTrue())
+		})
+
+		It("should return false if the cluster ratio and admin state are the same", func() {
+			ratio1 := 1
+			oldState.clusterRatio["cluster1"] = ratio1
+			mockCtlr.clusterRatio["cluster1"] = &ratio1
+
+			oldState.clusterAdminState["cluster1"] = "enabled"
+			mockCtlr.clusterAdminState["cluster1"] = "enabled"
+
+			Expect(mockCtlr.isClusterConfigUpdated(oldState)).To(BeFalse())
+		})
+
+		It("should return true if the cluster ratio is different", func() {
+			ratio1 := 1
+			ratio2 := 2
+			oldState.clusterRatio["cluster1"] = ratio1
+			mockCtlr.clusterRatio["cluster1"] = &ratio2
+			Expect(mockCtlr.isClusterConfigUpdated(oldState)).To(BeTrue())
+		})
+
+		It("should return true if the cluster admin state is different", func() {
+			oldState.clusterAdminState["cluster1"] = "enabled"
+			mockCtlr.clusterAdminState["cluster1"] = "disable"
+			Expect(mockCtlr.isClusterConfigUpdated(oldState)).To(BeTrue())
+		})
 	})
 })

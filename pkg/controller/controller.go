@@ -77,14 +77,14 @@ func RunController(params Params) *Controller {
 
 	// setup ipam
 	ctlr.setupIPAM(params)
-
-	go ctlr.Start()
+	stopChan := make(chan struct{})
+	go ctlr.Start(stopChan)
 
 	return ctlr
 }
 
 // NewController creates a new Controller Instance.
-func NewController(params Params, statusManager *statusmanager.StatusManager) *Controller {
+func NewController(params Params, statusManager statusmanager.StatusManagerInterface) *Controller {
 
 	ctlr := &Controller{
 		resources:             NewResourceStore(),
@@ -206,7 +206,7 @@ func createLabelSelector(label string) (labels.Selector, error) {
 }
 
 // Start the Controller
-func (ctlr *Controller) Start() {
+func (ctlr *Controller) Start(stopChan chan struct{}) {
 	log.Debugf("Starting Controller")
 	defer utilruntime.HandleCrash()
 	defer ctlr.resourceQueue.ShutDown()
@@ -217,8 +217,6 @@ func (ctlr *Controller) Start() {
 	if ctlr.ipamHandler != nil {
 		go ctlr.ipamHandler.IpamCli.Start()
 	}
-
-	stopChan := make(chan struct{})
 
 	go wait.Until(ctlr.nextGenResourceWorker, time.Second, stopChan)
 

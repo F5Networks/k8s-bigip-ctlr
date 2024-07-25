@@ -817,4 +817,67 @@ var _ = Describe("Informers Tests", func() {
 
 	})
 
+	Describe("isValidNodeUpdate", func() {
+		var oldNode, newNode *v1.Node
+		var mockCtlr *mockController
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			oldNode = &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"key1": "value1",
+					},
+					Labels: map[string]string{
+						"label1": "value1",
+					},
+					ManagedFields: []metav1.ManagedFieldsEntry{
+						{
+							Manager: "manager1",
+						},
+					},
+				},
+				Spec: v1.NodeSpec{
+					PodCIDR: "192.168.1.0/24",
+				},
+				Status: v1.NodeStatus{
+					Phase: v1.NodeRunning,
+				},
+			}
+			newNode = oldNode.DeepCopy()
+		})
+
+		Context("when only Status or ManagedFields are changed", func() {
+			It("should return false", func() {
+				newNode.Status.Phase = v1.NodePending
+				Expect(mockCtlr.isValidNodeUpdate(oldNode, newNode)).To(BeFalse())
+
+				newNode.Status.Phase = v1.NodeRunning
+				newNode.ManagedFields = append(newNode.ManagedFields, metav1.ManagedFieldsEntry{
+					Manager: "manager2",
+				})
+				Expect(mockCtlr.isValidNodeUpdate(oldNode, newNode)).To(BeFalse())
+			})
+		})
+
+		Context("when Annotations are changed", func() {
+			It("should return true", func() {
+				newNode.Annotations["key1"] = "value2"
+				Expect(mockCtlr.isValidNodeUpdate(oldNode, newNode)).To(BeTrue())
+			})
+		})
+
+		Context("when Labels are changed", func() {
+			It("should return true", func() {
+				newNode.Labels["label1"] = "value2"
+				Expect(mockCtlr.isValidNodeUpdate(oldNode, newNode)).To(BeTrue())
+			})
+		})
+
+		Context("when Spec is changed", func() {
+			It("should return true", func() {
+				newNode.Spec.PodCIDR = "192.168.2.0/24"
+				Expect(mockCtlr.isValidNodeUpdate(oldNode, newNode)).To(BeTrue())
+			})
+		})
+	})
 })

@@ -1785,3 +1785,150 @@ var _ = Describe("ParseWhitelistSourceRangeAnnotations", func() {
 		})
 	})
 })
+
+var _ = Describe("getExtendedRouteSpec", func() {
+	var (
+		rs *ResourceStore
+	)
+
+	BeforeEach(func() {
+		rs = &ResourceStore{}
+		rs.extdSpecMap = make(map[string]*extendedParsedSpec)
+	})
+
+	Describe("getExtendedRouteSpec", func() {
+		Context("when routeGroup does not exist in extdSpecMap", func() {
+			It("should return nil and empty partition", func() {
+				extdSpec, partition := rs.getExtendedRouteSpec("nonexistent")
+				Expect(extdSpec).To(BeNil())
+				Expect(partition).To(BeEmpty())
+			})
+		})
+
+		Context("when defaultrg is set in extdSpec", func() {
+			It("should return defaultrg and partition", func() {
+				rs.extdSpecMap["group1"] = &extendedParsedSpec{
+					defaultrg: &cisapiv1.ExtendedRouteGroupSpec{
+						VServerName: "default-server",
+					},
+					partition: "default-partition",
+				}
+				extdSpec, partition := rs.getExtendedRouteSpec("group1")
+				Expect(extdSpec.VServerName).To(Equal("default-server"))
+				Expect(partition).To(Equal("default-partition"))
+			})
+		})
+
+		Context("when override is true and local is set in extdSpec", func() {
+			It("should return overridden local spec and partition", func() {
+				rs.extdSpecMap["group2"] = &extendedParsedSpec{
+					global: &cisapiv1.ExtendedRouteGroupSpec{
+						VServerName:   "global-server",
+						VServerAddr:   "1.2.3.4",
+						AllowOverride: "true",
+					},
+					local: &cisapiv1.ExtendedRouteGroupSpec{
+						VServerName: "local-server",
+					},
+					override:  true,
+					partition: "override-partition",
+				}
+				extdSpec, partition := rs.getExtendedRouteSpec("group2")
+				Expect(extdSpec.VServerName).To(Equal("local-server"))
+				Expect(extdSpec.VServerAddr).To(Equal("1.2.3.4"))
+				Expect(partition).To(Equal("override-partition"))
+			})
+		})
+
+		Context("when override is false or local is not set", func() {
+			It("should return global spec and partition", func() {
+				rs.extdSpecMap["group3"] = &extendedParsedSpec{
+					global: &cisapiv1.ExtendedRouteGroupSpec{
+						VServerName: "global-server",
+					},
+					override:  false,
+					partition: "global-partition",
+				}
+				extdSpec, partition := rs.getExtendedRouteSpec("group3")
+				Expect(extdSpec.VServerName).To(Equal("global-server"))
+				Expect(partition).To(Equal("global-partition"))
+			})
+		})
+	})
+})
+
+var _ = Describe("updatePoolMembersConfig", func() {
+	var (
+		mockCtlr       *mockController
+		poolMembers    []PoolMember
+		clusterName    string
+		podConnections int32
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.clusterAdminState = make(map[string]cisapiv1.AdminState)
+		poolMembers = []PoolMember{
+			{AdminState: "oldState1", ConnectionLimit: 10},
+			{AdminState: "oldState2", ConnectionLimit: 20},
+		}
+	})
+
+	Describe("updatePoolMembersConfig", func() {
+		Context("when admin state is set in clusterAdminState", func() {
+			BeforeEach(func() {
+				clusterName = "cluster1"
+				mockCtlr.clusterAdminState[clusterName] = "newState"
+				podConnections = 50
+				mockCtlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
+			})
+
+			It("should update the admin state of pool members", func() {
+				Expect(poolMembers[0].AdminState).To(Equal("newState"))
+				Expect(poolMembers[1].AdminState).To(Equal("newState"))
+			})
+
+			It("should update the connection limit of pool members", func() {
+				Expect(poolMembers[0].ConnectionLimit).To(Equal(podConnections))
+				Expect(poolMembers[1].ConnectionLimit).To(Equal(podConnections))
+			})
+		})
+
+		Context("when admin state is not set in clusterAdminState", func() {
+			BeforeEach(func() {
+				clusterName = "cluster2"
+				podConnections = 30
+				mockCtlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
+			})
+
+			It("should not update the admin state of pool members", func() {
+				Expect(poolMembers[0].AdminState).To(Equal("oldState1"))
+				Expect(poolMembers[1].AdminState).To(Equal("oldState2"))
+			})
+
+			It("should update the connection limit of pool members", func() {
+				Expect(poolMembers[0].ConnectionLimit).To(Equal(podConnections))
+				Expect(poolMembers[1].ConnectionLimit).To(Equal(podConnections))
+			})
+		})
+
+		Context("when podConnections is zero", func() {
+			BeforeEach(func() {
+				clusterName = "cluster1"
+				mockCtlr.clusterAdminState[clusterName] = "newState"
+				podConnections = 0
+				mockCtlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
+			})
+
+			It("should update the admin state of pool members", func() {
+				Expect(poolMembers[0].AdminState).To(Equal("newState"))
+				Expect(poolMembers[1].AdminState).To(Equal("newState"))
+			})
+
+			It("should not update the connection limit of pool members", func() {
+				Expect(poolMembers[0].ConnectionLimit).To(Equal(int32(10)))
+				Expect(poolMembers[1].ConnectionLimit).To(Equal(int32(20)))
+			})
+		})
+	})
+})

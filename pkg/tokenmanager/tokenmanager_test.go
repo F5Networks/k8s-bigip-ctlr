@@ -13,7 +13,6 @@ var _ = Describe("Token Manager Tests", func() {
 	var server *ghttp.Server
 	var statusCode int
 	var response TokenResponse
-	var stopCh chan struct{}
 
 	Describe("GetToken", func() {
 		Context("when token fetch is successful", func() {
@@ -25,7 +24,6 @@ var _ = Describe("Token Manager Tests", func() {
 					Username: "admin",
 					Password: "admin",
 				}, "", true, mockStatusManager)
-				stopCh = make(chan struct{})
 			})
 			AfterEach(func() {
 				// Stop the mock token server
@@ -55,11 +53,10 @@ var _ = Describe("Token Manager Tests", func() {
 				}
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("POST", "/api/login"),
+						ghttp.VerifyRequest("POST", CMLoginURL),
 						ghttp.RespondWithJSONEncoded(statusCode, response),
 					))
-				go tokenManager.Start(stopCh, 61*time.Second)
-				time.Sleep(2 * time.Second)
+				tokenManager.SyncTokenWithoutRetry()
 				token := tokenManager.GetToken()
 				Expect(token).To(Equal(response.AccessToken), "Token should not be nil")
 			})

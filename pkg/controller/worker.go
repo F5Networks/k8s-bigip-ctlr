@@ -49,12 +49,17 @@ import (
 
 // nextGenResourceWorker starts the Custom Resource Worker.
 func (ctlr *Controller) nextGenResourceWorker() {
+	ctlr.initNextGenResourceWorker()
+	for ctlr.processResources() {
+	}
+}
+
+// initNextGenResourceWorker initializes the nextGenResourceWorker.
+func (ctlr *Controller) initNextGenResourceWorker() {
 	log.Debugf("Starting resource worker")
 	ctlr.setInitialResourceCount()
 	// process the DeployConfig CR if present
-	if ctlr.CISConfigCRKey != "" {
-		ctlr.processGlobalDeployConfigCR()
-	}
+	ctlr.processGlobalDeployConfigCR()
 
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster
 	if ctlr.multiClusterMode == SecondaryCIS {
@@ -73,8 +78,6 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		Error:       "",
 		LastUpdated: metav1.Now(),
 	})
-	for ctlr.processResources() {
-	}
 }
 
 func (ctlr *Controller) setInitialResourceCount() {
@@ -148,13 +151,41 @@ func (ctlr *Controller) setInitialResourceCount() {
 					continue
 				}
 			}
-			//if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			//	rscCount++
-			//}
+			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+				rscCount++
+			}
 		}
 	}
 
 	ctlr.initialResourceCount = rscCount
+}
+
+// function to process the keys at startup time
+func (ctlr *Controller) processKeyAtInitTime(rKey *rqKey) bool {
+	if ctlr.initState && rKey.kind != Namespace {
+		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service ||
+			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
+			if rKey.kind == Service {
+				if svc, ok := rKey.rsc.(*v1.Service); ok {
+					if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+						ctlr.initialResourceCount--
+					} else {
+						// return as we don't process other services at start up
+						return true
+					}
+				}
+				return true
+			} else {
+				ctlr.initialResourceCount--
+			}
+			if ctlr.initialResourceCount <= 0 {
+				ctlr.initState = false
+			}
+		} else {
+			return true
+		}
+	}
+	return false
 }
 
 // processResources gets resources from the resourceQueue and processes the resource
@@ -178,28 +209,8 @@ func (ctlr *Controller) processResources() bool {
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 	// During Init time, just process all the resources
-	if ctlr.initState && rKey.kind != Namespace {
-		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service ||
-			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
-			if rKey.kind == Service {
-				//if svc, ok := rKey.rsc.(*v1.Service); ok {
-				//	if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-				//		ctlr.initialResourceCount--
-				//	} else {
-				//		// return as we don't process other services at start up
-				//		return true
-				//	}
-				//}
-				return true
-			} else {
-				ctlr.initialResourceCount--
-			}
-			if ctlr.initialResourceCount <= 0 {
-				ctlr.initState = false
-			}
-		} else {
-			return true
-		}
+	if ctlr.processKeyAtInitTime(rKey) {
+		return true
 	}
 
 	rscDelete := false
@@ -743,28 +754,29 @@ func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 	return virtualsForTLSProfile
 }
 
-func (ctlr *Controller) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.VirtualServer {
-	nsVirtuals := ctlr.getAllVirtualServers(plc.Namespace)
-	if nil == nsVirtuals {
-		log.Infof("No VirtualServers found in namespace %s",
-			plc.Namespace)
-		return nil
-	}
-
-	var plcVSs []*cisapiv1.VirtualServer
-	var plcVSNames []string
-	for _, vs := range nsVirtuals {
-		if vs.Spec.PolicyName == plc.Name {
-			plcVSs = append(plcVSs, vs)
-			plcVSNames = append(plcVSNames, vs.Name)
-		}
-	}
-
-	log.Debugf("VirtualServers %v are affected with Custom Policy %s: ",
-		plcVSNames, plc.Name)
-
-	return plcVSs
-}
+//TODO uncomment the below code once Virtual Server CR is supported for 3.x
+//func (ctlr *Controller) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.VirtualServer {
+//	nsVirtuals := ctlr.getAllVirtualServers(plc.Namespace)
+//	if nil == nsVirtuals {
+//		log.Infof("No VirtualServers found in namespace %s",
+//			plc.Namespace)
+//		return nil
+//	}
+//
+//	var plcVSs []*cisapiv1.VirtualServer
+//	var plcVSNames []string
+//	for _, vs := range nsVirtuals {
+//		if vs.Spec.PolicyName == plc.Name {
+//			plcVSs = append(plcVSs, vs)
+//			plcVSNames = append(plcVSNames, vs.Name)
+//		}
+//	}
+//
+//	log.Debugf("VirtualServers %v are affected with Custom Policy %s: ",
+//		plcVSNames, plc.Name)
+//
+//	return plcVSs
+//}
 
 func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.TransportServer {
 	nsVirtuals := ctlr.getAllTransportServers(plc.Namespace)
@@ -1121,24 +1133,11 @@ func (ctlr *Controller) processVirtualServers(
 			}
 		}
 	} else {
-		if virtual.Spec.HostGroup == "" {
-			if virtual.Spec.VirtualServerAddress == "" {
-				return fmt.Errorf("No VirtualServer address or IPAM found.")
-			}
-			ip = virtual.Spec.VirtualServerAddress
-		} else {
-			var err error
-			ip, err = getVirtualServerAddress(virtuals)
-			if err != nil {
-				log.Errorf("Error in virtualserver address: %s", err.Error())
-				return err
-			}
-			if ip == "" {
-				ip = virtual.Spec.VirtualServerAddress
-				if ip == "" {
-					return fmt.Errorf("No VirtualServer address found for: %s", virtual.Name)
-				}
-			}
+		var err error
+		ip, err = getVirtualServerAddress(virtual, virtuals)
+		if err != nil {
+			log.Errorf("Error in virtualserver address: %s", err.Error())
+			return err
 		}
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
@@ -1679,21 +1678,36 @@ func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
 	return ""
 }
 
-func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error) {
-	vsa := ""
-	for _, vrt := range virtuals {
-		if vrt.Spec.VirtualServerAddress != "" {
-			if vsa == "" || (vsa == vrt.Spec.VirtualServerAddress) {
-				vsa = vrt.Spec.VirtualServerAddress
-			} else {
-				return "", fmt.Errorf("more than one Virtual Server Address Found")
+func getVirtualServerAddress(virtual *cisapiv1.VirtualServer, virtuals []*cisapiv1.VirtualServer) (string, error) {
+	var ip string
+	if virtual.Spec.HostGroup == "" {
+		if virtual.Spec.VirtualServerAddress == "" {
+			return "", fmt.Errorf("no virtual server address or IPAM found")
+		}
+		ip = virtual.Spec.VirtualServerAddress
+	} else {
+		vsa := ""
+		for _, vrt := range virtuals {
+			if vrt.Spec.VirtualServerAddress != "" {
+				if vsa == "" || vsa == vrt.Spec.VirtualServerAddress {
+					vsa = vrt.Spec.VirtualServerAddress
+				} else {
+					return "", fmt.Errorf("more than one virtual server address found")
+				}
+			}
+		}
+		if len(virtuals) != 0 && vsa == "" {
+			return "", fmt.Errorf("no virtual server address found for: %s", virtual.Name)
+		}
+		ip = vsa
+		if ip == "" {
+			ip = virtual.Spec.VirtualServerAddress
+			if ip == "" {
+				return "", fmt.Errorf("no virtual server address found for: %s", virtual.Name)
 			}
 		}
 	}
-	if len(virtuals) != 0 && vsa == "" {
-		return "", fmt.Errorf("no Virtual Server Address Found")
-	}
-	return vsa, nil
+	return ip, nil
 }
 
 func (ctlr *Controller) updatePoolIdentifierForService(key MultiClusterServiceKey, rsKey resourceRef, svcPort intstr.IntOrString, poolName, partition, rsName, path string, bigipLabel string) {
@@ -3291,39 +3305,6 @@ func (ctlr *Controller) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 	return allIngLinks
 }
 
-// getIngressLinksForService gets the List of ingressLink which are effected
-// by the addition/deletion/updation of service.
-func (ctlr *Controller) getIngressLinksForService(svc *v1.Service) []*cisapiv1.IngressLink {
-	ingLinks := ctlr.getAllIngressLinks(svc.ObjectMeta.Namespace)
-	ctlr.TeemData.Lock()
-	ctlr.TeemData.ResourceType.IngressLink[svc.ObjectMeta.Namespace] = len(ingLinks)
-	ctlr.TeemData.Unlock()
-	if nil == ingLinks {
-		log.Infof("No IngressLink found in namespace %s",
-			svc.ObjectMeta.Namespace)
-		return nil
-	}
-	ingresslinksForService := filterIngressLinkForService(ingLinks, svc)
-
-	if nil == ingresslinksForService {
-		log.Debugf("Change in Service %s does not effect any IngressLink",
-			svc.ObjectMeta.Name)
-		return nil
-	}
-
-	// Output list of all IngressLinks Found.
-	var targetILNames []string
-	for _, il := range ingLinks {
-		targetILNames = append(targetILNames, il.ObjectMeta.Name)
-	}
-	log.Debugf("IngressLinks %v are affected with service %s change",
-		targetILNames, svc.ObjectMeta.Name)
-	// TODO
-	// Remove Duplicate entries in the targetILNames.
-	// or Add only Unique entries into the targetILNames.
-	return ingresslinksForService
-}
-
 // filterIngressLinkForService returns list of ingressLinks that are
 // affected by the service under process.
 func filterIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,
@@ -3836,10 +3817,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		}
 	}
 	es := configCR.Spec.ExtendedSpec
-	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
 	clusterConfigUpdated := false
-	oldClusterRatio := make(map[string]int)
-	oldClusterAdminState := make(map[string]cisapiv1.AdminState)
 	if ctlr.isGlobalExtendedCR(configCR) && ctlr.multiClusterMode != "" {
 		// Get Multicluster kube-config
 		if isDelete {
@@ -3873,18 +3851,8 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 				ctlr.clusterRatio[""] = &one
 			}
 		}
-		// Store old cluster ratio before processing multiClusterConfig
-		if len(ctlr.clusterRatio) > 0 {
-			for cluster, ratio := range ctlr.clusterRatio {
-				oldClusterRatio[cluster] = *ratio
-			}
-		}
-		// Store old cluster admin state before processing multiClusterConfig
-		if len(ctlr.clusterAdminState) > 0 {
-			for clusterName, adminState := range ctlr.clusterAdminState {
-				oldClusterAdminState[clusterName] = adminState
-			}
-		}
+		oldClusterState := ctlr.getClusterConfigState()
+
 		// Update cluster admin state for local cluster in standalone mode
 		if ctlr.multiClusterMode == StandAloneCIS {
 			if es.LocalClusterAdminState == "" {
@@ -3905,42 +3873,7 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 		if err != nil {
 			return err, false
 		}
-		// Log cluster ratios used
-		if len(ctlr.clusterRatio) > 0 {
-			ratioKeyValues := ""
-			for cluster, ratio := range ctlr.clusterRatio {
-				// Check if cluster ratio is updated
-				if oldRatio, ok := oldClusterRatio[cluster]; ok {
-					if oldRatio != *ctlr.clusterRatio[cluster] {
-						clusterConfigUpdated = true
-					}
-				} else {
-					clusterConfigUpdated = true
-				}
-				if cluster == "" {
-					cluster = "local cluster"
-				}
-				ratioKeyValues += fmt.Sprintf(" %s:%d", cluster, *ratio)
-			}
-			log.Debugf("[MultiCluster] Cluster ratios:%s", ratioKeyValues)
-		}
-		// Check if cluster Admin state has been updated for any cluster
-		// Check only if CIS is running in multiCluster mode
-		if ctlr.multiClusterConfigs != nil {
-			for clusterName, _ := range ctlr.clusterAdminState {
-				// Check any cluster has been removed which means config has been updated
-				if adminState, ok := oldClusterAdminState[clusterName]; ok {
-					if adminState != ctlr.clusterAdminState[clusterName] {
-						log.Debugf("[MultiCluster] Cluster Admin State has been modified.")
-						clusterConfigUpdated = true
-						break
-					}
-				} else {
-					clusterConfigUpdated = true
-					break
-				}
-			}
-		}
+		clusterConfigUpdated = ctlr.isClusterConfigUpdated(oldClusterState)
 	}
 	// Process the routeSpec defined in DeployConfig CR
 	if ctlr.managedResources.ManageRoutes {
@@ -3950,6 +3883,13 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 			return ctlr.processRouteConfigFromLocalConfigCR(es, isDelete, configCR.Namespace)
 		}
 	}
+	//Re-process all the VS and TS resources on Config CR update
+	ctlr.reprocessAllCustomResourcesOnConfigCRUpdate()
+	return nil, true
+}
+
+// reprocessAllCustomResourcesOnConfigCRUpdate  Re-process all the VS and TS resources
+func (ctlr *Controller) reprocessAllCustomResourcesOnConfigCRUpdate() {
 	if ctlr.managedResources.ManageCustomResources {
 		// Re-process all the VS and TS resources
 		for resRef, _ := range ctlr.resources.processedNativeResources {
@@ -3957,7 +3897,11 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 			var exists bool
 			var err error
 			var crInf *CRInformer
-			crInf, _ = ctlr.crInformers[""]
+			var ok bool
+			if crInf, ok = ctlr.getNamespacedCRInformer(resRef.namespace); !ok {
+				log.Debugf("skipping resource %v as informer not found for namespace", resRef, resRef.namespace)
+				continue
+			}
 			switch resRef.kind {
 			case VirtualServer:
 				// Fetch the latest VS
@@ -3995,7 +3939,6 @@ func (ctlr *Controller) processConfigCR(configCR *cisapiv1.DeployConfig, isDelet
 			ctlr.resourceQueue.Add(key)
 		}
 	}
-	return nil, true
 }
 
 // getPolicyFromLBService gets the policy attached to the service and returns it

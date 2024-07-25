@@ -194,3 +194,69 @@ func getClusterLog(clusterName string) string {
 	}
 	return "from cluster: " + clusterName
 }
+
+// getClusterConfigState returns the current cluster state
+func (ctlr *Controller) getClusterConfigState() clusterConfigState {
+	// clusterConfigUpdated, oldClusterRatio and oldClusterAdminState are used for tracking cluster ratio and cluster Admin state updates
+	clusterRatio := make(map[string]int)
+	clusterAdminState := make(map[string]cisapiv1.AdminState)
+
+	// Store old cluster ratio before processing multiClusterConfig
+	if len(ctlr.clusterRatio) > 0 {
+		for cluster, ratio := range ctlr.clusterRatio {
+			clusterRatio[cluster] = *ratio
+		}
+	}
+	// Store old cluster admin state before processing multiClusterConfig
+	if len(ctlr.clusterAdminState) > 0 {
+		for clusterName, adminState := range ctlr.clusterAdminState {
+			clusterAdminState[clusterName] = adminState
+		}
+	}
+	return clusterConfigState{
+		clusterRatio:      clusterRatio,
+		clusterAdminState: clusterAdminState,
+	}
+}
+
+// isClusterConfigUpdated checks if the cluster config is updated
+func (ctlr *Controller) isClusterConfigUpdated(oldState clusterConfigState) bool {
+	var clusterConfigUpdated bool
+	// Log cluster ratios used
+	if len(ctlr.clusterRatio) > 0 {
+		ratioKeyValues := ""
+		for cluster, ratio := range ctlr.clusterRatio {
+			// Check if cluster ratio is updated
+			if oldRatio, ok := oldState.clusterRatio[cluster]; ok {
+				if oldRatio != *ctlr.clusterRatio[cluster] {
+					clusterConfigUpdated = true
+				}
+			} else {
+				clusterConfigUpdated = true
+			}
+			if cluster == "" {
+				cluster = "local cluster"
+			}
+			ratioKeyValues += fmt.Sprintf(" %s:%d", cluster, *ratio)
+		}
+		log.Debugf("[MultiCluster] Cluster ratios:%s", ratioKeyValues)
+	}
+	// Check if cluster Admin state has been updated for any cluster
+	// Check only if CIS is running in multiCluster mode
+	if ctlr.multiClusterConfigs != nil {
+		for clusterName, _ := range ctlr.clusterAdminState {
+			// Check any cluster has been removed which means config has been updated
+			if adminState, ok := oldState.clusterAdminState[clusterName]; ok {
+				if adminState != ctlr.clusterAdminState[clusterName] {
+					log.Debugf("[MultiCluster] Cluster Admin State has been modified.")
+					clusterConfigUpdated = true
+					break
+				}
+			} else {
+				clusterConfigUpdated = true
+				break
+			}
+		}
+	}
+	return clusterConfigUpdated
+}

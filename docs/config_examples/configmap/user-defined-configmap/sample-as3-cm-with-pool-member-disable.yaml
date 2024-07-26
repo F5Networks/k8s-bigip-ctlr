@@ -1,0 +1,52 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: as3cm
+  namespace: default
+  labels:
+    f5type: virtual-server
+    as3: "true"
+  annotations:
+    # disableMembers: provide deployment names for disabling the pool members associated with them
+    cis.f5.com/disableMembers: 'f5-hello-world' # If multiple deployments are there then provide a comma separated string for ex: deploy1,deploy2,deploy3
+data:
+  template: |
+    {
+        "class": "AS3",
+        "declaration": {
+            "class": "ADC",
+            "schemaVersion": "3.50.0",
+            "id": "urn:uuid:33045210-3ab8-4636-9b2a-c98d22ab915d",
+            "label": "Tenant2 As3Configmap",
+            "remark": "filter tenant cm",
+            "test": {
+              "class": "Tenant",
+              "app1": {
+                "class": "Application",
+                "template": "http",
+                "serviceMain": {
+                  "class": "Service_HTTP",
+                  "virtualAddresses": [
+                    "10.8.1.183"
+                  ],
+                  "virtualPort": 8080,
+                  "pool": "app_pool",
+                  "persistenceMethods": []
+                },
+                "app_pool": {
+                  "class": "Pool",
+                  "monitors": [
+                    "http"
+                  ],
+                  "members": [
+                    {
+                      "servicePort": 80,
+                      "shareNodes": false,
+                      "serverAddresses": []
+                    }
+                  ]
+                }
+              }
+            }
+        }
+    }

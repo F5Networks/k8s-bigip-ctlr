@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"net"
 	"reflect"
 	"sort"
@@ -28,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
@@ -44,6 +45,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	listersroutev1 "github.com/openshift/client-go/route/listers/route/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -172,6 +174,7 @@ type Manager struct {
 	staticRoutingMode   bool
 	orchestrationCNI    string
 	staticRouteNodeCIDR string
+	membersToDisable    map[string]map[string]struct{}
 }
 
 // Store of processed host-Path map
@@ -424,6 +427,7 @@ func NewManager(params *Params) *Manager {
 		staticRoutingMode:      params.StaticRoutingMode,
 		orchestrationCNI:       params.OrchestrationCNI,
 		staticRouteNodeCIDR:    params.StaticRouteNodeCIDR,
+		membersToDisable:       make(map[string]map[string]struct{}),
 	}
 	if params.PodGracefulShutdown {
 		manager.podSvcCache = PodSvcCache{
@@ -767,16 +771,18 @@ type nodeInformer struct {
 }
 
 type appInformer struct {
-	namespace        string
-	cfgMapInformer   cache.SharedIndexInformer
-	svcInformer      cache.SharedIndexInformer
-	endptInformer    cache.SharedIndexInformer
-	ingInformer      cache.SharedIndexInformer
-	routeInformer    cache.SharedIndexInformer
-	secretInformer   cache.SharedIndexInformer
-	ingClassInformer cache.SharedIndexInformer
-	podInformer      cache.SharedIndexInformer
-	stopCh           chan struct{}
+	namespace                 string
+	cfgMapInformer            cache.SharedIndexInformer
+	svcInformer               cache.SharedIndexInformer
+	endptInformer             cache.SharedIndexInformer
+	ingInformer               cache.SharedIndexInformer
+	routeInformer             cache.SharedIndexInformer
+	secretInformer            cache.SharedIndexInformer
+	ingClassInformer          cache.SharedIndexInformer
+	podInformer               cache.SharedIndexInformer
+	deploymentInformer        cache.SharedIndexInformer
+	stopCh                    chan struct{}
+	stopChDisableMemInformers chan struct{}
 }
 
 func (appMgr *Manager) newAppInformer(
@@ -789,8 +795,9 @@ func (appMgr *Manager) newAppInformer(
 		options.LabelSelector = ""
 	}
 	appInf := appInformer{
-		namespace: namespace,
-		stopCh:    make(chan struct{}),
+		namespace:                 namespace,
+		stopCh:                    make(chan struct{}),
+		stopChDisableMemInformers: make(chan struct{}),
 		svcInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -1218,6 +1225,8 @@ func (appInf *appInformer) waitForCacheSync() {
 
 func (appInf *appInformer) stopInformers() {
 	close(appInf.stopCh)
+	// Deployment and pod(not always) informers are created separated so they need to be stoped as well
+	close(appInf.stopChDisableMemInformers)
 }
 
 func (appMgr *Manager) IsNodePort() bool {
@@ -1712,6 +1721,12 @@ func (appMgr *Manager) syncConfigMaps(
 	appMgr.TeemData.Lock()
 	appMgr.TeemData.ResourceType.Configmaps[sKey.Namespace] = len(cfgMapsByIndex)
 	appMgr.TeemData.Unlock()
+	// Cleanup the membersToDisable map to make sure old disable members are removed and fresh data is updated
+	// Do this only in case of AS3configmap
+	if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
+		delete(appMgr.membersToDisable, sKey.Namespace)
+	}
+	cmWithDisableMembersAnnotn := false // Tracks if any configmap has Disable Members annotation
 	for _, obj := range cfgMapsByIndex {
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
@@ -1729,12 +1744,17 @@ func (appMgr *Manager) syncConfigMaps(
 					continue
 				}
 			}
+			// Handle ConfigMap with disableMembers annotation
+			var disableMembersAnnotation string // Stores the value of the disable members annotation
+			if disableMembers, ok := cm.Annotations[DisableMemberAnnotation]; ok {
+				cmWithDisableMembersAnnotn = appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+			}
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)
-				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
+				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, disableMembersAnnotation, appMgr.getEndpoints)
 				key := cm.Namespace + "/" + cm.Name
 				if cfgMap, ok := appMgr.agentCfgMap[key]; ok {
-					if appMgr.hubMode || cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] {
+					if appMgr.hubMode || cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] || disableMembersAnnotation != cfgMap.Annotation {
 						appMgr.agentCfgMap[key] = agntCfgMap
 						stats.vsUpdated += 1
 					}
@@ -1827,8 +1847,105 @@ func (appMgr *Manager) syncConfigMaps(
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
 	}
-
+	// Stop that informers those were started to facilitate disable members annotation for Configmap to reduce the overhead if:
+	// 1. It's AS3Configmap has disableMembers annotation
+	// 2. Current CIS controller in handling the AS3Configmap
+	// 3. No AS3Configmap in the namespace has the disable members annotation
+	// 4. CIS is running in cluster mode
+	if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) && sKey.ResourceKind == Configmaps && !cmWithDisableMembersAnnotn &&
+		appMgr.poolMemberType == Cluster {
+		appInf, ok := appMgr.getNamespaceInformer(sKey.Namespace)
+		if ok {
+			if appInf.deploymentInformer != nil {
+				close(appInf.stopChDisableMemInformers)
+				appInf.deploymentInformer = nil
+				// stop pod informer only in case it's created to support disableMembers feature
+				if appInf.podInformer != nil &&
+					(appMgr.podSvcCache.svcPodCache == nil && appMgr.podSvcCache.podDetails == nil) {
+					{
+						appInf.podInformer = nil
+					}
+				}
+			}
+		}
+		log.Debug("[CORE] Stopped the additional informers as no Disable Member annotation is provided")
+	}
 	return nil
+}
+
+// handleDisableMembersAnnotation handles the disable memebers annotation specified in the configmap
+// 1. Starts the Deployment and Pod informers if not already started
+// 2. Parses and Stores the DisableMembers values for further processing
+// 3. Returns true if the annotations were handled successfully, else false
+func (appMgr *Manager) handleDisableMembersAnnotation(disableMembers string, cm *v1.ConfigMap, sKey serviceQueueKey) bool {
+	if cm == nil {
+		return false
+	}
+	appInf, ok := appMgr.getNamespaceInformer(sKey.Namespace)
+	if ok {
+		// Start pod informer only if it is not started and poolMemberType is Cluster
+		if appMgr.poolMemberType == Cluster && appInf.podInformer == nil {
+			appInf.podInformer = cache.NewSharedIndexInformer(
+				cache.NewFilteredListWatchFromClient(
+					appMgr.restClientv1,
+					"pods",
+					sKey.Namespace,
+					func(options *metav1.ListOptions) {
+						options.LabelSelector = ""
+					},
+				),
+				&v1.Pod{},
+				0,
+				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			)
+			appInf.stopChDisableMemInformers = make(chan struct{})
+			go appInf.podInformer.Run(appInf.stopChDisableMemInformers)
+			if !cache.WaitForCacheSync(appInf.stopChDisableMemInformers, appInf.podInformer.HasSynced) {
+				log.Warningf("[CORE] Timed out waiting for Pod informer caches to sync for namespace: %s\n", sKey.Namespace)
+			}
+			log.Debugf("[CORE] Started Pod informers to facilitate handling of disable pool members for AS3 Configmaps.")
+		}
+
+		// Start Deployment informer only if it is not started and poolMemberType is Cluster
+		if appMgr.poolMemberType == Cluster && appInf.deploymentInformer == nil {
+			appInf.deploymentInformer = cache.NewSharedIndexInformer(
+				cache.NewFilteredListWatchFromClient(
+					appMgr.kubeClient.AppsV1().RESTClient(),
+					"deployments",
+					sKey.Namespace,
+					func(options *metav1.ListOptions) {
+						options.LabelSelector = ""
+					},
+				),
+				&appsv1.Deployment{},
+				0,
+				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			)
+			appInf.stopChDisableMemInformers = make(chan struct{})
+			go appInf.deploymentInformer.Run(appInf.stopChDisableMemInformers)
+			if !cache.WaitForCacheSync(appInf.stopChDisableMemInformers, appInf.deploymentInformer.HasSynced) {
+				log.Warningf("Timed out waiting for Deployment informer caches to sync for namespace: %s\n", sKey.Namespace)
+			}
+			log.Debugf("[CORE] Started Deployment informers to facilitate handling of disable pool members for AS3 Configmaps.")
+		}
+	} else {
+		log.Errorf("[CORE] Failed handling Disable member annotations as AppInformers not initialised.")
+		return false
+	}
+	membersToDisable := strings.Split(disableMembers, ",")
+	if len(membersToDisable) > 0 && membersToDisable[0] != "" {
+		log.Debugf("[CORE] Disable Members: %v read for Configmap: %s/%s", membersToDisable, cm.Namespace, cm.Name)
+		for _, deploymentsName := range membersToDisable {
+			if _, ok := appMgr.membersToDisable[cm.Namespace]; !ok {
+				appMgr.membersToDisable[cm.Namespace] = make(map[string]struct{})
+			}
+			appMgr.membersToDisable[cm.Namespace][deploymentsName] = struct{}{}
+		}
+		return true
+	} else {
+		log.Errorf("[CORE] Error handling disableMembers member annotation for Configmap %s", cm.Name)
+	}
+	return false
 }
 
 func (appMgr *Manager) syncIngresses(
@@ -3473,6 +3590,11 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 	}
 
 	for _, service := range svcItems {
+		var replicaSets map[string]struct{}
+		var targetDeployments []string
+		if len(appMgr.membersToDisable) > 0 {
+			targetDeployments, replicaSets = appMgr.getDeploysAndRsMatchingSvcLabel(&service)
+		}
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal {
 			svcPorts := appMgr.getServicePorts(&service) // Controller is in ClusterIP Mode
 			svcKey := service.Namespace + "/" + service.Name
@@ -3528,10 +3650,17 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 			for _, subset := range eps.Subsets {
 				for _, port := range subset.Ports {
 					for _, addr := range subset.Addresses {
+						adminState := "enable"
+						if len(replicaSets) > 0 && addr.TargetRef != nil && addr.TargetRef.Kind == "Pod" &&
+							doesPodNameMatchWithDeployments(addr.TargetRef.Name, targetDeployments) &&
+							appMgr.checkIfPodIsOwnedByTargetReplicaSet(addr.TargetRef.Name, addr.TargetRef.Namespace, replicaSets) {
+							adminState = "disable"
+						}
 						member := Member{
-							Address: addr.IP,
-							Port:    port.Port,
-							SvcPort: appMgr.getServicePortFromTargetPort(svcPorts, port.Port),
+							Address:    addr.IP,
+							Port:       port.Port,
+							SvcPort:    appMgr.getServicePortFromTargetPort(svcPorts, port.Port),
+							AdminState: adminState,
 						}
 						if _, ok := uniqueMembersMap[member]; !ok {
 							uniqueMembersMap[member] = struct{}{}
@@ -3582,6 +3711,123 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 		return members[i].Address < members[j].Address
 	})
 	return members, nil
+}
+
+// getDeploysAndRsMatchingSvcLabel returns the name of the deployments and replicasets which are associated with the provided service
+func (appMgr *Manager) getDeploysAndRsMatchingSvcLabel(service *v1.Service) ([]string, map[string]struct{}) {
+	var targetDeployments []string
+	replicaSets := make(map[string]struct{})
+	if service == nil {
+		return targetDeployments, replicaSets
+	}
+	appInf, ok := appMgr.getNamespaceInformer(service.Namespace)
+	if !ok {
+		log.Errorf("Informers not found for namespace: %v", service.Namespace)
+		return targetDeployments, replicaSets
+	}
+	if appInf.deploymentInformer == nil {
+		log.Errorf("Deployment Informer not found for namespace: %v", service.Namespace)
+		return targetDeployments, replicaSets
+	}
+	selector := labels.SelectorFromSet(service.Spec.Selector)
+	if deployments, ok := appMgr.membersToDisable[service.Namespace]; ok {
+		for deploymentName, _ := range deployments {
+			obj, found, err := appInf.deploymentInformer.GetStore().GetByKey(service.Namespace + "/" + deploymentName)
+			// if err is not nil it means pod is not found
+			if !found {
+				log.Errorf("[CORE] Deployment %s in namespace %s, not found", deploymentName, service.Namespace)
+				continue
+			}
+			if err != nil {
+				log.Errorf("[CORE] Failed fetching the Deployment %s in namespace %s, Error: %v", deploymentName, service.Namespace, err.Error())
+				continue
+			}
+			if found {
+				deployment, _ := obj.(*appsv1.Deployment)
+				if selector.Matches(labels.Set(deployment.Spec.Selector.MatchLabels)) {
+					targetDeployments = append(targetDeployments, deploymentName)
+					// TODO: Update the replicasets as well
+					rs := appMgr.getReplicaSetFromDeployment(deployment)
+					if rs != "" {
+						replicaSets[rs] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+	return targetDeployments, replicaSets
+}
+
+// getReplicaSetFromDeployment returns the replicaSet name that the provided deployment created
+func (appMgr *Manager) getReplicaSetFromDeployment(deployment *appsv1.Deployment) string {
+	if deployment == nil {
+		return ""
+	}
+
+	// Find the replicaset from the deployment's status conditions
+	var replicasetName string
+	for _, condition := range deployment.Status.Conditions {
+		if condition.Type == "Progressing" && condition.Reason == "NewReplicaSetAvailable" {
+			// Extract the replicaset name from the condition message
+			fmt.Sscanf(condition.Message, "ReplicaSet \"%s\" has successfully progressed.", &replicasetName)
+			if replicasetName != "" {
+				replicasetName = replicasetName[:len(replicasetName)-1] // Remove the trailing double quote
+				break
+			}
+		}
+	}
+	if replicasetName == "" {
+		log.Errorf("Failed to find replicaset for deployment %s", deployment.Name)
+	}
+	return replicasetName
+}
+
+// doesPodNameMatchWithDeployments checks if pod name matches with deployment name,
+// In case it matches then this makes it a good candidate for further processing
+// This is a good check to do to improve efficiency as the no. of deployments for disable members is very less
+func doesPodNameMatchWithDeployments(podName string, deployments []string) bool {
+	if podName == "" || len(deployments) == 0 {
+		return false
+	}
+	for _, deploymentName := range deployments {
+		if strings.HasPrefix(podName, deploymentName+"-") {
+			return true
+		}
+	}
+	return false
+}
+
+// checkIfPodIsOwnedByTargetReplicaSet checks if the provided pod is owned by any of the provided replicaSets
+func (appMgr *Manager) checkIfPodIsOwnedByTargetReplicaSet(podName, namespace string, replicaSetMap map[string]struct{}) bool {
+	appInf, ok := appMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Debugf("[CORE] Failed checking pod ownership for Pod %s as AppInfomer not initialised for namespace %s", podName, namespace)
+		return false
+	}
+	obj, found, err := appInf.podInformer.GetStore().GetByKey(namespace + "/" + podName)
+	// if err is not nil it means pod is not found
+	if !found {
+		log.Errorf("[CORE] Pod %s in namespace %s not found", podName, namespace)
+		return false
+	} else if err != nil {
+		log.Errorf("[Core] Failed fetching the Pod %s in namespace %s, Error: %v", podName, namespace, err.Error())
+		return false
+	}
+	if found {
+		pod, _ := obj.(*v1.Pod)
+		if pod.OwnerReferences != nil {
+			for _, owner := range pod.OwnerReferences {
+				if owner.Kind == "ReplicaSet" {
+					if _, ok := replicaSetMap[owner.Name]; ok {
+						log.Debugf("[CORE] Confirmed Pod ownership as replicaset matched for pod %s/%s", namespace, podName)
+						return true
+					}
+				}
+			}
+		}
+	}
+	log.Debugf("[CORE] Replicaset does not matched for pod %s/%s", namespace, podName)
+	return false
 }
 
 func (appMgr *Manager) exposeKubernetesService(

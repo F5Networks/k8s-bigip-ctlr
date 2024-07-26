@@ -420,6 +420,7 @@ type (
 		Name         string
 		Namespace    string
 		Label        map[string]string
+		Annotation   string
 	}
 
 	AgentResources struct {
@@ -528,6 +529,7 @@ const CISControllerName = "f5.com/cntr-ingress-svcs"
 const DefaultIngressClass = "ingressclass.kubernetes.io/is-default-class"
 const NodePortLocal = "nodeportlocal"
 const NodePort = "nodeport"
+const Cluster = "cluster"
 const PodStatusEnable = "enable"
 const PodStatusDisable = "disable"
 
@@ -535,3 +537,6 @@ const PodStatusDisable = "disable"
 const MultiClusterServicesAnnotation = "virtual-server.f5.com/multiClusterServices"
 
 //const DefaultSslServerCAName = "openshift_route_cluster_default-ca"
+
+// Disable Member annotation
+const DisableMemberAnnotation = "cis.f5.com/disableMembers"

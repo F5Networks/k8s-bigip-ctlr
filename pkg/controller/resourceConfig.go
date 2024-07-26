@@ -2475,6 +2475,9 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
 	rsCfg.Virtual.AutoLastHop = plc.Spec.AutoLastHop
+	if plc.Spec.Profiles.FTPProfile != "" {
+		log.Warningf("FTP Profile is not supported for Virtual Server")
+	}
 	if plc.Spec.L7Policies.ProfileAccess != "" {
 		rsCfg.Virtual.ProfileAccess = plc.Spec.L7Policies.ProfileAccess
 		if plc.Spec.L7Policies.PolicyPerRequestAccess != "" {
@@ -2550,6 +2553,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileL4 = plc.Spec.Profiles.ProfileL4
 	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
+	rsCfg.Virtual.FTPProfile = plc.Spec.Profiles.FTPProfile
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans

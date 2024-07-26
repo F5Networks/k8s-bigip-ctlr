@@ -261,6 +261,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Name = "crd_vs_172.13.14.16"
 			rsCfg.Virtual.Mode = "standard"
 			rsCfg.Virtual.IpProtocol = "tcp"
+			rsCfg.Virtual.FTPProfile = "/Common/ftpProfile1"
 			rsCfg.Virtual.TranslateServerAddress = true
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
@@ -290,6 +291,7 @@ var _ = Describe("Backend Tests", func() {
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "adminState")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "connectionLimit")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "profileFTP")).To(BeTrue())
 
 		})
 		It("Delete partition", func() {

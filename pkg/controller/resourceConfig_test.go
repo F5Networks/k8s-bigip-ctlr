@@ -1725,6 +1725,44 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 	})
 
+	Describe("Profiles in policy CRD", func() {
+		var rsCfg *ResourceConfig
+		var mockCtlr *mockController
+		var plc *cisapiv1.Policy
+
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+
+			rsCfg = &ResourceConfig{}
+			rsCfg.Virtual.SetVirtualAddress(
+				"1.2.3.4",
+				80,
+			)
+
+			plc = test.NewPolicy("plc1", namespace, cisapiv1.PolicySpec{})
+		})
+
+		It("Verifies FTP Profile for VirtualServer", func() {
+			plc.Spec.Profiles.HTMLProfile = "/Common/htmlProfile1"
+			plc.Spec.Profiles.FTPProfile = "/Common/ftpProfile1"
+			err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.FTPProfile).To(BeEmpty(), "FTP Profile should not be set for Virtual Server")
+			Expect(rsCfg.Virtual.HTMLProfile).To(Equal("/Common/htmlProfile1"), "FTP Profile should not be set for Virtual Server")
+		})
+
+		It("Verify FTP Profile for TransportServer", func() {
+			plc.Spec.Profiles.FTPProfile = "/Common/ftpProfile1"
+			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.FTPProfile).To(Equal("/Common/ftpProfile1"), "FTP Profile should be set for Transport Server")
+		})
+	})
+
 	Describe("Handle pool resource config for a policy", func() {
 		var rsCfg *ResourceConfig
 		var mockCtlr *mockController

@@ -1702,6 +1702,12 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 			svc.Class = "Service_SCTP"
 		} else {
 			svc.Class = "Service_TCP"
+			//set ftp profile for only TCP
+			if cfg.Virtual.FTPProfile != "" {
+				svc.ProfileFTP = &as3ResourcePointer{
+					BigIP: cfg.Virtual.FTPProfile,
+				}
+			}
 		}
 	} else if cfg.Virtual.Mode == "performance" {
 		svc.Class = "Service_L4"

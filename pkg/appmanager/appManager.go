@@ -1748,6 +1748,7 @@ func (appMgr *Manager) syncConfigMaps(
 			var disableMembersAnnotation string // Stores the value of the disable members annotation
 			if disableMembers, ok := cm.Annotations[DisableMemberAnnotation]; ok {
 				cmWithDisableMembersAnnotn = appMgr.handleDisableMembersAnnotation(disableMembers, cm, sKey)
+				disableMembersAnnotation = disableMembers
 			}
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)

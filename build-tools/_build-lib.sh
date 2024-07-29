@@ -42,7 +42,6 @@ ginkgo_test_with_profile () {
 gather_coverage() {
     gocovmerge `find . -name *.coverprofile` > coverage.out
     # Filter coverage output from source code ignore instructions
-    go-ignore-cov --file coverage.out
     go tool cover -html=coverage.out -o coverage.html
     go tool cover -func=coverage.out
     # Total coverage for CI

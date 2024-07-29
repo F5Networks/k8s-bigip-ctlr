@@ -1,3 +1,4 @@
+// +gocover:ignore:file not using teems anymore
 package teem
 
 import (

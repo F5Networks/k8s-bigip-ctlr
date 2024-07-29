@@ -1,3 +1,4 @@
+// +gocover:ignore:file test utils
 package test
 
 import (

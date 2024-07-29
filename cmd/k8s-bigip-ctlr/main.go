@@ -303,14 +303,15 @@ func getCredentials() error {
 }
 
 func main() {
-	//coverage:ignore
-	defer func() {
-		if r := recover(); r != nil {
-			return
+	{ // +gocover:ignore:block as main function can not be run in unit tests
+		defer func() {
+			if r := recover(); r != nil {
+				return
+			}
+		}()
+		if err := run(os.Args, flags.Parse); err != nil {
+			os.Exit(1)
 		}
-	}()
-	if err := run(os.Args, flags.Parse); err != nil {
-		os.Exit(1)
 	}
 }
 
@@ -347,21 +348,23 @@ func run(args []string, parseFunc func([]string) error) error {
 	}
 
 	err = initClientSets(config, kubernetes.NewForConfig, versioned.NewForConfig, routeclient.NewForConfig)
-	if err != nil {
+	if err != nil { // +gocover:ignore:block ignore coverage for error handling
 		log.Errorf("[INIT] error connecting to the client: %v", err)
 		return err
 	}
-	userAgentInfo = getUserAgentInfo(clientSets.KubeClient.Discovery().RESTClient())
-	ctlr := initController(config)
+	{ // +gocover:ignore:block ignore coverage
+		userAgentInfo = getUserAgentInfo(clientSets.KubeClient.Discovery().RESTClient())
+		ctlr := initController(config)
 
-	// TODO initialize and add support for teems data
-	initTeems(ctlr)
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-sigs
-	ctlr.Stop()
-	log.Debugf("Exiting - signal %v\n", sig)
-	return nil
+		// TODO initialize and add support for teems data
+		initTeems(ctlr)
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigs
+		ctlr.Stop()
+		log.Debugf("Exiting - signal %v\n", sig)
+		return nil
+	}
 }
 
 func initClientSets(
@@ -399,8 +402,7 @@ func initClientSets(
 
 func initController(
 	config *rest.Config,
-) *controller.Controller {
-	//coverage:ignore
+) *controller.Controller { //+gocover:ignore:block run controller function can not be run in unit tests
 	ctlr := controller.RunController(
 		controller.Params{
 			Config:     config,

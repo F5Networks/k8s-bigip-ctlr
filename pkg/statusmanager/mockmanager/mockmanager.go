@@ -1,3 +1,4 @@
+// +gocover:ignore:file mock structures and functions
 package mockmanager
 
 import (

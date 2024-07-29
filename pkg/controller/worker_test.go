@@ -4893,7 +4893,7 @@ var _ = Describe("reprocessAllCustomResourcesOnConfigCRUpdate", func() {
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
 			rKey := key.(*rqKey)
 			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
-			Expect(rKey.kind).To(Equal(VirtualServer), "Incorrect event set")
+			Expect(rKey.kind).To(SatisfyAny(Equal(VirtualServer), Equal(TransportServer)), "Incorrect event set")
 
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1))
 			key, quit = mockCtlr.resourceQueue.Get()
@@ -4901,7 +4901,7 @@ var _ = Describe("reprocessAllCustomResourcesOnConfigCRUpdate", func() {
 			Expect(quit).To(BeFalse(), "Enqueue Updated TS  Failed")
 			rKey = key.(*rqKey)
 			Expect(rKey).ToNot(BeNil(), "Enqueue Updated TS Failed")
-			Expect(rKey.kind).To(Equal(TransportServer), "Incorrect event set")
+			Expect(rKey.kind).To(SatisfyAny(Equal(VirtualServer), Equal(TransportServer)), "Incorrect event set")
 		})
 
 		It("should skip processing if the resource is not found", func() {

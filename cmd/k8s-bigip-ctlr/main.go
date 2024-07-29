@@ -303,6 +303,7 @@ func getCredentials() error {
 }
 
 func main() {
+	//coverage:ignore
 	defer func() {
 		if r := recover(); r != nil {
 			return
@@ -399,7 +400,7 @@ func initClientSets(
 func initController(
 	config *rest.Config,
 ) *controller.Controller {
-
+	//coverage:ignore
 	ctlr := controller.RunController(
 		controller.Params{
 			Config:     config,

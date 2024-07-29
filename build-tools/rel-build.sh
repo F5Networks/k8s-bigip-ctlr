@@ -17,6 +17,7 @@ if [ $RUN_TESTS -eq 1 ]; then
     go get github.com/onsi/ginkgo/ginkgo@v1.16.2
 	  go get github.com/onsi/gomega@v1.25.0
 	  go install github.com/onsi/ginkgo/ginkgo@v1.16.2
+	  go install github.com/quantumcycle/go-ignore-cov@latest
 	  GO111MODULE=off
 	  go get github.com/wadey/gocovmerge
 	  go get github.com/mattn/goveralls

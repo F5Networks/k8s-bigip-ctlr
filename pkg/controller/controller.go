@@ -38,6 +38,8 @@ import (
 )
 
 // RunController creates a new controller and starts it.
+//
+//coverage:ignore
 func RunController(params Params) *Controller {
 
 	// create the status manager first

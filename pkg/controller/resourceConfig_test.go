@@ -283,7 +283,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"SampleVS",
 				namespace,
 				cisapiv1.VirtualServerSpec{
-					Host: "test.com",
+					Host:             "test.com",
 					BigIPRouteDomain: 10,
 					Pools: []cisapiv1.VSPool{
 						{

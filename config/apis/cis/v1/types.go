@@ -34,6 +34,7 @@ type VirtualServerSpec struct {
 	VirtualServerAddress             string           `json:"virtualServerAddress,omitempty"`
 	AdditionalVirtualServerAddresses []string         `json:"additionalVirtualServerAddresses,omitempty"`
 	IPAMLabel                        string           `json:"ipamLabel,omitempty"`
+	BigIPRouteDomain                 int32            `json:"bigipRouteDomain,omitempty"`
 	VirtualServerName                string           `json:"virtualServerName,omitempty"`
 	VirtualServerHTTPPort            int32            `json:"virtualServerHTTPPort,omitempty"`
 	VirtualServerHTTPSPort           int32            `json:"virtualServerHTTPSPort,omitempty"`
@@ -264,6 +265,7 @@ type IngressLinkSpec struct {
 	Selector             *metav1.LabelSelector `json:"selector"`
 	IRules               []string              `json:"iRules,omitempty"`
 	IPAMLabel            string                `json:"ipamLabel"`
+	BigIPRouteDomain     int32            `json:"bigipRouteDomain,omitempty"`
 	Partition            string                `json:"partition,omitempty"`
 }
 
@@ -312,6 +314,7 @@ type TransportServerSpec struct {
 	Type                 string           `json:"type,omitempty"`
 	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
 	IPAMLabel            string           `json:"ipamLabel"`
+	BigIPRouteDomain     int32            `json:"bigipRouteDomain,omitempty"`
 	IRules               []string         `json:"iRules,omitempty"`
 	PolicyName           string           `json:"policyName,omitempty"`
 	PersistenceProfile   string           `json:"persistenceProfile,omitempty"`

@@ -46,6 +46,11 @@ spec:
                 ipamLabel:
                   type: string
                   pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
+                bigipRouteDomain:
+                  type: integer
+                  minimum: 0
+                  maximum: 65535
+                  default: 0
                 snat:
                   type: string
                   pattern: '^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$'
@@ -627,6 +632,11 @@ spec:
                 ipamLabel:
                   type: string
                   pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
+                bigipRouteDomain:
+                  type: integer
+                  minimum: 0
+                  maximum: 65535
+                  default: 0
                 serviceAddress:
                   type: array
                   maxItems: 1
@@ -978,6 +988,11 @@ spec:
                 ipamLabel:
                   type: string
                   pattern: '^[a-zA-Z]+[-A-z0-9_.:]+[A-z0-9]+$'
+                bigipRouteDomain:
+                  type: integer
+                  minimum: 0
+                  maximum: 65535
+                  default: 0
                 iRules:
                   type: array
                   items:

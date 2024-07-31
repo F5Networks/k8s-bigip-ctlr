@@ -223,6 +223,7 @@ type (
 		Description                string                `json:"description,omitempty"`
 		VirtualAddress             *virtualAddress       `json:"-"`
 		AdditionalVirtualAddresses []string              `json:"additionalVirtualAddresses,omitempty"`
+		BigIPRouteDomain           int32                 `json:"bigipRouteDomain,omitempty"`
 		SNAT                       string                `json:"snat,omitempty"`
 		ConnectionMirroring        string                `json:"connectionMirroring,omitempty"`
 		WAF                        string                `json:"waf,omitempty"`

@@ -8,7 +8,9 @@ spec:
   # This is an insecure virtual, Please use TLSProfile to secure the virtual
   # check out tls examples to understand more.
   host: cafe.example.com
-  ipamLabel: "Dev"
+  bigipRouteDomain: 10
+  virtualServerAddress: 192.168.10.5
+  virtualServerPort: 1344
   virtualServerName: "cafe-virtual-server"
   pools:
   - path: /coffee

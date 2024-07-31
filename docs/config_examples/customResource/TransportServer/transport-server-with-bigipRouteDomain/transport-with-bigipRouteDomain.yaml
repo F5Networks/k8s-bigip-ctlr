@@ -6,13 +6,11 @@ metadata:
   name: svc1-tcp-transport-server
   namespace: default
 spec:
-  ipamLabel: "Dev"
+  virtualServerAddress: 10.8.0.72
   bigipRouteDomain: 10
-  virtualServerPort: 8544
+  virtualServerPort: 1344
   virtualServerName: svc1-tcp-ts
-  mode: standard
   snat: auto
-  allowVlans: ["/Common/devtraffic"]
   pool:
     service: svc-1
     servicePort: 8181

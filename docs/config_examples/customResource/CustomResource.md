@@ -80,7 +80,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | additionalVirtualServerAddresses | List of virtualserver address | Optional  | NA      | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list            |
 | partition                        | String                        | Optional  | NA      | bigip partition                                                                                                                                                                                                  |
 | hostPersistence                  | Object                        | Optional  | NA      | Persist session rule action will be added to the VS Policy based on the host. Allowed values are existing BIG-IP Persist session                                                                                 |
-| bigipRouteDomain                 | Integer                       | Optional  | 0       | Attaches route domain to the virtual address and additional virtual address
+| bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP
                                                                                         |
 
 **Note**:
@@ -286,7 +286,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | tcp                  | Object                  | Optional | NA                           | BIG-IP TCP client and server profiles.                                                                                                                                                                                                       |
 | profileL4            | String                  | Optional | basic                        | The default value is ``basic`` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles. |
 | partition            | String                  | Optional | NA                           | bigip partition                                                                                                                                                                                                                              |
-| bigipRouteDomain                 | Integer                       | Optional  | 0       | Attaches route domain to the virtual address
+| bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP
                                                                                         |
 
 **Pool Components**

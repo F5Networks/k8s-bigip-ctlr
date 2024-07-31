@@ -175,6 +175,9 @@ func _init() {
 	// MultiCluster Flags
 	multiClusterMode = multiClusterFlags.String("multi-cluster-mode", "",
 		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
+	multiClusterFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  MultiCluster:\n%s\n", multiClusterFlags.FlagUsagesWrapped(width))
+	}
 
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(cmIPFlags)
@@ -300,90 +303,104 @@ func getCredentials() error {
 }
 
 func main() {
+	//coverage:ignore
 	defer func() {
 		if r := recover(); r != nil {
 			return
 		}
 	}()
-	err := flags.Parse(os.Args)
-	if nil != err {
+	if err := run(os.Args, flags.Parse); err != nil {
 		os.Exit(1)
+	}
+}
+
+func run(args []string, parseFunc func([]string) error) error {
+	err := parseFunc(args)
+	if err != nil {
+		return err
 	}
 
 	if *printVersion {
 		fmt.Printf("Version: %s\nBuild: %s\n", version, buildInfo)
-		os.Exit(0)
+		return nil
 	}
 
 	err = verifyArgs()
-	if nil != err {
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		flags.Usage()
-		os.Exit(1)
+		return err
 	}
 	err = getCredentials()
-	if nil != err {
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		flags.Usage()
-		os.Exit(1)
+		return err
 	}
 
 	log.Infof("[INIT] Starting: Container Ingress Services - Version: %s, BuildInfo: %s", version, buildInfo)
 
-	config, err := getKubeConfig()
+	config, err := getKubeConfig(rest.InClusterConfig)
 	if err != nil {
-		log.Fatalf("[INIT] error getting the kube config: %v", err)
+		log.Errorf("[INIT] error getting the kube config: %v", err)
+		return err
 	}
 
-	err = initClientSets(config)
+	err = initClientSets(config, kubernetes.NewForConfig, versioned.NewForConfig, routeclient.NewForConfig)
 	if err != nil {
-		log.Fatalf("[INIT] error connecting to the client: %v", err)
+		log.Errorf("[INIT] error connecting to the client: %v", err)
+		return err
 	}
-	userAgentInfo = getUserAgentInfo()
+	userAgentInfo = getUserAgentInfo(clientSets.KubeClient.Discovery().RESTClient())
 	ctlr := initController(config)
 
-	//TODO initialize and add support for teems data
+	// TODO initialize and add support for teems data
 	initTeems(ctlr)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
 	ctlr.Stop()
-	log.Infof("Exiting - signal %v\n", sig)
+	log.Debugf("Exiting - signal %v\n", sig)
+	return nil
 }
 
-func initClientSets(config *rest.Config) error {
+func initClientSets(
+	config *rest.Config,
+	kubeClientFunc func(*rest.Config) (*kubernetes.Clientset, error),
+	kubeCRClientFunc func(*rest.Config) (*versioned.Clientset, error),
+	routeClientFunc func(*rest.Config) (*routeclient.RouteV1Client, error),
+) error {
 	var err error
 
-	clientSets.KubeClient, err = kubernetes.NewForConfig(config)
+	clientSets.KubeClient, err = kubeClientFunc(config)
 	if err != nil {
 		return fmt.Errorf("failed to create KubeClient: %v", err)
 	}
 
 	if *manageCustomResources {
-		clientSets.KubeCRClient, err = versioned.NewForConfig(config)
+		clientSets.KubeCRClient, err = kubeCRClientFunc(config)
 		if err != nil {
-			return fmt.Errorf("failed to create Custum Resource KubeClient: %v", err)
+			return fmt.Errorf("failed to create Custom Resource KubeClient: %v", err)
 		}
 	}
 
 	if *manageRoutes {
-		clientSets.RouteClientV1, err = routeclient.NewForConfig(config)
+		clientSets.RouteClientV1, err = routeClientFunc(config)
 		if err != nil {
 			return fmt.Errorf("failed to create Route Client: %v", err)
 		}
 	}
 
 	if clientSets.KubeClient != nil {
-		log.Debug("Clients Created")
+		log.Debugf("Clients Created")
 	}
 	return nil
-
 }
 
 func initController(
 	config *rest.Config,
 ) *controller.Controller {
-
+	//coverage:ignore
 	ctlr := controller.RunController(
 		controller.Params{
 			Config:     config,
@@ -454,12 +471,11 @@ func initTeems(ctlr *controller.Controller) {
 	}
 }
 
-func getKubeConfig() (*rest.Config, error) {
+func getKubeConfig(inClusterConfigFunc func() (*rest.Config, error)) (*rest.Config, error) {
 	var config *rest.Config
 	var err error
-	config, err = rest.InClusterConfig()
+	config, err = inClusterConfigFunc()
 	if err != nil {
-		log.Fatalf("[INIT] error creating configuration: %v", err)
 		return nil, err
 	}
 
@@ -468,11 +484,10 @@ func getKubeConfig() (*rest.Config, error) {
 }
 
 // Get platform info for TEEM
-func getUserAgentInfo() string {
+func getUserAgentInfo(rc rest.Interface) string {
 	var versionInfo map[string]string
 	var err error
 	var vInfo []byte
-	rc := clientSets.KubeClient.Discovery().RESTClient()
 	// support for ocp < 3.11
 	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(context.TODO()); err == nil {
 		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {

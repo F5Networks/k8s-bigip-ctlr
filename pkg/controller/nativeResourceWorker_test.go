@@ -2927,3 +2927,98 @@ var _ = Describe("Multi Cluster with CRD", func() {
 	})
 
 })
+
+var _ = Describe("processRouteConfigFromLocalConfigCR", func() {
+	var (
+		mockCtlr    *mockController
+		es          cisapiv1.ExtendedSpec
+		isDelete    bool
+		namespace   string
+		err         error
+		retryNeeded bool
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
+		es = cisapiv1.ExtendedSpec{
+			ExtendedRouteGroupConfigs: []cisapiv1.ExtendedRouteGroupConfig{
+				{
+					Namespace: "test-namespace",
+					ExtendedRouteGroupSpec: cisapiv1.ExtendedRouteGroupSpec{
+						VServerName: "vserver1",
+					},
+				},
+			},
+		}
+		isDelete = false
+		namespace = "test-namespace"
+	})
+
+	Describe("processRouteConfigFromLocalConfigCR", func() {
+		Context("when namespace mismatch occurs", func() {
+			It("should return an error and true", func() {
+				namespace = "invalid-namespace"
+				err, retryNeeded = mockCtlr.processRouteConfigFromLocalConfigCR(es, isDelete, namespace)
+				Expect(err).To(HaveOccurred())
+				Expect(retryNeeded).To(BeTrue())
+				Expect(err.Error()).To(ContainSubstring("Invalid Extended Route Spec Block in DeployConfig CR"))
+			})
+		})
+
+		Context("when RouteGroup is not found", func() {
+			It("should return an error and true", func() {
+				err, retryNeeded = mockCtlr.processRouteConfigFromLocalConfigCR(es, isDelete, namespace)
+				Expect(err).To(HaveOccurred())
+				Expect(retryNeeded).To(BeTrue())
+				Expect(err.Error()).To(Equal("RouteGroup not found"))
+			})
+		})
+
+		Context("when deleting and override is not enabled", func() {
+			It("should set local to nil and return nil and true", func() {
+				mockCtlr.resources.extdSpecMap[namespace] = &extendedParsedSpec{
+					override: false,
+					local:    &es.ExtendedRouteGroupConfigs[0].ExtendedRouteGroupSpec,
+				}
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = "test-namespace"
+				isDelete = true
+				err, retryNeeded = mockCtlr.processRouteConfigFromLocalConfigCR(es, isDelete, namespace)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(retryNeeded).To(BeTrue())
+				Expect(mockCtlr.resources.extdSpecMap[namespace].local).To(BeNil())
+			})
+		})
+
+		Context("when creating and spec is local and global is not equal", func() {
+			It("should set local to ExtendedRouteGroupSpec and return nil and true", func() {
+				mockCtlr.resources.extdSpecMap[namespace] = &extendedParsedSpec{
+					override: false,
+					global: &cisapiv1.ExtendedRouteGroupSpec{
+						VServerName: "vserver-global",
+					},
+				}
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = "test-namespace"
+				err, retryNeeded = mockCtlr.processRouteConfigFromLocalConfigCR(es, isDelete, namespace)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(retryNeeded).To(BeTrue())
+				Expect(mockCtlr.resources.extdSpecMap[namespace].local).To(Equal(&es.ExtendedRouteGroupConfigs[0].ExtendedRouteGroupSpec))
+			})
+		})
+
+		Context("when updating and spec.local is not equal to ExtendedRouteGroupSpec", func() {
+			It("should set local to ExtendedRouteGroupSpec and return nil and true", func() {
+				mockCtlr.resources.extdSpecMap[namespace] = &extendedParsedSpec{
+					local: &cisapiv1.ExtendedRouteGroupSpec{
+						VServerName: "vserver-old",
+					},
+				}
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = "test-namespace"
+				err, retryNeeded = mockCtlr.processRouteConfigFromLocalConfigCR(es, isDelete, namespace)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(retryNeeded).To(BeTrue())
+				Expect(mockCtlr.resources.extdSpecMap[namespace].local).To(Equal(&es.ExtendedRouteGroupConfigs[0].ExtendedRouteGroupSpec))
+			})
+		})
+	})
+})

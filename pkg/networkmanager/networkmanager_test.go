@@ -472,3 +472,112 @@ var _ = Describe("Network Manager Tests", func() {
 		})
 	})
 })
+
+var _ = Describe("getDefaultL3Network", func() {
+	var (
+		tokenManager *tokenmanager.TokenManager
+	)
+
+	BeforeEach(func() {
+		tokenManager = &tokenmanager.TokenManager{}
+	})
+
+	Context("when CMVersion is empty", func() {
+		It("should return DefaultL3Network", func() {
+			tokenManager.CMVersion = ""
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(DefaultL3Network))
+		})
+	})
+
+	Context("when CMVersion is in an invalid format", func() {
+		It("should return DefaultL3Network for incorrect float parsing", func() {
+			tokenManager.CMVersion = "invalid.version.1"
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(DefaultL3Network))
+		})
+
+		It("should return DefaultL3Network for incorrect int parsing", func() {
+			tokenManager.CMVersion = "20.2.invalid"
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(DefaultL3Network))
+		})
+	})
+
+	Context("when CMVersion is valid", func() {
+		It("should return LegacyDefaultL3Network for versions less than 20.2.1", func() {
+			tokenManager.CMVersion = "20.1.0"
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(LegacyDefaultL3Network))
+		})
+
+		It("should return LegacyDefaultL3Network for version 20.2.0", func() {
+			tokenManager.CMVersion = "20.2.0"
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(LegacyDefaultL3Network))
+		})
+
+		It("should return DefaultL3Network for versions 20.2.1 and above", func() {
+			tokenManager.CMVersion = "20.2.1"
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(DefaultL3Network))
+		})
+
+		It("should return DefaultL3Network for versions greater than 20.2.1", func() {
+			tokenManager.CMVersion = "21.0.0"
+			Expect(getDefaultL3Network(tokenManager)).To(Equal(DefaultL3Network))
+		})
+	})
+})
+
+var _ = Describe("getTaskApi", func() {
+	var (
+		tm *tokenmanager.TokenManager
+	)
+
+	BeforeEach(func() {
+		tm = &tokenmanager.TokenManager{}
+	})
+
+	Context("when CMVersion is empty", func() {
+		It("should return an empty string", func() {
+			Expect(getTaskApi(tm)).To(Equal(""))
+		})
+	})
+
+	Context("when CMVersion is not in valid format", func() {
+		It("should return an empty string if version is incomplete", func() {
+			tm.CMVersion = "20.2"
+			Expect(getTaskApi(tm)).To(Equal(""))
+		})
+
+		It("should return an empty string if version has non-numeric parts", func() {
+			tm.CMVersion = "20.2.a"
+			Expect(getTaskApi(tm)).To(Equal(""))
+		})
+	})
+
+	Context("when CMVersion is valid", func() {
+		It("should return TaskBaseURI for versions less than 20.2.1", func() {
+			tm.CMVersion = "20.1.5"
+			Expect(getTaskApi(tm)).To(Equal(TaskBaseURI))
+
+			tm.CMVersion = "20.2.0"
+			Expect(getTaskApi(tm)).To(Equal(TaskBaseURI))
+		})
+
+		It("should return an empty string for versions 20.2.1 and above", func() {
+			tm.CMVersion = "20.2.1"
+			Expect(getTaskApi(tm)).To(Equal(""))
+
+			tm.CMVersion = "21.0.0"
+			Expect(getTaskApi(tm)).To(Equal(""))
+		})
+	})
+
+	Context("when CMVersion has parsing errors", func() {
+		It("should return an empty string if major.minor version parsing fails", func() {
+			tm.CMVersion = "20.a.1"
+			Expect(getTaskApi(tm)).To(Equal(""))
+		})
+
+		It("should return an empty string if patch version parsing fails", func() {
+			tm.CMVersion = "20.2.a"
+			Expect(getTaskApi(tm)).To(Equal(""))
+		})
+	})
+})

@@ -178,7 +178,7 @@ func (sm *StatusManager) updateDeployConfigStatus(req *StatusRequest) {
 	case *v1.HAStatus:
 		// Handle HAStatus
 		log.Debugf("updating HAStatus in DeployConfig CR for request: %v", req.Request)
-		configCR.Status.HAStatus = *req.Request.(*[]v1.HAStatus)
+		configCR.Status.HAStatus = []v1.HAStatus{*req.Request.(*v1.HAStatus)}
 		if req.Exit {
 			exit = true
 			exitErr = fmt.Errorf("%v", configCR.Status.HAStatus)
@@ -186,7 +186,7 @@ func (sm *StatusManager) updateDeployConfigStatus(req *StatusRequest) {
 	case *v1.K8SClusterStatus:
 		// Handle K8SClusterStatus
 		log.Debugf("updating K8SClusterStatus in DeployConfig CR for request: %v", req.Request)
-		configCR.Status.K8SClusterStatus = *req.Request.(*[]v1.K8SClusterStatus)
+		configCR.Status.K8SClusterStatus = []v1.K8SClusterStatus{*req.Request.(*v1.K8SClusterStatus)}
 		if req.Exit {
 			exit = true
 			exitErr = fmt.Errorf("%v", configCR.Status.K8SClusterStatus)

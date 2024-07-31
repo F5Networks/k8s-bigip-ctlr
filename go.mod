@@ -4,9 +4,7 @@ go 1.21
 
 require (
 	github.com/F5Networks/f5-ipam-controller v0.1.8
-	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
-	github.com/google/uuid v1.3.0
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.27.6
 	github.com/openshift/api v0.0.0-20210315202829-4b79815405ec
@@ -36,6 +34,7 @@ require (
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

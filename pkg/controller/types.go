@@ -1224,4 +1224,8 @@ type (
 		epsInformer cache.SharedIndexInformer
 		podInformer cache.SharedIndexInformer
 	}
+	clusterConfigState struct {
+		clusterRatio      map[string]int
+		clusterAdminState map[string]cisapiv1.AdminState
+	}
 )

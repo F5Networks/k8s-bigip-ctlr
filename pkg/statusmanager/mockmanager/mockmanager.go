@@ -12,6 +12,8 @@ type (
 	}
 )
 
+//coverage:ignore file
+
 func NewMockStatusManager() *MockStatusManager {
 	return &MockStatusManager{}
 }

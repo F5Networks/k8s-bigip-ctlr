@@ -297,3 +297,57 @@ var _ = Describe("AS3PostManager Tests", func() {
 		})
 	})
 })
+
+var _ = Describe("updateTenantCache", func() {
+	var (
+		postMgr *PostManager
+		cfg     *as3Config
+		tenant1 string
+		tenant2 string
+		tenant3 string
+		decl1   as3JSONWithArbKeys
+		decl2   as3JSONWithArbKeys
+	)
+
+	BeforeEach(func() {
+		postMgr = &PostManager{
+			cachedTenantDeclMap: make(map[string]as3Tenant),
+		}
+		tenant1 = "tenant1"
+		tenant2 = "tenant2"
+		tenant3 = "tenant3"
+		decl1 = make(as3JSONWithArbKeys)
+		decl2 = make(as3JSONWithArbKeys)
+		decl1[tenant1] = "tenant1"
+		decl2[tenant2] = "tenant2"
+		cfg = &as3Config{
+			tenantResponseMap: map[string]tenantResponse{
+				tenant1: {agentResponseCode: 200, isDeleted: false},
+				tenant2: {agentResponseCode: 200, isDeleted: true},
+				tenant3: {agentResponseCode: 500, isDeleted: false},
+			},
+			incomingTenantDeclMap: map[string]as3Tenant{
+				tenant1: as3Tenant(decl1),
+				tenant2: as3Tenant(decl2),
+			},
+		}
+	})
+
+	It("should update the cached tenant map for tenants with a 200 response code and not deleted", func() {
+		postMgr.updateTenantCache(cfg)
+		Expect(postMgr.cachedTenantDeclMap).To(HaveKeyWithValue(tenant1, as3Tenant(decl1)))
+	})
+
+	It("should delete tenants with a 200 response code and marked as deleted", func() {
+		postMgr.cachedTenantDeclMap[tenant2] = as3Tenant(decl2)
+		postMgr.updateTenantCache(cfg)
+		Expect(postMgr.cachedTenantDeclMap).NotTo(HaveKey(tenant2))
+	})
+
+	It("should add tenants with a non-200 response code to the failed tenants list", func() {
+		postMgr.updateTenantCache(cfg)
+		Expect(cfg.failedTenants).To(HaveKey(tenant3))
+		Expect(cfg.failedTenants).NotTo(HaveKey(tenant1))
+		Expect(cfg.failedTenants).NotTo(HaveKey(tenant2))
+	})
+})

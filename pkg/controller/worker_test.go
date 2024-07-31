@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 	"net/http"
+	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -211,9 +212,46 @@ var _ = Describe("Worker Tests", func() {
 			Expect(services[0].Name).To(Equal("bar"), "Should return the service name as bar")
 		})
 	})
+	Describe("Ingress link Update", func() {
 
+		var IngressLink1 *cisapiv1.IngressLink
+		var label1 map[string]string
+		var selctor *metav1.LabelSelector
+		var mockNewCtlr *mockController
+		BeforeEach(func() {
+			label1 = make(map[string]string)
+			IngressLink1 = test.NewIngressLink("ingresslink1", "default", "1",
+				cisapiv1.IngressLinkSpec{
+					VirtualServerAddress: "10.1.1.1",
+					Selector:             selctor,
+				})
+			selctor = &metav1.LabelSelector{
+				MatchLabels: label1,
+			}
+			mockNewCtlr = newMockController()
+		})
+
+		It("Ingress Link Status Update Success", func() {
+			mockNewCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset(IngressLink1)
+			ip := "192.168.1.1"
+			mockNewCtlr.updateIngressLinkStatus(IngressLink1, ip)
+			// Get the updated TransportServer from the fake client
+			updatedIL, err := mockNewCtlr.clientsets.KubeCRClient.CisV1().IngressLinks(IngressLink1.Namespace).Get(context.TODO(), IngressLink1.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updatedIL.Status.VSAddress).To(Equal(ip))
+		})
+		It("Ingress Link Status Update failure", func() {
+			mockNewCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+			ip := "192.168.1.1"
+			mockNewCtlr.updateIngressLinkStatus(IngressLink1, ip)
+			// Get the updated TransportServer from the fake client
+			_, err := mockNewCtlr.clientsets.KubeCRClient.CisV1().IngressLinks(IngressLink1.Namespace).Get(context.TODO(), IngressLink1.Name, metav1.GetOptions{})
+			Expect(err).To(HaveOccurred())
+		})
+	})
 	Describe("IPAM", func() {
 		DEFAULT_PARTITION = "test"
+		var params Params
 		BeforeEach(func() {
 			bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1"}
 			mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
@@ -221,7 +259,39 @@ var _ = Describe("Worker Tests", func() {
 				PostParams:   PostParams{},
 			}
 			fakeIpamCli := ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			mockCtlr.ipamHandler = ipmanager.NewIpamHandler("test", &rest.Config{}, fakeIpamCli, "kube-system")
+			mockCtlr.ControllerIdentifier = "test"
+			mockCtlr.ipamHandler = ipmanager.NewIpamHandler(mockCtlr.ControllerIdentifier, &rest.Config{}, fakeIpamCli, "kube-system")
+			params = Params{IPAM: true,
+				IPAMNamespace: "kube-system",
+				Config:        &rest.Config{}}
+			os.Setenv("HOSTNAME", "foo.com")
+		})
+
+		It("Setup IPAM, when no namespace is there", func() {
+			mockCtlr.setupIPAM(params)
+			Expect(mockCtlr.ipamHandler).NotTo(BeNil(), "Failed to Create IPAM Custom Resource")
+			Expect(mockCtlr.ipamHandler.IPAMCR).To(Equal("kube-system/foo.com.test.ipam"), "Failed to Create IPAM Custom Resource")
+		})
+
+		It("Setup IPAM, when namespace is matching", func() {
+			// validate ipam when namespace is found
+			os.Setenv("HOSTNAME", "bar.com")
+			mockCtlr.ControllerIdentifier = "test-deploy"
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["kube-system"] = true
+			mockCtlr.setupIPAM(params)
+			Expect(mockCtlr.ipamHandler).NotTo(BeNil(), "Failed to Create IPAM Custom Resource")
+			Expect(mockCtlr.ipamHandler.IPAMCR).To(Equal("kube-system/bar.com.test-deploy.ipam"), "Failed to Create IPAM Custom Resource")
+		})
+
+		It("Setup IPAM, when matching all namespaces", func() {
+			// when watching all namespaces
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces[""] = true
+			os.Setenv("HOSTNAME", "echo.com")
+			mockCtlr.setupIPAM(params)
+			Expect(mockCtlr.ipamHandler).NotTo(BeNil(), "Failed to Create IPAM Custom Resource")
+			Expect(mockCtlr.ipamHandler.IPAMCR).To(Equal("kube-system/echo.com.test.ipam"), "Failed to Create IPAM Custom Resource")
 		})
 
 		It("Create IPAM Custom Resource", func() {
@@ -841,23 +911,6 @@ var _ = Describe("Worker Tests", func() {
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
-			})
-			It("function getVirtualServerAddress", func() {
-				address, err := getVirtualServerAddress([]*cisapiv1.VirtualServer{})
-				Expect(address).To(Equal(""), "Should return empty virtual address")
-				Expect(err).To(BeNil(), "error should be nil")
-				vrt1.Spec.VirtualServerAddress = ""
-				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1})
-				Expect(address).To(Equal(""), "Should return empty virtual address")
-				Expect(err).ToNot(BeNil(), "error should not be nil")
-				vrt1.Spec.VirtualServerAddress = "192.168.1.1"
-				vrt2.Spec.VirtualServerAddress = "192.168.1.2"
-				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1, vrt2})
-				Expect(address).To(Equal(""), "Should return empty virtual address")
-				Expect(err).ToNot(BeNil(), "error should not be nil")
-				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1})
-				Expect(address).To(Equal("192.168.1.1"), "Should not return empty virtual address")
-				Expect(err).To(BeNil(), "error should be nil")
 			})
 		})
 	})
@@ -2615,6 +2668,28 @@ var _ = Describe("Worker Tests", func() {
 				time.Sleep(10 * time.Millisecond)
 				go mockNewCtlr.responseHandler(mockNewCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan)
 			})
+			It("Transport Server Status Update Success", func() {
+				mockNewCtlr := newMockController()
+				mockNewCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset(ts1)
+				ip := "192.168.1.1"
+				statusOk := "OK"
+				mockNewCtlr.updateTransportServerStatus(ts1, ip, statusOk)
+				// Get the updated TransportServer from the fake client
+				updatedTS, err := mockNewCtlr.clientsets.KubeCRClient.CisV1().TransportServers(ts1.Namespace).Get(context.TODO(), ts1.Name, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(updatedTS.Status.VSAddress).To(Equal(ip))
+				Expect(updatedTS.Status.StatusOk).To(Equal(statusOk))
+			})
+			It("Transport Server Status Update Failure", func() {
+				mockNewCtlr := newMockController()
+				mockNewCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+				ip := "192.168.1.1"
+				statusOk := "OK"
+				mockNewCtlr.updateTransportServerStatus(ts1, ip, statusOk)
+				// Expect the TransportServer to still not exist in the fake client
+				_, err := mockNewCtlr.clientsets.KubeCRClient.CisV1().TransportServers(ts1.Namespace).Get(context.TODO(), ts1.Name, metav1.GetOptions{})
+				Expect(err).To(HaveOccurred())
+			})
 		})
 
 		Describe("Processing EDNS", func() {
@@ -4141,6 +4216,785 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.processResources()
 			Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig)).To(Equal(1), "Invalid Virtual Server")
 
+		})
+	})
+})
+
+var _ = Describe("fetchNodesFromClusters", func() {
+	var (
+		mockCtlr            *mockController
+		multiClusterConfigs *clustermanager.MultiClusterConfig
+		cluster1            clustermanager.ClusterConfig
+		cluster2            clustermanager.ClusterConfig
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		cluster1Client := k8sfake.NewSimpleClientset(
+			&v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "node1",
+					Labels: map[string]string{"label": "value"},
+				},
+			},
+		)
+
+		cluster2Client := k8sfake.NewSimpleClientset(
+			&v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "node2",
+					Labels: map[string]string{"label": "value"},
+				},
+			},
+		)
+
+		cluster1 = clustermanager.ClusterConfig{KubeClient: cluster1Client}
+		cluster2 = clustermanager.ClusterConfig{KubeClient: cluster2Client}
+
+		multiClusterConfigs = &clustermanager.MultiClusterConfig{
+			ClusterConfigs: map[string]clustermanager.ClusterConfig{
+				"cluster1": cluster1,
+				"cluster2": cluster2,
+			},
+		}
+
+		mockCtlr.multiClusterConfigs = multiClusterConfigs
+		mockCtlr.resourceSelectorConfig = ResourceSelectorConfig{
+			NodeLabel: "label=value",
+		}
+
+	})
+
+	It("should fetch nodes from multiple clusters", func() {
+		nodes := mockCtlr.fetchNodesFromClusters()
+		Expect(nodes).To(HaveLen(2))
+		Expect(nodes).To(ContainElement(&v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "node1",
+				Labels: map[string]string{"label": "value"},
+			},
+		}))
+		Expect(nodes).To(ContainElement(&v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "node2",
+				Labels: map[string]string{"label": "value"},
+			},
+		}))
+	})
+
+	It("should handle empty clusters gracefully", func() {
+		mockCtlr.multiClusterConfigs.ClusterConfigs = map[string]clustermanager.ClusterConfig{}
+		nodes := mockCtlr.fetchNodesFromClusters()
+		Expect(nodes).To(BeEmpty())
+	})
+})
+
+var _ = Describe("CIS Init time test cases", func() {
+	var (
+		mockCtlr *mockController
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.initState = true
+		mockCtlr.managedResources = ManagedResources{
+			ManageRoutes:          true,
+			ManageCustomResources: true,
+			ManageVirtualServer:   true,
+			ManageTransportServer: true,
+			ManageIL:              true,
+			ManageEDNS:            true,
+		}
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["foo"] = true
+		mockCtlr.namespaces["bar"] = true
+		mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.crInformers = make(map[string]*CRInformer)
+		mockCtlr.nsInformers = make(map[string]*NSInformer)
+		mockCtlr.nrInformers = make(map[string]*NRInformer)
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		mockCtlr.addNamespacedInformers("foo", false)
+	})
+
+	Describe("setInitialResourceCount", func() {
+		Context("when getNamespacedNativeInformer is not found", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+
+		Context("when routeInformer fails to get routes", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+
+		Context("when getNamespacedCRInformer is not found", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+
+		Context("when vsInformer fails to get virtual servers", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+
+		Context("when tsInformer fails to get transport servers", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+
+		Context("when ilInformer fails to get ILs", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+
+		Context("when ednsInformer fails to get EDNS", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0)) // One service of LoadBalancer type in ns1
+			})
+		})
+
+		Context("when svcInformer fails to get services", func() {
+			It("should continue to the next namespace", func() {
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+		Context("when it's a kubernetes service", func() {
+			It("should continue to the next namespace", func() {
+				svc := test.NewService("kube-dns", "1", "foo", "NodePort", []v1.ServicePort{})
+				mockCtlr.addService(svc)
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+		Context("when it's a openshift service", func() {
+			It("should continue to the next namespace", func() {
+				svc := test.NewService("openshift", "1", "foo", "NodePort", []v1.ServicePort{})
+				mockCtlr.addService(svc)
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+			})
+		})
+		Context("when it's a load balancer service", func() {
+			It("should continue to the next namespace", func() {
+				svc := test.NewService("svc-1", "1", "foo", v1.ServiceTypeLoadBalancer, []v1.ServicePort{})
+				mockCtlr.addService(svc)
+				mockCtlr.setInitialResourceCount()
+				Expect(mockCtlr.initialResourceCount).To(Equal(1))
+			})
+		})
+	})
+
+	Describe("processKeyAtInitTime", func() {
+		BeforeEach(func() {
+			mockCtlr.initialResourceCount = 3
+		})
+
+		Context("when initState is true and kind is not Namespace", func() {
+			It("should decrement initialResourceCount for VirtualServer and stop initState when count reaches zero", func() {
+				rKey := &rqKey{kind: VirtualServer}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeFalse())
+				Expect(mockCtlr.initialResourceCount).To(Equal(2))
+				Expect(mockCtlr.initState).To(BeTrue())
+
+				mockCtlr.processKeyAtInitTime(rKey)
+				Expect(mockCtlr.initialResourceCount).To(Equal(1))
+				Expect(mockCtlr.initState).To(BeTrue())
+
+				mockCtlr.processKeyAtInitTime(rKey)
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+				Expect(mockCtlr.initState).To(BeFalse())
+			})
+
+			It("should return true for non-LoadBalancer Service", func() {
+				svc := &v1.Service{
+					Spec: v1.ServiceSpec{
+						Type: v1.ServiceTypeClusterIP,
+					},
+				}
+				rKey := &rqKey{kind: Service, rsc: svc}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeTrue())
+				Expect(mockCtlr.initialResourceCount).To(Equal(3))
+				Expect(mockCtlr.initState).To(BeTrue())
+			})
+
+			It("should decrement initialResourceCount for LoadBalancer Service", func() {
+				svc := &v1.Service{
+					Spec: v1.ServiceSpec{
+						Type: v1.ServiceTypeLoadBalancer,
+					},
+				}
+				rKey := &rqKey{kind: Service, rsc: svc}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeTrue())
+				Expect(mockCtlr.initialResourceCount).To(Equal(2))
+				Expect(mockCtlr.initState).To(BeTrue())
+			})
+
+			It("should return false for IngressLink when initialResourceCount reaches zero", func() {
+				mockCtlr.initialResourceCount = 1
+				rKey := &rqKey{kind: IngressLink}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeFalse())
+				Expect(mockCtlr.initialResourceCount).To(Equal(0))
+				Expect(mockCtlr.initState).To(BeFalse())
+			})
+
+			It("should return false for namespace", func() {
+				rKey := &rqKey{kind: Namespace}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeFalse())
+				Expect(mockCtlr.initialResourceCount).To(Equal(3))
+				Expect(mockCtlr.initState).To(BeTrue())
+			})
+			It("should return true for policy", func() {
+				rKey := &rqKey{kind: CustomPolicy}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeTrue())
+				Expect(mockCtlr.initialResourceCount).To(Equal(3))
+				Expect(mockCtlr.initState).To(BeTrue())
+			})
+		})
+
+		Context("when initState is false", func() {
+			BeforeEach(func() {
+				mockCtlr.initState = false
+			})
+
+			It("should return false for any kind", func() {
+				rKey := &rqKey{kind: VirtualServer}
+				result := mockCtlr.processKeyAtInitTime(rKey)
+				Expect(result).To(BeFalse())
+				Expect(mockCtlr.initialResourceCount).To(Equal(3))
+				Expect(mockCtlr.initState).To(BeFalse())
+			})
+		})
+	})
+})
+
+var _ = Describe("Process Resources additional tests", func() {
+	var (
+		mockCtlr *mockController
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+		// setting init state to avoid processing resources
+		mockCtlr.initState = true
+		mockCtlr.initialResourceCount = 1
+	})
+	AfterEach(func() {
+		mockCtlr.resourceQueue.ShutDown()
+	})
+
+	Describe("process resources", func() {
+		Context("when resource key is HACIS", func() {
+			It("should return true", func() {
+				mockCtlr.enqueuePrimaryClusterProbeEvent()
+				Expect(mockCtlr.resourceQueue.Len()).To(Equal(1))
+				Expect(mockCtlr.processResources()).To(Equal(true))
+				Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
+			})
+		})
+		Context("when resource key is NodeUpdate", func() {
+			It("should return true", func() {
+				svcsMap := make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
+				mockCtlr.multiClusterResources.clusterSvcMap["cluster1"] = svcsMap
+				mockCtlr.UpdatePoolMembersForNodeUpdate("cluster1")
+				Expect(mockCtlr.resourceQueue.Len()).To(Equal(1))
+				Expect(mockCtlr.processResources()).To(Equal(true))
+				Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
+			})
+		})
+		Context("when resource key is unknown", func() {
+			It("should return true", func() {
+				key := &rqKey{
+					kind: "unknown",
+				}
+				mockCtlr.resourceQueue.Add(key)
+				Expect(mockCtlr.resourceQueue.Len()).To(Equal(1))
+				Expect(mockCtlr.processResources()).To(Equal(true))
+				Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
+			})
+		})
+	})
+})
+
+var _ = Describe("getVirtualServerAddress", func() {
+	var (
+		virtual  *cisapiv1.VirtualServer
+		virtuals []*cisapiv1.VirtualServer
+	)
+
+	BeforeEach(func() {
+		virtuals = []*cisapiv1.VirtualServer{}
+	})
+
+	Context("when HostGroup is empty", func() {
+		BeforeEach(func() {
+			virtual = &cisapiv1.VirtualServer{
+				Spec: cisapiv1.VirtualServerSpec{
+					HostGroup:            "",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			}
+		})
+
+		It("should return the VirtualServerAddress", func() {
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip).To(Equal("1.2.3.4"))
+		})
+
+		It("should return an error if VirtualServerAddress is empty", func() {
+			virtual.Spec.VirtualServerAddress = ""
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("no virtual server address or IPAM found"))
+			Expect(ip).To(Equal(""))
+		})
+	})
+
+	Context("when HostGroup is not empty", func() {
+		BeforeEach(func() {
+			virtual = &cisapiv1.VirtualServer{
+				Spec: cisapiv1.VirtualServerSpec{
+					HostGroup: "hostgroup",
+				},
+			}
+		})
+
+		It("should return an error if no VirtualServerAddress is found", func() {
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(fmt.Sprintf("no virtual server address found for: %s", virtual.Name)))
+			Expect(ip).To(Equal(""))
+		})
+
+		It("should return an error if more than one VirtualServerAddress is found", func() {
+			virtuals = append(virtuals, &cisapiv1.VirtualServer{
+				Spec: cisapiv1.VirtualServerSpec{
+					VirtualServerAddress: "1.2.3.4",
+				},
+			}, &cisapiv1.VirtualServer{
+				Spec: cisapiv1.VirtualServerSpec{
+					VirtualServerAddress: "5.6.7.8",
+				},
+			})
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("more than one virtual server address found"))
+			Expect(ip).To(Equal(""))
+		})
+
+		It("should return the VirtualServerAddress if only one is found", func() {
+			virtuals = append(virtuals, &cisapiv1.VirtualServer{
+				Spec: cisapiv1.VirtualServerSpec{
+					VirtualServerAddress: "1.2.3.4",
+				},
+			})
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip).To(Equal("1.2.3.4"))
+		})
+
+		It("should use the VirtualServerAddress from the virtual if no address is found in virtuals", func() {
+			virtual.Spec.VirtualServerAddress = "1.2.3.4"
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip).To(Equal("1.2.3.4"))
+		})
+
+		It("should return an error if no address is found anywhere", func() {
+			ip, err := getVirtualServerAddress(virtual, virtuals)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(fmt.Sprintf("no virtual server address found for: %s", virtual.Name)))
+			Expect(ip).To(Equal(""))
+		})
+	})
+})
+
+var _ = Describe("validateTSWithSameVSAddress", func() {
+	var (
+		mockCtlr    *mockController
+		currentTS   *cisapiv1.TransportServer
+		allVirtuals []*cisapiv1.TransportServer
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+		allVirtuals = []*cisapiv1.TransportServer{}
+	})
+
+	Context("when isVSDeleted is true", func() {
+		BeforeEach(func() {
+			currentTS = &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			}
+			allVirtuals = append(allVirtuals, currentTS)
+		})
+
+		It("should skip the deleted virtual server", func() {
+			result := mockCtlr.validateTSWithSameVSAddress(currentTS, allVirtuals, true)
+			Expect(result).To(BeTrue())
+		})
+	})
+
+	Context("when HostGroup is different", func() {
+		BeforeEach(func() {
+			currentTS = &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			}
+			allVirtuals = append(allVirtuals, &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group2",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			})
+		})
+
+		It("should return false if same VirtualServerAddress with different HostGroup", func() {
+			result := mockCtlr.validateTSWithSameVSAddress(currentTS, allVirtuals, false)
+			Expect(result).To(BeFalse())
+		})
+	})
+
+	Context("when HostGroup is same", func() {
+		BeforeEach(func() {
+			currentTS = &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+					IPAMLabel:            "label1",
+				},
+			}
+			allVirtuals = append(allVirtuals, &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+					IPAMLabel:            "label2",
+				},
+			})
+		})
+
+		It("should return false if different IPAM Labels with same HostGroup", func() {
+			result := mockCtlr.validateTSWithSameVSAddress(currentTS, allVirtuals, false)
+			Expect(result).To(BeFalse())
+		})
+
+		It("should return false if different VirtualServerAddress with same HostGroup", func() {
+			allVirtuals[0].Spec.VirtualServerAddress = "5.6.7.8"
+			result := mockCtlr.validateTSWithSameVSAddress(currentTS, allVirtuals, false)
+			Expect(result).To(BeFalse())
+		})
+	})
+
+	Context("when same VirtualServerAddress with different partitions", func() {
+		BeforeEach(func() {
+			currentTS = &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			}
+			allVirtuals = append(allVirtuals, &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition2",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			})
+		})
+
+		It("should return false if same VirtualServerAddress with different partitions", func() {
+			result := mockCtlr.validateTSWithSameVSAddress(currentTS, allVirtuals, false)
+			Expect(result).To(BeFalse())
+		})
+	})
+
+	Context("when no conflicts", func() {
+		BeforeEach(func() {
+			currentTS = &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			}
+			allVirtuals = append(allVirtuals, &cisapiv1.TransportServer{
+				Spec: cisapiv1.TransportServerSpec{
+					Partition:            "partition1",
+					HostGroup:            "group1",
+					VirtualServerAddress: "1.2.3.4",
+				},
+			})
+		})
+
+		It("should return true if no conflicts", func() {
+			result := mockCtlr.validateTSWithSameVSAddress(currentTS, allVirtuals, false)
+			Expect(result).To(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("Controller", func() {
+	var (
+		mockCtlr *mockController
+		mockSvc  *v1.Service
+		ip       string
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["default"] = true
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.addNamespacedInformers("default", false)
+		ip = "1.2.3.4"
+		mockSvc = &v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-service",
+				Namespace: "default",
+			},
+			Spec: v1.ServiceSpec{
+				Type: v1.ServiceTypeLoadBalancer,
+			},
+			Status: v1.ServiceStatus{
+				LoadBalancer: v1.LoadBalancerStatus{
+					Ingress: []v1.LoadBalancerIngress{
+						{IP: ip},
+					},
+				},
+			},
+		}
+	})
+
+	Context("unSetLBServiceIngressStatus", func() {
+		It("should do nothing if the service is not found", func() {
+			mockCtlr.unSetLBServiceIngressStatus(mockSvc, ip)
+			updatedSvc, err := mockCtlr.clientsets.KubeClient.CoreV1().Services(mockSvc.Namespace).Get(context.TODO(), mockSvc.Name, metav1.GetOptions{})
+			Expect(err).To(HaveOccurred())
+			Expect(updatedSvc).To(BeNil())
+		})
+
+		It("should remove the ingress IP and update the status if service is found", func() {
+			mockCtlr.addService(mockSvc)
+			_, err := mockCtlr.clientsets.KubeClient.CoreV1().Services(mockSvc.Namespace).Create(context.TODO(), mockSvc, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			mockCtlr.unSetLBServiceIngressStatus(mockSvc, ip)
+			updatedSvc, err := mockCtlr.clientsets.KubeClient.CoreV1().Services(mockSvc.Namespace).Get(context.TODO(), mockSvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(updatedSvc.Status.LoadBalancer.Ingress).To(BeEmpty())
+		})
+		It("should handle update errors gracefully", func() {
+			mockCtlr.addService(mockSvc)
+			mockCtlr.unSetLBServiceIngressStatus(mockSvc, ip)
+			_, err := mockCtlr.clientsets.KubeClient.CoreV1().Services(mockSvc.Namespace).Get(context.TODO(), mockSvc.Name, metav1.GetOptions{})
+			Expect(err).To(HaveOccurred())
+		})
+	})
+})
+
+var _ = Describe("reprocessAllCustomResourcesOnConfigCRUpdate", func() {
+	var mockCtlr *mockController
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
+		mockCtlr.managedResources = ManagedResources{
+			ManageRoutes:          false,
+			ManageCustomResources: true,
+			ManageVirtualServer:   true,
+			ManageTransportServer: true,
+			ManageIL:              true,
+			ManageEDNS:            true,
+		}
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["default"] = true
+		mockCtlr.namespaces["bar"] = true
+		mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.crInformers = make(map[string]*CRInformer)
+		mockCtlr.nsInformers = make(map[string]*NSInformer)
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		mockCtlr.addNamespacedInformers("default", false)
+	})
+	AfterEach(func() {
+		mockCtlr.resourceQueue.ShutDown()
+	})
+
+	Context("reprocessAllCustomResourcesOnConfigCRUpdate", func() {
+		It("should reprocess all VirtualServer and TransportServer resources", func() {
+			resRef1 := resourceRef{kind: VirtualServer, namespace: "default", name: "vs1"}
+			resRef2 := resourceRef{kind: TransportServer, namespace: "default", name: "ts1"}
+
+			mockCtlr.resources.processedNativeResources[resRef1] = struct{}{}
+			mockCtlr.resources.processedNativeResources[resRef2] = struct{}{}
+
+			vs := &cisapiv1.VirtualServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vs1",
+					Namespace: "default",
+				},
+			}
+			ts := &cisapiv1.TransportServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ts1",
+					Namespace: "default",
+				},
+			}
+
+			mockCtlr.addTransportServer(ts)
+			mockCtlr.addVirtualServer(vs)
+			// creating resource queue after adding the resources
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.reprocessAllCustomResourcesOnConfigCRUpdate()
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(2))
+			key, quit := mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
+			rKey := key.(*rqKey)
+			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(rKey.kind).To(Equal(VirtualServer), "Incorrect event set")
+
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1))
+			key, quit = mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Updated TS Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated TS  Failed")
+			rKey = key.(*rqKey)
+			Expect(rKey).ToNot(BeNil(), "Enqueue Updated TS Failed")
+			Expect(rKey.kind).To(Equal(TransportServer), "Incorrect event set")
+		})
+
+		It("should skip processing if the resource is not found", func() {
+			resRef1 := resourceRef{kind: VirtualServer, namespace: "default", name: "vs1"}
+			mockCtlr.resources.processedNativeResources[resRef1] = struct{}{}
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.reprocessAllCustomResourcesOnConfigCRUpdate()
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
+
+		})
+
+		It("should continue processing other resources if one fetch fails", func() {
+			resRef1 := resourceRef{kind: VirtualServer, namespace: "default", name: "vs1"}
+			resRef2 := resourceRef{kind: TransportServer, namespace: "default", name: "ts1"}
+
+			mockCtlr.resources.processedNativeResources[resRef1] = struct{}{}
+			mockCtlr.resources.processedNativeResources[resRef2] = struct{}{}
+
+			vs := &cisapiv1.VirtualServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vs1",
+					Namespace: "default",
+				},
+			}
+			mockCtlr.addVirtualServer(vs)
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.reprocessAllCustomResourcesOnConfigCRUpdate()
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1))
+			key, quit := mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
+			rKey := key.(*rqKey)
+			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(rKey.kind).To(Equal(VirtualServer), "Incorrect event set")
+		})
+
+		It("should do nothing if ManageCustomResources is false", func() {
+			mockCtlr.managedResources.ManageCustomResources = false
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.reprocessAllCustomResourcesOnConfigCRUpdate()
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
+		})
+	})
+})
+
+var _ = Describe("initNextGenResourceWorker", func() {
+	var (
+		mockCtlr *mockController
+		configCR *cisapiv1.DeployConfig
+	)
+
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
+		mockCtlr.managedResources = ManagedResources{
+			ManageCustomResources: true,
+			ManageVirtualServer:   true,
+			ManageTransportServer: true,
+			ManageIL:              true,
+			ManageEDNS:            true,
+		}
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["default"] = true
+		mockCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset()
+		mockCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.clientsets.RouteClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.crInformers = make(map[string]*CRInformer)
+		mockCtlr.nsInformers = make(map[string]*NSInformer)
+		mockCtlr.nrInformers = make(map[string]*NRInformer)
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		_ = mockCtlr.addNamespacedInformers("default", false)
+		mockCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		configCR = &cisapiv1.DeployConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "sampleConfigCR",
+				Namespace: "default",
+			},
+			Spec:   cisapiv1.DeployConfigSpec{},
+			Status: cisapiv1.DeployConfigStatus{},
+		}
+		mockCtlr.CISConfigCRKey = configCR.Namespace + "/" + configCR.Name
+	})
+
+	Context("initNextGenResourceWorker", func() {
+		It("should set the initial resource count", func() {
+			svc := test.NewService("svc-1", "1", "default", v1.ServiceTypeLoadBalancer, []v1.ServicePort{})
+			mockCtlr.addService(svc)
+			mockCtlr.addConfigCR(configCR)
+			mockCtlr.initNextGenResourceWorker()
+			Expect(mockCtlr.initialResourceCount).To(Equal(1))
 		})
 	})
 })

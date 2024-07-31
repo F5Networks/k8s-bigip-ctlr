@@ -130,6 +130,7 @@ func (ctlr *Controller) httpGetReq(request *http.Request) *http.Response {
 
 */
 
+//coverage:ignore
 func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 	for {
 		if ctlr.initState {

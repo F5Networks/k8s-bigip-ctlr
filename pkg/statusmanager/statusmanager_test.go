@@ -5,9 +5,11 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 	"time"
 )
 
@@ -252,6 +254,60 @@ var _ = Describe("Status Manager Tests", func() {
 				Expect(cr.Status.NetworkConfigStatus.LastUpdated).To(Equal(timeStamp), "Last updated time should be equal")
 			})
 
+			It("Update the HA status", func() {
+				// update the ok status
+				sm.AddRequest(DeployConfig, "sampleConfigCR", "default", false, &cisapiv1.HAStatus{
+					PrimaryEndPointStatus: Ok,
+				})
+				time.Sleep(1 * time.Second)
+				cr := sm.GetDeployConfigCR("sampleConfigCR", "default")
+				Expect(cr).ToNot(BeNil(), "CR should not be nil")
+				Expect(cr.Status.HAStatus[0].PrimaryEndPointStatus).To(Equal(Ok), "HA status should be Ok")
+			})
+			It("Update the Kubernetes status", func() {
+				// update the ok status
+				sm.AddRequest(DeployConfig, "sampleConfigCR", "default", false, &cisapiv1.K8SClusterStatus{
+					Message: Ok,
+				})
+				time.Sleep(1 * time.Second)
+				cr := sm.GetDeployConfigCR("sampleConfigCR", "default")
+				Expect(cr).ToNot(BeNil(), "CR should not be nil")
+				Expect(cr.Status.K8SClusterStatus[0].Message).To(Equal(Ok), "K8s Cluster status should be Ok")
+			})
+		})
+	})
+})
+
+var _ = Describe("StatusManager", func() {
+	var (
+		sm       *StatusManager
+		informer cache.SharedIndexInformer
+	)
+
+	BeforeEach(func() {
+		sm = &StatusManager{
+			deployConfigResource: DeployConfigResource{
+				namespace: "default",
+			},
+		}
+		informer = cisinfv1.NewDeployConfigInformer(nil, "default,"+
+			"0", 0, cache.Indexers{})
+	})
+
+	Context("when deployConfigInformer is nil", func() {
+		It("should set deployConfigInformer if namespace matches", func() {
+			sm.AddDeployInformer(&informer, "default")
+			Expect(sm.deployConfigResource.deployConfigInformer).ToNot(BeNil())
+		})
+
+		It("should set deployConfigInformer if namespace is empty", func() {
+			sm.AddDeployInformer(&informer, "")
+			Expect(sm.deployConfigResource.deployConfigInformer).ToNot(BeNil())
+		})
+
+		It("should not set deployConfigInformer if namespace does not match", func() {
+			sm.AddDeployInformer(&informer, "another-namespace")
+			Expect(sm.deployConfigResource.deployConfigInformer).To(BeNil())
 		})
 	})
 })

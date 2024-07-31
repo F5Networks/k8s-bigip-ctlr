@@ -9,4 +9,4 @@ Option which can be used to configure is :
 
 By deploying this yaml file in your cluster, CIS will create a Transport Server on BIG-IP with virtual server address and then route domain is appended.
 
-This is optional to use. We can use `ipamLabel` with `bigipRoueDomain` parameter as well.
+We can use `bigipRoueDomain` parameter with `ipamLabel` and `virtualServerAddress` both.

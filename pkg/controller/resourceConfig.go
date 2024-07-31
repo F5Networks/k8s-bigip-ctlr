@@ -664,6 +664,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		}
 	}
 
+	rsCfg.Virtual.BigIPRouteDomain = vs.Spec.BigIPRouteDomain
+
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 
 	// handle the default pool for virtual

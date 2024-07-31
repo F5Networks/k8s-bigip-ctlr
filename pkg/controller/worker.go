@@ -1255,10 +1255,17 @@ func (ctlr *Controller) processVirtualServers(
 			rsCfg.Virtual.HttpMrfRoutingEnabled = virtual.Spec.HttpMrfRoutingEnabled
 		}
 		rsCfg.MetaData.baseResources = make(map[string]string)
-		rsCfg.Virtual.SetVirtualAddress(
-			ip,
-			portS.port,
-		)
+		if virtual.Spec.BigIPRouteDomain > 0 {
+			rsCfg.Virtual.SetVirtualAddress(
+				fmt.Sprintf("%s%%%d", ip, virtual.Spec.BigIPRouteDomain),
+				portS.port,
+			)
+		} else {
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				portS.port,
+			)
+		}
 		//set additionalVirtualAddresses if present
 		if len(virtual.Spec.AdditionalVirtualServerAddresses) > 0 {
 			rsCfg.Virtual.AdditionalVirtualAddresses = virtual.Spec.AdditionalVirtualServerAddresses
@@ -2777,10 +2784,17 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.MetaData.baseResources = make(map[string]string)
-	rsCfg.Virtual.SetVirtualAddress(
-		ip,
-		virtual.Spec.VirtualServerPort,
-	)
+	if virtual.Spec.BigIPRouteDomain > 0 {
+		rsCfg.Virtual.SetVirtualAddress(
+			fmt.Sprintf("%s%%%d", ip, virtual.Spec.BigIPRouteDomain),
+			virtual.Spec.VirtualServerPort,
+		)
+	} else {
+		rsCfg.Virtual.SetVirtualAddress(
+			ip,
+			virtual.Spec.VirtualServerPort,
+		)
+	}
 	plc, err := ctlr.getPolicyFromTransportServer(virtual)
 	if plc != nil {
 		err := ctlr.handleTSResourceConfigForPolicy(rsCfg, plc)
@@ -3811,10 +3825,17 @@ func (ctlr *Controller) processIngressLink(
 		if len(ingLink.Spec.IRules) > 0 {
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
-		rsCfg.Virtual.SetVirtualAddress(
-			ip,
-			port.Port,
-		)
+		if ingLink.Spec.BigIPRouteDomain > 0 {
+			rsCfg.Virtual.SetVirtualAddress(
+				fmt.Sprintf("%s%%%d", ip, ingLink.Spec.BigIPRouteDomain),
+				port.Port,
+			)
+		} else {
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				port.Port,
+			)
+		}
 		svcPort := intstr.IntOrString{IntVal: port.Port}
 		pool := Pool{
 			Name: ctlr.formatPoolName(

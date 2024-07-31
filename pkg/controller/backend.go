@@ -1087,6 +1087,9 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			va := append(svc.VirtualAddresses, virtualAddress)
 			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
 				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					if cfg.Virtual.BigIPRouteDomain > 0 {
+						val = fmt.Sprintf("%s%%%d", val, cfg.Virtual.BigIPRouteDomain)
+					}
 					va = append(va, val)
 				}
 			}
@@ -1101,6 +1104,9 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
 			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
 				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					if cfg.Virtual.BigIPRouteDomain > 0 {
+						val = fmt.Sprintf("%s%%%d", val, cfg.Virtual.BigIPRouteDomain)
+					}
 					//Attach Service Address
 					serviceAddressName := createServiceAddressDecl(cfg, val, sharedApp)
 					//handle additional service addresses

@@ -38,7 +38,7 @@ const (
 )
 
 var baseAS3Config = `{
-	"$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/%s/as3-schema-%s.json",
+	"$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/main/schema/%s/as3-schema-%s.json",
 	"class": "AS3",
 	"declaration": {
 	  "class": "ADC",

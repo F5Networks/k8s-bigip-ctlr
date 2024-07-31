@@ -50,7 +50,7 @@ type Params struct {
 
 const (
 	baseAS3Config = `{
-		"$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.18.0/as3-schema-3.18.0-4.json",
+		"$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/main/schema/3.18.0/as3-schema-3.18.0-4.json",
 		"class": "AS3",
 		"declaration": {
 		  "class": "ADC",

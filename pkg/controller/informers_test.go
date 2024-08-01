@@ -9,7 +9,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/ipmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"

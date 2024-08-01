@@ -31,7 +31,7 @@ import (
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2356,8 +2356,9 @@ var _ = Describe("Worker Tests", func() {
 				rscUpdateMeta.as3Config.failedTenants["test"] = struct{}{}
 				config.reqMeta = mockCtlr.Controller.enqueueReq(bigipConfig, bigIpKey)
 				config.reqMeta = mockCtlr.Controller.enqueueReq(bigipConfig, bigIpKey)
+				mockCtlr.requestMap.Lock()
 				rscUpdateMeta.id = 3
-
+				mockCtlr.requestMap.Unlock()
 				delete(rscUpdateMeta.as3Config.failedTenants, "test")
 				mockCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan <- &rscUpdateMeta
 

@@ -4,7 +4,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/networkmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"

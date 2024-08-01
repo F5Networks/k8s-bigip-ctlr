@@ -6,7 +6,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/statusmanager/mockmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/tokenmanager"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
 	"time"
@@ -151,7 +151,9 @@ var _ = Describe("Network Manager Tests", func() {
 				}] = staticRouteMap
 				networkManager.NetworkRequestHandler(routeStore)
 				time.Sleep(3 * time.Second)
+				networkManager.L3ForwardStore.RLock()
 				isr, _ := networkManager.L3ForwardStore.InstanceStaticRoutes[BigIpId]
+				networkManager.L3ForwardStore.RUnlock()
 				_, ok := isr[l3Forward.Config]
 				Expect(ok).To(BeTrue())
 			})

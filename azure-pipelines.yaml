@@ -32,27 +32,69 @@ variables:
   operatorImageName: 'f5networks/f5-cis-operator-devel'
   operatorBundleImageName: 'f5networks/f5-cis-operator-bundle-devel'
   operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
-  goVersion: 1.21.4
+  goVersion: 1.22.3
 
 stages:
-  - stage: PreCheck
+  - stage: VerifyFormatting
+    dependsOn: []
     jobs:
-      - job: Preverification
+      - job: VerifyFormatting
         steps:
           - task: GoTool@0
             inputs:
               version: $(goVersion)
-            displayName: Install Go 1.21.4
+            displayName: Install Go
           - task: CmdLine@2
             displayName: Check Go format and Suspicious constructs
             inputs:
               script: 'make verify'
+  - stage: RunUnitTests
+    dependsOn: []
+    jobs:
+      - job: RunUnitTests
+        steps:
+          - task: CmdLine@2
+            displayName: Check for unit tests
+            inputs:
+              script: |
+                docker run -t -v $(System.DefaultWorkingDirectory):/go/src/github.com/F5Networks/k8s-bigip-ctlr -w /go/src/github.com/F5Networks/k8s-bigip-ctlr --rm golang:$(goVersion) make test
+          - task: PublishTestResults@2
+            displayName: Publish Test Results
+            inputs:
+              testRunner: JUnit
+              testResultsFiles: $(System.DefaultWorkingDirectory)/**/report.xml
+  - stage: RunCoverage
+    dependsOn: []
+    jobs:
+      - job: RunCoverage
+        steps:
+          - task: CmdLine@2
+            displayName: Check for Coverage
+            inputs:
+              script: |
+                docker run -t -v $(System.DefaultWorkingDirectory):/go/src/github.com/F5Networks/k8s-bigip-ctlr -w /go/src/github.com/F5Networks/k8s-bigip-ctlr --rm golang:$(goVersion) make create-coverage-report
+                mkdir -p $(System.DefaultWorkingDirectory)/coverage
+                cp -r coverage.html $(System.DefaultWorkingDirectory)/coverage
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish Code Coverage Results
+            inputs:
+              pathToSources: $(System.DefaultWorkingDirectory)
+              summaryFileLocation: $(System.DefaultWorkingDirectory)/**/coverage.xml
+              failIfCoverageEmpty: true
+  - stage: CheckDocumentation
+    dependsOn: []
+    jobs:
+      - job: CheckDocumentation
+        steps:
           - task: CmdLine@2
             displayName: Check documentation
             inputs:
               script: 'make docs'
   - stage: ContainerImage
-    dependsOn: PreCheck
+    dependsOn:
+        - VerifyFormatting
+        - RunUnitTests
+        - RunCoverage
     jobs:
       - job: BuildContainerImage
         steps:
@@ -93,7 +135,7 @@ stages:
               Dockerfile: build-tools/Dockerfile.ubi
               buildContext: .
               tags: "$(BUILD_VERSION)-$(Build.SourceVersion)"
-              arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS) --build-arg COVERALLS_TOKEN=$(COVERALLS_TOKEN)"
+              arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION)"
           - task: Docker@2
             displayName: Push image to Quay
             inputs:
@@ -124,8 +166,10 @@ stages:
               docker push $(docker_repo):$(BUILD_VERSION)
             displayName: 'Push image to DockerHub'
             condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+  - stage: ScanContainerImage
+    dependsOn: ContainerImage
+    jobs:
       - job: ScanContainerImage
-        dependsOn: BuildContainerImage
         steps:
           - script: |
               FILE_VALUE=$(cat next-version.txt)

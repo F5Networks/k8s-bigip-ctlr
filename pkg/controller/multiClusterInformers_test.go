@@ -2,7 +2,7 @@ package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )

@@ -1,8 +1,6 @@
 FROM golang:1.21 as builder
 
 ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
-ARG RUN_TESTS
-ARG COVERALLS_TOKEN
 ARG BUILD_VERSION
 ARG BUILD_INFO
 

@@ -27,6 +27,10 @@ all: local-build
 
 test: local-go-test
 
+coverage: local-go-coverage
+
+create-coverage-report: create-coverage-report
+
 prod: prod-build
 
 verify: fmt vet
@@ -55,8 +59,29 @@ info:
 # Disable builtin implicit rules
 .SUFFIXES:
 
-local-go-test: local-build check-gopath
-	ginkgo ./pkg/... ./cmd/...
+local-go-coverage:
+	go install github.com/Azure/gocover@latest
+	$(GOPATH)/bin/gocover test --repository-path=. --coverage-mode full --executor-mode go --excludes "**/config/**,**/vlogger/**,**/test/**,**/prometheus/**,**/mockmanager/**" --outputdir ./
+	awk "!/\/config\/|vlogger|prometheus|mockmanager|\/test\/test/" coverage.out >coverage-new.out
+	mv coverage-new.out coverage.out
+	grep "Coverage (with ignorance)" coverage.html | head -1 | awk 'END { print "Total coverage:", $$4, "of statements" }'
+	#go tool cover -func=coverage.out | grep "^total:" | awk 'END { print "Total coverage:", $$3, "of statements" }'
+	@if [ $(COVERALLS_TOKEN) ]; then \
+		go install github.com/mattn/goveralls@latest; \
+		echo "Pushing coverage data to coveralls"; \
+		$(GOPATH)/bin/goveralls -coverprofile=./coverage.out -service=azure; \
+	fi
+
+local-go-test:
+	go install github.com/onsi/ginkgo/v2/ginkgo
+	go install github.com/onsi/gomega
+	$(GOPATH)/bin/ginkgo -r --procs=4 --compilers=1 --randomize-all --randomize-suites --fail-on-pending --keep-going --trace --junit-report=report.xml --timeout=300s --flake-attempts=3 --succinct
+
+create-coverage-report: local-go-coverage
+	go install github.com/axw/gocov/gocov@latest
+	go install github.com/AlekSi/gocov-xml@latest
+	$(GOPATH)/bin/gocov convert coverage.out > coverage.json
+	$(GOPATH)/bin/gocov-xml < coverage.json > coverage.xml
 
 local-build: check-gopath
 	GOBIN=$(GOBIN) go install $(GO_BUILD_FLAGS) ./pkg/... ./cmd/...

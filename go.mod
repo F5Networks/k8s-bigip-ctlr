@@ -5,13 +5,13 @@ go 1.21
 require (
 	github.com/F5Networks/f5-ipam-controller v0.1.8
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
-	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.27.6
+	github.com/onsi/ginkgo/v2 v2.19.1
+	github.com/onsi/gomega v1.34.1
 	github.com/openshift/api v0.0.0-20210315202829-4b79815405ec
 	github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
 	github.com/prometheus/client_golang v1.11.1
 	github.com/spf13/pflag v1.0.5
-	golang.org/x/crypto v0.21.0
+	golang.org/x/crypto v0.25.0
 	k8s.io/api v0.28.3
 	k8s.io/apiextensions-apiserver v0.21.2
 	k8s.io/apimachinery v0.28.3
@@ -24,16 +24,17 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
-	github.com/google/go-cmp v0.5.9 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/google/pprof v0.0.0-20240424215950-a892ee059fd6 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -43,21 +44,21 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/term v0.22.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/tools v0.23.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect

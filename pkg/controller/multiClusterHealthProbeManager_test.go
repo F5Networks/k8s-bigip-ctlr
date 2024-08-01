@@ -5,7 +5,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/teem"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"

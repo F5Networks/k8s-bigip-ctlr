@@ -6,7 +6,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned/fake"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/informers/externalversions/cis/v1"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"

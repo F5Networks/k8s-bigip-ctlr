@@ -15,6 +15,7 @@ Added Functionality
         * `Issue 3418 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3418>`_: Support for bigip route domain for virtual addresses in Virtual Server, Transport Server, and IngressLink. See examples with `virtual server <config_examples/customResource/VirtualServer/virtual-with-bigipRouteDomain>`_, `transport server <config_examples/customResource/TransportServer/transport-server-with-bigipRouteDomain>`_, and `ingressLink <config_examples/customResource/IngressLink/ingressLink-with-bigipRouteDomain>`_.
     * `Issue 3430 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3430>`_: Support for CIS deployment parameters "ipam-namespace" to configure the namespace for IPAM CR
     * `Issue 3373 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3373>`_: Support to disable members based on deployments for AS3 Configmaps. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/>`_
+    * Add support for AS3 3.52.0
 Bug Fixes
 ````````````
 * `Issue 3401 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3401>`_: Fix for invalid iRule generation for HTTP/2 full proxy mode

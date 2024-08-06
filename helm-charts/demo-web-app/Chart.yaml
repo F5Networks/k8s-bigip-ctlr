@@ -1,5 +1,0 @@
-apiVersion: v1
-description: A simple demo web app for use in networking examples.
-name: demo-web-app
-version: 0.0.2
-appVersion: 0.0.2

@@ -26,7 +26,7 @@ variables:
   chartPath: 'incubator'
   chartRepoName: 'charts'
   chartOrganization: F5Networks
-  helmVersion: 'v3.5.4'
+  helmVersion: 'v3.6.3'
   chartsUpdated: False
   operatorUpdated: False
   operatorImageName: 'f5networks/f5-cis-operator-devel'
@@ -198,3 +198,59 @@ stages:
               mergeTestResults: true
               failTaskOnFailedTests: false
               testRunTitle: 'Trivy - Vulnerabilities Summary'
+  - stage: Charts
+    dependsOn: []
+    jobs:
+      - job: BuildCharts
+        steps:
+          - script: |
+              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/cis-3.x/config_examples/customResourceDefinitions"
+              if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=chartsUpdated]True"; fi
+              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/cis3.x/rbac/clusterrole.yaml"
+              if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=chartsUpdated]True"; fi
+            displayName: Check Helm changes
+          - script: echo '##vso[task.setvariable variable=chartPath]stable'
+            displayName: "Set the helm chart release directory as stable if the Build.SourceBranch starts with 'refs/tags/' "
+            condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+          - script: |
+              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+              chmod 700 get_helm.sh
+              ./get_helm.sh --version $helmVersion
+            displayName: Install Helm
+            failOnStderr: true
+            condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
+          - task: UsePythonVersion@0
+            displayName: Install Python
+            inputs:
+              versionSpec: '3.8'
+              addToPath: true
+              architecture: 'x64'
+            condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
+          - script: |
+              mkdir -p ./helm-charts/f5-bigip-ctlr/crds
+              cp ./docs/cis-3.x/config_examples/customResourceDefinitions/$(chartPath)/customresourcedefinitions.yml ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
+              sed -i '/metadata:/r ./helm-charts/labels.txt' ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
+              # Use sed to insert the annotations
+              sed -i "/name: deployconfigs.cis.f5.com/a\  annotations:\n    \"helm.sh/hook\": crd-install" ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
+              pip install --disable-pip-version-check -r ./build-tools/py-requirements.txt
+              python ./build-tools/helm-clusterrole-gen.py
+              helm lint --strict ./helm-charts/f5-bigip-ctlr --set 'args.cm_url=https://example.com'
+              helm package ./helm-charts/f5-bigip-ctlr --destination .deploy/
+
+            displayName: Package Helm Chart
+            failOnStderr: true
+            condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
+          - script: |
+              set -ex
+              git clone --single-branch --branch gh-pages https://$(PAT)@github.com/$(chartOrganization)/$(chartRepoName).git /tmp/$(chartRepoName)
+              cp -rf .deploy/*.tgz /tmp/$(chartRepoName)/$(chartPath)/
+              pushd /tmp/$(chartRepoName)
+              git config user.email "v.lohiya@f5.com"
+              git config user.name "cisbotctlr"
+              helm repo index --url https://$(chartOrganization).github.io/$(chartRepoName)/$(chartPath) $(chartPath)
+              git add --all
+              git commit -m 'Updating charts for CIS Release v$(cat next-version.txt) and Build Info azure-$(Build.BuildId)-$(Build.SourceVersion) in $(chartPath)'
+              git push origin gh-pages
+              popd
+            displayName: Upload charts
+            condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )

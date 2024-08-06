@@ -1,0 +1,28 @@
+# templates/deployconfig.yaml
+apiVersion: "cis.f5.com/v1"
+kind: DeployConfig
+metadata:
+  name: {{ template "f5-bigip-ctlr.fullname" . }}
+  namespace: {{ template "f5-bigip-ctlr.namespace" . }}
+  labels:
+    f5cr: "true"
+spec:
+  baseConfig:
+    controllerIdentifier: {{ .Values.deployConfig.baseConfig.controllerIdentifier }}
+    namespaceLabel: {{ .Values.deployConfig.baseConfig.namespaceLabel }}
+    nodeLabel: {{ .Values.deployConfig.baseConfig.nodeLabel }}
+  networkConfig:
+    orchestrationCNI: {{ .Values.deployConfig.networkConfig.orchestrationCNI }}
+    metaData:
+      poolMemberType: {{ .Values.deployConfig.networkConfig.metaData.poolMemberType | default "nodeport" }}
+      networkCIDR: {{ .Values.deployConfig.networkConfig.metaData.networkCIDR }}
+      staticRoutingMode: {{ .Values.deployConfig.networkConfig.metaData.staticRoutingMode }}
+  as3Config:
+    debugAS3: {{ .Values.deployConfig.as3Config.debugAS3 | default false }}
+    postDelayAS3: {{ .Values.deployConfig.as3Config.postDelayAS3 | default 0 }}
+  bigIpConfig:
+{{- range .Values.deployConfig.bigIpConfig }}
+    - bigIpAddress: {{ .bigIpAddress }}
+      bigIpLabel: {{ .bigIpLabel }}
+      defaultPartition: {{ .defaultPartition }}
+{{- end }}

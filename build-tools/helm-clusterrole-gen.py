@@ -2,10 +2,12 @@ import yaml
 import os
 import ruamel.yaml
 
+
 class MyDumper(yaml.Dumper):
 
     def increase_indent(self, flow=False, indentless=False):
         return super(MyDumper, self).increase_indent(flow, False)
+
 
 cls_templt = """{{- if .Values.rbac.create -}}
 kind: ClusterRole
@@ -21,35 +23,32 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }} \n"""
 
+ipam_rule_groups = ["apiextensions.k8s.io", "fic.f5.com"]
+non_ipam_rules = []
+ipam_rules = []
 
-ipam_rule_groups = ["apiextensions.k8s.io","fic.f5.com"]
-non_ipam_rules=[]
-ipam_rules=[]
+root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+rbac_file = root + "/docs/cis-3.x/rbac/clusterrole.yaml"
+helm_clrole_path = root + "/helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-clusterrole.yaml"
 
-root =  os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-rbac_dir = root+"/docs/config_examples/rbac/"
-helm_clrole_path = root+"/helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-clusterrole.yaml"
+with open(rbac_file, "r") as f:
+    resources = list(yaml.load_all(f, yaml.FullLoader))
+    for res in resources:
+        if "rules" in res.keys():
+            for rule in res["rules"]:
+                if not list(set(ipam_rule_groups) & set(rule["apiGroups"])):
+                    non_ipam_rules.append(rule)
+                else:
+                    ipam_rules.append(rule)
 
-with open(rbac_dir+'clusterrole.yaml',"r") as f:
-   resources =  list(yaml.load_all(f,yaml.FullLoader))
+with open(helm_clrole_path, "w") as file_data:
+    file_data.write(cls_templt)
+    yaml = ruamel.yaml.YAML()
+    yaml.indent(sequence=4, offset=2)
+    yaml.dump({"rules": non_ipam_rules}, file_data)
 
-for res in resources:
-   if "rules" in res.keys():
-      for rule in res["rules"]:
-            if not list(set(ipam_rule_groups)&set(rule["apiGroups"])):
-               non_ipam_rules.append(rule)
-            else:
-               ipam_rules.append(rule)
-
-
-with open(helm_clrole_path,"w") as file_data:
-   file_data.write(cls_templt)
-   yaml = ruamel.yaml.YAML()
-   yaml.indent(sequence=4, offset=2)
-   yaml.dump({"rules":non_ipam_rules}, file_data)
-
-   if ipam_rules:
-      file_data.write("{{- if .Values.args.ipam }} \n")
-      yaml.dump(ipam_rules, file_data)
-      file_data.write("{{- end }}\n")
-      file_data.write("{{- end }}\n")
+    if ipam_rules:
+        file_data.write("{{- if .Values.args.ipam }} \n")
+        yaml.dump(ipam_rules, file_data)
+        file_data.write("{{- end }}\n")
+        file_data.write("{{- end }}\n")

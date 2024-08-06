@@ -1,3 +1,4 @@
+// +gocover:ignore:file logging package
 // Copyright (c) 2019-2021, F5 Networks, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

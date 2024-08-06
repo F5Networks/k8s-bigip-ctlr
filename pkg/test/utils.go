@@ -1,3 +1,4 @@
+// +gocover:ignore:file test utils
 /*-
  * Copyright (c) 2017-2021 F5 Networks, Inc.
  *

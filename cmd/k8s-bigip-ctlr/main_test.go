@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/v3/pkg/controller"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"github.com/spf13/pflag"
@@ -567,9 +567,6 @@ var _ = Describe("Run", func() {
 	})
 
 	Context("when getCredentials returns an error", func() {
-		BeforeEach(func() {
-
-		})
 
 		It("should return an error", func() {
 			defer _init()

@@ -96,7 +96,7 @@ spec:
         args:
         - --credentials-directory
         - /tmp/creds
-        - --deploy-config-cr={{ template "f5-bigip-ctlr.fullname" . }}/{{ template "f5-bigip-ctlr.namespace" . }}
+        - --deploy-config-cr={{ template "f5-bigip-ctlr.namespace" . }}/{{ template "f5-bigip-ctlr.fullname" . }}
         - --manage-custom-resources=true
         {{- range $key, $value := .Values.args }}
         - --{{ $key | replace "_" "-"}}={{ $value }}

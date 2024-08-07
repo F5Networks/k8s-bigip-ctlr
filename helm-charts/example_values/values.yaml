@@ -1,0 +1,42 @@
+cm_login_secret: f5-bigip-ctlr-login
+cm_secret:
+  create: false
+rbac:
+  create: true
+serviceAccount:
+  create: true
+  name: vivek
+namespace: kube-system
+args:
+  cm_url: 10.145.69.47
+  log_level: DEBUG
+  no_verify_ssl: true
+  disable_teems: true
+  ipam: true
+  manage_custom_resources: true
+image:
+  user: f5networks
+  repo: k8s-bigip-ctlr
+  pullPolicy: IfNotPresent
+version: 3.0.0-beta-2
+limits_cpu: 500m
+limits_memory: 1024Mi
+requests_cpu: 200m
+requests_memory: 256Mi
+securityContext:
+  runAsUser: 2000
+  runAsGroup: 2000
+  fsGroup: 2000
+deployConfig:
+  baseConfig:
+    controllerIdentifier: cluster-1
+  networkConfig:
+    orchestrationCNI: ovn-k8s
+    metaData:
+      poolMemberType: nodeport
+  as3Config:
+    debugAS3: true
+  bigIpConfig:
+    - bigIpAddress: 10.145.71.46
+      bigIpLabel: Hyderabad
+      defaultPartition: test

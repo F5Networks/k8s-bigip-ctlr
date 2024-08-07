@@ -250,6 +250,7 @@ stages:
               mkdir -p /tmp/$(chartRepoName)/helm-charts/$(chartPath)
               cp -rf .deploy/*.tgz /tmp/$(chartRepoName)/helm-charts/$(chartPath)/
               cp -rf helm-charts/f5-bigip-ctlr/README.md /tmp/$(chartRepoName)/helm-charts/
+              cp -rf README.md /tmp/$(chartRepoName)/
               pushd /tmp/$(chartRepoName)
               git config user.email "v.lohiya@f5.com"
               git config user.name "cisbotctlr"

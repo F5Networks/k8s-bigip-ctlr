@@ -11,8 +11,13 @@ Prerequisites
 * Git
 * kubectl
 
-Installing CIS 3.x
-------------------
+Installing CIS 3.x Using Helm Charts
+------------------------------------
+
+Refer to [CIS Helm Charts](https://f5networks.github.io/k8s-bigip-ctlr/helm-charts/)
+
+Installing CIS 3.x Manually
+---------------------------
 
 Step 1: Clone the CIS repo
 

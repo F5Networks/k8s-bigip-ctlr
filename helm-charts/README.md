@@ -15,7 +15,7 @@ helm repo add f5-stable https://f5networks.github.io/k8s-bigip-ctlr/helm-charts/
 ```
 
 Stable Charts:
-- [f5-bigip-ctlr](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/src/stable/f5-bigip-ctlr) - Use this chart to deploy the [k8s-bigip-ctlr](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md) in Kubernetes or OpenShift.
+- [f5-bigip-ctlr](https://github.com/F5Networks/k8s-bigip-ctlr/tree/gh-pages/helm-charts/stable/) - Use this chart to deploy the [k8s-bigip-ctlr](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md) in Kubernetes or OpenShift.
 
 ## Documentation
 

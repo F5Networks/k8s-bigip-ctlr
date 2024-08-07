@@ -1,32 +1,88 @@
-# F5 Networks Helm Charts
+# Helm Chart for the F5 Container Ingress Services
 
-This repository contains [helm](https://docs.helm.sh/using_helm/#using) charts for use with some [F5 Networks](https://f5.com/) products and services within a [Kubernetes](https://kubernetes.io/) or [OpenShift](https://www.openshift.com/) environment.
+This chart simplifies repeatable, versioned deployment of the [Container Ingress Services](https://clouddocs.f5.com/containers/latest/).
 
-**Note:** Charts may require access to `kube-system` namespace and/or cluster wide permissions for full functionality. Be sure to install/configure helm/tiller appropriately.
+### Prerequisites
+- Refer to [CIS Prerequisites](https://clouddocs.f5.com/containers/latest/userguide/cis-helm.html#prerequisites) to install Container Ingress Services on Kubernetes or Openshift
+- [Helm 3](https://helm.sh/docs/intro/) should be installed.
 
-## Stable Charts
 
-The stable directory contains charts that are created/curated and tested by F5 Networks. These charts are supported by F5 Networks (see [SUPPORT](./SUPPORT.md) for details).
+## Installing CIS Using Helm Charts
 
-To add the stable repo to helm:
+This is the simplest way to install the CIS on OpenShift/Kubernetes cluster. Helm is a package manager for Kubernetes. Helm is Kubernetes version of yum or apt. Helm deploys something called charts, which you can think of as a packaged application. It is a collection of all your versioned, pre-configured application resources which can be deployed as one unit. This chart creates a Deployment for one Pod containing the [k8s-bigip-ctlr](https://clouddocs.f5.com/containers/latest/), it's supporting RBAC, Service Account and Custom Resources Definition installations.
 
-```
-helm repo add f5-stable https://f5networks.github.io/k8s-bigip-ctlr/helm-charts/stable
-```
+## Installing the Chart
 
-Stable Charts:
-- [f5-bigip-ctlr](https://github.com/F5Networks/k8s-bigip-ctlr/tree/gh-pages/helm-charts/stable/) - Use this chart to deploy the [k8s-bigip-ctlr](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md) in Kubernetes or OpenShift.
+- (Optional) Add Central Manager credentials as K8S secrets.
 
-## Documentation
+For Kubernetes, use the following command:
 
-Each chart has a README describing its basic functionality. The `values.yaml` file for each chart shows the default values and links to documentation for the resources the chart deploys.
+```kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password>```
+    
+For OpenShift, use the following command:
 
-## Incubation Charts
+```oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password>```
+    
+- Add the CIS chart repository in Helm using following command:
 
-The incubation charts may have been created by F5 Networks or by external contributors. These charts have not undergone full testing and are subject to change. F5 Networks does not provide technical support for templates in the incubation directory.
+```helm repo add f5-stable https://f5networks.github.io/charts/stable```
+    
+- Create values.yaml as shown in [examples](https://github.com/F5Networks/charts/tree/master/example_values/f5-bigip-ctlr):
 
-To access additional charts in a development or testing mode that may not be documented:
+- Install the Helm chart if BIGIP credential secrets created manually using the following command:
+  
+```helm install -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr```
 
-```
-helm repo add f5-incubator https://f5networks.github.io/k8s-bigip-ctlr/helm-charts/incubator
-```
+- Install the Helm chart with skip crds if BIGIP credential secrets created manually (without custom resource definitions installations)
+
+```helm install --skip-crds -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr```
+
+- If you want to create the BIGIP credential secret with helm charts use the following command:
+
+```helm install --set cm_secret.create="true" --set cm_secret.username=$CM_USERNAME --set cm_secret.password=$CM_PASSWORD -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr```
+    
+## Chart parameters:
+
+| Parameter                               | Required | Description                                                             | Default                      |
+|-----------------------------------------|----------|-------------------------------------------------------------------------|------------------------------|
+| cm_login_secret                         | Optional | Secret that contains Central Manager login credentials                  | f5-bigip-ctlr-login          |
+| args.cm_url                             | Required | The management IP for your Central Manager device                       | **Required**, no default     |
+| cm_secret.create                        | Optional | Create kubernetes secret using username and password                    | false                        |
+| cm_secret.username                      | Optional | bigip username to create the kubernetes secret                          | empty                        |
+| cm_secret.password                      | Optional | bigip password to create the kubernetes secret                          | empty                        |
+| rbac.create                             | Optional | Create ClusterRole and ClusterRoleBinding                               | true                         |
+| serviceAccount.name                     | Optional | name of the ServiceAccount for CIS controller                           | f5-bigip-ctlr-serviceaccount |
+| serviceAccount.create                   | Optional | Create service account for the CIS controller                           | true                         |
+| namespace                               | Optional | name of namespace CIS will use to create deployment and other resources | kube-system                  |
+| image.user                              | Optional | CIS Controller image repository username                                | f5networks                   |
+| image.repo                              | Optional | CIS Controller image repository name                                    | k8s-bigip-ctlr               |
+| image.pullPolicy                        | Optional | CIS Controller image pull policy                                        | Always                       |
+| image.pullSecrets                       | Optional | List of secrets of container registry to pull image                     | empty                        |
+| version                                 | Optional | CIS Controller image tag                                                | latest                       |
+| nodeSelector                            | Optional | dictionary of Node selector labels                                      | empty                        |
+| tolerations                             | Optional | Array of labels                                                         | empty                        |
+| limits_cpu                              | Optional | CPU limits for the pod                                                  | 100m                         |
+| limits_memory                           | Optional | Memory limits for the pod                                               | 512Mi                        |
+| requests_cpu                            | Optional | CPU request for the pod                                                 | 100m                         |
+| requests_memory                         | Optional | Memory request for the pod                                              | 512Mi                        |
+| affinity                                | Optional | Dictionary of affinity                                                  | empty                        |
+| securityContext                         | Optional | Dictionary of deployment securityContext                                | empty                        |
+| podSecurityContext                      | Optional | Dictionary of pod securityContext                                       | empty                        |
+
+Note: cm_login_secret and cm_secret are mutually exclusive, if both are defined in values.yaml file cm_secret will be given priority.
+
+
+See the CIS documentation for a full list of args supported for CIS [CIS Configuration Options](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html)
+
+> **Note:** Helm value names cannot include the character `-` which is commonly used in the names of parameters passed to the controller. To accomodate Helm, the parameter names in `values.yaml` use `_` and then replace them with `-` when rendering.
+> e.g. `args.cm_url` is rendered as `cm-url` as required by the CIS Controller.
+
+
+If you have a specific use case for F5 products in the Kubernetes environment that would benefit from a curated chart, please [open an issue](https://github.com/F5Networks/charts/issues) describing your use case and providing example resources.
+
+## Uninstalling Helm Chart
+
+Run the following command to uninstall the chart.
+
+```helm uninstall <new-chart-name>```
+

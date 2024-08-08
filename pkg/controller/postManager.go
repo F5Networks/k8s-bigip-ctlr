@@ -158,6 +158,9 @@ func (postMgr *PostManager) postConfig(cfg *agentConfig) {
 	case http.StatusNotFound:
 		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
 		postMgr.handleResponseStatusNotFound(responseMap, cfg.id)
+	case http.StatusUnauthorized:
+		log.Infof("%v[AS3]%v post resulted in UNAUTHORIZED FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
+		postMgr.handleResponseStatusUnAuthorized(responseMap, cfg.id)
 	default:
 		log.Infof("%v[AS3]%v post resulted in FAILURE", getRequestPrefix(cfg.id), postMgr.postManagerPrefix)
 		postMgr.handleResponseOthers(responseMap, cfg.id)
@@ -190,6 +193,9 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3]%v Response body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
+		if httpResp.StatusCode == http.StatusUnauthorized {
+			log.Errorf("[AS3]%v Unauthorized access to BIG-IP, please check the credentials, message: %v", postMgr.postManagerPrefix, string(body))
+		}
 		if postMgr.LogAS3Response {
 			log.Errorf("[AS3]%v Raw response from Big-IP: %v", postMgr.postManagerPrefix, string(body))
 		}
@@ -363,6 +369,26 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
+func (postMgr *PostManager) handleResponseStatusUnAuthorized(responseMap map[string]interface{}, id int) {
+	var unknownResponse bool
+	if _, ok := responseMap["code"].(float64); ok {
+		if _, ok := responseMap["message"].(string); ok {
+			log.Errorf("%v[AS3]%v authentication failed,"+
+				" Error response from BIGIP with status code: 401 Message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, responseMap["message"])
+		} else {
+			log.Errorf("%v[AS3]%v authentication failed,"+
+				" Error response from BIGIP with status code: 401", getRequestPrefix(id), postMgr.postManagerPrefix)
+		}
+	} else {
+		unknownResponse = true
+	}
+
+	if postMgr.LogAS3Response || unknownResponse {
+		postMgr.logAS3Response(responseMap)
+	}
+	postMgr.updateTenantResponseCode(http.StatusUnauthorized, "", "", false)
+}
+
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, id int) {
 	var unknownResponse bool
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
@@ -440,6 +466,20 @@ func (postMgr *PostManager) GetBigipAS3Version() (string, string, string, error)
 		}
 		// In case of 503 status code : CIS will exit and auto restart of the
 		// controller might fetch the BIGIP version once BIGIP is available.
+	case http.StatusUnauthorized:
+		if code, ok := responseMap["code"].(float64); ok {
+			if int(code) == http.StatusUnauthorized {
+				if _, ok := responseMap["message"].(string); ok {
+					return "", "", "", fmt.Errorf("authentication failed,"+
+						" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, responseMap["message"])
+				} else {
+					return "", "", "", fmt.Errorf("authentication failed,"+
+						" Error response from BIGIP with status code %v", httpResp.StatusCode)
+				}
+			}
+		} else {
+			unknownResponse = true
+		}
 	}
 	if unknownResponse {
 		postMgr.logAS3Response(responseMap)
@@ -484,6 +524,20 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 		} else {
 			unknownResponse = true
 		}
+	case http.StatusUnauthorized:
+		if code, ok := responseMap["code"].(float64); ok {
+			if int(code) == http.StatusUnauthorized {
+				if _, ok := responseMap["message"].(string); ok {
+					return "", fmt.Errorf("authentication failed,"+
+						" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, responseMap["message"])
+				} else {
+					return "", fmt.Errorf("authentication failed,"+
+						" Error response from BIGIP with status code %v", httpResp.StatusCode)
+				}
+			}
+		} else {
+			unknownResponse = true
+		}
 	}
 	if unknownResponse {
 		postMgr.logAS3Response(responseMap)
@@ -519,6 +573,20 @@ func (postMgr *PostManager) GetAS3DeclarationFromBigIP() (map[string]interface{}
 		} else {
 			postMgr.logAS3Response(responseMap)
 		}
+	case http.StatusUnauthorized:
+		if code, ok := responseMap["code"].(float64); ok {
+			if int(code) == http.StatusUnauthorized {
+				if _, ok := responseMap["message"].(string); ok {
+					return nil, fmt.Errorf("authentication failed,"+
+						" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, responseMap["message"])
+				} else {
+					return nil, fmt.Errorf("authentication failed,"+
+						" Error response from BIGIP with status code %v", httpResp.StatusCode)
+				}
+			}
+		} else {
+			postMgr.logAS3Response(responseMap)
+		}
 	}
 	return nil, fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
 }
@@ -540,6 +608,9 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3]%v Response body unmarshal failed: %v\n", postMgr.postManagerPrefix, err)
+		if httpResp.StatusCode == http.StatusUnauthorized {
+			log.Errorf("[AS3]%v Unauthorized access to BIG-IP, please check the credentials, message: %v", postMgr.postManagerPrefix, string(body))
+		}
 		if postMgr.LogAS3Response {
 			log.Errorf("[AS3]%v Raw response from Big-IP: %v", postMgr.postManagerPrefix, string(body))
 		}

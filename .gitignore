@@ -32,6 +32,7 @@ debian/*.substvars
 *.rel
 coverage.out
 coverage.html
+report.xml
 python/.cache
 /venv.local
 *.coverprofile

@@ -26,7 +26,7 @@ if [[ $BUILD_INFO == "" ]]; then
 fi
 
 ginkgo_test_with_coverage () {
-    ginkgo -r -compilers 1 -keepGoing -trace -randomizeAllSpecs -progress --nodes 4 -cover
+    ginkgo -r --procs=4 --compilers=1 --randomize-all --randomize-suites --fail-on-pending --keep-going --trace --junit-report=report.xml --timeout=300s --flake-attempts=3 --succinct -cover
     echo "Gathering unit test code coverage for 'release' build..."
     gather_coverage $WKDIR
 }

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
 	"k8s.io/apimachinery/pkg/util/intstr"

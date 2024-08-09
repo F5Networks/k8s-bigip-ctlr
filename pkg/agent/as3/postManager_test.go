@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	mockhc "github.com/f5devcentral/mockhttpclient"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"io/ioutil"
 	"net/http"

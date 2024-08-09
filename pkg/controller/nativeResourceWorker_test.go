@@ -1003,14 +1003,14 @@ extendedRouteSpec:
 				route3,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{clientSSLs: []string{"\\Common\\plc-serverssl"}})).To(BeFalse())
+				rgPlcSSLProfiles{clientSSLs: []string{"\\Common\\plc-serverssl"}}, false)).To(BeFalse())
 
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route3,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				sslProfiles)).To(BeTrue())
+				sslProfiles, false)).To(BeTrue())
 			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\plc-serverssl", "serverside")).To(BeTrue())
 			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\plc-clientssl", "clientside")).To(BeTrue())
 
@@ -1023,7 +1023,7 @@ extendedRouteSpec:
 				route3,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeTrue())
+				rgPlcSSLProfiles{}, false)).To(BeTrue())
 			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\serverssl", "serverside")).To(BeFalse())
 			Expect(checkSSLProfiles(rsCfg.Virtual.Profiles, "\\Common\\clientssl", "clientside")).To(BeFalse())
 
@@ -1033,7 +1033,7 @@ extendedRouteSpec:
 				route1,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeTrue())
+				rgPlcSSLProfiles{}, false)).To(BeTrue())
 
 			//for edge route and global config map without client ssl profile - It should fail
 			route1.Annotations = serverSSLAnnotation
@@ -1042,7 +1042,7 @@ extendedRouteSpec:
 				route1,
 				extdSpec1.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeFalse())
+				rgPlcSSLProfiles{}, false)).To(BeFalse())
 
 			//for re-encrypt route, and big ip reference in global config map - It should pass
 			route2.Annotations = annotation1
@@ -1051,7 +1051,7 @@ extendedRouteSpec:
 				route2,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeTrue())
+				rgPlcSSLProfiles{}, false)).To(BeTrue())
 
 			//for re encrypt route and global config map without server ssl profile - It should fail
 			route2.Annotations = clientSSLAnnotation
@@ -1060,7 +1060,7 @@ extendedRouteSpec:
 				route2,
 				extdSpec2.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeFalse())
+				rgPlcSSLProfiles{}, false)).To(BeFalse())
 		})
 
 		It("Verify NextGenRoutes K8S Secret as TLS certs", func() {
@@ -1173,7 +1173,7 @@ extendedRouteSpec:
 				route1,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeTrue())
+				rgPlcSSLProfiles{}, false)).To(BeTrue())
 
 			//for edge route and global config map without client ssl profile - It should fail
 			route1.Annotations = serverSSLAnnotation
@@ -1182,7 +1182,7 @@ extendedRouteSpec:
 				route1,
 				extdSpec1.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeFalse())
+				rgPlcSSLProfiles{}, false)).To(BeFalse())
 
 			//for re-encrypt route, and k8s secret as TLS certs in global config map - It should pass
 			route2.Annotations = annotation1
@@ -1191,7 +1191,7 @@ extendedRouteSpec:
 				route2,
 				extdSpec.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeTrue())
+				rgPlcSSLProfiles{}, false)).To(BeTrue())
 
 			//for re encrypt route and global config map without server ssl profile - It should fail
 			route2.Annotations = clientSSLAnnotation
@@ -1200,7 +1200,7 @@ extendedRouteSpec:
 				route2,
 				extdSpec2.VServerAddr,
 				intstr.IntOrString{IntVal: 443},
-				rgPlcSSLProfiles{})).To(BeFalse())
+				rgPlcSSLProfiles{}, false)).To(BeFalse())
 
 			// Verify that getRouteGroupForSecret fetches the z routeGroup on k8s secret update
 			// Prepare extdSpecMap that holds all the

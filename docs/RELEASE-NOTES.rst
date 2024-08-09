@@ -16,6 +16,7 @@ Added Functionality
     * `Issue 3430 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3430>`_: Support for CIS deployment parameters "ipam-namespace" to configure the namespace for IPAM CR
     * `Issue 3373 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3373>`_: Support to disable members based on deployments for AS3 Configmaps. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/>`_
     * Add support for AS3 3.52.0
+    * Support for Passthrough vs/route without default ssl profile(min as3 version required >= 3.52)
 Bug Fixes
 ````````````
 * `Issue 3401 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3401>`_: Fix for invalid iRule generation for HTTP/2 full proxy mode
@@ -29,6 +30,7 @@ Upgrade notes
 * By default, from CIS version 2.18.0 onwards, CIS will process all the services that do not have the loadBalancerClass field set in the service spec. CIS will not process the services that have the loadBalancerClass field set in the service spec.
   The Load Balancer Class supports all the Custom Resources (VirtualServer, TransportServer, and IngressLink) and the loadBalancer service, and you cannot disable it. You need to either remove the loadBalancerClass field from the service or configure the CIS deployment parameter `load-balancer-class` to the same value as the loadBalancerClass field in the service.
   Also see the deployment parameter `manage-load-balancer-class-only`, to control the behavior of CIS for services with loadBalancerClass field set in the service spec.
+* CIS with as3 version >= 3.52, passthrough VS on bigip will not have default ssl profile.
 
 
 F5 IPAM Controller v0.1.11

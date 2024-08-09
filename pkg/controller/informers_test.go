@@ -8,7 +8,7 @@ import (
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"

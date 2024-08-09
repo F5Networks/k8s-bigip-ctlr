@@ -1314,6 +1314,7 @@ func (ctlr *Controller) handleTLS(
 			rsCfg,
 			tlsContext.vsHostname,
 			tlsContext.termination,
+			tlsContext.passthroughVSGrp,
 		)
 		return true
 	}
@@ -1370,6 +1371,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	vs *cisapiv1.VirtualServer,
 	tls *cisapiv1.TLSProfile,
 	ip string,
+	passthroughtVSGrp bool,
 ) bool {
 	if 0 == len(vs.Spec.TLSProfileName) {
 		// Probably this is a non-tls Virtual Server, nothing to do w.r.t TLS
@@ -1460,6 +1462,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 		poolPathRefs:     poolPathRefs,
 		bigIPSSLProfiles: bigIPSSLProfiles,
 		tlsCipher:        tlsCiphers,
+		passthroughVSGrp: passthroughtVSGrp,
 	})
 }
 
@@ -2093,13 +2096,16 @@ func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	vsHost string,
 	tlsTerminationType string,
+	passthroughVSGrp bool,
 ) {
 	// For https
 	if "" != tlsTerminationType {
 		tlsIRuleName := JoinBigipPath(rsCfg.Virtual.Partition,
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange, rsCfg.Virtual.MultiPoolPersistence))
+			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition,
+			ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition,
+				rsCfg.Virtual.AllowSourceRange, rsCfg.Virtual.MultiPoolPersistence, passthroughVSGrp))
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)
@@ -2666,7 +2672,8 @@ func (ctlr *Controller) handleRouteTLS(
 	route *routeapi.Route,
 	vServerAddr string,
 	servicePort intstr.IntOrString,
-	policySSLProfiles rgPlcSSLProfiles) bool {
+	policySSLProfiles rgPlcSSLProfiles,
+	passthroughVSGrp bool) bool {
 
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS
@@ -2832,6 +2839,7 @@ func (ctlr *Controller) handleRouteTLS(
 		poolPathRefs,
 		bigIPSSLProfiles,
 		ctlr.resources.baseRouteConfig.TLSCipher,
+		passthroughVSGrp,
 	})
 }
 

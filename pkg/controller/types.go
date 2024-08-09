@@ -1291,6 +1291,7 @@ type (
 		poolPathRefs     []poolPathRef
 		bigIPSSLProfiles BigIPSSLProfiles
 		tlsCipher        TLSCipher
+		passthroughVSGrp bool
 	}
 )
 

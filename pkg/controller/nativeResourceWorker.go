@@ -124,6 +124,17 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			break
 		}
 
+		// iterate over routes
+		passthroughVSGrp := true
+		for _, rt := range routes {
+			if isSecureRoute(rt) {
+				if rt.Spec.TLS.Termination != TLSPassthrough {
+					passthroughVSGrp = false
+					break
+				}
+			}
+		}
+
 		for _, rt := range routes {
 			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
 			_, port := ctlr.getServicePort(rt)
@@ -167,7 +178,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			}
 			if isSecureRoute(rt) {
 				//TLS Logic
-				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, policySSLProfiles)
+				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, policySSLProfiles, passthroughVSGrp)
 				if !processed {
 					// Processing failed
 					// Stop processing further routes

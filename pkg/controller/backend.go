@@ -665,7 +665,8 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		sharedApp["template"] = "shared"
 
 		// Process rscfg to create AS3 Resources
-		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName, config.poolMemberType)
+		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName,
+			config.poolMemberType, agent.bigIPAS3Version)
 
 		// Process CustomProfiles
 		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp, agent.bigIPAS3Version)
@@ -763,7 +764,7 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 }
 
 // Process for AS3 Resource
-func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
+func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string, bigipAs3Version float64) {
 	for _, cfg := range rsMap {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
@@ -777,7 +778,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 		switch cfg.MetaData.ResourceType {
 		case VirtualServer:
 			//Create AS3 Service for virtual server
-			createServiceDecl(cfg, sharedApp, tenant)
+			createServiceDecl(cfg, sharedApp, tenant, bigipAs3Version)
 		case TransportServer:
 			//Create AS3 Service for transport virtual server
 			createTransportServiceDecl(cfg, sharedApp, tenant)
@@ -916,7 +917,7 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 }
 
 // Create AS3 Service for CRD
-func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string, bigipAs3Version float64) {
 	svc := &as3Service{}
 	numPolicies := len(cfg.Virtual.Policies)
 	switch {
@@ -1052,8 +1053,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		Partition: cfg.Virtual.Partition,
 	}
 	if _, ok := cfg.IntDgMap[mapKey]; ok {
-		svc.ServerTLS = &as3ResourcePointer{
-			BigIP: "/Common/clientssl",
+		if bigipAs3Version < 3.52 {
+			svc.ServerTLS = &as3ResourcePointer{
+				BigIP: "/Common/clientssl",
+			}
 		}
 		updateVirtualToHTTPS(svc)
 	}

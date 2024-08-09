@@ -22,6 +22,7 @@ Bug Fixes
 * `Issue 3466 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3466>`_: Fix scaling issue in NodeportLocal mode
 * `Issue 3432 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3432>`_: Show meaningful logs for exceptions occured from controller agent
 * `Issue 3396 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3396>`_: Fix adding pool members from external clusters in nodeportLocal mc mode
+* `Issue 3351 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3351>`_: improve message handling when getting HTTP/401 from AS3
 
 Upgrade notes
 ``````````````

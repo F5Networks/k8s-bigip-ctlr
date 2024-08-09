@@ -1,5 +1,0 @@
-{{ .Chart.Name }} installed.
-
-The release name is {{ .Release.Name }}.
-
-This is a simple nginx web service packaged as a chart for requirement in testing and demo purposes within other charts.

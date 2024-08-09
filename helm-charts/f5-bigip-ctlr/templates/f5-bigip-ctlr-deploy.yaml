@@ -1,9 +1,8 @@
-{{- if or (not .Values.args.bigip_url) (not .Values.args.bigip_partition) }}
+{{- if not .Values.args.cm_url }}
 {{/*
 Generate errors for missing required values.
 */}}
-# {{required "BIG-IP url not specified - add to Values or pass with `--set` " .Values.args.bigip_url }}
-# {{required "BIG-IP partition not specified - add to Values or pass with `--set` " .Values.args.bigip_partition }}
+# {{required "Central Manager url not specified - add to Values or pass with `--set` " .Values.args.cm_url }}
 {{- else -}}
 apiVersion: {{ template "deployment.apiVersion" . }}
 kind: Deployment
@@ -50,13 +49,11 @@ spec:
         {{- else }}
         runAsUser: 1000
         {{- end }}
-        {{- $securityContext := .Values.securityContext | default dict }}
         {{- if $securityContext.runAsGroup }}
         runAsGroup: {{ $securityContext.runAsGroup }}
         {{- else }}
         runAsGroup: 1000
         {{- end }}
-        {{- $securityContext := .Values.securityContext | default dict }}
         {{- if $securityContext.fsGroup }}
         fsGroup: {{ $securityContext.fsGroup }}
         {{- else }}
@@ -90,7 +87,7 @@ spec:
           successThreshold: 1
           timeoutSeconds: 15
         volumeMounts:
-        - name: bigip-creds
+        - name: cm-creds
           mountPath: "/tmp/creds"
           readOnly: true
         imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -99,15 +96,10 @@ spec:
         args:
         - --credentials-directory
         - /tmp/creds
-        {{- $ns := .Values.args.namespaces }}
+        - --deploy-config-cr={{ template "f5-bigip-ctlr.namespace" . }}/{{ template "f5-bigip-ctlr.fullname" . }}
+        - --manage-custom-resources=true
         {{- range $key, $value := .Values.args }}
-        {{- if eq $key "namespaces" }}
-        {{- range $ns}}
-        - --namespace={{ . }}
-        {{- end }}
-        {{- else }}
         - --{{ $key | replace "_" "-"}}={{ $value }}
-        {{- end }}
         {{- end }}
         resources:
           limits:
@@ -125,11 +117,11 @@ spec:
 {{ toYaml .Values.tolerations | indent 6}}
 {{- end }}
       volumes:
-      - name: bigip-creds
+      - name: cm-creds
         secret:
-      {{- if .Values.bigip_secret.create }}
+      {{- if .Values.cm_secret.create }}
           secretName: f5-bigip-ctlr-login
       {{- else }}
-          secretName: {{ .Values.bigip_login_secret }}
+          secretName: {{ .Values.cm_login_secret }}
       {{- end }}
 {{- end }}

@@ -1,13 +1,13 @@
 # For additional information on installing the k8-bigip-ctlr please see:
-# Kubernetes: https://clouddocs.f5.com/containers/latest/userguide/kubernetes/#cis-installation
-# OpenShift: https://clouddocs.f5.com/containers/latest/userguide/openshift/#cis-installation
+# Kubernetes: https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
+# OpenShift: https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
 #
 # access / permissions / RBAC
 # To create a secret using kubectl see
-# https://clouddocs.f5.com/containers/latest/userguide/kubernetes/#installing-cis-manually
-bigip_login_secret: f5-bigip-ctlr-login
+# https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
+cm_login_secret: f5-bigip-ctlr-login
 
-bigip_secret:
+cm_secret:
   create: false
   username:
   password:
@@ -23,43 +23,48 @@ serviceAccount:
 # This namespace is where the Controller lives;
 namespace: kube-system
 
-ingressClass:
-  create: true
-  ingressClassName: f5
-  isDefaultIngressController: true
+deployConfig:
+  baseConfig:
+    controllerIdentifier: cluster-1
+    namespaceLabel:
+    nodeLabel:
+  networkConfig:
+    orchestrationCNI: ovn-k8s
+    metaData:
+      # poolMemberType is optional parameter, and it is used to specify the pool member type in CIS default value is nodeport
+      # allowed values are auto, cluster, nodeport and nodeportlocal
+      poolMemberType: nodeport
+      # networkCIDR is optional parameter and required if your nodes are using multiple network interfaces
+      # networkCIDR: "10.1.0.0/16"
+      # staticRoutingMode: true
+  as3Config:
+    # debugAS3 is a optional parameter, and it is used to enable the debug logs for AS3
+    debugAS3: true
+    # postDelayAS3 is an optional parameter, and it is used if AS3 is taking more time to apply the configuration
+    # postDelayAS3: 10
+  bigIpConfig:
+    - bigIpAddress: 10.10.10.1
+      # bigIpLabel is used to map the ingress resource to the bigip, you can specify the bigip label in TS/IngressLink CR
+      bigIpLabel: Hyderabad
+      defaultPartition: test
+
 args:
-  # See https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html
+  # See https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
   # NOTE: helm has difficulty with values using `-`; `_` are used for naming
   # and are replaced with `-` during rendering.
   # REQUIRED Params
-  bigip_url: ~
-  bigip_partition: f5-bigip-ctlr
+  cm_url: ~
   # OPTIONAL PARAMS -- uncomment and provide values for those you wish to use.
-  # verify_interval:
-  # node-poll_interval:
-  # log_level:
-  # python_basedir: ~
-  # VXLAN
-  # openshift_sdn_name:
-  # flannel_name:
-  # KUBERNETES
-  # default_ingress_ip:
-  # kubeconfig:
-  # namespaces: ["foo", "bar"]
-  # namespace_label:
-  # node_label_selector:
-  # pool_member_type:
-  # resolve_ingress_names:
-  # running_in_cluster:
-  # use_node_internal:
-  # use_secrets:
-  # insecure: true
-  # custom-resource-mode: true
-  # log-as3-response: true
-  # gtm-bigip-password
-  # gtm-bigip-url
-  # gtm-bigip-username
-  # ipam : true
+  # http_listen_address: 0.0.0.0:8080
+  # log_level: DEBUG
+  # log_file: /var/log/k8s-bigip-ctlr.log
+  # no_verify_ssl: true
+  # trusted_certs_cfgmap: <namespace>/<configmap>
+  # kubeconfig: /var/run/secrets/kubernetes.io/serviceaccount/token
+  # use_node_internal:true ### filter Kubernetes InternalIP addresses for pool members
+  # ipam: true ### Enable IPAM
+  # ipam_namespace: kube-system ### Specify the namespace of ipam custom resource
+
 
 image:
   # Use the tag to target a specific version of the Controller
@@ -88,3 +93,11 @@ version: latest
 #   runAsUser: 1000
 #   runAsGroup: 1000
 #   privileged: true
+
+# Set tolerations for nodes
+#tolerations:
+#  - key: "example-key"
+#    operator: "Exists"
+#    effect: "NoSchedule"
+
+

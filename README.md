@@ -1,7 +1,7 @@
-<!--- uncomment after go fmt is fixed
 [![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=master) ](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=master)
--->
-[![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg) ](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr)
+![Azure DevOps coverage](https://img.shields.io/azure-devops/coverage/f5networks/cis/6)
+![Azure DevOps tests](https://img.shields.io/azure-devops/tests/f5networks/cis/6)
+
 
 
 
@@ -67,8 +67,8 @@ make prod
 
 OR
 
-# RHEL7 image
-make prod BASE_OS=rhel7
+# RHEL image
+make prod BASE_OS=ubi
 ```
 
 

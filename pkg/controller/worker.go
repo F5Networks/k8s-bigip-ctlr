@@ -1288,6 +1288,21 @@ func (ctlr *Controller) processVirtualServers(
 			break
 		}
 
+		tlsProfs := ctlr.getTLSProfilesForVirtuals(virtuals)
+		passthroughVSGrp := true
+		if tlsProfs != nil {
+			for _, value := range tlsProfs {
+				if value != nil {
+					if value.Spec.TLS.Termination != TLSPassthrough {
+						passthroughVSGrp = false
+						break
+					}
+				}
+			}
+		} else {
+			passthroughVSGrp = false
+		}
+
 		for _, vrt := range virtuals {
 			// Updating the virtual server IP Address status for all associated virtuals
 			vrt.Status.VSAddress = ip
@@ -1296,7 +1311,9 @@ func (ctlr *Controller) processVirtualServers(
 			var tlsTermination string
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				tlsProf = ctlr.getTLSProfileForVirtualServer(vrt)
+				if tlsProfs != nil {
+					tlsProf = tlsProfs[vrt.Name+"/"+vrt.Namespace]
+				}
 				if tlsProf == nil {
 					// Processing failed
 					// Stop processing further virtuals
@@ -1345,7 +1362,7 @@ func (ctlr *Controller) processVirtualServers(
 				}
 			}
 			if tlsProf != nil {
-				processed := ctlr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip)
+				processed := ctlr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip, passthroughVSGrp)
 				if !processed {
 					// Processing failed
 					// Stop processing further virtuals
@@ -1396,6 +1413,17 @@ func (ctlr *Controller) processVirtualServers(
 	}
 
 	return nil
+}
+
+func (ctlr *Controller) getTLSProfilesForVirtuals(virtuals []*cisapiv1.VirtualServer) map[string]*cisapiv1.TLSProfile {
+	tlsProfileMap := make(map[string]*cisapiv1.TLSProfile)
+	for _, vrt := range virtuals {
+		if isTLSVirtualServer(vrt) {
+			tlsProf := ctlr.getTLSProfileForVirtualServer(vrt)
+			tlsProfileMap[vrt.Name+"/"+vrt.Namespace] = tlsProf
+		}
+	}
+	return tlsProfileMap
 }
 
 // getEffectiveHTTPPort returns the final HTTP port considered for virtual server

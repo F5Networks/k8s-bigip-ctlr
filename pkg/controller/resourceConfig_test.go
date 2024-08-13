@@ -1777,6 +1777,181 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
 			Expect(rsCfg.Virtual.FTPProfile).To(Equal("/Common/ftpProfile1"), "FTP Profile should be set for Transport Server")
 		})
+		Context("Verify Adapt Profiles", func() {
+			It("Verify Adapt Profile supported in Policy CR for VirtualServer", func() {
+				// Add request adapt profile
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Request = "/Common/example-requestadapt"
+				err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/example-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Add response adapt profile
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Response = "/Common/example-responseadapt"
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/example-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/example-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Update request adapt profile
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Request = "/Common/new-requestadapt"
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/example-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove response adapt profile
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Response = ""
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove request adapt profile
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Request = ""
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+			})
+
+			It("Verify Adapt Profile supported in Virutal Server CR for VirtualServer", func() {
+				// Add request adapt profile
+				vs := test.NewVirtualServer(
+					"SamplevS",
+					namespace,
+					cisapiv1.VirtualServerSpec{},
+				)
+				vs.Spec.ProfileAdapt.Request = "/Common/example-requestadapt"
+				rsCfg = &ResourceConfig{}
+				err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/example-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Add response adapt profile
+				vs.Spec.ProfileAdapt.Response = "/Common/example-responseadapt"
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/example-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/example-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Update request adapt profile
+				vs.Spec.ProfileAdapt.Request = "/Common/new-requestadapt"
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/example-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove response adapt profile
+				vs.Spec.ProfileAdapt.Response = ""
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove request adapt profile
+				vs.Spec.ProfileAdapt.Request = ""
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+			})
+
+			It("Verify Adapt Profile precedence in Virutal Server and Policy CR for VirtualServer", func() {
+				// Add request adapt profile
+				vs := test.NewVirtualServer(
+					"SamplevS",
+					namespace,
+					cisapiv1.VirtualServerSpec{},
+				)
+				plc.Spec.L7Policies.ProfileAdapt.Request = "/Common/example-requestadapt"
+				rsCfg = &ResourceConfig{}
+				err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/example-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Add request adapt profile in VS spec and verify it takes precedence
+				vs.Spec.ProfileAdapt.Request = "/Common/new-requestadapt"
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Add response adapt profile in VS
+				vs.Spec.ProfileAdapt.Response = "/Common/example-responseadapt"
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/example-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Add response adapt profile in policy and verify it doesn't take precedence
+				plc.Spec.L7Policies.ProfileAdapt.Request = "/Common/new-requestadapt"
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/example-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Update response adapt profile in VS and verify it takes precedence
+				vs.Spec.ProfileAdapt.Response = "/Common/new-responseadapt"
+				rsCfg = &ResourceConfig{}
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/new-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove request adapt profile from policy and verify value is taken from VS CR
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Request = ""
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(Equal("/Common/new-responseadapt"), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove response adapt profile from VS CR
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Request = ""
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				vs.Spec.ProfileAdapt.Response = ""
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(Equal("/Common/new-requestadapt"), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+				// Remove request adapt profile from VS CR
+				rsCfg = &ResourceConfig{}
+				plc.Spec.L7Policies.ProfileAdapt.Request = ""
+				err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+				vs.Spec.ProfileAdapt.Request = ""
+				err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+				Expect(rsCfg.Virtual.ProfileAdapt.Request).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+				Expect(rsCfg.Virtual.ProfileAdapt.Response).To(BeEmpty(), "Request Adapt Profile should be set for Virtual Server")
+
+			})
+		})
 	})
 
 	Describe("Handle pool resource config for a policy", func() {

@@ -81,6 +81,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | partition                        | String                        | Optional  | NA      | bigip partition                                                                                                                                                                                                  |
 | hostPersistence                  | Object                        | Optional  | NA      | Persist session rule action will be added to the VS Policy based on the host. Allowed values are existing BIG-IP Persist session                                                                                 |
 | bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP
+| profileAdapt                 | Object                       | Optional  | NA       | BIG-IP Adapt profile for Virtual Server
                                                                                         |
 
 **Note**:
@@ -198,9 +199,20 @@ This page is created to document the behaviour of CIS in CRD Mode.
   * MetaData params should be configured as per the Method name.
 
 
+**Adapt Profile Components**
+| PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                   |
+|------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
+| request             | String  | Optional | NA      | Reference to existing request adapt profile on BIG-IP.                                  |
+| response           | String  | Optional | NA      | Reference to existing response adapt profile on BIG-IP.                            |
+
+**Note**
+  * profileAdapt in Virtual Server CR takes precedence over profileAdapt in Policy CR.
+
+
 ### Examples
 
    https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer
+
    
 ## TLSProfile
    * TLSProfile is used to specify the TLS termination for a single/list of services in a VirtualServer Custom Resource. TLS termination relies on SNI. Any non-SNI traffic received on port 443 may result in connection issues. 

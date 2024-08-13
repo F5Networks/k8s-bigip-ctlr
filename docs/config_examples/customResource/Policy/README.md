@@ -25,6 +25,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | Parameter | Type   | Required | Default | Description                             |
 | --------- | ------ | -------- | ------- | --------------------------------------- |
 | waf       | String | Optional | N/A     | Pathname of existing BIG-IP WAF policy. |
+| profileAdapt       | Object | Optional | N/A     | BIG-IP Adapt profile for Virtual Server. |
 
 ### L3 Policy Components
 
@@ -140,3 +141,12 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | reference           | String            | Required | NA          | Allowed values are **bigip** or **service**                                                                                             |
 | name                | String            | Optional | NA          | pool name or reference to the pool name existing on bigip                                                                               |
 
+
+**Adapt Profile Components**
+| PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                   |
+|------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
+| request             | String  | Optional | NA      | Reference to existing request adapt profile on BIG-IP.                                  |
+| response           | String  | Optional | NA      | Reference to existing response adapt profile on BIG-IP.                            |
+
+**Note**
+  * profileAdapt in Virtual Server CR takes precedence over profileAdapt in Policy CR.

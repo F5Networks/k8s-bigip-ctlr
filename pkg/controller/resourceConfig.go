@@ -724,6 +724,15 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		}
 	}
 
+	if (vs.Spec.ProfileAdapt != cisapiv1.ProfileAdapt{}) {
+		if vs.Spec.ProfileAdapt.Request != "" {
+			rsCfg.Virtual.ProfileAdapt.Request = vs.Spec.ProfileAdapt.Request
+		}
+		if vs.Spec.ProfileAdapt.Response != "" {
+			rsCfg.Virtual.ProfileAdapt.Response = vs.Spec.ProfileAdapt.Response
+		}
+	}
+
 	if vs.Spec.DOS != "" {
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
@@ -2518,6 +2527,16 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			Context:      "http",
 			BigIPProfile: true,
 		})
+	}
+
+	if (plc.Spec.L7Policies.ProfileAdapt != cisapiv1.ProfileAdapt{}) {
+		rsCfg.Virtual.ProfileAdapt = ProfileAdapt{}
+		if plc.Spec.L7Policies.ProfileAdapt.Request != "" {
+			rsCfg.Virtual.ProfileAdapt.Request = plc.Spec.L7Policies.ProfileAdapt.Request
+		}
+		if plc.Spec.L7Policies.ProfileAdapt.Response != "" {
+			rsCfg.Virtual.ProfileAdapt.Response = plc.Spec.L7Policies.ProfileAdapt.Response
+		}
 	}
 
 	switch rsCfg.MetaData.Protocol {

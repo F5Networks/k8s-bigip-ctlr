@@ -144,6 +144,15 @@ spec:
                 profileMultiplex:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                profileAdapt:
+                  type: object
+                  properties:
+                    request:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    response:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 allowVlans:
                   items:
                     type: string
@@ -1061,6 +1070,15 @@ spec:
                     policyPerRequestAccess:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    profileAdapt:
+                      type: object
+                      properties:
+                        request:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                        response:
+                          type: string
+                          pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 l3Policies:
                   type: object
                   properties:

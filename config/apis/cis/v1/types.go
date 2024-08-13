@@ -62,6 +62,7 @@ type VirtualServerSpec struct {
 	HostPersistence                  HostPersistence  `json:"hostPersistence,omitempty"`
 	ProfileAccess                    string           `json:"profileAccess,omitempty"`
 	PolicyPerRequestAccess           string           `json:"policyPerRequestAccess,omitempty"`
+	ProfileAdapt                     ProfileAdapt     `json:"profileAdapt,omitempty"`
 }
 
 type HostPersistence struct {
@@ -265,7 +266,7 @@ type IngressLinkSpec struct {
 	Selector             *metav1.LabelSelector `json:"selector"`
 	IRules               []string              `json:"iRules,omitempty"`
 	IPAMLabel            string                `json:"ipamLabel"`
-	BigIPRouteDomain     int32            `json:"bigipRouteDomain,omitempty"`
+	BigIPRouteDomain     int32                 `json:"bigipRouteDomain,omitempty"`
 	Partition            string                `json:"partition,omitempty"`
 }
 
@@ -410,11 +411,16 @@ type AnalyticsProfiles struct {
 }
 
 type L7PolicySpec struct {
-	WAF                    string `json:"waf,omitempty"`
-	ProfileAccess          string `json:"profileAccess,omitempty"`
-	PolicyPerRequestAccess string `json:"policyPerRequestAccess,omitempty"`
+	WAF                    string       `json:"waf,omitempty"`
+	ProfileAccess          string       `json:"profileAccess,omitempty"`
+	PolicyPerRequestAccess string       `json:"policyPerRequestAccess,omitempty"`
+	ProfileAdapt           ProfileAdapt `json:"profileAdapt,omitempty"`
 }
 
+type ProfileAdapt struct {
+	Request  string `json:"request,omitempty"`
+	Response string `json:"response,omitempty"`
+}
 type L3PolicySpec struct {
 	DOS                  string   `json:"dos,omitempty"`
 	BotDefense           string   `json:"botDefense,omitempty"`

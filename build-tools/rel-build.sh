@@ -14,9 +14,8 @@ RUN_TESTS=${RUN_TESTS:-1}
 . $REPOPATH/build-tools/_build-lib.sh
 
 if [ $RUN_TESTS -eq 1 ]; then
-    go get github.com/onsi/ginkgo/ginkgo@v1.16.2
-	  go get github.com/onsi/gomega@v1.25.0
-	  go install github.com/onsi/ginkgo/ginkgo@v1.16.2
+    go install github.com/onsi/ginkgo/v2/ginkgo
+    go install github.com/onsi/gomega
 	  GO111MODULE=off
 	  go get github.com/wadey/gocovmerge
 	  go get github.com/mattn/goveralls

@@ -6,7 +6,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	mockhc "github.com/f5devcentral/mockhttpclient"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"io/ioutil"
 	"net/http"

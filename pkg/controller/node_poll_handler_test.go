@@ -2,7 +2,7 @@ package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"

@@ -2,12 +2,12 @@ apiVersion: v1
 entries:
   f5-bigip-ctlr:
   - apiVersion: v1
-    created: "2024-08-09T05:51:06.458271341Z"
+    created: "2024-08-13T13:04:51.844840558Z"
     description: Deploy the F5 Networks BIG-IP Controller for Kubernetes and OpenShift
       (k8s-bigip-ctlr).
-    digest: 644aa8b66de16a8f021a77ddbad54f0a2d45c760a38539b562f0f2bcf8d029c7
+    digest: 77516daaefb81c0fe57d6653c109d2d70d4f58525eb527b4a9cd64d056b679fc
     name: f5-bigip-ctlr
     urls:
     - https://F5Networks.github.io/k8s-bigip-ctlr/helm-charts/incubator/f5-bigip-ctlr-3.0.0.tgz
     version: 3.0.0
-generated: "2024-08-09T05:51:06.456965029Z"
+generated: "2024-08-13T13:04:51.84211185Z"

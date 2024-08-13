@@ -1883,6 +1883,20 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 		}
 	}
 
+	//Attach adapt profile
+	if (cfg.Virtual.ProfileAdapt != ProfileAdapt{}) {
+		if cfg.Virtual.ProfileAdapt.Request != "" {
+			svc.ProfileRequestAdapt = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.ProfileAdapt.Request),
+			}
+		}
+		if cfg.Virtual.ProfileAdapt.Response != "" {
+			svc.ProfileResponseAdapt = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.ProfileAdapt.Response),
+			}
+		}
+	}
+
 	//Process iRules for crd
 	processIrulesForCRD(cfg, svc)
 }

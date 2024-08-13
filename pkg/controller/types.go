@@ -18,10 +18,11 @@ package controller
 
 import (
 	"container/list"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"net/http"
 	"sync"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 
@@ -253,6 +254,7 @@ type (
 		ProfileAccess              string                `json:"profileAccess,omitempty"`
 		PolicyPerRequestAccess     string                `json:"policyPerRequestAccess,omitempty"`
 		FTPProfile                 string                `json:"ftpProfile,omitempty"`
+		ProfileAdapt               ProfileAdapt          `json:"profileAdapt,omitempty"`
 	}
 	MultiPoolPersistence struct {
 		Method  string `json:"method,omitempty"`
@@ -273,6 +275,11 @@ type (
 	ProfileHTTP2 struct {
 		Client string `json:"client,omitempty"`
 		Server string `json:"server,omitempty"`
+	}
+
+	ProfileAdapt struct {
+		Request  string `json:"request,omitempty"`
+		Response string `json:"response,omitempty"`
 	}
 
 	// ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -1068,6 +1075,8 @@ type (
 		ProfileAccess          as3MultiTypeParam    `json:"profileAccess,omitempty"`
 		PolicyPerRequestAccess as3MultiTypeParam    `json:"policyPerRequestAccess,omitempty"`
 		ProfileFTP             as3MultiTypeParam    `json:"profileFTP,omitempty"`
+		ProfileRequestAdapt    as3MultiTypeParam    `json:"profileRequestAdapt,omitempty"`
+		ProfileResponseAdapt   as3MultiTypeParam    `json:"profileResponseAdapt,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

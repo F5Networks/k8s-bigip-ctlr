@@ -59,6 +59,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
 			rsCfg.Virtual.BigIPRouteDomain = 10
 			rsCfg.Virtual.AdditionalVirtualAddresses = []string{"172.13.14.17", "172.13.14.18"}
+			rsCfg.Virtual.ProfileAdapt = ProfileAdapt{"/Common/example-requestadapt", "/Common/example-responseadapt"}
 			rsCfg.Virtual.Policies = []nameRef{
 				{
 					Name:      "policy1",
@@ -255,6 +256,8 @@ var _ = Describe("Backend Tests", func() {
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "default_pool_svc2")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "/Common/example-requestadapt")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "/Common/example-responseadapt")).To(BeTrue())
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}

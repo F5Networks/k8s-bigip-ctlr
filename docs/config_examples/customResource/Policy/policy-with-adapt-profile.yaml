@@ -1,0 +1,15 @@
+# Adapt Profile is supported only for Virtual server
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy1
+  namespace: test
+spec:
+  iRules: {}
+  l3Policies: {}
+  l7Policies:
+    profileAdapt:
+      request: /Common/requestadapt
+      response: /Common/responseadapt

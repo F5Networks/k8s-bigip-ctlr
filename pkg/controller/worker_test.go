@@ -1815,6 +1815,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addTLSProfile(tlsSecretProf)
 				mockCtlr.processResources()
 
+				mockCtlr.resources.baseRouteConfig.TLSCipher.DisableTLSVersions = []string{"1.1"}
 				mockCtlr.addSecret(secret)
 				mockCtlr.processResources()
 

@@ -193,6 +193,7 @@ Note:- Switching from autoMonitor: readiness-probe to autoMonitor: service-endpo
 | tlsVersion  | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                           | 1.2                |
 | ciphers     | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive; only use one.                  | DEFAULT            |
 | cipherGroup | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one. | /Common/f5-default |
+| disableTLSVersions     | Optional | Configures to disable a particular version of TLS version on the bigip. Supported values are ["1.0", "1.1", "1.2", "1.3"] | -                  |
 
 #### defaultTLS Config Parameters
 

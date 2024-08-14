@@ -1071,7 +1071,7 @@ extendedRouteSpec:
 							"1.2",
 							"DEFAULT",
 							"/Common/f5-default",
-						},
+							[]string{"1.1"}},
 						DefaultSSLProfile{},
 						DefaultRouteGroupConfig{},
 						"",

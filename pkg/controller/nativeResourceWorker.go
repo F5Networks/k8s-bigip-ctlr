@@ -1278,10 +1278,11 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 		"1.2",
 		"DEFAULT",
 		"/Common/f5-default",
+		[]string{},
 	}
 	ctlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
 	ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig = DefaultRouteGroupConfig{}
-	if (baseRouteConfig != BaseRouteConfig{}) {
+	if !reflect.DeepEqual(baseRouteConfig, BaseRouteConfig{}) {
 		if baseRouteConfig.TLSCipher.TLSVersion != "" {
 			ctlr.resources.baseRouteConfig.TLSCipher.TLSVersion = baseRouteConfig.TLSCipher.TLSVersion
 		}
@@ -1292,6 +1293,7 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 		if baseRouteConfig.TLSCipher.CipherGroup != "" {
 			ctlr.resources.baseRouteConfig.TLSCipher.CipherGroup = baseRouteConfig.TLSCipher.CipherGroup
 		}
+		ctlr.resources.baseRouteConfig.TLSCipher.DisableTLSVersions = baseRouteConfig.TLSCipher.DisableTLSVersions
 	}
 	if baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) {
 		ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL = baseRouteConfig.DefaultTLS.ClientSSL

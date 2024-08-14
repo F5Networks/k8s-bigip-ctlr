@@ -153,6 +153,18 @@ func NewCustomProfile(
 		cp.CAFile = caFile
 	}
 
+	for _, item := range tlsCipher.DisableTLSVersions {
+		enabled := false
+		if item == string(TLSVerion1_0) {
+			cp.TLS1_0Enabled = &enabled
+		} else if item == string(TLSVerion1_1) {
+			cp.TLS1_1Enabled = &enabled
+		} else if item == string(TLSVerion1_2) {
+			cp.TLS1_2Enabled = &enabled
+		} else if item == string(TLSVerion1_3) {
+			cp.TLS1_3Enabled = &enabled
+		}
+	}
 	if tlsCipher.TLSVersion == string(TLSVerion1_3) {
 		cp.CipherGroup = tlsCipher.CipherGroup
 	} else {
@@ -1433,10 +1445,12 @@ func (ctlr *Controller) handleVirtualServerTLS(
 		if tls.Spec.TLSCipher.TLSVersion != "" {
 			tlsCiphers.TLSVersion = tls.Spec.TLSCipher.TLSVersion
 		}
+		tlsCiphers.DisableTLSVersions = tls.Spec.TLSCipher.DisableTLSVersions
 	} else {
 		tlsCiphers.TLSVersion = ctlr.resources.baseRouteConfig.TLSCipher.TLSVersion
 		tlsCiphers.Ciphers = ctlr.resources.baseRouteConfig.TLSCipher.Ciphers
 		tlsCiphers.CipherGroup = ctlr.resources.baseRouteConfig.TLSCipher.CipherGroup
+		tlsCiphers.DisableTLSVersions = ctlr.resources.baseRouteConfig.TLSCipher.DisableTLSVersions
 	}
 
 	var poolPathRefs []poolPathRef
@@ -2752,7 +2766,7 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		log.Infof("Route spec certs are given third priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
-		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+		if !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) {
 			//set for default routegroup
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
 				//Flag to track the route groups which are using TLS profiles.
@@ -2784,7 +2798,7 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		log.Infof("Default SSL defined in extended configMap are given least priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
-		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+		if !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
 				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
@@ -2879,7 +2893,7 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 		sslProfileOption = AnnotationSSLOption
 	} else if route.Spec.TLS != nil && route.Spec.TLS.Key != "" && route.Spec.TLS.Certificate != "" {
 		sslProfileOption = RouteCertificateSSLOption
-	} else if ctlr.resources != nil && ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) &&
+	} else if ctlr.resources != nil && !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) &&
 		ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
 		ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP {
 		sslProfileOption = DefaultSSLOption

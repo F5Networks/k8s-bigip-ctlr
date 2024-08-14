@@ -203,9 +203,10 @@ type TLSProfileSpec struct {
 
 // TLSProfileCipher contains required fields for TLSProfileCipher
 type TLSProfileCipher struct {
-	TLSVersion  string `json:"tlsVersion"`
-	Ciphers     string `json:"ciphers"`
-	CipherGroup string `json:"cipherGroup"`
+	TLSVersion         string   `json:"tlsVersion"`
+	Ciphers            string   `json:"ciphers"`
+	CipherGroup        string   `json:"cipherGroup"`
+	DisableTLSVersions []string `json:"disableTLSVersions"`
 }
 
 // TLS contains required fields for TLS termination

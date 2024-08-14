@@ -550,6 +550,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ReselectTries:     pl.ReselectTries,
 				ServiceDownAction: pl.ServiceDownAction,
 				Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
+				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 			}
 
 			if ctlr.multiClusterMode != "" {
@@ -663,8 +664,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 		}
 	}
-
-	rsCfg.Virtual.BigIPRouteDomain = vs.Spec.BigIPRouteDomain
 
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 
@@ -893,6 +892,7 @@ func (ctlr *Controller) handleDefaultPool(
 				Balance:           vs.Spec.DefaultPool.Balance,
 				ReselectTries:     vs.Spec.DefaultPool.ReselectTries,
 				ServiceDownAction: vs.Spec.DefaultPool.ServiceDownAction,
+				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 			}
 			if vs.Spec.DefaultPool.Monitors != nil {
 				for _, mtr := range vs.Spec.DefaultPool.Monitors {
@@ -969,6 +969,7 @@ func (ctlr *Controller) handleDefaultPoolForPolicy(
 				Balance:           plc.Spec.DefaultPool.Balance,
 				ReselectTries:     plc.Spec.DefaultPool.ReselectTries,
 				ServiceDownAction: plc.Spec.DefaultPool.ServiceDownAction,
+				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 			}
 			if plc.Spec.DefaultPool.Monitors != nil {
 				for _, mtr := range plc.Spec.DefaultPool.Monitors {
@@ -2187,6 +2188,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		Balance:           vs.Spec.Pool.Balance,
 		ReselectTries:     vs.Spec.Pool.ReselectTries,
 		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
+		BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 	}
 	svcKey := MultiClusterServiceKey{
 		serviceName: vs.Spec.Pool.Service,

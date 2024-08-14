@@ -329,7 +329,6 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Pools[0].MinimumMonitors).To(Equal(intstr.IntOrString{Type: 0, IntVal: 1}), "Incorrect minimum monitors defined for pool 0")
 			Expect(rsCfg.Pools[1].MinimumMonitors).To(Equal(intstr.IntOrString{Type: 1, StrVal: "all"}), "Incorrect minimum monitors defined for pool 1")
 			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
-			Expect(rsCfg.Virtual.BigIPRouteDomain).To(BeEquivalentTo(10), "Bigip route domain should be set")
 		})
 
 		It("Prepare Resource Config from a VirtualServer with HostAliases", func() {

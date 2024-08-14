@@ -1256,10 +1256,15 @@ func (ctlr *Controller) processVirtualServers(
 		}
 		rsCfg.MetaData.baseResources = make(map[string]string)
 		if virtual.Spec.BigIPRouteDomain > 0 {
-			rsCfg.Virtual.SetVirtualAddress(
-				fmt.Sprintf("%s%%%d", ip, virtual.Spec.BigIPRouteDomain),
-				portS.port,
-			)
+			if ctlr.PoolMemberType == Cluster {
+				log.Warning("bigipRouteDomain is not supported in cluster mode")
+			} else {
+				rsCfg.Virtual.BigIPRouteDomain = virtual.Spec.BigIPRouteDomain
+				rsCfg.Virtual.SetVirtualAddress(
+					fmt.Sprintf("%s%%%d", ip, virtual.Spec.BigIPRouteDomain),
+					portS.port,
+				)
+			}
 		} else {
 			rsCfg.Virtual.SetVirtualAddress(
 				ip,
@@ -2190,7 +2195,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// Skip adding the pool members if adding pool member is restricted for local cluster in multi cluster mode
 	if pool.Cluster == "" && !ctlr.isAddingPoolRestricted(pool.Cluster) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, "", pool.ConnectionLimit)
+			pool.NodeMemberLabel, "", pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
 		if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
 			pool.Members = pms
@@ -2209,7 +2214,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if (ctlr.haModeType == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
 		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)
+			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
 
 		if pool.SinglePoolRatioEnabled {
@@ -2223,7 +2228,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit)...)
+				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)...)
 		pool.Members = poolMembers
 		return
 	}
@@ -2240,7 +2245,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		// already populated while updating the HA cluster pair service pool members above
 		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
 			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
-				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit)
+				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 
 			if pool.SinglePoolRatioEnabled {
@@ -2253,7 +2258,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	if !ctlr.isAddingPoolRestricted(pool.Cluster) {
 		for _, svc := range pool.AlternateBackends {
 			pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit)
+				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 
 			if pool.SinglePoolRatioEnabled {
@@ -2266,7 +2271,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			if ctlr.multiClusterConfigs.HAPairClusterName != "" &&
 				!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
 				pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
-					pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit)
+					pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 				poolMembers = append(poolMembers, pms...)
 
 				if pool.SinglePoolRatioEnabled {
@@ -2486,7 +2491,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 
 // fetchPoolMembersForService returns pool members associated with a service created in specified cluster
 func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNamespace string,
-	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32) []PoolMember {
+	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32, bigipRouteDomain int32) []PoolMember {
 	svcKey := MultiClusterServiceKey{
 		serviceName: serviceName,
 		namespace:   serviceNamespace,
@@ -2524,6 +2529,13 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 		}
 		poolMembers = append(poolMembers, ctlr.getPoolMembersForService(svcKey, servicePort, nodeMemberLabel)...)
 	}
+
+	if bigipRouteDomain > 0 {
+		for index, _ := range poolMembers {
+			poolMembers[index].Address = fmt.Sprintf("%s%%%d", poolMembers[index].Address, bigipRouteDomain)
+		}
+	}
+
 	// Update the cluster admin state for pool members if multi cluster mode is enabled
 	ctlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
 
@@ -2813,10 +2825,15 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.MetaData.baseResources = make(map[string]string)
 	if virtual.Spec.BigIPRouteDomain > 0 {
-		rsCfg.Virtual.SetVirtualAddress(
-			fmt.Sprintf("%s%%%d", ip, virtual.Spec.BigIPRouteDomain),
-			virtual.Spec.VirtualServerPort,
-		)
+		if ctlr.PoolMemberType == Cluster {
+			log.Warning("bigipRouteDomain is not supported in cluster mode")
+		} else {
+			rsCfg.Virtual.BigIPRouteDomain = virtual.Spec.BigIPRouteDomain
+			rsCfg.Virtual.SetVirtualAddress(
+				fmt.Sprintf("%s%%%d", ip, virtual.Spec.BigIPRouteDomain),
+				virtual.Spec.VirtualServerPort,
+			)
+		}
 	} else {
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
@@ -3854,10 +3871,15 @@ func (ctlr *Controller) processIngressLink(
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
 		if ingLink.Spec.BigIPRouteDomain > 0 {
-			rsCfg.Virtual.SetVirtualAddress(
-				fmt.Sprintf("%s%%%d", ip, ingLink.Spec.BigIPRouteDomain),
-				port.Port,
-			)
+			if ctlr.PoolMemberType == Cluster {
+				log.Warning("bigipRouteDomain is not supported in Cluster mode")
+			} else {
+				rsCfg.Virtual.BigIPRouteDomain = ingLink.Spec.BigIPRouteDomain
+				rsCfg.Virtual.SetVirtualAddress(
+					fmt.Sprintf("%s%%%d", ip, rsCfg.Virtual.BigIPRouteDomain),
+					port.Port,
+				)
+			}
 		} else {
 			rsCfg.Virtual.SetVirtualAddress(
 				ip,
@@ -3878,6 +3900,7 @@ func (ctlr *Controller) processIngressLink(
 			ServiceName:      svc.ObjectMeta.Name,
 			ServicePort:      svcPort,
 			ServiceNamespace: svc.ObjectMeta.Namespace,
+			BigIPRouteDomain: rsCfg.Virtual.BigIPRouteDomain,
 		}
 		// udpating the service cache
 		rsRef := resourceRef{

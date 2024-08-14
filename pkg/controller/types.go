@@ -451,6 +451,7 @@ type (
 		Cluster                string                                  `json:"-"`
 		ConnectionLimit        int32                                   `json:"-"`
 		SinglePoolRatioEnabled bool                                    `json:"-"`
+		BigIPRouteDomain       int32                                   `json:"bigipRouteDomain,omitempty"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM

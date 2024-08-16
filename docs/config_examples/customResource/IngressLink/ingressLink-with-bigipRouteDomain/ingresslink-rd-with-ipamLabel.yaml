@@ -4,8 +4,8 @@ metadata:
   name: nginx-ingress
   namespace: nginx-ingress
 spec:
-  virtualServerAddress: 192.168.10.5
-  bipgipRouteDomain: 10
+  ipamLabel: "Dev"
+  bigipRouteDomain: 10
   iRules:
     - /Common/Proxy_Protocol_iRule
   selector:

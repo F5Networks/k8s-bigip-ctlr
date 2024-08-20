@@ -7,6 +7,8 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Support for CIS deployment parameter "ipam-namespace" to configure the namespace for IPAM CR
+    * Operator support for OpenShift
+    * Helm chart support
 
 3.0.0-beta-2
 -------------

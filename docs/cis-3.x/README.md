@@ -3,6 +3,12 @@ Overview
 
 The CIS controller is deployed as a Kubernetes deployment. The deployment creates a pod that runs the CIS controller. The controller watches for changes to Kubernetes objects and updates the BIG-IP accordingly.
 
+Compatibility Matrix
+--------------------
+
+| CIS Version | CIS Chart Version | CIS operator Version | BIG-IP Version | Kubernetes Version | OpenShift Version | OVN | FIC Version | FIC Chart Version | FIC Operator Version | OS Version                                  |
+|-------------|-------------------|----------------------|----------------|--------------------|-------------------|-----|-------------|-------------------|----------------------|---------------------------------------------|
+| v3.0.0      | v3.0.0            | v3.0.0               | v20.0-v20.3    | v1.28-v1.31        | v4.12-v4.16       | Yes | v0.1.10     | v0.0.5            | v0.0.6               | Red Hat Enterprise Linux release 9.1 (Plow) |
 
 Prerequisites
 ------------------
@@ -73,7 +79,7 @@ kubectl delete -f ./docs/cis-3.x/rbac/clusterrole.yaml
 
 Configuration Parameters
 ------------------------
-All of the configuration parameters below are global.
+All the configuration parameters below are global.
 
 ### General
 | Parameter            | Type      | Required  | Default         | Description                                                                                     | Allowed Values | Minimum Supported Version |

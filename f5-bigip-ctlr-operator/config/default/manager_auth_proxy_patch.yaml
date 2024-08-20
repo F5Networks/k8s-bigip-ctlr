@@ -13,25 +13,25 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                - key: kubernetes.io/arch
-                  operator: In
-                  values:
-                    - amd64
-                    - arm64
-                    - ppc64le
-                    - s390x
-                - key: kubernetes.io/os
-                  operator: In
-                  values:
-                    - linux
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+                      - arm64
+                      - ppc64le
+                      - s390x
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
       containers:
       - name: kube-rbac-proxy
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-              - "ALL"
-        image: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:61d446b8b81cc1545ee805dbd46f921aecb1517c3478bdff654ab9a2a637845a
+            - "ALL"
+        image: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:dc319a431162ad219ea3b3efdea1913b7342ae6c648266e0854b2e4844c4b9fb
         args:
         - "--secure-listen-address=0.0.0.0:8443"
         - "--upstream=http://127.0.0.1:8080/"

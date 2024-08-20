@@ -1,24 +1,19 @@
-# permissions for end users to edit f5bigipctlrs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  creationTimestamp: null
   labels:
-    app.kubernetes.io/name: f5-bigip-ctlr-operator
     app.kubernetes.io/managed-by: kustomize
-  name: f5bigipctlr-editor-role
+    app.kubernetes.io/name: f5-bigip-ctlr-operator
+  name: f5-bigip-ctlr-operator-f5bigipctlr-viewer-role
 rules:
 - apiGroups:
   - cis.f5.com
   resources:
   - f5bigipctlrs
-  - deployconfigs
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - cis.f5.com

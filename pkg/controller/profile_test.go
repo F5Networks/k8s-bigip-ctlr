@@ -18,7 +18,7 @@ var _ = Describe("Profile", func() {
 			"1.2",
 			"",
 			"",
-		}
+			[]string{"1.1"}}
 
 	})
 

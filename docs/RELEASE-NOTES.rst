@@ -18,6 +18,7 @@ Added Functionality
     * `Issue 3373 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3373>`_: Support to disable members based on deployments for AS3 Configmaps. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/>`_
     * Add support for AS3 3.52.0
     * Support for Passthrough vs/route without default ssl profile(min as3 version required >= 3.52)
+    * Add support to disable specific version of tls in tls profile
 Bug Fixes
 ````````````
 * `Issue 3401 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3401>`_: Fix for invalid iRule generation for HTTP/2 full proxy mode

@@ -215,29 +215,36 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 
+			enabled := false
 			rsCfg2.customProfiles = make(map[SecretKey]CustomProfile)
 			cert := certificate{Cert: "crthash", Key: "keyhash"}
 			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_cssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
-				Name:         "default_svc_test_com_cssl",
-				Partition:    "test",
-				Context:      "clientside",
-				Certificates: []certificate{cert},
-				SNIDefault:   false,
+				Name:          "default_svc_test_com_cssl",
+				Partition:     "test",
+				Context:       "clientside",
+				Certificates:  []certificate{cert},
+				SNIDefault:    false,
+				TLS1_0Enabled: &enabled,
+				TLS1_1Enabled: &enabled,
+				TLS1_2Enabled: &enabled,
 			}
 			certOnly := certificate{Cert: "crthash"}
 			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_sssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
-				Name:         "default_svc_test_com_sssl",
-				Partition:    "test",
-				Context:      "serverside",
-				Certificates: []certificate{certOnly},
-				ServerName:   "test.com",
-				SNIDefault:   false,
+				Name:          "default_svc_test_com_sssl",
+				Partition:     "test",
+				Context:       "serverside",
+				Certificates:  []certificate{certOnly},
+				ServerName:    "test.com",
+				SNIDefault:    false,
+				TLS1_0Enabled: &enabled,
+				TLS1_1Enabled: &enabled,
+				TLS1_2Enabled: &enabled,
 			}
 
 			config := ResourceConfigRequest{

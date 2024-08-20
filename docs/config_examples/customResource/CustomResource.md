@@ -235,9 +235,19 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | reference       | String         | Required | NA      | Describes the location of profile, BIG-IP,k8s Secrets or mix of serverssl from bigip refernce and clientssl from secret.Allowed values: [bigip,secret,hybrid] |
 | clientSSLParams | Object         | Optional | NA      | List of settings that needs to be applied to clientSSL custom profiles created by CIS through reference secret                                                |
 | serverSSLParams | Object         | Optional | NA      | List of settings that needs to be applied to serverSSL custom profiles created by CIS through reference secret                                                |
+| tlsCipher       | Object         | Optional | NA      | |
 
 **Note**:
 * If reference in tls spec is set to hybrid, profileReference in clientSSLParams and serverSSLParams are used to define profile reference for clientSSL and serverSSL respectively.
+
+#### tlsCipher Config Parameters
+| Parameter   | Required | Description                                                                                                                | Default            |
+|-------------|----------|----------------------------------------------------------------------------------------------------------------------------|--------------------|
+| tlsVersion  | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                           | 1.2                |
+| ciphers     | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive; only use one.                  | DEFAULT            |
+| cipherGroup | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one. | /Common/f5-default |
+| disableTLSVersions     | Optional | Configures to disable a particular version of TLS version on the bigip. Supported values are ["1.0", "1.1", "1.2", "1.3"] | -                  |
+
 
 **ClientSSLParams**
 

@@ -1217,7 +1217,8 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
 				"1.2",
 				"",
-				""}
+				"",
+				[]string{"1.1", "1.0"}}
 
 			ip = "1.2.3.4"
 
@@ -1334,6 +1335,31 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 			Expect(rsCfg.Virtual.Profiles[0]).To(Equal(clProfRef), "Failed to Process TLS Termination: Reencrypt")
 			Expect(rsCfg.Virtual.Profiles[1]).To(Equal(svProfRef), "Failed to Process TLS Termination: Reencrypt")
+		})
+
+		It("Validate disabling tls version,TLS Reencrypt with BIGIP Reference", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = Secret
+			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
+			tlsProf.Spec.TLS.ServerSSL = "serversecret"
+
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
+			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
+
+			clSecret := test.NewSecret(
+				"clientsecret",
+				namespace,
+				"### cert ###",
+				"#### key ####",
+			)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
+			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
 
 		It("Validate TLS Reencrypt with AllowInsecure", func() {

@@ -673,7 +673,10 @@ type (
 		Context              string `json:"context"` // 'clientside', 'serverside', or 'all'
 		Ciphers              string `json:"ciphers,omitempty"`
 		CipherGroup          string `json:"cipherGroup,omitempty"`
-		TLS1_3Enabled        bool   `json:"tls1_3Enabled"`
+		TLS1_0Enabled        *bool  `json:"tls1_0Enabled"`
+		TLS1_1Enabled        *bool  `json:"tls1_1Enabled"`
+		TLS1_2Enabled        *bool  `json:"tls1_2Enabled"`
+		TLS1_3Enabled        *bool  `json:"tls1_3Enabled"`
 		ServerName           string `json:"serverName,omitempty"`
 		SNIDefault           bool   `json:"sniDefault,omitempty"`
 		PeerCertMode         string `json:"peerCertMode,omitempty"`
@@ -1132,6 +1135,9 @@ type (
 		Certificates         []as3TLSServerCertificates `json:"certificates,omitempty"`
 		Ciphers              string                     `json:"ciphers,omitempty"`
 		CipherGroup          *as3ResourcePointer        `json:"cipherGroup,omitempty"`
+		TLS1_0Enabled        *bool                      `json:"tls1_0Enabled,omitempty"`
+		TLS1_1Enabled        *bool                      `json:"tls1_1Enabled,omitempty"`
+		TLS1_2Enabled        *bool                      `json:"tls1_2Enabled,omitempty"`
 		TLS1_3Enabled        bool                       `json:"tls1_3Enabled,omitempty"`
 		RenegotiationEnabled *bool                      `json:"renegotiationEnabled,omitempty"`
 	}
@@ -1149,6 +1155,9 @@ type (
 		ValidateCertificate  bool                `json:"validateCertificate,omitempty"`
 		Ciphers              string              `json:"ciphers,omitempty"`
 		CipherGroup          *as3ResourcePointer `json:"cipherGroup,omitempty"`
+		TLS1_0Enabled        *bool               `json:"tls1_0Enabled,omitempty"`
+		TLS1_1Enabled        *bool               `json:"tls1_1Enabled,omitempty"`
+		TLS1_2Enabled        *bool               `json:"tls1_2Enabled,omitempty"`
 		TLS1_3Enabled        bool                `json:"tls1_3Enabled,omitempty"`
 		RenegotiationEnabled *bool               `json:"renegotiationEnabled,omitempty"`
 	}
@@ -1350,9 +1359,10 @@ type (
 	}
 
 	TLSCipher struct {
-		TLSVersion  string `yaml:"tlsVersion,omitempty"`
-		Ciphers     string `yaml:"ciphers,omitempty"`
-		CipherGroup string `yaml:"cipherGroup,omitempty"` // by default this is bigip reference
+		TLSVersion         string   `yaml:"tlsVersion,omitempty"`
+		Ciphers            string   `yaml:"ciphers,omitempty"`
+		CipherGroup        string   `yaml:"cipherGroup,omitempty"` // by default this is bigip reference
+		DisableTLSVersions []string `yaml:"disableTLSVersions,omitempty"`
 	}
 
 	DefaultSSLProfile struct {
@@ -1369,6 +1379,9 @@ type (
 type TLSVersion string
 
 const (
+	TLSVerion1_0 TLSVersion = "1.0"
+	TLSVerion1_1 TLSVersion = "1.1"
+	TLSVerion1_2 TLSVersion = "1.2"
 	TLSVerion1_3 TLSVersion = "1.3"
 )
 

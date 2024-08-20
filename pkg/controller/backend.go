@@ -1549,6 +1549,15 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 				Class:        "TLS_Server",
 				Certificates: []as3TLSServerCertificates{},
 			}
+			if prof.TLS1_0Enabled != nil {
+				tlsServer.TLS1_0Enabled = prof.TLS1_0Enabled
+			}
+			if prof.TLS1_1Enabled != nil {
+				tlsServer.TLS1_1Enabled = prof.TLS1_1Enabled
+			}
+			if prof.TLS1_2Enabled != nil {
+				tlsServer.TLS1_2Enabled = prof.TLS1_2Enabled
+			}
 			if prof.CipherGroup != "" {
 				tlsServer.CipherGroup = &as3ResourcePointer{BigIP: prof.CipherGroup}
 				tlsServer.TLS1_3Enabled = true
@@ -1634,6 +1643,15 @@ func createTLSClient(
 			TrustCA: &as3ResourcePointer{
 				Use: caBundleName,
 			},
+		}
+		if prof.TLS1_0Enabled != nil {
+			tlsClient.TLS1_0Enabled = prof.TLS1_0Enabled
+		}
+		if prof.TLS1_1Enabled != nil {
+			tlsClient.TLS1_1Enabled = prof.TLS1_1Enabled
+		}
+		if prof.TLS1_2Enabled != nil {
+			tlsClient.TLS1_2Enabled = prof.TLS1_2Enabled
 		}
 		if prof.CipherGroup != "" {
 			tlsClient.CipherGroup = &as3ResourcePointer{BigIP: prof.CipherGroup}

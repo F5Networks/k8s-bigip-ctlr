@@ -872,6 +872,22 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		} else {
 			pool.MinimumMonitors = intstr.IntOrString{Type: 1, StrVal: "all"}
 		}
+		if pl, ok := sharedApp[v.Name]; ok {
+			if pl.(*as3Pool) != nil && len(pl.(*as3Pool).Monitors) > 0 {
+				for _, mon := range pl.(*as3Pool).Monitors {
+					exist := false
+					for _, plMon := range pool.Monitors {
+						if reflect.DeepEqual(mon, plMon) {
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						pool.Monitors = append(pool.Monitors, mon)
+					}
+				}
+			}
+		}
 		sharedApp[v.Name] = pool
 	}
 }

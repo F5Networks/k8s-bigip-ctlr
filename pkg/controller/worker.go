@@ -2083,7 +2083,12 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 					freshRsCfg.copyConfig(rsCfg)
 					for index, pool := range freshRsCfg.Pools {
 						if pool.Name == poolId.poolName && pool.Partition == poolId.partition {
-							if pool.ServicePort.IntVal == 0 || svcPortUpdated {
+							// Reprocess the resources if:
+							// 1. service port has been updated or
+							// 2. ServicePort.IntVal is 0 or ServicePortUsed is true which happens when endpoints have not been created at the time of resource processing,
+							// cis needs to process the Resource again to make sure that servicePort in pool is updated with the target port,
+							// which handled the scenario where VS/TS is process first then service(with different servicePort and target port) and app are created.
+							if pool.ServicePort.IntVal == 0 || svcPortUpdated || pool.ServicePortUsed {
 								switch poolId.rsKey.kind {
 								case Route:
 									// this case happens when a route does not contain a target port and service is created after route creation

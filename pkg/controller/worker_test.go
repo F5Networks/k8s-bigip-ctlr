@@ -2239,6 +2239,65 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid VS count")
 
 			})
+
+			It("Verifies pool is populated irrespective of vs and svc creation order", func() {
+				mockCtlr.PoolMemberType = Cluster
+				// First create the Virtual Server
+				vs := test.NewVirtualServer(
+					"SampleVS",
+					namespace,
+					cisapiv1.VirtualServerSpec{
+						Host:                 "test.com",
+						VirtualServerAddress: "1.2.3.4",
+						Pools: []cisapiv1.VSPool{
+							{
+								Path:    "/foo",
+								Service: "svc1-delayed",
+								Monitor: cisapiv1.Monitor{
+									Type:     "http",
+									Send:     "GET /health",
+									Interval: 15,
+									Timeout:  10,
+								},
+								ServicePort: intstr.IntOrString{IntVal: 8080},
+							},
+						},
+					},
+				)
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				// Pool should be empty
+				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap["crd_1_2_3_4_80"].Pools[0].Members).To(BeEmpty(), "Pool members should be empty")
+				// Now create the service and endpoint
+				svcPort := v1.ServicePort{
+					Name:       "http-port",
+					Port:       8080,
+					Protocol:   "http",
+					TargetPort: intstr.IntOrString{IntVal: 80},
+				}
+				svc := test.NewService(
+					"svc1-delayed",
+					"1",
+					namespace,
+					v1.ServiceTypeNodePort,
+					[]v1.ServicePort{svcPort},
+				)
+				svc.Spec.ClusterIP = "None"
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+				var fooEndpts *v1.Endpoints
+				fooPorts := []v1.ServicePort{{Port: 8080, NodePort: 30001, TargetPort: intstr.IntOrString{IntVal: 80}}}
+				fooIps := []string{"10.1.1.1"}
+				fooEndpts = test.NewEndpoints(
+					"svc1-delayed", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+				// Pool should be populated
+				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap["crd_1_2_3_4_80"].Pools[0].Members).ToNot(BeEmpty(), "Pool members should not be empty")
+				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap["crd_1_2_3_4_80"].Pools[0].Members[0].Address).To(Equal("10.1.1.1"), "Pool members should not be empty")
+
+			})
 		})
 
 		Describe("Processing Transport Server", func() {

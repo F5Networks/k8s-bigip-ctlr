@@ -547,8 +547,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				svcNamespace = SvcBackend.SvcNamespace
 			}
 			targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, SvcBackend.Cluster)
+			svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
 			if (intstr.IntOrString{}) == targetPort {
 				targetPort = pl.ServicePort
+				svcPortUsed = true
 			}
 			pool := Pool{
 				Name:              poolName,
@@ -556,6 +558,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ServiceName:       SvcBackend.Name,
 				ServiceNamespace:  svcNamespace,
 				ServicePort:       targetPort,
+				ServicePortUsed:   svcPortUsed,
 				NodeMemberLabel:   pl.NodeMemberLabel,
 				Balance:           pl.Balance,
 				MinimumMonitors:   pl.MinimumMonitors,
@@ -2189,8 +2192,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		svcNamespace = vs.Spec.Pool.ServiceNamespace
 	}
 	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort, "")
+	svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
 	if (intstr.IntOrString{}) == targetPort {
 		targetPort = vs.Spec.Pool.ServicePort
+		svcPortUsed = true
 	}
 	pool := Pool{
 		Name:              poolName,
@@ -2198,6 +2203,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ServiceName:       vs.Spec.Pool.Service,
 		ServiceNamespace:  svcNamespace,
 		ServicePort:       targetPort,
+		ServicePortUsed:   svcPortUsed,
 		NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
 		Balance:           vs.Spec.Pool.Balance,
 		ReselectTries:     vs.Spec.Pool.ReselectTries,

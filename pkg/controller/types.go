@@ -437,6 +437,7 @@ type (
 		ServiceName            string                                  `json:"-"`
 		ServiceNamespace       string                                  `json:"-"`
 		ServicePort            intstr.IntOrString                      `json:"-"`
+		ServicePortUsed        bool                                    `json:"-"`
 		Balance                string                                  `json:"loadBalancingMethod,omitempty"`
 		Members                []PoolMember                            `json:"members"`
 		NodeMemberLabel        string                                  `json:"-"`

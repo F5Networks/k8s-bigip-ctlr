@@ -1,38 +1,56 @@
-# ServiceType LoadBalancer with Multiport Support
+# Service Type LoadBalancer
 
-This section demonstrates the option to configure Multiport using ServiceType LoadBalancer.
+## Overview:
 
+A service of type LoadBalancer is the simplest and the fastest way to expose a service inside a Kubernetes cluster to the external world. You only need to specify the service type as type=LoadBalancer in the service definition.
+Services of type LoadBalancer are natively supported in Kubernetes deployments. For services of the type LoadBalancer, the CIS controller deployed inside the Kubernetes cluster reads service type LB and creates the corresponding LTM virtuals on the BIGIP which load balance the incoming traffic to the Kubernetes cluster.
 
-## multiport-serviceTypeLB.yaml
+## Configuration:
 
-By deploying this yaml file in your cluster, CIS will create two Virtual Servers with different ports on BIG-IP.
+serviceType LB is supported with NextGen Routes and Custom Resources:
+* With NextGen Routes following parameters are required for CIS deployment: 
+    * controller-mode=openshift
+* With Custom Resources following parameters are required for CIS deployment:
+    * custom-resource-mode=true
+* If you are using ipam then configure the following parameter as well:
+    * ipam=true
 
-# Health Monitor
-
-This section demonstrates the option to configure health monitor for pools in virtual server.
-Health monitor is supported for each pool members.
-
-Options which can be used to configure health monitor:
+Note:
+* CRDs are also required with serviceTypeLB.
+* Install the F5 CRDs using following Commands:
+```shell
+export CIS_VERSION=<cis-version>
+# For example
+# export CIS_VERSION=v2.12.0
+# or
+# export CIS_VERSION=2.x-master
+#
+# the latter if using a CIS image with :latest label
+#
+kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 ```
-monitor:
-    interval: 
-    timeout: 
-```
-* interval is a required field.
 
-## healthMonitor-serviceTypeLB.yaml
+## Service Type LoadBalancer Annotations:
 
-By deploying this yaml file in your cluster, CIS will create a Virtual Server containing health monitored pool on BIG-IP.
+Annotation supported for service type LoadBalancer:
 
-## Static IP support
+| Annotation            | REQUIRED  | DESCRIPTION                                                                                               | EXAMPLE  FILE                         |
+|-----------------------|-----------|-----------------------------------------------------------------------------------------------------------|---------------------------------------|
+| cis.f5.com/ipamLabel  | Mandatory | Specify the ipamLabel if you are using the FIC controller to configure the ip addresses.                  | example-service-type-lb.yaml          |
+| cis.f5.com/health     | Optional  | It configures the health monitor for pools in ltm virtual server.                                         | healthMonitor-serviceTypeLB.yaml      |
+| cis.f5.com/policyName | Optional  | Name of Policy CR to attach profiles/policies defined in it.                                              | service-type-lb-with-policyname.yaml  |
+| cis.f5.com/ip         | Mandatory | Specify the ip address for the ltm virtual server.                                                        | example-service-type-lb-staic-ip.yaml |
+| cis.f5.com/host       | Optional  | Specify the hostname for configuring the WideIP pools on the GTM server, It works along with the EDNS CR. | service-type-lb-with-hostname.yaml    |
 
-Service type LB is supported with the static ip configuration. This should be configured in the annotation "cis.f5.com/ip" as below
+Note:-
 
-```
-metadata:
-  annotations:
-    cis.f5.com/ip: 10.8.3.1
-```
+If cis.f5.com/ipamLabel and cis.f5.com/ip both annotations are provided then cis.f5.com/ip will be given priority and LTM virtual will be created using the IP address provided by cis.f5.com/ip.
 
-If IPAM label and static ip are configured in the annotation, cis will consider static ip annotation with high precedence than IPAM label
+## FIC Integration:
+
+See also [How F5 IPAM Controller works](https://clouddocs.f5.com/containers/latest/userguide/ipam/)
+
+## Examples Repository
+
+See also [More examples of ServiceType LB](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/serviceTypeLB).

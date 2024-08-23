@@ -247,6 +247,86 @@ var _ = Describe("Backend Tests", func() {
 				TLS1_2Enabled: &enabled,
 			}
 
+			rsCfg3 := &ResourceConfig{}
+			rsCfg3.MetaData.Active = false
+			rsCfg3.MetaData.defaultPoolType = BIGIP
+			rsCfg3.MetaData.ResourceType = VirtualServer
+			rsCfg3.Virtual.Name = "crd_vs_172.13.14.17"
+			rsCfg3.Virtual.PoolName = "default_pool_svc3"
+			rsCfg3.Pools = Pools{
+				Pool{
+					Name:            "pool1",
+					Members:         []PoolMember{mem3, mem4},
+					MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
+					MonitorNames: []MonitorName{
+						{Name: "/Common/http",
+							Reference: "bigip"},
+						{Name: "default_pool_svc3_http"},
+						{Name: "default_pool_svc3_http_81"},
+					},
+				},
+			}
+
+			rsCfg3.customProfiles = make(map[SecretKey]CustomProfile)
+			rsCfg3.customProfiles[SecretKey{
+				Name:         "default_svc_test_com_cssl",
+				ResourceName: "crd_vs_172.13.14.17",
+			}] = CustomProfile{
+				Name:         "default_svc_test_com_cssl",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert},
+				SNIDefault:   false,
+			}
+			rsCfg3.customProfiles[SecretKey{
+				Name:         "default_svc_test_com_sssl",
+				ResourceName: "crd_vs_172.13.14.17",
+			}] = CustomProfile{
+				Name:         "default_svc_test_com_sssl",
+				Partition:    "test",
+				Context:      "serverside",
+				Certificates: []certificate{certOnly},
+				ServerName:   "test.com",
+				SNIDefault:   false,
+			}
+
+			rsCfg4 := &ResourceConfig{}
+			rsCfg4.MetaData.Active = false
+			rsCfg4.MetaData.defaultPoolType = BIGIP
+			rsCfg4.MetaData.ResourceType = VirtualServer
+			rsCfg4.Virtual.Name = "crd_vs_172.13.14.18"
+			rsCfg4.Virtual.PoolName = "default_pool_svc3"
+			rsCfg4.Pools = Pools{
+				Pool{
+					Name:            "pool1",
+					Members:         []PoolMember{mem3, mem4},
+					MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
+				},
+			}
+
+			rsCfg4.customProfiles = make(map[SecretKey]CustomProfile)
+			rsCfg4.customProfiles[SecretKey{
+				Name:         "default_svc_test_com_cssl",
+				ResourceName: "crd_vs_172.13.14.18",
+			}] = CustomProfile{
+				Name:         "default_svc_test_com_cssl",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert},
+				SNIDefault:   false,
+			}
+			rsCfg4.customProfiles[SecretKey{
+				Name:         "default_svc_test_com_sssl",
+				ResourceName: "crd_vs_172.13.14.18",
+			}] = CustomProfile{
+				Name:         "default_svc_test_com_sssl",
+				Partition:    "test",
+				Context:      "serverside",
+				Certificates: []certificate{certOnly},
+				ServerName:   "test.com",
+				SNIDefault:   false,
+			}
+
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
 				shareNodes:         true,
@@ -257,14 +337,64 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
+			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.17"] = rsCfg3
+			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.18"] = rsCfg4
 
 			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "default_pool_svc2")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "default_pool_svc3")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "/Common/example-requestadapt")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "/Common/example-responseadapt")).To(BeTrue())
+
+			sharedApp := as3Application{}
+			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			Expect(len(sharedApp)).To(Equal(1))
+			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(3))
+			rsCfg4.Pools[0].MonitorNames = []MonitorName{
+				{Name: "/Common/http",
+					Reference: "bigip"},
+				{Name: "default_pool_svc3_http"},
+				{Name: "default_pool_svc3_http_81"},
+			}
+			sharedApp = as3Application{}
+			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			Expect(len(sharedApp)).To(Equal(1))
+			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(3))
+			rsCfg4.Pools[0].MonitorNames = []MonitorName{
+				{Name: "/Common/http",
+					Reference: "bigip1"},
+				{Name: "default_pool_svc4_http"},
+				{Name: "default_pool_svc3_http_81"},
+			}
+			sharedApp = as3Application{}
+			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			Expect(len(sharedApp)).To(Equal(1))
+			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(5))
+
+			rsCfg3.Pools[0].MonitorNames = []MonitorName{
+				{Name: "/Common/http",
+					Reference: "bigip"},
+				{Name: "default_pool_svc3_http_81"},
+			}
+			sharedApp = as3Application{}
+			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			Expect(len(sharedApp)).To(Equal(1))
+			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(4))
+
+			rsCfg3.Pools[0].MonitorNames = []MonitorName{}
+			sharedApp = as3Application{}
+			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			Expect(len(sharedApp)).To(Equal(1))
+			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(3))
+
 		})
 		It("TransportServer Declaration", func() {
 			rsCfg := &ResourceConfig{}

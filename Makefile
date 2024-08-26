@@ -93,7 +93,7 @@ dev-license: pre-build
 
 debug: pre-build
 	@echo "Building with debug support..."
-	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-dbg:latest -f build-tools/Dockerfile.debug .
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) --platform linux/amd64 -t k8s-bigip-ctlr-dbg:latest -f build-tools/Dockerfile.debug .
 
 
 fmt:

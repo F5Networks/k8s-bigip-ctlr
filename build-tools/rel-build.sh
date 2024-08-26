@@ -7,7 +7,7 @@ go mod download
 CGO_ENABLED=0
 GOOS=linux
 GOARCH=amd64
-go build -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
+go build -gcflags="all=-N -l" -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
 
 RUN_TESTS=${RUN_TESTS:-1}
 

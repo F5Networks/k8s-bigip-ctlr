@@ -1,14 +1,14 @@
-Release Notes for Container Ingress Services for Kubernetes & OpenShift
-=======================================================================
+Release Notes for F5 BIG-IP Next Container Ingress Services for Kubernetes & OpenShift
+=======================================================================================
 
-Next Release
--------------
+3.0.0
+-----
 Added Functionality
 ```````````````````
 **What's new:**
     * Support for CIS deployment parameter "ipam-namespace" to configure the namespace for IPAM CR
-    * Operator support for OpenShift
     * Helm chart support
+    * Support for Openshift v4.16 and BIG-IP v20.3
 
 3.0.0-beta-2
 -------------

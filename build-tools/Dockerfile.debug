@@ -45,5 +45,3 @@ USER ctlr
 EXPOSE 40000
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/k8s-bigip-ctlr" ]
-
-

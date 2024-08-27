@@ -8,18 +8,18 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
-    * Multi Cluster
     * CRD
-        * `Issue 3471 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3471>`_: Support for loadBalancerClass for service type lb. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/serviceTypeLB/>`_
-        * `Issue 3438 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3438>`_: Support for FTP Profile in Policy CR. See `Example <config_examples/customResource/Policy/policy-with-ftp-profile.yaml>`_
-        * `Issue 3418 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3418>`_: Support for bigip route domain for virtual addresses in Virtual Server, Transport Server, and IngressLink. See examples with `virtual server <config_examples/customResource/VirtualServer/virtual-with-bigipRouteDomain>`_, `transport server <config_examples/customResource/TransportServer/transport-server-with-bigipRouteDomain>`_, and `ingressLink <config_examples/customResource/IngressLink/ingressLink-with-bigipRouteDomain>`_.
-        * `Issue 3511 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3511>`_: Support for Request and Response Adapt Profiles in VirtualServer CRD or Policy CRD. See examples for `Virtual Server CR <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/>_, Policy CR <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/>_`
+        * `Issue 3471 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3471>`_: Support for loadBalancerClass for service type lb. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/serviceTypeLB/loadBalancerClass>`_
+        * `Issue 3438 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3438>`_: Support for FTP Profile in Policy CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-ftp-profile.yaml>`_
+        * `Issue 3418 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3418>`_: Support for bigip route domain for virtual addresses in Virtual Server, Transport Server, and IngressLink. See examples with `virtual server <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/virtual-with-bigipRouteDomain>`_, `transport server <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/TransportServer/transport-server-with-bigipRouteDomain>`_, and `ingressLink <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/IngressLink/ingressLink-with-bigipRouteDomain>`_.
+        * `Issue 3511 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3511>`_: Support for Request and Response Adapt Profiles in VirtualServer CRD or Policy CRD. See examples for `Virtual Server CR <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/adaptProfile>_, Policy CR <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-adapt-profile.yaml>_`
         * `Issue 3442 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3442>`_: Support for multiple ltm monitors with multiple virtual servers referring to same backend
+        * Add support to disable specific version of tls in tls profile. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile/tls-with-tlsCipher/virtualserver-with-disbaleTLSVersions.yml>`_
     * `Issue 3430 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3430>`_: Support for CIS deployment parameters "ipam-namespace" to configure the namespace for IPAM CR
-    * `Issue 3373 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3373>`_: Support to disable members based on deployments for AS3 Configmaps. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/>`_
+    * `Issue 3373 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3373>`_: Support to disable members based on deployments for AS3 Configmaps. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/sample-as3-cm-with-pool-member-disable.yaml>`_
     * Add support for AS3 3.52.0
+    * CIS is now compatible with OpenShift 4.16
     * Support for Passthrough vs/route without default ssl profile(min as3 version required >= 3.52)
-    * Add support to disable specific version of tls in tls profile
 Bug Fixes
 ````````````
 * `Issue 3401 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3401>`_: Fix for invalid iRule generation for HTTP/2 full proxy mode

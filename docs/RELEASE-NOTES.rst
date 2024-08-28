@@ -19,6 +19,7 @@ Added Functionality
     * `Issue 3373 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3373>`_: Support to disable members based on deployments for AS3 Configmaps. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/configmap/user-defined-configmap/sample-as3-cm-with-pool-member-disable.yaml>`_
     * Add support for AS3 3.52.0
     * CIS is now compatible with OpenShift 4.16
+    * CIS and IPAM operator support for OpenShift 4.16
     * Support for Passthrough vs/route without default ssl profile(min as3 version required >= 3.52)
 Bug Fixes
 ````````````

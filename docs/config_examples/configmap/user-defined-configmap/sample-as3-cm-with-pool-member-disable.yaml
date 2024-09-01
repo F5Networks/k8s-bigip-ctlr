@@ -1,3 +1,7 @@
+# To enable the disableMembers feature for AS3 Configmap, please add the following RBAC rule to the service account used by the CIS controller:
+#   - apiGroups: ["apps"]
+#     resources: ["deployments"]
+#     verbs: ["get", "list"]
 kind: ConfigMap
 apiVersion: v1
 metadata:

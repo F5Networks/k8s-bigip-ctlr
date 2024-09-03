@@ -22,21 +22,14 @@ ARG BUILD_VERSION
 ARG BUILD_INFO
 
 RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
- && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \
- && chmod -R 755 "$APPPATH" \
- && adduser --disabled-password --gecos "" ctlr
+    && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \
+    && chmod -R 755 "$APPPATH" \
+    && adduser --disabled-password --gecos "" ctlr
 
 WORKDIR $APPPATH
 
-COPY requirements.txt /tmp/requirements.txt
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        git \
+RUN apt-get update \
     && apt-get upgrade -y \
-    && pip install --no-cache-dir --upgrade pip==20.0.2 \
-    && pip install --no-cache-dir -r /tmp/requirements.txt \
-    && apt-get remove -y git \
-    && apt-get remove -y libidn11 \
     && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/

@@ -86,7 +86,6 @@ All the configuration parameters below are global.
 |----------------------|-----------|-----------|-----------------|-------------------------------------------------------------------------------------------------|----------------|---------------------------|
 | http-listen-address	 | String	   | Optional	 | “0.0.0.0:8080”	 | Address at which to serve HTTP-based information (for example, /metrics, health) to Prometheus. |                |                           |
 | version              | 	Boolean	 | Optional  | 	false          | 	Print CIS version.                                                                             | true, false    |                           |
-| disable-teems        | 	Boolean	 | Optional  | 	false          | If true, disable sending telemetry data to TEEM                                                 | true, false    |                           |
 | deploy-config-cr	    | String    | Required  | N/A             | 	Specify a CRD that holds additional spec for controller                                        |                |                           |
 
 ### Logging

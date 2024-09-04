@@ -879,6 +879,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
 		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
+		oldVS.Spec.Host != newVS.Spec.Host ||
 		oldVSPartition != newVSPartition {
 		log.Debugf("Enqueueing TransportServer: %v", oldVS)
 
@@ -990,6 +991,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	newILPartition := ctlr.getCRPartition(newIngLink.Spec.Partition)
 	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress ||
 		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel ||
+		oldIngLink.Spec.Host != newIngLink.Spec.Host ||
 		oldILPartition != newILPartition {
 
 		// delete vs from previous partition on priority when partition is changed
@@ -1122,7 +1124,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 	}
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
-		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation]) ||
+		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
 		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {

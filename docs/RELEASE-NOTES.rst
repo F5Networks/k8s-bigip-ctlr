@@ -11,7 +11,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
-* CIS not removing pool members of GTM when host is removed on transport server, ingress link, and service type lb
+* Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
 
 Upgrade notes
 ``````````````

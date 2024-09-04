@@ -2544,6 +2544,11 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	// Update the cluster admin state for pool members if multi cluster mode is enabled
 	ctlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
 
+	//Sort the pool members slice by the Port field
+	sort.SliceStable(poolMembers, func(i, j int) bool {
+		return poolMembers[i].Port < poolMembers[j].Port
+	})
+
 	return poolMembers
 }
 

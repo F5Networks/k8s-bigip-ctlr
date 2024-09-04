@@ -1,6 +1,20 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * CRD
+
+Bug Fixes
+````````````
+
+Upgrade notes
+``````````````
+
 
 2.18.0
 -------------

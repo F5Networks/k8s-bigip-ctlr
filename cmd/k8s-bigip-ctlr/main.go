@@ -127,8 +127,10 @@ func _init() {
 		"Optional, filepath to store the CIS logs")
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")
-	disableTeems = globalFlags.Bool("disable-teems", true,
-		"Optional, flag to disable sending telemetry data to TEEM")
+	tmpTrue := true
+	disableTeems = &tmpTrue
+	//disableTeems = globalFlags.Bool("disable-teems", true,
+	//	"Optional, flag to disable sending telemetry data to TEEM")
 	useNodeInternal = kubeFlags.Bool("use-node-internal", true,
 		"Optional, provide kubernetes InternalIP addresses to pool")
 	CISConfigCR = globalFlags.String("deploy-config-cr", "",

@@ -26,9 +26,6 @@ rules:
   - apiGroups: ["config.openshift.io/v1"]
     resources: ["network"]
     verbs: ["list"]
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list"]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

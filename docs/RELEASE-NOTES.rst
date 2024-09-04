@@ -2,7 +2,7 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
 
-Next Release
+2.18.0
 -------------
 
 Added Functionality
@@ -37,6 +37,10 @@ Upgrade notes
   The Load Balancer Class supports all the Custom Resources (VirtualServer, TransportServer, and IngressLink) and the loadBalancer service, and you cannot disable it. You need to either remove the loadBalancerClass field from the service or configure the CIS deployment parameter `load-balancer-class` to the same value as the loadBalancerClass field in the service.
   Also see the deployment parameter `manage-load-balancer-class-only`, to control the behavior of CIS for services with loadBalancerClass field set in the service spec.
 * CIS with as3 version >= 3.52, passthrough VS on bigip will not have default ssl profile.
+
+Known Issues
+`````````````
+* Support for multiple ltm monitors with single virtual server referring to same backend on different path does not work.
 
 
 F5 IPAM Controller v0.1.11

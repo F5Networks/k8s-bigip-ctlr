@@ -11,6 +11,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
 
 Upgrade notes
 ``````````````

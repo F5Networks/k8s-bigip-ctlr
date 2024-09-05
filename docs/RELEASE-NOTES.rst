@@ -11,6 +11,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3518 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3518>`_: CIS is reposting the declaration because of re-ordering of the pool-members
 * Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
 
 Upgrade notes

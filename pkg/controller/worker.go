@@ -2544,6 +2544,17 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	// Update the cluster admin state for pool members if multi cluster mode is enabled
 	ctlr.updatePoolMembersConfig(&poolMembers, clusterName, podConnections)
 
+	// Sort pool members in NPL mode.
+	// Antrea allocates port numbers for each pod via node IP annotations.
+	// Pool members order is not guaranteed, causing reconfiguration.
+	// In other modes like ClusterIP and NodePort, the service port remains the same.
+	if ctlr.PoolMemberType == NodePortLocal {
+		//Sort the pool members slice by the Port field
+		sort.SliceStable(poolMembers, func(i, j int) bool {
+			return poolMembers[i].Port < poolMembers[j].Port
+		})
+	}
+
 	return poolMembers
 }
 

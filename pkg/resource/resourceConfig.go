@@ -502,21 +502,6 @@ type Resources struct {
 	TranslateAddress map[string]map[NameRef][]string
 }
 
-type ResourceInterface interface {
-	Init()
-	Assign(key ServiceKey, name string, cfg *ResourceConfig)
-	PoolCount() int
-	VirtualCount() int
-	CountOf(key ServiceKey) int
-	Get(key ServiceKey, name string) (*ResourceConfig, bool)
-	GetAll(key ServiceKey) ResourceConfigs
-	GetAllWithName(name string) (ResourceConfigs, []ServiceKey)
-	GetAllResources() ResourceConfigs
-	Delete(key ServiceKey, name string) bool
-	ForEach(f ResourceEnumFunc)
-	DependencyDiff(key ObjectDependency, newDeps ObjectDependencies) ([]ObjectDependency, []ObjectDependency)
-}
-
 const ServiceDep = "Service"
 const RuleDep = "Rule"
 const URLDep = "URL-Rewrite-Annotation"
@@ -1030,6 +1015,14 @@ func (rs *Resources) GetAll(svcKey ServiceKey) ResourceConfigs {
 		}
 	}
 	return cfgs
+}
+
+// GetPoolCount gets the pool count for a service there is change that a service can be referred by multiple virtuals
+func (rs *Resources) GetPoolCount(nameRef NameRef) int {
+	if rsCfg, ok := rs.GetByName(nameRef); ok {
+		return len(rsCfg.Pools)
+	}
+	return 0
 }
 
 // Get all configurations with a specific name, spanning multiple backends

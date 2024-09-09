@@ -2133,8 +2133,7 @@ func (appMgr *Manager) syncIngresses(
 				}
 			}
 			if ok, found, updated := appMgr.handleConfigForTypeIngress(
-				rsCfg, sKey, rsMap, rsName, svcPortMap,
-				svc, appInf, svcs, ing); !ok {
+				rsCfg, sKey, rsMap, rsName, appInf, svcs, ing); !ok {
 				stats.vsUpdated += updated
 				continue
 			} else {
@@ -2563,8 +2562,6 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 	sKey serviceQueueKey,
 	rsMap ResourceMap,
 	rsName NameRef,
-	svcPortMap map[int32]bool,
-	svc *v1.Service,
 	appInf *appInformer,
 	currResourceSvcs []string, // Used for Ingress/Routes
 	obj interface{}, // Used for writing events
@@ -3084,8 +3081,7 @@ func (appMgr *Manager) processAllMultiSvc(numPools int, rsName NameRef) bool {
 	// then we don't want to update
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	_, keys := appMgr.resources.GetAllWithName(rsName)
-	if len(keys) != numPools {
+	if appMgr.resources.GetPoolCount(rsName) != numPools {
 		return false
 	}
 	return true

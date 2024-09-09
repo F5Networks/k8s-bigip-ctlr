@@ -216,38 +216,25 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(len(rsCfg.IntDgMap)).To(Equal(1), "Failed to Add Internal DataGroup Map")
 		})
 
-		//It("Handle DataGroupIRules", func() {
-		//	mockCtlr := newMockController()
-		//	tls := test.NewTLSProfile(
-		//		"SampleTLS",
-		//		namespace,
-		//		cisapiv1.TLSProfileSpec{
-		//			TLS: cisapiv1.TLS{
-		//				Termination: TLSEdge,
-		//				ClientSSL:   "clientssl",
-		//			},
-		//		},
-		//	)
-		//	mockCtlr.handleDataGroupIRules(rsCfg, "vs", "test.com", tls)
-		//	Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRuels")
-		//	Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Add DataGroup")
-		//	tls1 := test.NewTLSProfile(
-		//		"SampleTLS",
-		//		namespace,
-		//		cisapiv1.TLSProfileSpec{
-		//			TLS: cisapiv1.TLS{
-		//				Termination: TLSReencrypt,
-		//				ClientSSL:   "clientssl",
-		//				ServerSSL:   "serverssl",
-		//				Reference:   BIGIP,
-		//			},
-		//		},
-		//	)
-		//	mockCtlr.handleDataGroupIRules(rsCfg, "vs", "test.com", tls1)
-		//	Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRuels")
-		//	Expect(len(rsCfg.IntDgMap)).To(Equal(4), "Failed to Add DataGroup")
-		//
-		//})
+		It("Handle DataGroupIRules", func() {
+			mockCtlr := newMockController()
+			rsCfg.Virtual.MultiPoolPersistence = MultiPoolPersistence{
+				Method:  "hashSourceAddress",
+				TimeOut: 30,
+			}
+			mockCtlr.handleDataGroupIRules(rsCfg, "test.com", TLSEdge)
+			Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRules")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Add DataGroup")
+			rsCfg.Virtual.MultiPoolPersistence.Method = "uieSourceAddress"
+			mockCtlr.handleDataGroupIRules(rsCfg, "test.com", TLSReencrypt)
+			Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRules")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(4), "Failed to Add DataGroup")
+			rsCfg.Virtual.MultiPoolPersistence.Method = ""
+			mockCtlr.handleDataGroupIRules(rsCfg, "test.com", TLSPassthrough)
+			Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRules")
+			Expect(len(rsCfg.IntDgMap)).To(Equal(5), "Failed to Add DataGroup")
+
+		})
 	})
 
 	Describe("Prepare Resource Configs", func() {

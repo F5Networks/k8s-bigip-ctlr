@@ -3024,6 +3024,57 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.bigIpMap[bigipConfig].ltmConfig[partition].ResourceMap)).To(Equal(2), "Invalid IL count")
 
 			})
+			It("Response Handler tests for Ingress Link CR", func() {
+				mockNewCtlr := newMockController()
+				mockNewCtlr.clientsets.KubeClient = k8sfake.NewSimpleClientset(svc1)
+				mockNewCtlr.resourceSelectorConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+				mockNewCtlr.managedResources.ManageCustomResources = true
+				mockNewCtlr.CISConfigCRKey = "kube-system/global-cm"
+				mockNewCtlr.crInformers = make(map[string]*CRInformer)
+				mockNewCtlr.comInformers = make(map[string]*CommonInformer)
+				_ = mockNewCtlr.addNamespacedInformers("default", false)
+				mockNewCtlr.clientsets.KubeCRClient = crdfake.NewSimpleClientset(ts1)
+				mockNewCtlr.crInformers["default"].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
+					mockNewCtlr.clientsets.KubeCRClient,
+					"default",
+					0,
+					cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+					func(options *metav1.ListOptions) {
+						options.LabelSelector = mockNewCtlr.resourceSelectorConfig.nativeResourceSelector.String()
+					},
+				)
+				mockNewCtlr.bigIpConfigMap = make(map[cisapiv1.BigIpConfig]BigIpResourceConfig)
+				bigIpKey := cisapiv1.BigIpConfig{BigIpAddress: "10.8.3.11", BigIpLabel: "bigip1", DefaultPartition: "test"}
+				mockNewCtlr.bigIpConfigMap[bigIpKey] = BigIpResourceConfig{ltmConfig: make(LTMConfig), gtmConfig: make(GTMConfig)}
+				mockNewCtlr.requestMap = &requestMap{sync.RWMutex{}, make(map[cisapiv1.BigIpConfig]requestMeta)}
+				mockNewCtlr.ipamHandler = nil
+				agentCfg := agentConfig{
+					id: 0,
+					as3Config: as3Config{
+						failedTenants: make(map[string]struct{}),
+					},
+					BigIpConfig: bigIpKey,
+					reqMeta: requestMeta{
+						partitionMap: make(map[string]map[string]string),
+						id:           0,
+					},
+				}
+				agentCfg.reqMeta.partitionMap["default"] = make(map[string]string)
+				agentCfg.reqMeta.partitionMap["default"]["/default/test"] = IngressLink
+				mockNewCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey] = &PostManager{
+					postChan:            make(chan agentConfig, 1),
+					tokenManager:        mockCtlr.CMTokenManager,
+					cachedTenantDeclMap: make(map[string]as3Tenant),
+					PostParams:          PostParams{},
+					respChan:            make(chan *agentConfig, 1),
+				}
+
+				time.Sleep(10 * time.Millisecond)
+				mockNewCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan <- &agentCfg
+				time.Sleep(10 * time.Millisecond)
+				go mockNewCtlr.responseHandler(mockNewCtlr.RequestHandler.PostManagers.PostManagerMap[bigIpKey].respChan)
+			})
+
 		})
 	})
 

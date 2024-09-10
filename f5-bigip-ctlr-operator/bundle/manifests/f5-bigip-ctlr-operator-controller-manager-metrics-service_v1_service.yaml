@@ -3,12 +3,8 @@ kind: Service
 metadata:
   creationTimestamp: null
   labels:
-    app.kubernetes.io/component: kube-rbac-proxy
-    app.kubernetes.io/created-by: f5-bigip-ctlr-operator
-    app.kubernetes.io/instance: controller-manager-metrics-service
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: service
-    app.kubernetes.io/part-of: f5-bigip-ctlr-operator
+    app.kubernetes.io/name: f5-bigip-ctlr-operator
     control-plane: controller-manager
   name: f5-bigip-ctlr-operator-controller-manager-metrics-service
 spec:

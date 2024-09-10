@@ -34,6 +34,7 @@ rules:
 - apiGroups:
   - cis.f5.com
   resources:
+  - deployconfigs
   - f5bigipctlrs
   - f5bigipctlrs/status
   - f5bigipctlrs/finalizers

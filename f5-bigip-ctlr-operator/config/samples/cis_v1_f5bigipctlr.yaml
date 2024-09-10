@@ -3,18 +3,29 @@ kind: F5BigIpCtlr
 metadata:
   name: f5bigipctlr-sample
 spec:
+  # Default values copied from <project_dir>/helm-charts/f5-bigip-ctlr/values.yaml
   args:
-    log_as3_response: true
-    manage_routes: true
-    agent: as3
-    log_level: DEBUG_OR_INFO
-    route_vserver_addr: IP_ADDRESS
-    bigip_partition: BIGIP_PARTITION
-    openshift_sdn_name: /BIGIP_PARTITION/SDN_NAME
-    bigip_url: BIGIP_IP_ADDRESS
-    insecure: true
-    pool-member-type: CLUSTER_OR_NODEPORT_OR_LOADBALANCER
-  bigip_login_secret: BIGIP_LOGIN_K8S_SECRET
+    cm_url: null
+  cm_login_secret: f5-bigip-ctlr-login
+  cm_secret:
+    create: false
+    password: null
+    username: null
+  deployConfig:
+    as3Config:
+      debugAS3: true
+    baseConfig:
+      controllerIdentifier: cluster-1
+      namespaceLabel: null
+      nodeLabel: null
+    bigIpConfig:
+    - bigIpAddress: 10.10.10.1
+      bigIpLabel: Hyderabad
+      defaultPartition: test
+    networkConfig:
+      metaData:
+        poolMemberType: nodeport
+      orchestrationCNI: ovn-k8s
   image:
     pullPolicy: Always
     repo: k8s-bigip-ctlr
@@ -22,11 +33,9 @@ spec:
   namespace: kube-system
   rbac:
     create: true
-  resources: {}
   serviceAccount:
     create: true
-  ingressClass:
-    create: false
-    ingressClassName: f5
-    defaultController: false
+    name: f5-bigip-ctlr-serviceaccount
   version: latest
+  
+  

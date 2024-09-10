@@ -51,7 +51,6 @@ var _ = Describe("Main Tests", func() {
 				"--cm-username=admin",
 				"--deploy-config-cr=default/testcr",
 				"--log-level=INFO",
-				"--disable-teems=true",
 				"--no-verify-ssl=true",
 				"--trusted-certs-cfgmap=default/foomap",
 				"--kubeconfig=/tmp/kubeconfig",
@@ -215,9 +214,8 @@ var _ = Describe("Main Tests", func() {
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--credentials-directory=/tmp/k8s-test-creds",
-				"--cm-url=cm.example.com",
 				"--deploy-config-cr=default/testcr",
-				"--disable-teems=true",
+				"--cm-url=cm.example.com",
 			}
 			flags.Parse(os.Args)
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
@@ -232,12 +230,12 @@ var _ = Describe("Main Tests", func() {
 			Expect(*cmUsername).To(Equal("user"))
 			Expect(*cmPassword).To(Equal("pass"))
 			// Test url variations
-			os.Args[4] = "--cm-url=fail://cm.example.com"
+			os.Args[3] = "--cm-url=fail://cm.example.com"
 			flags.Parse(os.Args)
 			err = getCredentials()
 			Expect(err).ToNot(BeNil(), "cm-url should fail with incorrect scheme 'fail://'.")
 
-			os.Args[4] = "--cm-url=https://cm.example.com/some/path"
+			os.Args[3] = "--cm-url=https://cm.example.com/some/path"
 			flags.Parse(os.Args)
 			err = getCredentials()
 			Expect(err).ToNot(BeNil(), "cm-url should fail with invalid path.")

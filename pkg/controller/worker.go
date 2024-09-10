@@ -2309,14 +2309,15 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 				svcKey.namespace == pool.ServiceNamespace {
 				if pool.Weight > 0 {
 					ratio = int(float32(pool.Weight) / float32(len(plMem)))
-				} else {
-					continue
 				}
 				for idx, _ := range plMem {
-					plMem[idx].Ratio = ratio
+					if pool.Weight == 0 {
+						plMem[idx].AdminState = "disable"
+					} else {
+						plMem[idx].Ratio = ratio
+					}
 				}
 				poolMem = append(poolMem, plMem...)
-				continue
 			}
 
 			for _, svc := range pool.AlternateBackends {
@@ -2325,11 +2326,13 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 					svcKey.namespace == svc.ServiceNamespace {
 					if svc.Weight > 0 {
 						ratio = int(float32(svc.Weight) / float32(len(plMem)))
-					} else {
-						break
 					}
 					for idx, _ := range plMem {
-						plMem[idx].Ratio = ratio
+						if svc.Weight == 0 {
+							plMem[idx].AdminState = "disable"
+						} else {
+							plMem[idx].Ratio = ratio
+						}
 					}
 					poolMem = append(poolMem, plMem...)
 					break
@@ -2345,7 +2348,11 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 						ratio = int(float32(*mcSvc.Weight) / float32(len(plMem)))
 					}
 					for idx, _ := range plMem {
-						plMem[idx].Ratio = ratio
+						if ratio == 0 {
+							plMem[idx].AdminState = "disable"
+						} else {
+							plMem[idx].Ratio = ratio
+						}
 					}
 					poolMem = append(poolMem, plMem...)
 					break
@@ -2441,14 +2448,15 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 						cluster = ctlr.multiClusterConfigs.LocalClusterName
 					}
 					ratio = int((float64(pool.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[cluster]) / totalClusterRatio) * 100)
-				} else {
-					continue
 				}
 				for idx, _ := range plMem {
-					plMem[idx].Ratio = ratio
+					if pool.Weight == 0 {
+						plMem[idx].AdminState = "disable"
+					} else {
+						plMem[idx].Ratio = ratio
+					}
 				}
 				poolMem = append(poolMem, plMem...)
-				continue
 			}
 
 			for _, svc := range pool.AlternateBackends {
@@ -2461,11 +2469,13 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 							cluster = ctlr.multiClusterConfigs.LocalClusterName
 						}
 						ratio = int((float64(svc.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[cluster]) / totalClusterRatio) * 100)
-					} else {
-						break
 					}
 					for idx, _ := range plMem {
-						plMem[idx].Ratio = ratio
+						if svc.Weight == 0 {
+							plMem[idx].AdminState = "disable"
+						} else {
+							plMem[idx].Ratio = ratio
+						}
 					}
 					poolMem = append(poolMem, plMem...)
 					break
@@ -2481,7 +2491,11 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 						ratio = int((float64(*mcSvc.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[svcKey.clusterName]) / totalClusterRatio) * 100)
 					}
 					for idx, _ := range plMem {
-						plMem[idx].Ratio = ratio
+						if ratio == 0 {
+							plMem[idx].AdminState = "disable"
+						} else {
+							plMem[idx].Ratio = ratio
+						}
 					}
 					poolMem = append(poolMem, plMem...)
 					break

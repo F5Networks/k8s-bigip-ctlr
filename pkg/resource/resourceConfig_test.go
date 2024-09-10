@@ -473,7 +473,7 @@ var _ = Describe("Resource Config Tests", func() {
 			// First add
 			Expect(len(rs.objDeps)).To(BeZero())
 			added, removed := rs.UpdateDependencies(
-				key, deps, routeDeps[0], routeAlwaysFound)
+				key, deps, routeAlwaysFound)
 			Expect(len(added)).To(Equal(len(routeDeps)))
 			Expect(len(removed)).To(BeZero())
 			Expect(len(rs.objDeps)).To(Equal(1))
@@ -482,14 +482,14 @@ var _ = Describe("Resource Config Tests", func() {
 			route.Spec.AlternateBackends[1].Name = "boo"
 			key, deps = NewObjectDependencies(route)
 			added, removed = rs.UpdateDependencies(
-				key, deps, routeDeps[0], routeAlwaysFound)
+				key, deps, routeAlwaysFound)
 			Expect(len(added)).To(Equal(1))
 			Expect(len(removed)).To(Equal(1))
 			Expect(len(rs.objDeps)).To(Equal(1))
 
 			// 'remove' Route. Should remove entry from rs.objDeps
 			added, removed = rs.UpdateDependencies(
-				key, deps, routeDeps[0], routeNeverFound)
+				key, deps, routeNeverFound)
 			Expect(len(added)).To(BeZero())
 			Expect(len(removed)).To(Equal(len(annotations)))
 			Expect(len(rs.objDeps)).To(BeZero())
@@ -585,10 +585,10 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(key).To(Equal(ObjectDependency{
 				Kind: "Ingress", Namespace: "ns2", Name: vsName}))
 			ingressDeps := []ObjectDependency{
-				{Kind: "Service", Namespace: "ns2", Name: "foo", BackendPortNumber: 80, BackendPortName: "http"},
-				{Kind: "Service", Namespace: "ns2", Name: "bar", BackendPortNumber: 80, BackendPortName: "http"},
-				{Kind: "Service", Namespace: "ns2", Name: "baz", BackendPortNumber: 80, BackendPortName: "http"},
-				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz", BackendPortNumber: 80, BackendPortName: "http"},
+				{Kind: "Service", Namespace: "ns2", Name: "foo", PoolName: FormatIngressPoolName("ns2", "foo", vsName, "80")},
+				{Kind: "Service", Namespace: "ns2", Name: "bar", PoolName: FormatIngressPoolName("ns2", "bar", vsName, "80")},
+				{Kind: "Service", Namespace: "ns2", Name: "baz", PoolName: FormatIngressPoolName("ns2", "baz", vsName, "80")},
+				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz", PoolName: FormatIngressPoolName("ns2", "foobarbaz", vsName, "80")},
 				{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
@@ -611,7 +611,7 @@ var _ = Describe("Resource Config Tests", func() {
 			// First add
 			Expect(len(rs.objDeps)).To(BeZero())
 			added, removed := rs.UpdateDependencies(
-				key, deps, ingressDeps[0], ingAlwaysFound)
+				key, deps, ingAlwaysFound)
 			Expect(len(added)).To(Equal(len(ingressDeps)))
 			Expect(len(removed)).To(BeZero())
 			Expect(len(rs.objDeps)).To(Equal(1))
@@ -620,16 +620,16 @@ var _ = Describe("Resource Config Tests", func() {
 			ingress.Spec.Rules[1].HTTP.Paths[1].Backend.Service.Name = "boo"
 			key, deps = NewObjectDependencies(ingress)
 			added, removed = rs.UpdateDependencies(
-				key, deps, ingressDeps[0], ingAlwaysFound)
+				key, deps, ingAlwaysFound)
 			Expect(len(added)).To(Equal(1))
 			Expect(len(removed)).To(Equal(1))
 			Expect(len(rs.objDeps)).To(Equal(1))
 
 			// 'remove' Ingress. Should remove entry from rs.objDeps
 			added, removed = rs.UpdateDependencies(
-				key, deps, ingressDeps[0], ingNeverFound)
+				key, deps, ingNeverFound)
 			Expect(len(added)).To(BeZero())
-			Expect(len(removed)).To(Equal(6))
+			Expect(len(removed)).To(Equal(10))
 			Expect(len(rs.objDeps)).To(BeZero())
 
 			ingress = test.NewIngressNetV1("ingress", "1", "ns3", ingressConfig, nil)
@@ -640,7 +640,7 @@ var _ = Describe("Resource Config Tests", func() {
 				Kind: "Ingress", Namespace: "ns3", Name: "ingress"}
 			Expect(len(rs.objDeps)).To(BeZero())
 			added, removed = rs.UpdateDependencies(
-				key, deps, depKey, ingAlwaysFound)
+				key, deps, ingAlwaysFound)
 			Expect(len(added)).To(Equal(8))
 			Expect(len(removed)).To(BeZero())
 			Expect(len(rs.objDeps)).To(Equal(1))
@@ -760,7 +760,7 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("FormatIngressPoolName", func() {
-			Expect(FormatIngressPoolName("default", "svc1", "ingress1", 8080)).To(Equal("ingress_default_ingress1_svc1_8080"))
+			Expect(FormatIngressPoolName("default", "svc1", "ingress1", "8080")).To(Equal("ingress_default_ingress1_svc1_8080"))
 		})
 
 		It("GetRouteCanonicalServiceName", func() {

@@ -1998,11 +1998,6 @@ func (appMgr *Manager) syncIngresses(
 		}
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(ing)
-		svcDepKey := ObjectDependency{
-			Kind:      ServiceDep,
-			Namespace: sKey.Namespace,
-			Name:      sKey.ServiceName,
-		}
 		ingressLookupFunc := func(key ObjectDependency) bool {
 			if key.Kind != "Ingress" {
 				return false
@@ -2013,7 +2008,7 @@ func (appMgr *Manager) syncIngresses(
 		}
 
 		depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
-			objKey, objDeps, svcDepKey, ingressLookupFunc)
+			objKey, objDeps, ingressLookupFunc)
 		portStructs := appMgr.v1VirtualPorts(ing)
 		for i, portStruct := range portStructs {
 			rsCfg, _ := appMgr.createRSConfigFromV1Ingress(
@@ -2049,18 +2044,14 @@ func (appMgr *Manager) syncIngresses(
 					appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
 				} else {
 					if nil != ing.Spec.DefaultBackend {
-						var backendPort int32
-						var err error
+						var poolPortString string
 						if ing.Spec.DefaultBackend.Service.Port.Number != 0 {
-							backendPort = ing.Spec.DefaultBackend.Service.Port.Number
+							poolPortString = fmt.Sprintf("%d", ing.Spec.DefaultBackend.Service.Port.Number)
 						} else if ing.Spec.DefaultBackend.Service.Port.Name != "" {
-							backendPort, err = GetServicePort(ing.ObjectMeta.Namespace, ing.Spec.DefaultBackend.Service.Name, appInf.svcInformer.GetIndexer(), ing.Spec.DefaultBackend.Service.Port.Name, ResourceTypeIngress)
-							if err != nil {
-								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
-							}
+							poolPortString = ing.Spec.DefaultBackend.Service.Port.Name
 						}
 						fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
-							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName, ing.ObjectMeta.Name, backendPort))
+							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName, ing.ObjectMeta.Name, poolPortString))
 						RemoveUnReferredHealthMonitors(rsCfg, fullPoolName, monitors)
 						appMgr.handleSingleServiceV1IngressHealthMonitors(fullPoolName, rsCfg, ing, monitors)
 					} else {
@@ -2076,18 +2067,8 @@ func (appMgr *Manager) syncIngresses(
 			// Remove any dependencies no longer used by this Ingress
 			for _, dep := range depsRemoved {
 				if dep.Kind == ServiceDep {
-					var backendPort int32
-					var err error
-					if dep.BackendPortNumber != 0 {
-						backendPort = dep.BackendPortNumber
-					} else if dep.BackendPortName != "" {
-						backendPort, err = GetServicePort(dep.Name, dep.Name, appInf.svcInformer.GetIndexer(), dep.BackendPortName, ResourceTypeIngress)
-						if err != nil {
-							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
-						}
-					}
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, FormatIngressPoolName(dep.Namespace, dep.Name, ing.ObjectMeta.Name, backendPort), appMgr.mergedRulesMap)
+						dep.Namespace, dep.PoolName, appMgr.mergedRulesMap)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}
@@ -2293,11 +2274,6 @@ func (appMgr *Manager) syncRoutes(
 
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(route)
-		svcDepKey := ObjectDependency{
-			Kind:      ServiceDep,
-			Namespace: sKey.Namespace,
-			Name:      sKey.ServiceName,
-		}
 		routeLookupFunc := func(key ObjectDependency) bool {
 			if key.Kind != "Route" {
 				return false
@@ -2307,7 +2283,7 @@ func (appMgr *Manager) syncRoutes(
 			return !routeFound
 		}
 		_, depsRemoved := appMgr.resources.UpdateDependencies(
-			objKey, objDeps, svcDepKey, routeLookupFunc)
+			objKey, objDeps, routeLookupFunc)
 
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}

@@ -672,12 +672,18 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 						//Assigning backendPort to find existing pool entries
 						path.Backend.Service.Port.Number = backendPort
 					}
+					var poolPortString string
+					if path.Backend.Service.Port.Number != 0 {
+						poolPortString = fmt.Sprintf("%d", path.Backend.Service.Port.Number)
+					} else if path.Backend.Service.Port.Name != "" {
+						poolPortString = path.Backend.Service.Port.Name
+					}
 					pool := Pool{
 						Name: FormatIngressPoolName(
 							ing.ObjectMeta.Namespace,
 							path.Backend.Service.Name,
 							ing.ObjectMeta.Name,
-							backendPort,
+							poolPortString,
 						),
 						Partition:   cfg.Virtual.Partition,
 						Balance:     balance,
@@ -709,12 +715,18 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 				log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 			}
 		}
+		var poolPortString string
+		if ing.Spec.DefaultBackend.Service.Port.Number != 0 {
+			poolPortString = fmt.Sprintf("%d", ing.Spec.DefaultBackend.Service.Port.Number)
+		} else if ing.Spec.DefaultBackend.Service.Port.Name != "" {
+			poolPortString = ing.Spec.DefaultBackend.Service.Port.Name
+		}
 		pool := Pool{
 			Name: FormatIngressPoolName(
 				ing.ObjectMeta.Namespace,
 				ing.Spec.DefaultBackend.Service.Name,
 				ing.ObjectMeta.Name,
-				backendPort,
+				poolPortString,
 			),
 			Partition:   cfg.Virtual.Partition,
 			Balance:     balance,

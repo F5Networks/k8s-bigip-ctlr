@@ -264,8 +264,8 @@ func FormatIngressVSName(ip string, port int32) string {
 }
 
 // format the pool name for an Ingress
-func FormatIngressPoolName(namespace, svc string, ingressName string, port int32) string {
-	return fmt.Sprintf("ingress_%s_%s_%s_%d", namespace, ingressName, svc, port)
+func FormatIngressPoolName(namespace, svc, ingressName, port string) string {
+	return fmt.Sprintf("ingress_%s_%s_%s_%s", namespace, ingressName, svc, port)
 }
 
 func GetRouteCanonicalServiceName(route *routeapi.Route) string {
@@ -477,11 +477,10 @@ type ResourceConfigMap map[NameRef]*ResourceConfig
 
 // ObjectDependency identifies a K8s Object
 type ObjectDependency struct {
-	Kind              string
-	Namespace         string
-	Name              string
-	BackendPortNumber int32
-	BackendPortName   string
+	Kind      string
+	Namespace string
+	Name      string
+	PoolName  string
 }
 
 // ObjectDependencies contains each dependency and its use count (usually 1)
@@ -574,12 +573,22 @@ func NewObjectDependencies(
 		key.Namespace = ingress.ObjectMeta.Namespace
 		key.Name = ingress.ObjectMeta.Name
 		if nil != ingress.Spec.DefaultBackend {
+			var poolPortString string
+			if ingress.Spec.DefaultBackend.Service.Port.Number != 0 {
+				poolPortString = fmt.Sprintf("%d", ingress.Spec.DefaultBackend.Service.Port.Number)
+			} else {
+				poolPortString = ingress.Spec.DefaultBackend.Service.Port.Name
+			}
 			dep := ObjectDependency{
-				Kind:              ServiceDep,
-				Namespace:         ingress.ObjectMeta.Namespace,
-				Name:              ingress.Spec.DefaultBackend.Service.Name,
-				BackendPortName:   ingress.Spec.DefaultBackend.Service.Port.Name,
-				BackendPortNumber: ingress.Spec.DefaultBackend.Service.Port.Number,
+				Kind:      ServiceDep,
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      ingress.Spec.DefaultBackend.Service.Name,
+				PoolName: FormatIngressPoolName(
+					ingress.ObjectMeta.Namespace,
+					ingress.Spec.DefaultBackend.Service.Name,
+					ingress.ObjectMeta.Name,
+					poolPortString,
+				),
 			}
 			deps[dep]++
 		}
@@ -588,12 +597,22 @@ func NewObjectDependencies(
 				continue
 			}
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				var poolPortString string
+				if path.Backend.Service.Port.Number != 0 {
+					poolPortString = fmt.Sprintf("%d", path.Backend.Service.Port.Number)
+				} else if path.Backend.Service.Port.Name != "" {
+					poolPortString = path.Backend.Service.Port.Name
+				}
 				dep := ObjectDependency{
-					Kind:              ServiceDep,
-					Namespace:         ingress.ObjectMeta.Namespace,
-					Name:              path.Backend.Service.Name,
-					BackendPortName:   path.Backend.Service.Port.Name,
-					BackendPortNumber: path.Backend.Service.Port.Number,
+					Kind:      ServiceDep,
+					Namespace: ingress.ObjectMeta.Namespace,
+					Name:      path.Backend.Service.Name,
+					PoolName: FormatIngressPoolName(
+						ingress.ObjectMeta.Namespace,
+						path.Backend.Service.Name,
+						ingress.ObjectMeta.Name,
+						poolPortString,
+					),
 				}
 				deps[dep]++
 				dep = ObjectDependency{
@@ -755,7 +774,6 @@ func (rs *Resources) UpdatePolicy(
 func (rs *Resources) UpdateDependencies(
 	newKey ObjectDependency,
 	newDeps ObjectDependencies,
-	svcDepKey ObjectDependency,
 	lookupFunc func(key ObjectDependency) bool,
 ) ([]ObjectDependency, []ObjectDependency) {
 	rs.Lock()
@@ -790,31 +808,37 @@ func (rs *Resources) UpdateDependencies(
 		}
 	}
 	rs.objDeps[newKey] = newDeps
-
 	// Look for all top level objects that depend on the service being handled
 	// by the caller. Remove that top level object if it no longer exists. This
 	// happens when a Route or Ingress is deleted.
 	for objDepKey, objDepDep := range rs.objDeps {
-		if _, found := objDepDep[svcDepKey]; found {
-			shouldRemove := lookupFunc(objDepKey)
-			if shouldRemove {
-				// Ingress or Route has been deleted, remove it from the map and add deps to removed
-				for dep := range rs.objDeps[objDepKey] {
-					if dep.Kind != ServiceDep {
-						// If Rule, put at front of list to ensure we unmerge before trying
-						// to process any removed annotation rules
-						if dep.Kind == RuleDep {
-							removed = append([]ObjectDependency{dep}, removed...)
-						} else {
-							removed = append(removed, dep)
-						}
+		// cheeck if the object dependency key is present in the serviceDepKeys
+		if shouldRemove := lookupFunc(objDepKey); shouldRemove {
+			for dep := range objDepDep {
+				// Process the dependencies for removal
+				// remove the service dependency in case of ingress, as each ingress has its own pool
+				// hence, we should remove the pool if the ingress is removed
+				// poolName is set for ingress kind resources
+				if dep.Kind == ServiceDep && dep.PoolName != "" {
+					removed = append(removed, dep)
+				}
+
+				// For routes poolName does not include the port and resource name hence, if routes are sharing the
+				// same service, we should not remove the service dependency and pool should be removed only when all routes are removed which shares the same service
+				if dep.Kind != ServiceDep {
+					// If Rule, put at front of list to ensure we unmerge before trying
+					// to process any removed annotation rules
+					if dep.Kind == RuleDep {
+						removed = append([]ObjectDependency{dep}, removed...)
+					} else {
+						removed = append(removed, dep)
 					}
 				}
-				delete(rs.objDeps, objDepKey)
 			}
+			// After processing, remove the objDepKey from the map
+			delete(rs.objDeps, objDepKey)
 		}
 	}
-
 	return added, removed
 }
 

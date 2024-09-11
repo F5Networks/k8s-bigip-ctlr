@@ -65,7 +65,6 @@ local-go-coverage:
 	awk "!/\/config\/|vlogger|prometheus|mockmanager|\/test\/test/" coverage.out >coverage-new.out
 	mv coverage-new.out coverage.out
 	grep "Coverage (with ignorance)" coverage.html | head -1 | awk 'END { print "Total coverage:", $$4, "of statements" }'
-	#go tool cover -func=coverage.out | grep "^total:" | awk 'END { print "Total coverage:", $$3, "of statements" }'
 	@if [ $(COVERALLS_TOKEN) ]; then \
 		go install github.com/mattn/goveralls@latest; \
 		echo "Pushing coverage data to coveralls"; \

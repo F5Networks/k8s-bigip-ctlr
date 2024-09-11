@@ -1,5 +1,4 @@
 [![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=master) ](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=master)
-![Azure DevOps coverage](https://img.shields.io/azure-devops/coverage/f5networks/cis/6)
 ![Azure DevOps tests](https://img.shields.io/azure-devops/tests/f5networks/cis/6)
 
 

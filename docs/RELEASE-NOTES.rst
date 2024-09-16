@@ -12,6 +12,7 @@ Added Functionality
 Bug Fixes
 ````````````
 * `Issue 3518 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3518>`_: CIS is reposting the declaration because of re-ordering of the pool-members
+* `Issue 3520 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3520>`_: [LOGS] improve log message Finished syncing virtual servers xxx in namespace yyy(199.218µs), 1/7
 * Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
 
 Upgrade notes

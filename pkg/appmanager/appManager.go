@@ -1486,7 +1486,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		endTime := time.Now()
 		// processedItems with +1 because that is the actual number of items processed
 		// and it gets incremented just after this function returns
-		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
+		log.Debugf("[CORE] Finished syncing virtual servers with service %+v in namespace %+v (%v), processed VS %v out of %v",
 			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems+1, appMgr.queueLen)
 	}()
 	// Get the informers for the namespace. This will tell us if we care about

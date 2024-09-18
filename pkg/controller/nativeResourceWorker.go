@@ -4,18 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"gopkg.in/yaml.v2"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"gopkg.in/yaml.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	routeapi "github.com/openshift/api/route/v1"
 
@@ -2291,6 +2292,8 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 		if err != nil {
 			return nil, fmt.Errorf("[MultiCluster] error occurred while fetching Secret: %s for the cluster: %s, Error: %v",
 				secretName, clusterName, err)
+		} else {
+			log.Debugf("[MultiCluster] Successfully fetched secret: %s for cluster: %s using kubeclient", secretName, clusterName)
 		}
 	}
 	// Fetch the kubeconfig data from the secret

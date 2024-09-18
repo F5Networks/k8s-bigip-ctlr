@@ -19,10 +19,11 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/rest"
 	"os"
 	"sort"
 	"time"
+
+	"k8s.io/client-go/rest"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
@@ -276,6 +277,19 @@ func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) erro
 	err := ctlr.setupMultiClusterNodeInformers(clusterName, true)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+// updateMultiClusterInformers starts/stops the informers for the given namespace for external clusters including HA peer cluster
+func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInformer bool) error {
+	for clusterName, config := range ctlr.multiClusterConfigs.ClusterConfigs {
+		restClient := config.KubeClient.CoreV1().RESTClient()
+		// Setup informer with the namespace
+		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, namespace, restClient, startInformer); err != nil {
+			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, namespace, err)
+			return err
+		}
 	}
 	return nil
 }

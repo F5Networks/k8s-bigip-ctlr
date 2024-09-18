@@ -44,4 +44,14 @@ var _ = Describe("MultiClusterInformers", func() {
 		err := mockCtlr.setupAndStartMultiClusterInformers(svcKey, false)
 		Expect(err).To(BeNil())
 	})
+	It("Verifies creation and deletion of namespace informers for multiCluster Cluster in case of namespace label", func() {
+		mockCtlr.PoolMemberType = Cluster
+		ns := "test-new-ns"
+		err := mockCtlr.updateMultiClusterInformers(ns, false)
+		Expect(err).To(BeNil())
+		Expect(len(mockCtlr.multiClusterPoolInformers)).NotTo(Equal(0))
+		for clusterNameKey, _ := range mockCtlr.multiClusterPoolInformers {
+			Expect(mockCtlr.multiClusterPoolInformers[clusterNameKey]).To(HaveKey(ns))
+		}
+	})
 })

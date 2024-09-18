@@ -294,6 +294,10 @@ func (ctlr *Controller) addNamespacedInformers(
 			comInf.start()
 		}
 	}
+	// add multiCluster informers for the new namespace to watch resources from other clusters
+	if ctlr.multiClusterMode != "" {
+		ctlr.updateMultiClusterInformers(namespace, startInformer)
+	}
 
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:

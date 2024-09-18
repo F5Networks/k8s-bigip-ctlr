@@ -16,6 +16,7 @@ Bug Fixes
 * `Issue 3542 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3542>`_: Change of weight from primary to alternate backend is not graceful for Transport server
 * `Issue 3507 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3507>`_: Controller stops posting changes at runtime when multiple ingress use the same backend service
 * Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
+* `Issue 3535 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3535>`_: CIS with namespace-label is not working correctly in multicluster mode
 
 Upgrade notes
 ``````````````

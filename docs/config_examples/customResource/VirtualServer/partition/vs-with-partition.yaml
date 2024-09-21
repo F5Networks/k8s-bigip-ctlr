@@ -11,14 +11,14 @@ spec:
   host: foo.example.com
   partition: dev
   pools:
-    - monitor:
-        interval: 20
-        recv: a
-        send: /
-        timeout: 10
-        type: http
-      path: /foo
-      service: pytest-svc-1
-      servicePort: 80
+  - path: /foo
+    monitor:
+     type: http
+     interval: 20
+     recv: OK
+     send: GET / \r\n HTTP/1.1 \r\n\r\n
+     timeout: 10
+    service: pytest-svc-1
+    servicePort: 80
   snat: auto
   virtualServerAddress: 10.8.3.11

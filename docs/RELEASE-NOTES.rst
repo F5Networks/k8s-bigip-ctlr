@@ -8,6 +8,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * CRD
+        * `Issue 3536 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3536>`_: Support CRD status for VS, TS and IngressLink
 
 Bug Fixes
 ````````````

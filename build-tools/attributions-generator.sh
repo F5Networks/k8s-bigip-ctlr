@@ -4,8 +4,8 @@
 # Run the arrtibutions generator container
 #
 
-set -e
-set -x
+#set -e
+#set -x
 
 generate_attributions_licensee() {
 
@@ -23,7 +23,7 @@ generate_attributions_licensee() {
         fi	
         if [ $repo == "github.com" ]  || [ $repo == "golang.org" ]
         then
-        for package in `ls $vendor/$repo/$projects`; 
+        for package in `ls $vendor/$repo/$projects`;
           do echo $repo/$projects/$package;   
             # Licensee is not able to detect the package mergo license.
             # Need to raise an issue with mergo
@@ -56,6 +56,9 @@ LICENSE-APACHE-2.0.txt:
             fi
             if [ $projects == "f5devcentral" ] && [ $package == "go-bigip" ]; then
                 package=$package/f5teem
+            fi
+            if [ $projects == "emicklei" ] && [ $package == "go-restful" ]; then
+              package=$package/v3
             fi
             licensee detect $vendor/$repo/$projects/$package
             licensee license-path $vendor/$repo/$projects/$package | xargs head -25

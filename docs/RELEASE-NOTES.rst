@@ -7,6 +7,8 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
+    * Multi Cluster
+        * Support to add HA services in extendedServiceReferences for Transport Servers. Yet to be supported with Virtual Server
     * CRD
 
 Bug Fixes

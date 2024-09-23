@@ -37,7 +37,7 @@ var _ = Describe("Validation Tests", func() {
 				Namespace:   "namespace1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
 				ClusterName: "cluster1",
-			})).Error().To(Equal(fmt.Errorf("CIS is not running in multiCluster mode")))
+			}, true)).Error().To(Equal(fmt.Errorf("CIS is not running in multiCluster mode")))
 		})
 
 		It("Validating ExtendedServiceReference for missing parameters", func() {
@@ -46,19 +46,19 @@ var _ = Describe("Validation Tests", func() {
 				SvcName:     "svc1",
 				Namespace:   "namespace1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
+			}, true)).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
 			// Check for missing service name
 			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
 				ClusterName: "cluster1",
 				Namespace:   "namespace1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
+			}, true)).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
 			// Check for missing ServicePort
 			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
 				ClusterName: "cluster1",
 				Namespace:   "namespace1",
 				SvcName:     "svc1",
-			})).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
+			}, true)).Error().To(Equal(fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")))
 		})
 
 		It("Validating ExtendedServiceReference running in HA and non-HA cluster", func() {
@@ -68,7 +68,7 @@ var _ = Describe("Validation Tests", func() {
 				SvcName:     "svc1",
 				Namespace:   "namespace1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("cluster config for the cluster cluster3 is not provided in extended configmap")))
+			}, true)).Error().To(Equal(fmt.Errorf("cluster config for the cluster cluster3 is not provided in extended configmap")))
 			// Service running in non HA cluster
 			mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"] = clustermanager.ClusterConfig{}
 			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
@@ -76,23 +76,23 @@ var _ = Describe("Validation Tests", func() {
 				Namespace:   "namespace1",
 				SvcName:     "svc1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(BeNil())
-			// Service running in primary cluster
-			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
-				ClusterName: "cluster1",
-				SvcName:     "svc1",
-				Namespace:   "namespace1",
-				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("service is running in HA cluster, currently CIS doesn't support services running in " +
-				"HA clusters to be defined in extendedServiceReference")))
+			}, true)).Error().To(BeNil())
+			//// Service running in primary cluster
+			//Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
+			//	ClusterName: "cluster1",
+			//	SvcName:     "svc1",
+			//	Namespace:   "namespace1",
+			//	ServicePort: intstr.IntOrString{IntVal: 80},
+			//}, true)).Error().To(Equal(fmt.Errorf("service is running in HA cluster, currently CIS doesn't support services running in " +
+			//	"HA clusters to be defined in extendedServiceReference")))
 			// Service running in secondary cluster
-			Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
-				ClusterName: "cluster2",
-				SvcName:     "svc1",
-				Namespace:   "namespace1",
-				ServicePort: intstr.IntOrString{IntVal: 80},
-			})).Error().To(Equal(fmt.Errorf("service is running in HA cluster, currently CIS doesn't support services running in " +
-				"HA clusters to be defined in extendedServiceReference")))
+			//Expect(mockCtlr.checkValidExtendedService(cisapiv1.MultiClusterServiceReference{
+			//	ClusterName: "cluster2",
+			//	SvcName:     "svc1",
+			//	Namespace:   "namespace1",
+			//	ServicePort: intstr.IntOrString{IntVal: 80},
+			//}, true)).Error().To(Equal(fmt.Errorf("service is running in HA cluster, currently CIS doesn't support services running in " +
+			//	"HA clusters to be defined in extendedServiceReference")))
 		})
 	})
 })

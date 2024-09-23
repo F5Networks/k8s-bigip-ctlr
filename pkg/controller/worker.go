@@ -2240,22 +2240,29 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
+		clusterName := mcs.ClusterName
+		if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+			clusterName = ""
+		}
 		// Skip invalid extended service or if adding pool member is restricted for the cluster
-		if ctlr.checkValidExtendedService(mcs) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) {
+		if ctlr.checkValidExtendedService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) ||
+			//(ctlr.haModeType == StandBy && ctlr.multiClusterMode == SecondaryCIS && clusterName == "") ||
+			(ctlr.haModeType == StandBy && clusterName == ctlr.multiClusterConfigs.HAPairClusterName) {
 			continue
 		}
+
 		// Update pool members for all the multi cluster services specified in the route annotations
 		// Ensure cluster services of the HA pair cluster (if specified as multi cluster service in route annotations)
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
 		// already populated while updating the HA cluster pair service pool members above
-		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
+		if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok || clusterName == "" {
 			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
-				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+				pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 
 			if pool.SinglePoolRatioEnabled {
 				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: mcs.SvcName, namespace: mcs.Namespace,
-					clusterName: mcs.ClusterName}] = pms
+					clusterName: clusterName}] = pms
 			}
 		}
 	}
@@ -2414,7 +2421,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		}
 
 		for _, svc := range pool.MultiClusterServices {
-			if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+			if ctlr.checkValidExtendedService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 				continue
 			}
 			if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -2511,6 +2518,12 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 // fetchPoolMembersForService returns pool members associated with a service created in specified cluster
 func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNamespace string,
 	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32, bigipRouteDomain int32) []PoolMember {
+
+	if ctlr.multiClusterMode != "" {
+		if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+			clusterName = ""
+		}
+	}
 	svcKey := MultiClusterServiceKey{
 		serviceName: serviceName,
 		namespace:   serviceNamespace,
@@ -4777,7 +4790,7 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 	var nodescluster []interface{}
 	if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 		for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
-			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok && clusterName != "" {
 				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.nodeLabelSelector})
 				if err != nil {
 					log.Debugf("[MultiCluster] Unable to fetch nodes for cluster %v with err %v", clusterName, err)

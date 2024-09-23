@@ -2376,6 +2376,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		if ctlr.checkValidMultiClusterService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) {
 			continue
 		}
+
 		// Update pool members for all the multi cluster services specified in the route annotations
 		// Ensure cluster services of the HA pair cluster (if specified as multi cluster service in route annotations)
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
@@ -2384,11 +2385,12 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			targetPort := ctlr.fetchTargetPort(mcs.Namespace, mcs.SvcName, mcs.ServicePort, clusterName)
 			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, targetPort,
 				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+
 			poolMembers = append(poolMembers, pms...)
 
 			if pool.SinglePoolRatioEnabled {
 				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: mcs.SvcName, namespace: mcs.Namespace,
-					clusterName: mcs.ClusterName}] = pms
+					clusterName: clusterName}] = pms
 			}
 		}
 	}

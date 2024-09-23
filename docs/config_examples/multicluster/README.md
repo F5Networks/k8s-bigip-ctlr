@@ -657,7 +657,6 @@ Ok[root@cluster-1-worker0 ~]#
 ```
 where 10.244.1.213 is the CIS PodIP.
 
-
 ### Which services can be provided as multiClusterServices?
 Any service running in any OpenShift/Kubernetes clusters which are part of the multiCluster setup can be provided as multiClusterServices.
 

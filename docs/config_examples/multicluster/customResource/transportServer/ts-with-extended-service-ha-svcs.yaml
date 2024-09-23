@@ -11,7 +11,7 @@ spec:
     - /Common/test_rule2
   mode: standard
   pool:
-    extendedServiceReferences:
+    multiClusterServices:
     # CIS supports to refer svs from local cluster and ha cluster
       - clusterName: cluster1
         namespace: default

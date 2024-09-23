@@ -15,7 +15,7 @@ spec:
     serviceNamespace: tea
     service: svc-2
     servicePort: 80
-    extendedServiceReferences:
+    multiClusterServices:
     - clusterName: cluster2
       namespace: ns1
       servicePort: 8080

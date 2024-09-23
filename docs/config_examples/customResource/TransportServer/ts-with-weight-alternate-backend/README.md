@@ -10,7 +10,7 @@ CIS supports a/b with the alternate backed. Weight can be specified for default 
       - service: svc-1-external-service
         serviceNamespace: default
         weight: 20
-    extendedServiceReferences:
+    multiClusterServices:
       - clusterName: cluster3
         namespace: default
         service: svc-1-external-service

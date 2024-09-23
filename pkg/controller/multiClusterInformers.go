@@ -249,6 +249,12 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInform
 // setup multi cluster informer
 func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
 	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[svcKey.clusterName]; ok {
+		if svcKey.clusterName == "" {
+			if ctlr.multiClusterPoolInformers[""] == nil {
+				ctlr.multiClusterPoolInformers[""] = make(map[string]*MultiClusterPoolInformer)
+			}
+			return nil
+		}
 		restClient := config.KubeClient.CoreV1().RESTClient()
 		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, startInformer); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)

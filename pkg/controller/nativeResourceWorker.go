@@ -1820,7 +1820,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				ctlr.multiClusterResources.Lock()
 				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
-					err := ctlr.checkValidExtendedService(svc)
+					err := ctlr.checkValidExtendedService(svc, true)
 					if err != nil {
 						// In case of invalid extendedServiceReference, just log the error and proceed
 						log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s: %v", svc, route.Name, err)
@@ -2000,6 +2000,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					one := 1
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
 				}
+				ctlr.clusterRatio[""] = ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName]
 			}
 			ctlr.readAndUpdateClusterAdminState(haClusterConfig.PrimaryCluster, ctlr.multiClusterMode == PrimaryCIS)
 		}
@@ -2239,6 +2240,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName] = clustermanager.ClusterConfig{
 		KubeClient: kubeClient,
 	}
+	ctlr.multiClusterConfigs.ClusterConfigs[""] = clustermanager.ClusterConfig{}
 	return nil
 }
 

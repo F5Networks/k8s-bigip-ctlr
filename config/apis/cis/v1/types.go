@@ -123,7 +123,7 @@ type VSPool struct {
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
 	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends"`
-	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
+	MultiClusterServices []MultiClusterServiceReference `json:"multiClusterServices,omitempty"`
 }
 
 // TSPool defines a pool object for Transport Server in BIG-IP.
@@ -144,7 +144,7 @@ type TSPool struct {
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
 	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends,omitempty"`
-	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
+	MultiClusterServices []MultiClusterServiceReference `json:"multiClusterServices,omitempty"`
 }
 
 // AlternateBackends lists backend svc of A/B

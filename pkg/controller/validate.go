@@ -90,7 +90,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 			continue
 		}
 		for _, mcs := range pool.MultiClusterServices {
-			err := ctlr.checkValidExtendedService(mcs, true)
+			err := ctlr.checkValidMultiClusterService(mcs, true)
 			if err != nil {
 				// In case of invalid extendedServiceReference, just log the error and proceed
 				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s: %v", mcs, vsName, err)
@@ -166,7 +166,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
-			err := ctlr.checkValidExtendedService(mcs, true)
+			err := ctlr.checkValidMultiClusterService(mcs, true)
 			if err != nil {
 				// In case of invalid extendedServiceReference, just log the error and proceed
 				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s: %v", mcs, vsName, err)
@@ -231,8 +231,8 @@ func (ctlr *Controller) checkValidIngressLink(
 	return true
 }
 
-// checkValidExtendedService checks if extended service is valid or not
-func (ctlr *Controller) checkValidExtendedService(mcs cisapiv1.MultiClusterServiceReference, isSpec bool) error {
+// checkValidMultiClusterService checks if extended service is valid or not
+func (ctlr *Controller) checkValidMultiClusterService(mcs cisapiv1.MultiClusterServiceReference, isSpec bool) error {
 	// Check if cis running in multiCluster mode
 	if ctlr.multiClusterMode == "" {
 		return fmt.Errorf("CIS is not running in multiCluster mode")

@@ -1820,7 +1820,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				ctlr.multiClusterResources.Lock()
 				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
-					err := ctlr.checkValidExtendedService(svc, true)
+					err := ctlr.checkValidMultiClusterService(svc, true)
 					if err != nil {
 						// In case of invalid extendedServiceReference, just log the error and proceed
 						log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s: %v", svc, route.Name, err)

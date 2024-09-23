@@ -10,7 +10,7 @@ This allows to distribute specific percentage of traffic to a specific service a
 `config`
 
 ```
-extendedServiceReferences:
+multiClusterServices:
   - clusterName: cluster3
     namespace: default
     service: svc-1-external-service

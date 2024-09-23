@@ -17,7 +17,7 @@ spec:
       type: tcp
       interval: 10
       timeout: 10
-    extendedServiceReferences:
+    multiClusterServices:
     - clusterName: cluster2
       service: svc-1
       namespace: ns1

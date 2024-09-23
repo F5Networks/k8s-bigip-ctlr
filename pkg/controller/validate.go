@@ -90,7 +90,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 			continue
 		}
 		for _, mcs := range pool.MultiClusterServices {
-			err := ctlr.checkValidExtendedService(mcs)
+			err := ctlr.checkValidExtendedService(mcs, true)
 			if err != nil {
 				// In case of invalid extendedServiceReference, just log the error and proceed
 				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s: %v", mcs, vsName, err)
@@ -166,7 +166,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
-			err := ctlr.checkValidExtendedService(mcs)
+			err := ctlr.checkValidExtendedService(mcs, true)
 			if err != nil {
 				// In case of invalid extendedServiceReference, just log the error and proceed
 				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s: %v", mcs, vsName, err)
@@ -232,26 +232,20 @@ func (ctlr *Controller) checkValidIngressLink(
 }
 
 // checkValidExtendedService checks if extended service is valid or not
-func (ctlr *Controller) checkValidExtendedService(mcs cisapiv1.MultiClusterServiceReference) error {
+func (ctlr *Controller) checkValidExtendedService(mcs cisapiv1.MultiClusterServiceReference, isSpec bool) error {
 	// Check if cis running in multiCluster mode
 	if ctlr.multiClusterMode == "" {
 		return fmt.Errorf("CIS is not running in multiCluster mode")
 	}
 	// Check if all required parameters are specified
-	if mcs.SvcName == "" || mcs.Namespace == "" || mcs.ClusterName == "" || mcs.ServicePort == (intstr.IntOrString{}) {
+	if mcs.SvcName == "" || mcs.Namespace == "" || (mcs.ClusterName == "" && isSpec) || mcs.ServicePort == (intstr.IntOrString{}) {
 		return fmt.Errorf("some of the mandatory parameters (clusterName/namespace/service/servicePort) are missing")
 	}
 	if mcs.ClusterName != "" {
 		// Check if cluster config is provided for the cluster where the service is running
-		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[mcs.ClusterName]; !ok {
+		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[mcs.ClusterName]; !ok && mcs.ClusterName != ctlr.multiClusterConfigs.LocalClusterName {
 			return fmt.Errorf("cluster config for the cluster %s is not provided in extended configmap", mcs.ClusterName)
 		}
-	}
-	if ctlr.multiClusterConfigs != nil && mcs.ClusterName == ctlr.multiClusterConfigs.LocalClusterName ||
-		mcs.ClusterName == ctlr.multiClusterConfigs.HAPairClusterName {
-		// Check if the service is running in any of the HA clusters
-		return fmt.Errorf("service is running in HA cluster, currently CIS doesn't support services running in " +
-			"HA clusters to be defined in extendedServiceReference")
 	}
 	return nil
 }

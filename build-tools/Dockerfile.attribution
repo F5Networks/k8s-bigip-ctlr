@@ -1,4 +1,4 @@
-FROM golang:1.15
+FROM golang:1.22
 COPY . .
 RUN apt-get update && apt-get install -y ruby bundler cmake pkg-config git libssl-dev libpng-dev && \
     gem install licensee

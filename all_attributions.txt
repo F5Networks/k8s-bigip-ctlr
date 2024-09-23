@@ -6,7 +6,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -31,6 +30,7 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 github.com/beorn7/perks
 License:        MIT
@@ -41,31 +41,26 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       MIT
+Copyright (C) 2013 Blake Mizerany
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 github.com/cespare/xxhash
 License:        MIT
@@ -107,32 +102,53 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       ISC
+ISC License
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-   1. Definitions.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+github.com/emicklei/go-restful
+License:        MIT
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
+  Attribution:   Copyright (c) 2012,2013 Ernest Micklei
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+Copyright (c) 2012,2013 Ernest Micklei
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
+MIT License
 
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 github.com/evanphx/json-patch
 License:        BSD-3-Clause
 Matched files:  LICENSE
@@ -144,67 +160,33 @@ LICENSE:
   License:       BSD-3-Clause
   Closest non-matching licenses:
     BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.51%
-    BSD-3-Clause-Clear similarity:  84.40%
+    BSD-4-Clause similarity:        85.82%
+    BSD-3-Clause-Clear similarity:  84.70%
+Copyright (c) 2014, Evan Phoenix
+All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without 
+modification, are permitted provided that the following conditions are met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+* Neither the name of the Evan Phoenix nor the names of its contributors 
+  may be used to endorse or promote products derived from this software 
+  without specific prior written permission.
 
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-github.com/f5devcentral/go-bigip
-License:        Apache-2.0
-Matched files:  LICENSE
-LICENSE:
-  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       Apache-2.0
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE 
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 github.com/f5devcentral/mockhttpclient
 License:        Apache-2.0
@@ -240,21 +222,14 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
-github.com/fsnotify/fsnotify
-License:        BSD-3-Clause
+github.com/go-logr/logr
+License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
-  Attribution:   Copyright (c) 2012 The Go Authors. All rights reserved.
-Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
-  Confidence:    99.17%
-  Matcher:       Licensee::Matchers::Dice
-  License:       BSD-3-Clause
-  Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
-
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -280,7 +255,8 @@ Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
-github.com/go-logr/logr
+
+github.com/go-openapi/jsonpointer
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
@@ -314,47 +290,11 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
-github.com/gogo/protobuf
-License:        NOASSERTION
-Matched files:  LICENSE
-LICENSE:
-  Content hash:  6f884d703b5b2cd6ff744b19003bdbbb8d1f5e87
-  License:       NOASSERTION
-  Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  88.24%
-    BSD-4-Clause similarity:        87.50%
-    BSD-3-Clause similarity:        80.13%
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-github.com/golang/groupcache
+github.com/go-openapi/jsonreference
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  70b6b935f8e5b81cd3013d1f41c2d633fe5b9227
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -384,19 +324,126 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
+github.com/go-openapi/swag
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/go-task/slim-sprig
+License:  None
+
+github.com/gogo/protobuf
+License:        NOASSERTION
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  c2078943f7b60297dc18d7291e06cfe0d5811be8
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSD-3-Clause-Clear similarity:  87.82%
+    BSD-4-Clause similarity:        87.08%
+    BSD-3-Clause similarity:        82.52%
+Copyright (c) 2013, The GoGo Authors. All rights reserved.
+
+Protocol Buffers for Go with Gadgets
+
+Go support for Protocol Buffers - Google's data interchange format
+
+Copyright 2010 The Go Authors.  All rights reserved.
+https://github.com/golang/protobuf
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+
 github.com/golang/protobuf
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright 2010 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
+Copyright 2010 The Go Authors.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+
+github.com/google/gnostic-models
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
 
                                  Apache License
                            Version 2.0, January 2004
@@ -427,15 +474,49 @@ github.com/google/go-cmp
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2017 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
+Copyright (c) 2017 The Go Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+
+github.com/google/gofuzz
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
 
                                  Apache License
                            Version 2.0, January 2004
@@ -462,7 +543,7 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
-github.com/google/gofuzz
+github.com/google/pprof
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
@@ -500,111 +581,74 @@ github.com/google/uuid
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009,2014 Google Inc. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
+Copyright (c) 2009,2014 Google Inc. All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
 
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-github.com/googleapis/gnostic
-License:        Apache-2.0
-Matched files:  LICENSE
-LICENSE:
-  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       Apache-2.0
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-github.com/hashicorp/golang-lru
-License:        MPL-2.0
-Matched files:  LICENSE
-LICENSE:
-  Content hash:  8a7b6ea0dace7d1e3f7415834bf78575bda7972c
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       MPL-2.0
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 
 github.com/imdario/mergo
 Unable to detect the license type
+github.com/josharian/intern
+License:        MIT
+Matched files:  license.md
+license.md:
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
+  Attribution:   Copyright (c) 2019 Josh Bleecher Snyder
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+MIT License
+
+Copyright (c) 2019 Josh Bleecher Snyder
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 github.com/json-iterator/go
 License:        MIT
 Matched files:  LICENSE
@@ -614,31 +658,44 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       MIT
+MIT License
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Copyright (c) 2016 json-iterator
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-   1. Definitions.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
+github.com/mailru/easyjson
+License:        MIT
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
+  Attribution:   Copyright (c) 2016 Mail.Ru Group
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+Copyright (c) 2016 Mail.Ru Group
 
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 github.com/matttproud/golang_protobuf_extensions
 License:        Apache-2.0
@@ -648,7 +705,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -674,23 +730,6 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
-github.com/miekg/dns
-License:        NOASSERTION
-Matched files:  LICENSE, COPYRIGHT
-LICENSE:
-  Content hash:  cb21e6ea7bf5dcf924fdf1aa3c8faf374d9c8e16
-  License:       NOASSERTION
-  Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  91.25%
-    BSD-4-Clause similarity:        90.77%
-    BSD-3-Clause similarity:        85.00%
-COPYRIGHT:
-  Content hash:  4f57c6222da530bb401d59e9be1f1c81761b02cc
-  License:       NOASSERTION
-  Closest non-matching licenses:
-    ISC similarity:   12.27%
-    0BSD similarity:  11.68%
-    Zlib similarity:  11.11%
 
 github.com/modern-go/concurrent
 License:        Apache-2.0
@@ -700,7 +739,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -725,6 +763,7 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 github.com/modern-go/reflect2
 License:        Apache-2.0
@@ -734,7 +773,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -760,85 +798,45 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
-github.com/nxadm/tail
-License:        MIT
+
+github.com/munnerz/goautoneg
+License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
-  Attribution:   © Copyright 2015 Hewlett Packard Enterprise Development LP
-Copyright (c) 2014 ActiveState
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       MIT
+  Content hash:  feb491947af73dabd80ac29b65873fd6c371e7b8
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:        97.93%
+    BSD-4-Clause similarity:        85.71%
+    BSD-3-Clause-Clear similarity:  84.59%
+Copyright (c) 2011, Open Knowledge Foundation Ltd.
+All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+    Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
 
-   1. Definitions.
+    Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+    Neither the name of the Open Knowledge Foundation Ltd. nor the
+    names of its contributors may be used to endorse or promote
+    products derived from this software without specific prior written
+    permission.
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
 
 github.com/onsi/ginkgo
-License:        MIT
-Matched files:  LICENSE, README.md
-LICENSE:
-  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
-  Attribution:   Copyright (c) 2013-2014 Onsi Fakhouri
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       MIT
-README.md:
-  Content hash:  cdee763face43eef9346e9b16d3fece1ff1f6454
-  Confidence:    90.00%
-  Matcher:       Licensee::Matchers::Reference
-  License:       MIT
-  Closest non-matching licenses:
-    WTFPL similarity:  1.80%
-    0BSD similarity:   0.95%
-    ISC similarity:    0.84%
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+License:  None
 
 github.com/onsi/gomega
 License:        MIT
@@ -858,31 +856,26 @@ README.md:
     WTFPL similarity:  10.42%
     Zlib similarity:   5.45%
     0BSD similarity:   5.10%
+Copyright (c) 2013-2014 Onsi Fakhouri
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 github.com/openshift/api
 License:        Apache-2.0
@@ -970,31 +963,29 @@ README.md:
     Zlib similarity:   0.00%
     WTFPL similarity:  0.00%
     Vim similarity:    0.00%
+Copyright (c) 2015, Dave Cheney <dave@cheney.net>
+All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
 
-   1. Definitions.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 github.com/prometheus/client_golang
 License:        Apache-2.0
@@ -1004,7 +995,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1029,6 +1019,7 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 github.com/prometheus/client_model
 License:        Apache-2.0
@@ -1038,7 +1029,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1063,6 +1053,7 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 github.com/prometheus/common
 License:        Apache-2.0
@@ -1072,7 +1063,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1097,6 +1087,7 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 github.com/prometheus/procfs
 License:        Apache-2.0
@@ -1106,7 +1097,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1131,331 +1121,254 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 github.com/spf13/pflag
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2012 Alex Ogier. All rights reserved.
 Copyright (c) 2012 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
+Copyright (c) 2012 Alex Ogier. All rights reserved.
+Copyright (c) 2012 The Go Authors. All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
 
-   1. Definitions.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-github.com/xeipuuv/gojsonpointer
-License:        Apache-2.0
-Matched files:  LICENSE-APACHE-2.0.txt
-LICENSE-APACHE-2.0.txt:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       Apache-2.0
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-github.com/xeipuuv/gojsonreference
-License:        Apache-2.0
-Matched files:  LICENSE-APACHE-2.0.txt
-LICENSE-APACHE-2.0.txt:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       Apache-2.0
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-github.com/xeipuuv/gojsonschema
-License:        Apache-2.0
-Matched files:  LICENSE-APACHE-2.0.txt
-LICENSE-APACHE-2.0.txt:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       Apache-2.0
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
 golang.org/x/crypto
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
-golang.org/x/mod
+golang.org/x/exp
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
-  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Content hash:  a204093a635237c9806e372d19eca543c39f12a1
+  Attribution:   Copyright 2009 The Go Authors.
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.48%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 golang.org/x/net
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 golang.org/x/oauth2
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
+Copyright (c) 2009 The Go Authors. All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
 
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 
 golang.org/x/sys
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 golang.org/x/term
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 golang.org/x/text
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 golang.org/x/time
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
+
+golang.org/x/tools
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    98.33%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
+PATENTS:
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 google.golang.org/appengine
 License:        Apache-2.0
@@ -1495,94 +1408,58 @@ google.golang.org/protobuf
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Content hash:  a9d744f849c95aafa2947fdb2fa8fcc7b04276c8
   Attribution:   Copyright (c) 2018 The Go Authors. All rights reserved.
-  Confidence:    99.17%
+  Confidence:    98.33%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.17%
-    BSD-4-Clause similarity:        85.20%
-    BSD-3-Clause-Clear similarity:  84.10%
+    BSD-3-Clause similarity:        98.33%
+    BSD-4-Clause similarity:        84.78%
+    BSD-3-Clause-Clear similarity:  83.39%
 PATENTS:
   Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:       24.89%
-    BSD-2-Clause similarity:  22.81%
-    Unlicense similarity:     22.05%
+    BSL-1.0 similarity:        24.89%
+    BlueOak-1.0.0 similarity:  23.88%
+    BSD-2-Clause similarity:   22.91%
 
 gopkg.in/inf.v0
 License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  7b0e2bac37a30d718bfc75509619e4f42ca4e6cd
+  Content hash:  2bf2cf9b3b04d4b7eb0ae7d781ff418192de2d9c
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        97.14%
-    BSD-4-Clause similarity:        86.86%
-    BSD-3-Clause-Clear similarity:  85.71%
+    BSD-3-Clause similarity:        96.72%
+    BSD-4-Clause similarity:        86.45%
+    BSD-3-Clause-Clear similarity:  85.30%
+Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go
+Authors. All rights reserved.
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
 
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-gopkg.in/tomb.v1
-License:        NOASSERTION
-Matched files:  LICENSE
-LICENSE:
-  Content hash:  e5c732022159a876ea0cd1f7f83026cbed688456
-  License:       NOASSERTION
-  Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  91.95%
-    BSD-4-Clause similarity:        91.89%
-    BSD-3-Clause similarity:        84.10%
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 
 gopkg.in/yaml.v2
 License:        NOASSERTION
@@ -1598,7 +1475,7 @@ LICENSE.libyaml:
   Closest non-matching licenses:
     MIT similarity:      68.63%
     BSL-1.0 similarity:  67.26%
-    NCSA similarity:     66.17%
+    NCSA similarity:     66.42%
 README.md:
   Content hash:  62cab2b3c5677444dc582fb2fd3c6559b7ece0ca
   Confidence:    90.00%
@@ -1607,7 +1484,52 @@ README.md:
   Closest non-matching licenses:
     WTFPL similarity:  7.77%
     0BSD similarity:   2.96%
-    ISC similarity:    2.61%
+    ISC similarity:    2.62%
+
+gopkg.in/yaml.v3
+License:        NOASSERTION
+Matched files:  LICENSE, README.md
+LICENSE:
+  Content hash:  8495fbaa926a2c587bb9a67afbfee54fe5f47406
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    UPL-1.0 similarity:  43.84%
+    NCSA similarity:     40.27%
+    MIT similarity:      35.16%
+README.md:
+  Content hash:  a3e3a21ab868d8571f78f0359856a7d2e286867a
+  Confidence:    90.00%
+  Matcher:       Licensee::Matchers::Reference
+  License:       Apache-2.0
+  Closest non-matching licenses:
+    WTFPL similarity:  9.80%
+    0BSD similarity:   3.96%
+    ISC similarity:    3.51%
+
+This project is covered by two different licenses: MIT and Apache.
+
+#### MIT License ####
+
+The following files were ported to Go from C files of libyaml, and thus
+are still covered by their original MIT license, with the additional
+copyright staring in 2011 when the project was ported over:
+
+    apic.go emitterc.go parserc.go readerc.go scannerc.go
+    writerc.go yamlh.go yamlprivateh.go
+
+Copyright (c) 2006-2010 Kirill Simonov
+Copyright (c) 2006-2011 Kirill Simonov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
 
 k8s.io/api
 License:        Apache-2.0
@@ -1749,35 +1671,39 @@ k8s.io/klog
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  70b6b935f8e5b81cd3013d1f41c2d633fe5b9227
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
+  Content hash:  7a74f58ff3be491c0c7ffcce5d800e82c2e688b3
+  Confidence:    99.63%
+  Matcher:       Licensee::Matchers::Dice
   License:       Apache-2.0
+  Closest non-matching licenses:
+    Apache-2.0 similarity:    99.63%
+    ECL-2.0 similarity:       80.08%
+    Artistic-2.0 similarity:  41.04%
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+1. Definitions.
 
-   1. Definitions.
+"License" shall mean the terms and conditions for use, reproduction, and
+distribution as defined by Sections 1 through 9 of this document.
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+"Licensor" shall mean the copyright owner or entity authorized by the copyright
+owner that is granting the License.
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
+"Legal Entity" shall mean the union of the acting entity and all other entities
+that control, are controlled by, or are under common control with that entity.
+For the purposes of this definition, "control" means (i) the power, direct or
+indirect, to cause the direction or management of such entity, whether by
+contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the
+outstanding shares, or (iii) beneficial ownership of such entity.
 
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
+"You" (or "Your") shall mean an individual or Legal Entity exercising
+permissions granted by this License.
 
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+"Source" form shall mean the preferred form for making modifications, including
 
 k8s.io/kube-openapi
 License:        Apache-2.0
@@ -1848,6 +1774,42 @@ LICENSE:
       exercising permissions granted by this License.
 
 Cannot handle this repo: modules.txt
+sigs.k8s.io/json
+License:        NOASSERTION
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  c551e26203497008c44a956765e756f429b5b35e
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    Apache-2.0 similarity:  95.01%
+    ECL-2.0 similarity:     83.20%
+    OSL-3.0 similarity:     40.29%
+Files other than internal/golang/* licensed under:
+
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+
 sigs.k8s.io/structured-merge-diff
 License:        Apache-2.0
 Matched files:  LICENSE
@@ -1856,7 +1818,6 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1881,40 +1842,41 @@ LICENSE:
 
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
+
 
 sigs.k8s.io/yaml
 License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  9b1bd4a3a09187e460442902051cee624bd8ce57
+  Content hash:  572f1466ea46371053545ca9fbaeb8424a2b73c3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  46.83%
-    BSD-4-Clause similarity:        45.68%
-    BSD-3-Clause similarity:        43.51%
+    BSD-2-Clause-Patent similarity:  63.53%
+    BSD-3-Clause-Clear similarity:   46.54%
+    BSD-4-Clause similarity:         45.38%
+The MIT License (MIT)
 
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+Copyright (c) 2014 Sam Ghods
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-   1. Definitions.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
 
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
+Copyright (c) 2012 The Go Authors. All rights reserved.
 
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
 

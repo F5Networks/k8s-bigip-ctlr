@@ -1,6 +1,6 @@
 module github.com/F5Networks/k8s-bigip-ctlr/v3
 
-go 1.21
+go 1.22.7
 
 require (
 	github.com/F5Networks/f5-ipam-controller v0.1.8

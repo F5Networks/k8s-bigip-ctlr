@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -1130,6 +1131,7 @@ func (ctlr *Controller) processVirtualServers(
 
 	var ip string
 	var status int
+	var altErr string
 	partition := ctlr.getCRPartition(virtual.Spec.Partition)
 	if ctlr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
@@ -1158,35 +1160,52 @@ func (ctlr *Controller) processVirtualServers(
 
 			switch status {
 			case NotEnabled:
-				log.Debug("IPAM Custom Resource Not Available")
+				altErr = "[IPAM] IPAM Custom Resource Not Available"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
 				return nil
 			case InvalidInput:
-				log.Debugf("IPAM Invalid IPAM Label: %v for Virtual Server: %s/%s", ipamLabel, virtual.Namespace, virtual.Name)
+				altErr = fmt.Sprintf("IPAM Invalid IPAM Label: %v for Virtual Server: %s/%s", ipamLabel, virtual.Namespace, virtual.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
 				return nil
 			case NotRequested:
-				return fmt.Errorf("unable make do IPAM Request, will be re-requested soon")
+				altErr = "unable to make IPAM Request, will be re-requested soon"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
+				return fmt.Errorf("%s", altErr)
 			case Requested:
-				log.Debugf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
+				altErr = fmt.Sprintf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
 				return nil
 			}
 		}
 	} else {
 		if virtual.Spec.HostGroup == "" {
 			if virtual.Spec.VirtualServerAddress == "" {
-				return fmt.Errorf("No VirtualServer address or IPAM found.")
+				altErr = "no VirtualServer address or IPAM found"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
+				return fmt.Errorf("%s", altErr)
 			}
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			var err error
 			ip, err = getVirtualServerAddress(virtuals)
 			if err != nil {
-				log.Errorf("Error in virtualserver address: %s", err.Error())
+				altErr = fmt.Sprintf("Error in virtualserver address: %s", err.Error())
+				log.Errorf(altErr)
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
 				return err
 			}
 			if ip == "" {
 				ip = virtual.Spec.VirtualServerAddress
 				if ip == "" {
-					return fmt.Errorf("No VirtualServer address found for: %s", virtual.Name)
+					altErr = fmt.Sprintf("No VirtualServer address found for: %s", virtual.Name)
+					log.Errorf(altErr)
+					ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(altErr))
+					return fmt.Errorf(altErr)
 				}
 			}
 		}
@@ -1284,12 +1303,14 @@ func (ctlr *Controller) processVirtualServers(
 			err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
 				processingError = true
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", err)
 				break
 			}
 		}
 		if err != nil {
 			processingError = true
 			log.Errorf("%v", err)
+			ctlr.updateResourceStatus(VirtualServer, virtual, "", "", err)
 			break
 		}
 
@@ -1323,6 +1344,7 @@ func (ctlr *Controller) processVirtualServers(
 					// Processing failed
 					// Stop processing further virtuals
 					processingError = true
+					ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New("TLS profile not found for the Virtual Server"))
 					break
 				} else {
 					tlsTermination = tlsProf.Spec.TLS.Termination
@@ -1343,6 +1365,7 @@ func (ctlr *Controller) processVirtualServers(
 			)
 			if err != nil {
 				processingError = true
+				ctlr.updateResourceStatus(VirtualServer, virtual, "", "", err)
 				break
 			}
 			// handle pool settings from policy cr
@@ -1351,6 +1374,7 @@ func (ctlr *Controller) processVirtualServers(
 					err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
 					if err != nil {
 						processingError = true
+						ctlr.updateResourceStatus(VirtualServer, virtual, "", "", err)
 						break
 					}
 				}
@@ -1372,6 +1396,7 @@ func (ctlr *Controller) processVirtualServers(
 					// Processing failed
 					// Stop processing further virtuals
 					processingError = true
+					ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New("error while handling TLS Virtual Server"))
 					break
 				}
 
@@ -1416,6 +1441,7 @@ func (ctlr *Controller) processVirtualServers(
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
 	}
+	ctlr.updateResourceStatus(VirtualServer, virtual, ip, "", nil)
 
 	return nil
 }
@@ -1473,6 +1499,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 	// that particular VirtualServer will be skipped.
 
 	var virtuals []*cisapiv1.VirtualServer
+	var err string
 	// {hostname: {path: <empty_struct>}}
 	uniqueHostPathMap := make(map[string]map[string]struct{})
 	currentVSPartition := ctlr.getCRPartition(currentVS.Spec.Partition)
@@ -1488,14 +1515,18 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		if currentVS.Spec.VirtualServerAddress != "" &&
 			currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
 			currentVSPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
-			log.Errorf("Multiple Virtual Servers %v,%v are configured with same VirtualServerAddress : %v with different partitions", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			err = fmt.Sprintf("Multiple Virtual Servers %v,%v are configured with same VirtualServerAddress : %v with different partitions", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			log.Error(err)
+			ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 			return nil
 		}
 
 		// skip the virtuals in other HostGroups
 		if vrt.Spec.HostGroup != currentVS.Spec.HostGroup {
 			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress {
-				log.Errorf("Multiple Virtual Servers %v, %v are configured with same VirtualServerAddress: %v", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+				err = fmt.Sprintf("Multiple Virtual Servers %v, %v are configured with same VirtualServerAddress: %v", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+				log.Error(err)
+				ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 				return nil
 			}
 			continue
@@ -1503,17 +1534,23 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 
 		if vrt.Spec.HostGroup != "" && currentVS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentVS.Spec.HostGroup {
 			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress != vrt.Spec.VirtualServerAddress {
-				log.Errorf("Multiple Virtual Servers %v, %v are configured with different VirtualServerAddress: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.VirtualServerAddress, vrt.Spec.VirtualServerAddress)
+				err = fmt.Sprintf("Multiple Virtual Servers %v, %v are configured with different VirtualServerAddress: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.VirtualServerAddress, vrt.Spec.VirtualServerAddress)
+				log.Error(err)
+				ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 				return nil
 			}
 			if currentVS.Spec.IPAMLabel != "" && vrt.Spec.IPAMLabel != "" && currentVS.Spec.IPAMLabel != vrt.Spec.IPAMLabel {
-				log.Errorf("Multiple Virtual Servers %v, %v are configured with different IPAM Labels: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.IPAMLabel, vrt.Spec.IPAMLabel)
+				err = fmt.Sprintf("Multiple Virtual Servers %v, %v are configured with different IPAM Labels: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.IPAMLabel, vrt.Spec.IPAMLabel)
+				log.Error(err)
+				ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 				return nil
 			}
 		}
 
 		if currentVS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentVS.Spec.HostGroup && vrt.Spec.HostGroupVirtualServerName != currentVS.Spec.HostGroupVirtualServerName {
-			log.Errorf("Same host %v is configured with different HostGroupVirtualServerNames : %v ", vrt.Spec.HostGroup, vrt.Spec.HostGroupVirtualServerName)
+			err = fmt.Sprintf("Same host %v is configured with different HostGroupVirtualServerNames : %v ", vrt.Spec.HostGroup, vrt.Spec.HostGroupVirtualServerName)
+			log.Error(err)
+			ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 			return nil
 		}
 
@@ -1537,7 +1574,9 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			// Same host with different VirtualServerAddress is invalid
 			if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
 				if vrt.Spec.Host != "" && vrt.Spec.Host == currentVS.Spec.Host {
-					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
+					err = fmt.Sprintf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
+					log.Error(err)
+					ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 					return nil
 				}
 				// In case of empty host name or host names not matching, skip the virtual with other VirtualServerAddress
@@ -1546,7 +1585,9 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			//with additonalVirtualServerAddresses, skip the virtuals if ip list doesn't match
 			if !reflect.DeepEqual(currentVS.Spec.AdditionalVirtualServerAddresses, vrt.Spec.AdditionalVirtualServerAddresses) {
 				if vrt.Spec.Host != "" {
-					log.Errorf("Same host %v is configured with different AdditionalVirtualServerAddress : %v ", vrt.Spec.Host, vrt.ObjectMeta.Name)
+					err = fmt.Sprintf("Same host %v is configured with different AdditionalVirtualServerAddress : %v ", vrt.Spec.Host, vrt.ObjectMeta.Name)
+					log.Error(err)
+					ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 					return nil
 				}
 				// In case of empty host name, skip the virtual with other AdditionalVirtualServerAddress
@@ -1556,19 +1597,25 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 
 		if ctlr.ipamCli != nil {
 			if currentVS.Spec.HostGroup == "" && vrt.Spec.IPAMLabel != currentVS.Spec.IPAMLabel {
-				log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
+				err = fmt.Sprintf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
+				log.Error(err)
+				ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 				return nil
 			}
 			// Empty host and hostGroup with IPAM label is invalid for a Virtual Server
 			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" && vrt.Spec.HostGroup == "" {
-				log.Errorf("Hostless VS %v is configured with IPAM label: %v and missing HostGroup", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
+				err = fmt.Sprintf("Hostless VS %v is configured with IPAM label: %v and missing HostGroup", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
+				log.Error(err)
+				ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 				return nil
 			}
 
 			// Empty host with empty IPAM label is invalid
 			if vrt.Spec.Host == "" && vrt.Spec.VirtualServerAddress == "" && len(vrt.Spec.AdditionalVirtualServerAddresses) == 0 {
 				if vrt.Spec.IPAMLabel == "" && vrt.Spec.HostGroup != "" {
-					log.Errorf("Hostless VS %v is configured with missing IPAM label", vrt.ObjectMeta.Name)
+					err = fmt.Sprintf("Hostless VS %v is configured with missing IPAM label", vrt.ObjectMeta.Name)
+					log.Error(err)
+					ctlr.updateResourceStatus(VirtualServer, currentVS, "", "", errors.New(err))
 					return nil
 				}
 				if vrt.Spec.IPAMLabel == "" {
@@ -1632,8 +1679,10 @@ func (ctlr *Controller) validateTSWithSameVSAddress(
 		if currentTS.Spec.VirtualServerAddress != "" &&
 			currentTS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
 			currentTSPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
-			log.Errorf("Multiple Transport Servers %v,%v are configured with same VirtualServerAddress : %v "+
+			err := fmt.Errorf("Multiple Transport Servers %v,%v are configured with same VirtualServerAddress : %v "+
 				"with different partitions", currentTS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			log.Errorf("%s", err)
+			ctlr.updateResourceStatus(TransportServer, currentTS, "", "", err)
 			return false
 		}
 	}
@@ -1654,8 +1703,10 @@ func (ctlr *Controller) validateILsWithSameVSAddress(
 		if currentIL.Spec.VirtualServerAddress != "" &&
 			currentIL.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
 			currentILPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
-			log.Errorf("Multiple Ingress Links %v,%v are configured with same VirtualServerAddress : %v "+
+			err := fmt.Errorf("Multiple Ingress Links %v,%v are configured with same VirtualServerAddress : %v "+
 				"with different partitions", currentIL.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			log.Errorf("%s", err)
+			ctlr.updateResourceStatus(IngressLink, currentIL, "", "", err)
 			return false
 		}
 	}
@@ -2782,6 +2833,7 @@ func (ctlr *Controller) processTransportServers(
 	var ip string
 	var key string
 	var status int
+	var altErr string
 	partition := ctlr.getCRPartition(virtual.Spec.Partition)
 	key = ctlr.ipamClusterLabel + virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
 	if ctlr.ipamCli != nil {
@@ -2797,22 +2849,34 @@ func (ctlr *Controller) processTransportServers(
 
 			switch status {
 			case NotEnabled:
-				log.Debug("[IPAM] IPAM Custom Resource Not Available")
+				altErr = "[IPAM] IPAM Custom Resource Not Available"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "", errors.New(altErr))
 				return nil
 			case InvalidInput:
-				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
+				altErr = fmt.Sprintf("[IPAM] IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
 					virtual.Spec.IPAMLabel, virtual.Namespace, virtual.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "", errors.New(altErr))
 				return nil
 			case NotRequested:
-				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
+				altErr = "[IPAM] unable to make IPAM Request, will be re-requested soon"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "", errors.New(altErr))
+				return fmt.Errorf("%s", altErr)
 			case Requested:
-				log.Debugf("[IPAM] IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
+				altErr = fmt.Sprintf("[IPAM] IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "", errors.New(altErr))
 				return nil
 			}
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
-			return fmt.Errorf("No VirtualServer address in TS or IPAM found.")
+			altErr = "no VirtualServer address in TS or IPAM found"
+			log.Error(altErr)
+			ctlr.updateResourceStatus(TransportServer, virtual, "", "", errors.New(altErr))
+			return fmt.Errorf("%s", altErr)
 		}
 		ip = virtual.Spec.VirtualServerAddress
 	}
@@ -2875,11 +2939,13 @@ func (ctlr *Controller) processTransportServers(
 		err := ctlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 		if err != nil {
 			log.Errorf("%v", err)
+			ctlr.updateResourceStatus(TransportServer, virtual, "", "", err)
 			return nil
 		}
 	}
 	if err != nil {
 		log.Errorf("%v", err)
+		ctlr.updateResourceStatus(TransportServer, virtual, "", "", err)
 		return nil
 	}
 
@@ -2892,6 +2958,7 @@ func (ctlr *Controller) processTransportServers(
 	)
 	if err != nil {
 		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
+		ctlr.updateResourceStatus(TransportServer, virtual, "", "", err)
 		return nil
 	}
 	// handle pool settings from policy cr
@@ -2899,10 +2966,9 @@ func (ctlr *Controller) processTransportServers(
 		if plc.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
 			err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
-				if err != nil {
-					log.Errorf("%v", err)
-					return nil
-				}
+				log.Errorf("%v", err)
+				ctlr.updateResourceStatus(TransportServer, virtual, "", "", err)
+				return nil
 			}
 		}
 	}
@@ -2915,7 +2981,7 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
-
+	ctlr.updateResourceStatus(TransportServer, virtual, ip, "", nil)
 	if len(rsCfg.MetaData.hosts) > 0 {
 		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 	}
@@ -3774,6 +3840,7 @@ func (ctlr *Controller) processIngressLink(
 	var ip string
 	var key string
 	var status int
+	var altErr string
 	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
 	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
 	if ctlr.ipamCli != nil {
@@ -3786,29 +3853,42 @@ func (ctlr *Controller) processIngressLink(
 
 			switch status {
 			case NotEnabled:
-				log.Debug("[IPAM] IPAM Custom Resource Not Available")
+				altErr = "[IPAM] IPAM Custom Resource Not Available"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(altErr))
 				return nil
 			case InvalidInput:
-				log.Debugf("[IPAM] IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
+				altErr = fmt.Sprintf("[IPAM] IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
 					ingLink.Spec.IPAMLabel, ingLink.Namespace, ingLink.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(altErr))
 				return nil
 			case NotRequested:
-				return fmt.Errorf("[IPAM] unable to make IPAM Request, will be re-requested soon")
+				altErr = "[IPAM] unable to make IPAM Request, will be re-requested soon"
+				log.Error(altErr)
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(altErr))
+				return fmt.Errorf("%s", altErr)
 			case Requested:
-				log.Debugf("[IPAM] IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
+				altErr = fmt.Sprintf("[IPAM] IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(altErr))
 				return nil
 			}
 			log.Debugf("[IPAM] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
 			if ip == "" {
-				log.Debugf("[IPAM] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
+				altErr = fmt.Sprintf("[IPAM] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
+				log.Error(altErr)
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(altErr))
 				return nil
 			}
-			ctlr.updateIngressLinkStatus(ingLink, ip)
+			// ctlr.updateIngressLinkStatus(ingLink, ip)
 			svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
 			if err != nil {
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", err)
 				return err
 			}
 			if svc == nil {
+				ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New("ingress service not found"))
 				return nil
 			}
 			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
@@ -3817,7 +3897,10 @@ func (ctlr *Controller) processIngressLink(
 		}
 	} else {
 		if ingLink.Spec.VirtualServerAddress == "" {
-			return fmt.Errorf("No VirtualServer address in ingLink or IPAM found.")
+			altErr = "no VirtualServer address in ingLink or IPAM found"
+			log.Error(altErr)
+			ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New(altErr))
+			return fmt.Errorf("%s", altErr)
 		}
 		ip = ingLink.Spec.VirtualServerAddress
 	}
@@ -3856,10 +3939,12 @@ func (ctlr *Controller) processIngressLink(
 	ctlr.TeemData.Unlock()
 	svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
 	if err != nil {
+		ctlr.updateResourceStatus(IngressLink, ingLink, "", "", err)
 		return err
 	}
 
 	if svc == nil {
+		ctlr.updateResourceStatus(IngressLink, ingLink, "", "", errors.New("ingress service not found"))
 		return nil
 	}
 	targetPort := nginxMonitorPort
@@ -3961,7 +4046,7 @@ func (ctlr *Controller) processIngressLink(
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
 	}
-
+	ctlr.updateResourceStatus(IngressLink, ingLink, ip, "", nil)
 	return nil
 }
 
@@ -4925,4 +5010,116 @@ func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
 		return true
 	}
 	return false
+}
+
+func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip string, statusOk string, err error) {
+	unmonitoredOptions := metav1.ListOptions{
+		LabelSelector: strings.ReplaceAll(ctlr.customResourceSelector.String(), " in ", " notin "),
+	}
+	switch rscType {
+	case VirtualServer:
+		vs := obj.(*cisapiv1.VirtualServer)
+		vsStatus := cisapiv1.VirtualServerStatus{LastUpdated: metav1.Now()}
+		if err != nil {
+			vsStatus.Error = err.Error()
+		} else if ip != "" {
+			vsStatus.VSAddress = ip
+			vsStatus.StatusOk = statusOk
+		} else {
+			vsStatus.Error = fmt.Sprintf("Missing label f5cr on VS %v/%v", vs.Namespace, vs.Name)
+		}
+		vs.Status = vsStatus
+		_, updateErr := ctlr.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
+		if nil != updateErr {
+			log.Errorf("Error while updating VS status:%v", updateErr)
+		}
+		unmonitoredVS, err := ctlr.kubeCRClient.CisV1().VirtualServers("").List(context.TODO(), unmonitoredOptions)
+		if err != nil {
+			log.Errorf("Error while fetching unmonitored virtual servers: %v %v", err, unmonitoredVS)
+		}
+
+		for _, virtualServer := range unmonitoredVS.Items {
+			erased := false
+			for retryCount := 0; !erased && retryCount < 3; retryCount++ {
+				virtual, getErr := ctlr.kubeCRClient.CisV1().VirtualServers(virtualServer.ObjectMeta.Namespace).Get(context.TODO(), virtualServer.ObjectMeta.Name, metav1.GetOptions{})
+				if getErr != nil {
+					log.Errorf("Error while fetching virtual server %v/%v: %v", virtualServer.ObjectMeta.Namespace, virtualServer.ObjectMeta.Name, getErr)
+				}
+				if virtual == nil {
+					break
+				}
+				virtual.Status = cisapiv1.VirtualServerStatus{
+					Error: fmt.Sprintf("Missing label f5cr on VS %v/%v", virtual.Namespace, virtual.Name),
+				}
+				_, err := ctlr.kubeCRClient.CisV1().VirtualServers(virtualServer.ObjectMeta.Namespace).UpdateStatus(context.TODO(), virtual, metav1.UpdateOptions{})
+				if err != nil {
+					log.Errorf("Error while Erasing Virtual Server Status: %v\n", err)
+				} else {
+					erased = true
+					log.Debugf("Status Erased for Virtual Server - %v\n", virtual.ObjectMeta.Name)
+				}
+			}
+		}
+
+	case TransportServer:
+		ts := obj.(*cisapiv1.TransportServer)
+		tsStatus := cisapiv1.TransportServerStatus{LastUpdated: metav1.Now()}
+		if err != nil {
+			tsStatus.Error = err.Error()
+		} else if ip != "" {
+			tsStatus.VSAddress = ip
+			tsStatus.StatusOk = statusOk
+		} else {
+			tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
+		}
+		ts.Status = tsStatus
+		_, updateErr := ctlr.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+		if nil != updateErr {
+			log.Errorf("Error while updating TS status:%v", updateErr)
+		}
+
+		unmonitoredTS, err := ctlr.kubeCRClient.CisV1().TransportServers("").List(context.TODO(), unmonitoredOptions)
+		if err != nil {
+			log.Errorf("Error while fetching unmonitored transport servers: %v %v", err, unmonitoredTS)
+		}
+
+		for _, transportServer := range unmonitoredTS.Items {
+			erased := false
+			for retryCount := 0; !erased && retryCount < 3; retryCount++ {
+				virtual, getErr := ctlr.kubeCRClient.CisV1().TransportServers(transportServer.ObjectMeta.Namespace).Get(context.TODO(), transportServer.ObjectMeta.Name, metav1.GetOptions{})
+				if getErr != nil {
+					log.Errorf("Error while fetching transport server %v/%v: %v", transportServer.ObjectMeta.Namespace, transportServer.ObjectMeta.Name, getErr)
+				}
+				if virtual == nil {
+					break
+				}
+				virtual.Status = cisapiv1.TransportServerStatus{
+					Error: fmt.Sprintf("Missing label f5cr on TS %v/%v", virtual.Namespace, virtual.Name),
+				}
+				_, err := ctlr.kubeCRClient.CisV1().TransportServers(transportServer.ObjectMeta.Namespace).UpdateStatus(context.TODO(), virtual, metav1.UpdateOptions{})
+				if err != nil {
+					log.Errorf("Error while Erasing Transport Server Status: %v\n", err)
+				} else {
+					erased = true
+					log.Debugf("Status Erased for Transport Server - %v\n", virtual.ObjectMeta.Name)
+				}
+			}
+		}
+	case IngressLink:
+		il := obj.(*cisapiv1.IngressLink)
+		ilStatus := cisapiv1.IngressLinkStatus{LastUpdated: metav1.Now()}
+		if err != nil {
+			ilStatus.Error = err.Error()
+		} else if ip != "" {
+			ilStatus.VSAddress = ip
+			ilStatus.StatusOk = statusOk
+		} else {
+			ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
+		}
+		il.Status = ilStatus
+		_, updateErr := ctlr.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+		if nil != updateErr {
+			log.Errorf("Error while updating il status:%v", updateErr)
+		}
+	}
 }

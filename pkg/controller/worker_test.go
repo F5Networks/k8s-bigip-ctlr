@@ -102,6 +102,7 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default", false)
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -1573,7 +1574,6 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -2132,7 +2132,7 @@ var _ = Describe("Worker Tests", func() {
 
 				rscUpdateMeta := resourceStatusMeta{
 					0,
-					make(map[string]struct{}),
+					make(map[string]tenantResponse),
 				}
 
 				time.Sleep(10 * time.Millisecond)
@@ -2147,7 +2147,7 @@ var _ = Describe("Worker Tests", func() {
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
-				rscUpdateMeta.failedTenants["test"] = struct{}{}
+				rscUpdateMeta.failedTenants["test"] = tenantResponse{}
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
 				time.Sleep(10 * time.Millisecond)
@@ -2387,7 +2387,7 @@ var _ = Describe("Worker Tests", func() {
 
 				rscUpdateMeta := resourceStatusMeta{
 					0,
-					make(map[string]struct{}),
+					make(map[string]tenantResponse),
 				}
 
 				mockCtlr.Agent.respChan <- rscUpdateMeta
@@ -2402,7 +2402,7 @@ var _ = Describe("Worker Tests", func() {
 				rscUpdateMeta.id = 3
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
-				rscUpdateMeta.failedTenants["test"] = struct{}{}
+				rscUpdateMeta.failedTenants["test"] = tenantResponse{}
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				rscUpdateMeta.id = 3
@@ -3886,7 +3886,7 @@ extendedRouteSpec:
 				//Expect(len(mockCtlr.getOrderedRoutes(""))).To(Equal(1), "Invalid no of Routes")
 				rscUpdateMeta := resourceStatusMeta{
 					0,
-					make(map[string]struct{}),
+					make(map[string]tenantResponse),
 				}
 
 				mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
@@ -3932,6 +3932,7 @@ extendedRouteSpec:
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			_ = mockCtlr.addNamespacedInformers("default", false)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")

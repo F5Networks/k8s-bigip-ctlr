@@ -370,7 +370,7 @@ spec:
                         maximum: 65535
                       serviceDownAction:
                         type: string
-                      extendedServiceReferences:
+                      multiClusterServices:
                         type: array
                         items:
                           type: object
@@ -766,7 +766,7 @@ spec:
                       maximum: 65535
                     serviceDownAction:
                       type: string
-                    extendedServiceReferences:
+                    multiClusterServices:
                       type: array
                       items:
                         type: object

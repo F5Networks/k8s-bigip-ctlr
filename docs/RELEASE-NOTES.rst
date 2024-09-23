@@ -10,6 +10,7 @@ Added Functionality
     * Multi Cluster
         * Support to add HA services in extendedServiceReferences for Transport Servers. Yet to be supported with Virtual Server
     * CRD
+        * `Issue 3536 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3536>`_: Support CRD status for VS, TS and IngressLink
 
 Bug Fixes
 ````````````

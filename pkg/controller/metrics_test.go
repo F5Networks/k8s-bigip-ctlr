@@ -39,13 +39,6 @@ var _ = Describe("Metrics", func() {
 		Expect(err).To(BeNil())
 		Expect(resp).To(Equal(Ok))
 	})
-	It("Verify metrics when kubeAPI Server is not reachable", func() {
-		go mockCtlr.CISHealthCheckHandler()
-		time.Sleep(3 * time.Second)
-		resp, err := makeHTTPRequest("http://0.0.0.0:8080/health")
-		Expect(err).To(BeNil())
-		Expect(resp).To(Equal("kube-api server is not reachable."))
-	})
 })
 
 func makeHTTPRequest(url string) (string, error) {

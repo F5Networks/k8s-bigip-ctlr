@@ -32,7 +32,7 @@ variables:
   operatorImageName: 'f5networks/f5-cis-operator-devel'
   operatorBundleImageName: 'f5networks/f5-cis-operator-bundle-devel'
   operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
-  goVersion: 1.22.3
+  goVersion: 1.22.7
 
 stages:
   - stage: VerifyFormatting

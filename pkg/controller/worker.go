@@ -4569,14 +4569,14 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 		// Read multiCluster mode
-		// Set the active-active/active-standby/ratio mode for the HA cluster
+		// Set the active-active/active-standby/ratio/Default mode for the HA cluster
 		if es.HAMode != "" {
-			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
+			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio || es.HAMode == DefaultHAMode {
 				ctlr.haModeType = es.HAMode
 				ctlr.Agent.HAMode = true
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
-					"active-standby, ratio)")
+					"active-standby, ratio, default)")
 				os.Exit(1)
 			}
 		}

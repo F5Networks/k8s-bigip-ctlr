@@ -17,8 +17,11 @@
 package controller
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
@@ -304,16 +307,20 @@ func formatCustomVirtualServerName(name string, port int32) string {
 func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string) string {
 	poolName := pool.Name
 	if poolName == "" {
-		targetPort := pool.ServicePort
+		if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
+			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "")
+		} else {
+			targetPort := pool.ServicePort
 
-		if (intstr.IntOrString{}) == targetPort {
-			svcNamespace := ns
-			if pool.ServiceNamespace != "" {
-				svcNamespace = pool.ServiceNamespace
+			if (intstr.IntOrString{}) == targetPort {
+				svcNamespace := ns
+				if pool.ServiceNamespace != "" {
+					svcNamespace = pool.ServiceNamespace
+				}
+				targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
 			}
-			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
+			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 		}
-		poolName = ctlr.formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
 	}
 	return poolName
 }
@@ -348,6 +355,55 @@ func (ctlr *Controller) framePoolNameForVS(ns string, pool cisapiv1.VSPool, host
 		poolName = ctlr.formatPoolName(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, host, cxt.Cluster)
 	}
 	return poolName
+}
+
+func (ctlr *Controller) createMd5Hash(text string) string {
+	hasher := md5.New()
+	_, err := io.WriteString(hasher, text)
+	if err != nil {
+		log.Errorf("Error while hashing the text: %v", err)
+		return "multiCluster"
+	}
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host, cluster string) string {
+	var poolName string
+	if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
+		poolName = namespace
+	} else {
+		servicePort := fetchPortString(port)
+		poolName = fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
+	}
+	if len(host) > 0 {
+		poolName = fmt.Sprintf("%s_%s", poolName, host)
+
+	}
+	if nodeMemberLabel != "" {
+		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
+		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
+	}
+
+	// Attach cluster name to pool name only in case of multi-cluster ratio mode
+	if ctlr.multiClusterMode != "" && ctlr.haModeType == Ratio {
+		if cluster == "" {
+			cluster = ctlr.multiClusterConfigs.LocalClusterName
+		}
+		if cluster != "" {
+			poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+		}
+	}
+
+	if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
+		if cluster == "" {
+			cluster = ctlr.multiClusterConfigs.LocalClusterName
+		}
+		if cluster != "" {
+			poolName = fmt.Sprintf("%s_%s_%s", poolName, cluster, ctlr.createMd5Hash(cluster)[:10])
+		}
+	}
+
+	return AS3NameFormatter(poolName)
 }
 
 // format the pool name for an VirtualServer
@@ -2186,47 +2242,59 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.TransportServer,
 ) error {
-
+	var pool Pool
 	poolName := ctlr.framePoolNameForTS(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
 		"",
 	)
-	svcNamespace := vs.Namespace
-	if vs.Spec.Pool.ServiceNamespace != "" {
-		svcNamespace = vs.Spec.Pool.ServiceNamespace
-	}
-	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort, "")
-	svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
-	if (intstr.IntOrString{}) == targetPort {
-		targetPort = vs.Spec.Pool.ServicePort
-		svcPortUsed = true
-	}
-	pool := Pool{
-		Name:              poolName,
-		Partition:         rsCfg.Virtual.Partition,
-		ServiceName:       vs.Spec.Pool.Service,
-		ServiceNamespace:  svcNamespace,
-		ServicePort:       targetPort,
-		ServicePortUsed:   svcPortUsed,
-		NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
-		Balance:           vs.Spec.Pool.Balance,
-		ReselectTries:     vs.Spec.Pool.ReselectTries,
-		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
-		BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
-	}
-	svcKey := MultiClusterServiceKey{
-		serviceName: vs.Spec.Pool.Service,
-		clusterName: "",
-		namespace:   vs.Namespace,
-	}
 	rsRef := resourceRef{
 		name:      vs.Name,
 		namespace: vs.Namespace,
 		kind:      TransportServer,
 	}
-	// update the pool identifier for service
-	ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+	if ctlr.multiClusterMode == "" || (ctlr.multiClusterMode != "" && ctlr.haModeType != DefaultHAMode) {
+		svcNamespace := vs.Namespace
+		if vs.Spec.Pool.ServiceNamespace != "" {
+			svcNamespace = vs.Spec.Pool.ServiceNamespace
+		}
+		targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort, "")
+		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = vs.Spec.Pool.ServicePort
+			svcPortUsed = true
+		}
+		pool = Pool{
+			Name:              poolName,
+			Partition:         rsCfg.Virtual.Partition,
+			ServiceName:       vs.Spec.Pool.Service,
+			ServiceNamespace:  svcNamespace,
+			ServicePort:       targetPort,
+			ServicePortUsed:   svcPortUsed,
+			NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
+			Balance:           vs.Spec.Pool.Balance,
+			ReselectTries:     vs.Spec.Pool.ReselectTries,
+			ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
+			BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
+		}
+		svcKey := MultiClusterServiceKey{
+			serviceName: vs.Spec.Pool.Service,
+			clusterName: "",
+			namespace:   vs.Namespace,
+		}
+		// update the pool identifier for service
+		ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+	} else {
+		pool = Pool{
+			Name:              poolName,
+			Partition:         rsCfg.Virtual.Partition,
+			NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
+			Balance:           vs.Spec.Pool.Balance,
+			ReselectTries:     vs.Spec.Pool.ReselectTries,
+			ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
+			BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
+		}
+	}
 
 	if ctlr.multiClusterMode != "" {
 		//check for external service reference
@@ -2268,36 +2336,38 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		pool.Balance = PoolLBMemberRatio
 		pool.SinglePoolRatioEnabled = true
 
-		// populate the local cluster weight
-		if vs.Spec.Pool.Weight != nil {
-			pool.Weight = *vs.Spec.Pool.Weight
-		} else {
-			pool.Weight = int32(defaultWeight)
-		}
-
-		// check the alternate backend and populate the weights
-		if len(vs.Spec.Pool.AlternateBackends) > 0 {
-			var altBckEnds []AlternateBackend
-			for _, svc := range vs.Spec.Pool.AlternateBackends {
-				altBackEnd := AlternateBackend{
-					Service:          svc.Service,
-					ServiceNamespace: svc.ServiceNamespace,
-				}
-				if svc.Weight != nil {
-					altBackEnd.Weight = *svc.Weight
-				} else {
-					altBackEnd.Weight = 100
-				}
-				altBckEnds = append(altBckEnds, altBackEnd)
-				svcKey := MultiClusterServiceKey{
-					serviceName: svc.Service,
-					clusterName: "",
-					namespace:   svc.ServiceNamespace,
-				}
-				ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
+		if ctlr.haModeType != DefaultHAMode {
+			// populate the local cluster weight
+			if vs.Spec.Pool.Weight != nil {
+				pool.Weight = *vs.Spec.Pool.Weight
+			} else {
+				pool.Weight = int32(defaultWeight)
 			}
-			pool.AlternateBackends = altBckEnds
+
+			// check the alternate backend and populate the weights
+			if len(vs.Spec.Pool.AlternateBackends) > 0 {
+				var altBckEnds []AlternateBackend
+				for _, svc := range vs.Spec.Pool.AlternateBackends {
+					altBackEnd := AlternateBackend{
+						Service:          svc.Service,
+						ServiceNamespace: svc.ServiceNamespace,
+					}
+					if svc.Weight != nil {
+						altBackEnd.Weight = *svc.Weight
+					} else {
+						altBackEnd.Weight = 100
+					}
+					altBckEnds = append(altBckEnds, altBackEnd)
+					svcKey := MultiClusterServiceKey{
+						serviceName: svc.Service,
+						clusterName: "",
+						namespace:   svc.ServiceNamespace,
+					}
+					ctlr.updatePoolIdentifierForService(svcKey, rsRef, vs.Spec.Pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
+				}
+				pool.AlternateBackends = altBckEnds
+			}
 		}
 
 		// check the multi cluster services and populate the weights

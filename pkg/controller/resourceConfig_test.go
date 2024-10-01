@@ -118,6 +118,17 @@ var _ = Describe("Resource Config Tests", func() {
 			name := formatCustomVirtualServerName("My_VS", 80)
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
+		It("Pool name for TS", func() {
+			var name string
+			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
+			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name for TS")
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.haModeType = DefaultHAMode
+			name = mockCtlr.formatPoolNameForTS(namespace, "", intstr.IntOrString{}, "", "foo.com", "cluster1")
+			Expect(name).To(Equal("default_foo_com_cluster1_fb56c6cfda"), "Invalid Pool Name for TS")
+			mockCtlr.multiClusterMode = ""
+			mockCtlr.haModeType = ""
+		})
 		It("Pool Name", func() {
 			name := mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")

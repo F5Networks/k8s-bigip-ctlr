@@ -1394,6 +1394,7 @@ const (
 	Active          HAModeType      = "active-active"
 	StandBy         HAModeType      = "active-standby"
 	Ratio           HAModeType      = "ratio"
+	DefaultHAMode   HAModeType      = "default"
 	None            AutoMonitorType = "none"
 	ReadinessProbe  AutoMonitorType = "readiness-probe"
 	ServiceEndpoint AutoMonitorType = "service-endpoint"

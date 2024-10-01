@@ -1986,9 +1986,9 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	primaryClusterName := ""
 	secondaryClusterName := ""
 	if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && haClusterConfig != (HAClusterConfig{}) {
-		// If HA mode not set use active-standby mode as defualt
+		// If HA mode not set use default mode
 		if ctlr.haModeType == "" {
-			ctlr.haModeType = StandBy
+			ctlr.haModeType = DefaultHAMode
 		}
 		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
 		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {

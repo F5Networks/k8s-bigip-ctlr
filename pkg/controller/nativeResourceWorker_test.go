@@ -2604,6 +2604,7 @@ externalClustersConfig:
 			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
 			rsCfg.IntDgMap = make(InternalDataGroupMap)
 			rsCfg.IRulesMap = make(IRulesMap)
+			mockCtlr.haModeType = StandBy
 
 			ts := test.NewTransportServer(
 				"SampleTS",

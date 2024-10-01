@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cis.f5.com/ip: 10.10.1.66
+    cis.f5.com/partition: newPartition
+  labels:
+    app: svc-lb1
+  name: svc-lb1
+  namespace: default
+spec:
+  ports:
+    - name: svc-lb1-80
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: svc-lb1
+  type: LoadBalancer

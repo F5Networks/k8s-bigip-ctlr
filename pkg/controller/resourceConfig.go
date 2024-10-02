@@ -369,7 +369,7 @@ func (ctlr *Controller) createMd5Hash(text string) string {
 
 func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, rscName string) string {
 	var poolName string
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+	if ctlr.multiClusterMode != "" {
 		poolName = namespace
 	} else {
 		servicePort := fetchPortString(port)

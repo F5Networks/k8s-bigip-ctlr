@@ -12,9 +12,9 @@
 * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 * See the License for the specific language governing permissions and
 * limitations under the License.
-*/
+ */
 
- package controller
+package controller
 
 import (
 	"errors"
@@ -23,23 +23,23 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
- 
+
 func (ctlr *Controller) checkValidVirtualServer(
 	vsResource *cisapiv1.VirtualServer,
 ) bool {
 	// Validate VS for default mode
-	if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		err := fmt.Sprintf("%v Default mode is currently not supported for VirtualServer CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
 		log.Errorf(err)
 		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
 		return false
 	}
- 
+
 	vsNamespace := vsResource.ObjectMeta.Namespace
 	vsName := vsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 	var err string
- 
+
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
@@ -55,7 +55,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
 		return false
 	}
- 
+
 	// Check if Partition is set as Common
 	if vsResource.Spec.Partition == CommonPartition {
 		err = fmt.Sprintf("VirtualServer %s cannot be created in Common partition", vsName)
@@ -63,7 +63,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
 		return false
 	}
- 
+
 	// Check if HTTPTraffic is set for insecure VS
 	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
 		err = fmt.Sprintf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
@@ -71,10 +71,10 @@ func (ctlr *Controller) checkValidVirtualServer(
 		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
 		return false
 	}
- 
+
 	bindAddr := vsResource.Spec.VirtualServerAddress
 	if ctlr.ipamCli == nil {
- 
+
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
 		if bindAddr == "" {
@@ -105,14 +105,14 @@ func (ctlr *Controller) checkValidVirtualServer(
 			}
 		}
 	}
- 
+
 	return true
 }
 
 func (ctlr *Controller) checkValidTransportServer(
-	 tsResource *cisapiv1.TransportServer,
+	tsResource *cisapiv1.TransportServer,
 ) bool {
- 
+
 	// Check if the required fields are set as per the recommendations
 	if ctlr.multiClusterMode == "" {
 		if tsResource.Spec.Pool.MultiClusterServices != nil {
@@ -120,7 +120,7 @@ func (ctlr *Controller) checkValidTransportServer(
 				"mode", tsResource.ObjectMeta.Name)
 			return false
 		}
-	} else if ctlr.haModeType == DefaultHAMode {
+	} else if ctlr.discoveryMode == DefaultMode {
 		if tsResource.Spec.Pool.MultiClusterServices == nil {
 			log.Errorf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s but CIS is running "+
 				"with default mode", tsResource.ObjectMeta.Name)
@@ -136,7 +136,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	vsName := tsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 	var err string
- 
+
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
@@ -152,7 +152,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
 		return false
 	}
- 
+
 	// Check if Partition is set as Common
 	if tsResource.Spec.Partition == CommonPartition {
 		err = fmt.Sprintf("TransportServer %s cannot be created in Common partition", vsName)
@@ -160,9 +160,9 @@ func (ctlr *Controller) checkValidTransportServer(
 		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
 		return false
 	}
- 
+
 	bindAddr := tsResource.Spec.VirtualServerAddress
- 
+
 	if ctlr.ipamCli == nil {
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
@@ -181,7 +181,7 @@ func (ctlr *Controller) checkValidTransportServer(
 			return false
 		}
 	}
- 
+
 	if tsResource.Spec.Type == "" {
 		tsResource.Spec.Type = "tcp"
 	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
@@ -202,12 +202,12 @@ func (ctlr *Controller) checkValidTransportServer(
 	}
 	return true
 }
- 
+
 func (ctlr *Controller) checkValidIngressLink(
 	il *cisapiv1.IngressLink,
 ) bool {
 	// Validate IL for default mode
-	if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		err := fmt.Sprintf("%v Default mode is currently not supported for IngressLink CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
 		log.Errorf(err)
 		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
@@ -217,7 +217,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	ilName := il.ObjectMeta.Name
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
 	var err string
- 
+
 	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
@@ -233,7 +233,7 @@ func (ctlr *Controller) checkValidIngressLink(
 		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
 		return false
 	}
- 
+
 	// Check if Partition is set as Common
 	if il.Spec.Partition == CommonPartition {
 		err = fmt.Sprintf("IngressLink %s cannot be created in Common partition", ilName)
@@ -241,9 +241,9 @@ func (ctlr *Controller) checkValidIngressLink(
 		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
 		return false
 	}
- 
+
 	bindAddr := il.Spec.VirtualServerAddress
- 
+
 	if ctlr.ipamCli == nil {
 		if bindAddr == "" {
 			err = fmt.Sprintf("No IP was specified for ingresslink %s", ilName)
@@ -262,7 +262,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	}
 	return true
 }
- 
+
 // checkValidMultiClusterService checks if extended service is valid or not
 func (ctlr *Controller) checkValidMultiClusterService(mcs cisapiv1.MultiClusterServiceReference, isSpec bool) error {
 	// Check if cis running in multiCluster mode

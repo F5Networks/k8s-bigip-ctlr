@@ -304,11 +304,11 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string) string {
+func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string, tsName string) string {
 	poolName := pool.Name
 	if poolName == "" {
-		if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
-			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "")
+		if ctlr.multiClusterMode != "" {
+			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "", tsName)
 		} else {
 			targetPort := pool.ServicePort
 
@@ -319,7 +319,7 @@ func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host
 				}
 				targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
 			}
-			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "")
+			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
 		}
 	}
 	return poolName
@@ -367,9 +367,9 @@ func (ctlr *Controller) createMd5Hash(text string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host, cluster string) string {
+func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, rscName string) string {
 	var poolName string
-	if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		poolName = namespace
 	} else {
 		servicePort := fetchPortString(port)
@@ -384,22 +384,16 @@ func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.I
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 	}
 
-	// Attach cluster name to pool name only in case of multi-cluster ratio mode
-	if ctlr.multiClusterMode != "" && ctlr.haModeType == Ratio {
-		if cluster == "" {
-			cluster = ctlr.multiClusterConfigs.LocalClusterName
-		}
-		if cluster != "" {
-			poolName = fmt.Sprintf("%s_%s", poolName, cluster)
-		}
-	}
-
-	if ctlr.multiClusterMode != "" && ctlr.haModeType == DefaultHAMode {
-		if cluster == "" {
-			cluster = ctlr.multiClusterConfigs.LocalClusterName
-		}
-		if cluster != "" {
-			poolName = fmt.Sprintf("%s_%s_%s", poolName, cluster, ctlr.createMd5Hash(cluster)[:10])
+	if ctlr.multiClusterMode != "" {
+		hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%s", namespace, rscName))[:10]
+		poolName = fmt.Sprintf("%s_%s_multicluster", poolName, hash)
+		if ctlr.discoveryMode == Ratio {
+			if cluster == "" {
+				cluster = ctlr.multiClusterConfigs.LocalClusterName
+			}
+			if cluster != "" {
+				poolName = fmt.Sprintf("%s_%s", poolName, cluster)
+			}
 		}
 	}
 
@@ -420,7 +414,7 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 	}
 
 	// Attach cluster name to pool name only in case of multi-cluster ratio mode
-	if ctlr.multiClusterMode != "" && ctlr.haModeType == Ratio {
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == Ratio {
 		if cluster == "" {
 			cluster = ctlr.multiClusterConfigs.LocalClusterName
 		}
@@ -648,7 +642,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						}
 					}
 				}
-				if ctlr.haModeType != Ratio {
+				if ctlr.discoveryMode != Ratio {
 					if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 						for svc, config := range svcs {
 							// update the clusterSvcMap
@@ -664,7 +658,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 					// update the multicluster resource serviceMap with local cluster services
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
 					// update the multicluster resource serviceMap with HA pair cluster services
-					if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+					if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 						ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort,
 							ctlr.multiClusterConfigs.HAPairClusterName)
 					}
@@ -711,18 +705,18 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						tlsTermination,
 					)
 					//path based AB deployment/Cluster ratio not supported for passthrough
-					if (isVsPathBasedABDeployment(&pl) || isVsPathBasedRatioDeployment(&pl, ctlr.haModeType)) &&
+					if (isVsPathBasedABDeployment(&pl) || isVsPathBasedRatioDeployment(&pl, ctlr.discoveryMode)) &&
 						(tlsTermination == TLSEdge ||
 							(tlsTermination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
 						ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
 					}
 					// handle AB traffic for edge termination with allow
-					if (isVSABDeployment(&pl) || ctlr.haModeType == Ratio) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
+					if (isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
 						ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
 					}
 				}
 			} else {
-				if isVSABDeployment(&pl) || ctlr.haModeType == Ratio {
+				if isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio {
 					// Handle AB datagroup for insecure virtualserver
 					ctlr.updateDataGroupForABVirtualServer(&pl,
 						getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
@@ -2247,13 +2241,14 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
 		"",
+		vs.ObjectMeta.Name,
 	)
 	rsRef := resourceRef{
 		name:      vs.Name,
 		namespace: vs.Namespace,
 		kind:      TransportServer,
 	}
-	if ctlr.multiClusterMode == "" || (ctlr.multiClusterMode != "" && ctlr.haModeType != DefaultHAMode) {
+	if ctlr.multiClusterMode == "" || (ctlr.multiClusterMode != "" && ctlr.discoveryMode != DefaultMode) {
 		svcNamespace := vs.Namespace
 		if vs.Spec.Pool.ServiceNamespace != "" {
 			svcNamespace = vs.Spec.Pool.ServiceNamespace
@@ -2323,7 +2318,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		// update the multicluster resource serviceMap with local cluster services
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 		// update the multicluster resource serviceMap with HA pair cluster services
-		if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+		if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
 				ctlr.multiClusterConfigs.HAPairClusterName)
 		}
@@ -2336,7 +2331,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		pool.Balance = PoolLBMemberRatio
 		pool.SinglePoolRatioEnabled = true
 
-		if ctlr.haModeType != DefaultHAMode {
+		if ctlr.discoveryMode != DefaultMode {
 			// populate the local cluster weight
 			if vs.Spec.Pool.Weight != nil {
 				pool.Weight = *vs.Spec.Pool.Weight
@@ -2936,7 +2931,7 @@ func (ctlr *Controller) handleRouteTLS(
 			rsCfg.IntDgMap,
 			servicePort,
 		)
-		if (isRoutePathBasedABDeployment(route) || isRoutePathBasedRatioDeployment(route, ctlr.haModeType)) &&
+		if (isRoutePathBasedABDeployment(route) || isRoutePathBasedRatioDeployment(route, ctlr.discoveryMode)) &&
 			(route.Spec.TLS.Termination == TLSEdge ||
 				(route.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) != TLSAllowInsecure)) {
 			ctlr.HandlePathBasedABIRule(rsCfg, route.Spec.Host, string(route.Spec.TLS.Termination))
@@ -2989,7 +2984,7 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	var sbcs []SvcBackendCxt
 	defaultWeight := 100
-	if ctlr.haModeType != Ratio {
+	if ctlr.discoveryMode != Ratio {
 		numOfBackends := 1
 		if pool.AlternateBackends != nil {
 			numOfBackends += len(pool.AlternateBackends)

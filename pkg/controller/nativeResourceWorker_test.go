@@ -2262,7 +2262,7 @@ extendedRouteSpec:
 			mockCtlr.clusterRatio["cluster3"] = &three
 			var weight int32 = 10
 			route1.Spec.To.Weight = &weight
-			mockCtlr.haModeType = Ratio
+			mockCtlr.discoveryMode = Ratio
 
 			//remove annotation and check
 			delete(route1.Annotations, "virtual-server.f5.com/multiClusterServices")
@@ -2541,7 +2541,7 @@ externalClustersConfig:
 					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
 				}
 			}
-			mockCtlr.haModeType = Ratio
+			mockCtlr.discoveryMode = Ratio
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
@@ -2604,7 +2604,7 @@ externalClustersConfig:
 			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
 			rsCfg.IntDgMap = make(InternalDataGroupMap)
 			rsCfg.IRulesMap = make(IRulesMap)
-			mockCtlr.haModeType = StandBy
+			mockCtlr.discoveryMode = StandBy
 
 			ts := test.NewTransportServer(
 				"SampleTS",

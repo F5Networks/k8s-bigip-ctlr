@@ -1503,7 +1503,6 @@ func (ctlr *Controller) processVirtualServers(
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
 	}
-	ctlr.updateResourceStatus(VirtualServer, virtual, ip, "", nil)
 
 	return nil
 }

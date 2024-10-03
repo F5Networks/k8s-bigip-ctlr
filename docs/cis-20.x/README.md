@@ -8,21 +8,21 @@ Compatibility Matrix
 
 | CIS Version | CIS Chart Version | CIS operator Version | BIG-IP Version | Kubernetes Version | OpenShift Version | OVN | FIC Version | FIC Chart Version | FIC Operator Version | OS Version                                  |
 |-------------|-------------------|----------------------|----------------|--------------------|-------------------|-----|-------------|-------------------|----------------------|---------------------------------------------|
-| v3.0.0      | v3.0.0            | v3.0.0               | v20.0-v20.3    | v1.28-v1.31        | v4.12-v4.16       | Yes | v0.1.10     | v0.0.5            | v0.0.6               | Red Hat Enterprise Linux release 9.1 (Plow) |
+| v20.3.0     | v20.3.0           | -                    | v20.0-v20.3    | v1.28-v1.31        | v4.12-v4.16       | Yes | v0.1.10     | v0.0.5            | v0.0.6               | Red Hat Enterprise Linux release 9.1 (Plow) |
 
 Prerequisites
 ------------------
-* Kubernetes 1.28+
-* BigIP 20.0+
+* Kubernetes 1.30+
+* BigIP 20.3+
 * Git
 * kubectl
 
-Installing CIS 3.x Using Helm Charts
+Installing CIS 20.x Using Helm Charts
 ------------------------------------
 
 Refer to [CIS Helm Charts](https://f5networks.github.io/k8s-bigip-ctlr/helm-charts/)
 
-Installing CIS 3.x Manually
+Installing CIS 20.x Manually
 ---------------------------
 
 Step 1: Clone the CIS repo
@@ -34,7 +34,7 @@ Step 2: Install the RBAC for CIS Controller
 
 ```shell
 cd k8s-bigip-ctlr
-kubectl create -f ./docs/cis-3.x/rbac/clusterrole.yaml
+kubectl create -f ./docs/cis-20.x/rbac/clusterrole.yaml
 ```
 
 Step 3: Install Custom Resource Definitions for CIS Controller
@@ -46,7 +46,7 @@ kubectl create -f ./docs/config_examples/customResourceDefinitions/incubator/cus
 Step 4: Update the deploy config CR with the required parameters and create the deploy config CR
 
 ```shell
-kubectl create -f ./docs/cis-3.x/deploy-config/cis-deploy-config-cr.yaml
+kubectl create -f ./docs/cis-20.x/deploy-config/cis-deploy-config-cr.yaml
 ```
 
 Step 5: Create the kubernetes secret for Central Manager credentials
@@ -59,22 +59,22 @@ echo -n "10.10.10.10" > creds/url
 kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/ 
 ```
 
-Step 6: Update the CIS deployment file (./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml) with required image and parameters and install the CIS Controller.
+Step 6: Update the CIS deployment file (./docs/cis-20.x/install/k8s/sample-k8s-bigip-ctlr.yaml) with required image and parameters and install the CIS Controller.
 
 ```shell
-kubectl create -f ./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml
+kubectl create -f ./docs/cis-20.x/install/k8s/sample-k8s-bigip-ctlr.yaml
 ```
 
-Uninstalling CIS 3.x
+Uninstalling CIS 20.x
 --------------------
 
-To uninstall CIS 3.x, run the following commands:
+To uninstall CIS 20.x, run the following commands:
 
 ```shell
-kubectl delete -f ./docs/cis-3.x/install/k8s/sample-k8s-bigip-ctlr.yaml
+kubectl delete -f ./docs/cis-20.x/install/k8s/sample-k8s-bigip-ctlr.yaml
 kubectl delete secret f5-bigip-ctlr-login -n kube-system
 kubectl delete -f ./docs/config_examples/customResourceDefinitions/incubator/customresourcedefinitions.yml
-kubectl delete -f ./docs/cis-3.x/rbac/clusterrole.yaml
+kubectl delete -f ./docs/cis-20.x/rbac/clusterrole.yaml
 ```
 
 Configuration Parameters

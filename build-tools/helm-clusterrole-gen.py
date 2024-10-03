@@ -28,7 +28,7 @@ non_ipam_rules = []
 ipam_rules = []
 
 root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-rbac_file = root + "/docs/cis-3.x/rbac/clusterrole.yaml"
+rbac_file = root + "/docs/cis-20.x/rbac/clusterrole.yaml"
 helm_clrole_path = root + "/helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-clusterrole.yaml"
 
 with open(rbac_file, "r") as f:

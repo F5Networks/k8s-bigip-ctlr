@@ -1,14 +1,24 @@
 Release Notes for F5 BIG-IP Next Container Ingress Services for Kubernetes & OpenShift
 =======================================================================================
 
-3.0.0
+20.3.0
 -----
 Added Functionality
 ```````````````````
 **What's new:**
+    * Support for Central Manager and BigIP-Next v20.3
+    * Support for following resources:
+        * Transport Server CR
+        * Service Type Load balancer
+        * IngressLink CR
+    * Integration with F5 IPAM Controller for supported resources
+    * Support for NodePort Mode
+    * Support for ClusterIP mode using static routes with OVNKubernetes.
+    * Support for Openshift v4.16
+    * Support for Controller status in Deploy config CR
     * Support for CIS deployment parameter "ipam-namespace" to configure the namespace for IPAM CR
     * Helm chart support
-    * Support for Openshift v4.16 and BIG-IP v20.3
+
 
 3.0.0-beta-2
 -------------

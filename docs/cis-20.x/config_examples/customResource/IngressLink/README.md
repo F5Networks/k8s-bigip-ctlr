@@ -11,12 +11,13 @@ Minimum version to use IngressLink:
 | ------ | ------ | ------ | ------ |
 | 2.3+ | v13.1+ | 1.10+ | 3.18+ | 
 
-With CIS 3.x:
+With CIS 20.x:
 
-| CIS 3.x | BIGIP-Next       | CM             | NGINX+ IC |
-| ------ |------------------|----------------|-----------|
-| 3.0.0-beta | v20.2.0-2.375.1+ | 20.2.0-0.5.41+ |  1.10+    |
-| 3.0.0-beta-2 | v20.2.1-2.430.2+ | 20.2.1-0.3.25+ |  1.10+    |
+| CIS 20.x     | BIGIP-Next       | CM             | NGINX+ IC |
+|--------------|------------------|----------------|-----------|
+| 20.3.0       | v20.3.0          | v20.3.0        | 1.10+     |
+| 3.0.0-beta   | v20.2.0-2.375.1+ | 20.2.0-0.5.41+ | 1.10+     |
+| 3.0.0-beta-2 | v20.2.1-2.430.2+ | 20.2.1-0.3.25+ | 1.10+     |
 
 
 ## Configuration
@@ -26,7 +27,7 @@ With CIS 3.x:
 Create IngressLink Custom Resource definition as follows:
 
     ```
-    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResourceDefinitions/customresourcedefinitions.yml
     ```
 
 
@@ -36,7 +37,7 @@ Create IngressLink Custom Resource definition as follows:
 * On the Main tab, click **Local Traffic > iRules**.
 * Click **Create**.
 * In the Name field, type name as "Proxy_Protocol_iRule".
-* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResource/IngressLink/Proxy_Protocol_iRule) file.
+* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResource/IngressLink/Proxy_Protocol_iRule) file.
 * Click **Finished**.
 
 ### 3. Install the CIS Controller.
@@ -52,7 +53,7 @@ Create IngressLink Custom Resource definition as follows:
 
 * Download the sample IngressLink Resource:
 
-  ```curl -OL https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResource/IngressLink/ingresslink.yaml```
+  ```curl -OL https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResource/IngressLink/ingresslink.yaml```
 
 * Update the "virtualServerAddress" parameter in the ingresslink.yaml resource. This IP address will be used to configure the BIG-IP device. It will be used to accept traffic and load balance it among the NGINX Ingress Controller pods.
 
@@ -66,9 +67,9 @@ Create IngressLink Custom Resource definition as follows:
 
 To test the integration, deploy a sample application:
 
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResource/IngressLink/ingress-example/cafe.yaml
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResource/IngressLink/ingress-example/cafe-secret.yaml
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResource/IngressLink/ingress-example/cafe-ingress.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResource/IngressLink/ingress-example/cafe.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResource/IngressLink/ingress-example/cafe-secret.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResource/IngressLink/ingress-example/cafe-ingress.yaml
 
 The Ingress Controller pods are behind the IP configured in Step 5 (virtualServerAddress parameter).
 

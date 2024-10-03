@@ -1388,6 +1388,12 @@ const (
 )
 
 type HAModeType string
+const (
+	StatusOk    = "OK"
+	StatusError = "ERROR"
+)
+
+type discoveryMode string
 type AutoMonitorType string
 
 const (

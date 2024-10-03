@@ -1,10 +1,10 @@
 # For additional information on installing the k8-bigip-ctlr please see:
-# Kubernetes: https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
-# OpenShift: https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
+# Kubernetes: https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-20.x/README.md
+# OpenShift: https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-20.x/README.md
 #
 # access / permissions / RBAC
 # To create a secret using kubectl see
-# https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
+# https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-20.x/README.md
 cm_login_secret: f5-bigip-ctlr-login
 
 cm_secret:
@@ -49,7 +49,7 @@ deployConfig:
       defaultPartition: test
 
 args:
-  # See https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md
+  # See https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-20.x/README.md
   # NOTE: helm has difficulty with values using `-`; `_` are used for naming
   # and are replaced with `-` during rendering.
   # REQUIRED Params

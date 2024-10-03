@@ -370,33 +370,20 @@ func (ctlr *Controller) createMd5Hash(text string) string {
 func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, vsAddress string, vsPort int32) string {
 	var poolName string
 	if ctlr.multiClusterMode != "" {
-		poolName = namespace
+		hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vsAddress, vsPort))[:10]
+		poolName = fmt.Sprintf("ts_%s_multicluster", hash)
 	} else {
 		servicePort := fetchPortString(port)
 		poolName = fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
-	}
-	if len(host) > 0 {
-		poolName = fmt.Sprintf("%s_%s", poolName, host)
+		if len(host) > 0 {
+			poolName = fmt.Sprintf("%s_%s", poolName, host)
 
-	}
-	if nodeMemberLabel != "" {
-		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
-		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
-	}
-
-	if ctlr.multiClusterMode != "" {
-		hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vsAddress, vsPort))[:10]
-		poolName = fmt.Sprintf("%s_%s_multicluster", poolName, hash)
-		if ctlr.discoveryMode == Ratio {
-			if cluster == "" {
-				cluster = ctlr.multiClusterConfigs.LocalClusterName
-			}
-			if cluster != "" {
-				poolName = fmt.Sprintf("%s_%s", poolName, cluster)
-			}
+		}
+		if nodeMemberLabel != "" {
+			nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
+			poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 		}
 	}
-
 	return AS3NameFormatter(poolName)
 }
 

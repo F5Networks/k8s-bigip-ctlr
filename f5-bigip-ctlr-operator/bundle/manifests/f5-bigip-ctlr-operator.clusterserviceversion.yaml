@@ -136,7 +136,7 @@ spec:
     #
     # the latter if using a CIS image with :latest label
     #
-    oc create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/cis-3.x/config_examples/customResourceDefinitions/stable/customresourcedefinitions.yml
+    oc create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/cis-20.x/config_examples/customResourceDefinitions/stable/customresourcedefinitions.yml
     ```
     
     * (Optional) Create Central Manager login credentials for use with Operator Helm charts. A basic way will be:

@@ -12,7 +12,7 @@ Added Functionality
         * Support for traffic distribution with weights in multiClusterServices in default mode for TS
     * CRD
         * `Issue 3536 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3536>`_: Support CRD status for VS, TS and IngressLink
-        * Support for custom partition and Pool settings for ServiceTypeLB service. `Examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/serviceTypeLB/>`_
+        * Support for custom partition and Pool settings for ServiceTypeLB service. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/serviceTypeLB>`_
 
 
 Bug Fixes

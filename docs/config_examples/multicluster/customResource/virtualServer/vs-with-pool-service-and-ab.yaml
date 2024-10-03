@@ -16,14 +16,5 @@ spec:
       alternateBackends:
         - service: svc-edge-b
           weight: 30
-      multiClusterServices:
-        - clusterName: cluster2
-          namespace: ns1
-          servicePort: 80
-          service: svc-1
+        - service: svc-edge-c
           weight: 20
-        - clusterName: cluster3
-          namespace: ns2
-          servicePort: 80
-          service: svc-ext-1
-          weight: 30

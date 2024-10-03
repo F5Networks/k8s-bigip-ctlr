@@ -134,7 +134,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		}
 	} else {
 		// validation for non multiCluster case
-		if tsResource.Spec.Pool.MultiClusterServices != nil {
+		if tsResource.Spec.Pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
 			err := fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
 				"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
 			log.Errorf(err)

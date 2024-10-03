@@ -2287,7 +2287,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// for HA cluster pair service
 	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
 	// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
-	if (ctlr.haModeType == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
+	if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
 		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
@@ -2317,8 +2317,8 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		}
 		// Skip invalid extended service or if adding pool member is restricted for the cluster
 		if ctlr.checkValidMultiClusterService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) ||
-			//(ctlr.haModeType == StandBy && ctlr.multiClusterMode == SecondaryCIS && clusterName == "") ||
-			(ctlr.haModeType == StandBy && clusterName == ctlr.multiClusterConfigs.HAPairClusterName) {
+			//(ctlr.discoveryMode == StandBy && ctlr.multiClusterMode == SecondaryCIS && clusterName == "") ||
+			(ctlr.discoveryMode == StandBy && clusterName == ctlr.multiClusterConfigs.HAPairClusterName) {
 			continue
 		}
 
@@ -4606,19 +4606,19 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 		// Read multiCluster mode
-		// Set the active-active/active-standby/ratio mode for the HA cluster
+		// Set the active-active/active-standby/ratio/Default mode for the HA cluster
 		if es.HAMode != "" {
-			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
-				ctlr.haModeType = es.HAMode
+			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio || es.HAMode == DefaultMode {
+				ctlr.discoveryMode = es.HAMode
 				ctlr.Agent.HAMode = true
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
-					"active-standby, ratio)")
+					"active-standby, ratio, default)")
 				os.Exit(1)
 			}
 		}
 		// Update cluster ratio
-		if ctlr.haModeType == Ratio && ctlr.multiClusterMode == StandAloneCIS {
+		if ctlr.discoveryMode == Ratio && ctlr.multiClusterMode == StandAloneCIS {
 			if es.LocalClusterRatio != nil {
 				ctlr.clusterRatio[""] = es.LocalClusterRatio
 			} else {
@@ -4985,7 +4985,7 @@ func (ctlr *Controller) getResourceServicePortForRoute(
 	}
 
 	// 2. look for base service in the HA peer cluster
-	if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+	if ctlr.discoveryMode == Active && ctlr.multiClusterPoolInformers != nil {
 		port, err := ctlr.getSvcPortFromHACluster(route.Namespace, route.Spec.To.Name, portName, resource.ResourceTypeRoute)
 		// If service and port found then return the port
 		if err == nil && port != 0 {
@@ -5010,7 +5010,7 @@ func (ctlr *Controller) getResourceServicePortForRoute(
 	}
 
 	// 4th look for the AB services in the HA peer clusters
-	if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+	if ctlr.discoveryMode == Active && ctlr.multiClusterPoolInformers != nil {
 		for _, ab := range route.Spec.AlternateBackends {
 			port, err := ctlr.getSvcPortFromHACluster(route.Namespace, ab.Name, portName, resource.ResourceTypeRoute)
 			if nil != err || port == 0 {

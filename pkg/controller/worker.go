@@ -253,6 +253,10 @@ func (ctlr *Controller) processResources() bool {
 		if ctlr.mode != OpenShiftMode {
 			break
 		}
+		if ctlr.discoveryMode == DefaultMode {
+			log.Errorf("Routes are not supported with multiCluster mode: %v", ctlr.discoveryMode)
+			break
+		}
 		route := rKey.rsc.(*routeapi.Route)
 		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
 		// so should not trigger delete from here
@@ -301,6 +305,10 @@ func (ctlr *Controller) processResources() bool {
 		}
 	case VirtualServer:
 		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+			break
+		}
+		if ctlr.discoveryMode == DefaultMode {
+			log.Errorf("Virtual servers are not supported with multiCluster mode: %v", ctlr.discoveryMode)
 			break
 		}
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
@@ -2325,46 +2333,49 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 	var poolMembers []PoolMember
 	var clsSvcPoolMemMap = make(map[MultiClusterServiceKey][]PoolMember)
-	// for local cluster
-	// Skip adding the pool members if adding pool member is restricted for local cluster in multi cluster mode
-	if pool.Cluster == "" && !ctlr.isAddingPoolRestricted(pool.Cluster) {
-		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, "", pool.ConnectionLimit, pool.BigIPRouteDomain)
-		poolMembers = append(poolMembers, pms...)
+
+	if ctlr.discoveryMode != DefaultMode {
+		// for local cluster
+		// Skip adding the pool members if adding pool member is restricted for local cluster in multi cluster mode
+		if pool.Cluster == "" && !ctlr.isAddingPoolRestricted(pool.Cluster) {
+			pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+				pool.NodeMemberLabel, "", pool.ConnectionLimit, pool.BigIPRouteDomain)
+			poolMembers = append(poolMembers, pms...)
+			if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
+				pool.Members = pms
+				return
+			}
+
+			if pool.SinglePoolRatioEnabled {
+				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
+					clusterName: ""}] = pms
+			}
+		}
+
+		// for HA cluster pair service
+		// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
+		// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
+		if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
+			!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
+			pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+				pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+			poolMembers = append(poolMembers, pms...)
+
+			if pool.SinglePoolRatioEnabled {
+				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
+					clusterName: ctlr.multiClusterConfigs.HAPairClusterName}] = pms
+			}
+		}
+
+		// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
+		// pool associated with the HA peer cluster or external cluster and return
 		if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
-			pool.Members = pms
+			poolMembers = append(poolMembers,
+				ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+					pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)...)
+			pool.Members = poolMembers
 			return
 		}
-
-		if pool.SinglePoolRatioEnabled {
-			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
-				clusterName: ""}] = pms
-		}
-	}
-
-	// for HA cluster pair service
-	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
-	// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
-	if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
-		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
-		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
-		poolMembers = append(poolMembers, pms...)
-
-		if pool.SinglePoolRatioEnabled {
-			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
-				clusterName: ctlr.multiClusterConfigs.HAPairClusterName}] = pms
-		}
-	}
-
-	// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
-	// pool associated with the HA peer cluster or external cluster and return
-	if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
-		poolMembers = append(poolMembers,
-			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)...)
-		pool.Members = poolMembers
-		return
 	}
 
 	// For multiCluster services
@@ -2396,7 +2407,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		}
 	}
 
-	if !ctlr.isAddingPoolRestricted(pool.Cluster) {
+	if ctlr.discoveryMode != DefaultMode && !ctlr.isAddingPoolRestricted(pool.Cluster) {
 		for _, svc := range pool.AlternateBackends {
 			pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)

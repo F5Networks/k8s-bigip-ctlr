@@ -1033,6 +1033,31 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_1_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 
 		})
+		It("Processing ServiceTypeLoadBalancer with partition annotation", func() {
+			// initialise mockCtlr
+			mockCtlr.Partition = "test"
+			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+			mockCtlr.resources.Init()
+
+			// Create the serviceTypeLB resource
+			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
+			svc1.Annotations = make(map[string]string)
+			svc1.Annotations[LBServiceIPAnnotation] = "10.10.10.2"
+			partition := "partition1"
+			svc1.Annotations[LBServicePartitionAnnotation] = partition
+			// Process the serviceTypeLB
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+			Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
+			// Delete the serviceTypeLB
+			_ = mockCtlr.processLBServices(svc1, true)
+			// Update new partition annotation in the serviceTypeLB
+			newPartition := "partition2"
+			svc1.Annotations[LBServicePartitionAnnotation] = newPartition
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
+			Expect(mockCtlr.resources.ltmConfig[newPartition].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
+		})
 
 		It("Processing External DNS", func() {
 			mockCtlr.resources.Init()

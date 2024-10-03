@@ -190,7 +190,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Debugf("Updated Route %s with TLS", rt.ObjectMeta.Name)
 			} else {
 				// handle ab deployment for insecure routes
-				if isRouteABDeployment(rt) || ctlr.haModeType == Ratio {
+				if isRouteABDeployment(rt) || ctlr.discoveryMode == Ratio {
 					ctlr.handleInsecureABRoute(rsCfg, rt, servicePort)
 				}
 			}
@@ -489,7 +489,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 
 		if ctlr.multiClusterMode != "" {
-			if ctlr.haModeType != Ratio {
+			if ctlr.discoveryMode != Ratio {
 				var multiClusterServices []cisapiv1.MultiClusterServiceReference
 				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 					for svc, config := range svcs {
@@ -511,7 +511,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				// update the multicluster resource serviceMap with local cluster services
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 				// update the multicluster resource serviceMap with HA pair cluster services
-				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+				if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
 						ctlr.multiClusterConfigs.HAPairClusterName)
 				}
@@ -592,7 +592,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
 		var rules *Rules
-		if isRouteABDeployment(route) || ctlr.haModeType == Ratio {
+		if isRouteABDeployment(route) || ctlr.discoveryMode == Ratio {
 			rules = ctlr.prepareABRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
 		} else {
 			rules = ctlr.prepareRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
@@ -1986,14 +1986,14 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	primaryClusterName := ""
 	secondaryClusterName := ""
 	if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && haClusterConfig != (HAClusterConfig{}) {
-		// If HA mode not set use active-standby mode as defualt
-		if ctlr.haModeType == "" {
-			ctlr.haModeType = StandBy
+		// If HA mode not set use default mode
+		if ctlr.discoveryMode == "" {
+			ctlr.discoveryMode = DefaultMode
 		}
 		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
 		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
-			if ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Ratio {
 				if haClusterConfig.PrimaryCluster.Ratio != nil {
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = haClusterConfig.PrimaryCluster.Ratio
 				} else {
@@ -2006,7 +2006,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
-			if ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Ratio {
 				if haClusterConfig.SecondaryCluster.Ratio != nil {
 					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = haClusterConfig.SecondaryCluster.Ratio
 				} else {
@@ -2054,7 +2054,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 
 			// Setup and start informers for secondary cluster in case of active-active mode HA cluster
-			if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Active || ctlr.discoveryMode == Ratio {
 				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
 				if err != nil {
 					return err
@@ -2087,7 +2087,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 
 			// Setup and start informers for primary cluster in case of active-active mode HA cluster
-			if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Active || ctlr.discoveryMode == Ratio {
 				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
 				if err != nil {
 					return err
@@ -2166,7 +2166,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
 			// combination of cluster name and secret name
 			// Before continuing set cluster ratio to ensure any update in ratio of an external cluster isn't missed
-			if ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Ratio {
 				if mcc.Ratio != nil {
 					ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
 				} else {
@@ -2186,7 +2186,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			continue
 		}
 		// Set cluster ratio
-		if ctlr.haModeType == Ratio {
+		if ctlr.discoveryMode == Ratio {
 			if mcc.Ratio != nil {
 				ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
 			} else {

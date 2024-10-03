@@ -88,7 +88,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			}
 			poolBackends := ctlr.GetPoolBackends(&pl)
 			skipPool := false
-			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.haModeType == Ratio {
+			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.discoveryMode == Ratio {
 				skipPool = true
 			}
 			for _, backend := range poolBackends {
@@ -1375,7 +1375,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 ) {
-	if !isRouteABDeployment(route) && ctlr.haModeType != Ratio {
+	if !isRouteABDeployment(route) && ctlr.discoveryMode != Ratio {
 		return
 	}
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
@@ -1460,18 +1460,18 @@ func isVsPathBasedABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
 
-func isVsPathBasedRatioDeployment(pool *cisapiv1.VSPool, mode HAModeType) bool {
+func isVsPathBasedRatioDeployment(pool *cisapiv1.VSPool, mode discoveryMode) bool {
 	return mode == Ratio && (pool.Path != "" && pool.Path != "/")
 }
 
-func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode HAModeType) bool {
+func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode discoveryMode) bool {
 	return mode == Ratio && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 
 // GetRouteBackends returns the services associated with a route (names + weight)
 func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []cisapiv1.MultiClusterServiceReference) []RouteBackendCxt {
 	var rbcs []RouteBackendCxt
-	if ctlr.haModeType != Ratio {
+	if ctlr.discoveryMode != Ratio {
 		numOfBackends := 1
 		if route.Spec.AlternateBackends != nil {
 			numOfBackends += len(route.Spec.AlternateBackends)
@@ -1712,7 +1712,7 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	hostAliases []string,
 	termination string,
 ) {
-	if !isVSABDeployment(pool) && ctlr.haModeType != Ratio {
+	if !isVSABDeployment(pool) && ctlr.discoveryMode != Ratio {
 		/*
 				 AB		RATIO      Skip Updating DG
 			=========================================

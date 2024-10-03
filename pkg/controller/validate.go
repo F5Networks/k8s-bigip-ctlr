@@ -27,6 +27,13 @@ import (
 func (ctlr *Controller) checkValidVirtualServer(
 	vsResource *cisapiv1.VirtualServer,
 ) bool {
+	// Validate VS for default mode
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		err := fmt.Sprintf("%v Default mode is currently not supported for VirtualServer CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+		log.Errorf(err)
+		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+		return false
+	}
 
 	vsNamespace := vsResource.ObjectMeta.Namespace
 	vsName := vsResource.ObjectMeta.Name
@@ -106,6 +113,25 @@ func (ctlr *Controller) checkValidTransportServer(
 	tsResource *cisapiv1.TransportServer,
 ) bool {
 
+	// Check if the required fields are set as per the recommendations
+	if ctlr.multiClusterMode == "" {
+		if tsResource.Spec.Pool.MultiClusterServices != nil {
+			log.Errorf("MultiClusterServices is set for TransportServer %s but CIS is not running in multiCluster "+
+				"mode", tsResource.ObjectMeta.Name)
+			return false
+		}
+	} else if ctlr.discoveryMode == DefaultMode {
+		if tsResource.Spec.Pool.MultiClusterServices == nil {
+			log.Errorf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s but CIS is running "+
+				"with default mode", tsResource.ObjectMeta.Name)
+			return false
+		}
+		if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
+			tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
+			log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+				"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
+		}
+	}
 	vsNamespace := tsResource.ObjectMeta.Namespace
 	vsName := tsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
@@ -180,7 +206,13 @@ func (ctlr *Controller) checkValidTransportServer(
 func (ctlr *Controller) checkValidIngressLink(
 	il *cisapiv1.IngressLink,
 ) bool {
-
+	// Validate IL for default mode
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		err := fmt.Sprintf("%v Default mode is currently not supported for IngressLink CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+		log.Errorf(err)
+		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+		return false
+	}
 	ilNamespace := il.ObjectMeta.Namespace
 	ilName := il.ObjectMeta.Name
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)

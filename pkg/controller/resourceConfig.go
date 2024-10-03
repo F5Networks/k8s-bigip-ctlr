@@ -2303,12 +2303,15 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			}
 			pool.MultiClusterServices = multiClusterServices
 		}
-		// update the multicluster resource serviceMap with local cluster services
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
-		// update the multicluster resource serviceMap with HA pair cluster services
-		if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
-				ctlr.multiClusterConfigs.HAPairClusterName)
+
+		if ctlr.discoveryMode != DefaultMode {
+			// update the multicluster resource serviceMap with local cluster services
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
+			// update the multicluster resource serviceMap with HA pair cluster services
+			if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
+					ctlr.multiClusterConfigs.HAPairClusterName)
+			}
 		}
 	} else {
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")

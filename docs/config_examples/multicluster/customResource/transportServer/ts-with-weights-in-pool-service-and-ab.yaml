@@ -15,17 +15,9 @@ spec:
       - service: svc-1-external-service
         serviceNamespace: default
         weight: 20
-    multiClusterServices:
-      - clusterName: cluster3
-        namespace: default
-        service: svc-1-external-service
-        servicePort: 1344
-        weight: 70
-      - clusterName: cluster4
-        namespace: default
-        service: svc-1-external-service
-        servicePort: 1344
-        weight: 70
+      - service: svc-2-external-service
+        serviceNamespace: default
+        weight: 60
     monitor:
       interval: 20
       timeout: 10

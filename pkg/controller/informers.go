@@ -1127,11 +1127,21 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		}
 	}
 
+	// Check partition update for LoadBalancer service
+	partitionUpdate := false
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		oldPartition, _ := svc.Annotations[LBServicePartitionAnnotation]
+		newPartition, _ := curSvc.Annotations[LBServicePartitionAnnotation]
+		if oldPartition != newPartition {
+			partitionUpdate = true
+		}
+	}
+
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
-		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
+		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) || partitionUpdate {
 		log.Debugf("Enqueueing Old Service: %v %v", svc, getClusterLog(clusterName))
 		key := &rqKey{
 			namespace:   svc.ObjectMeta.Namespace,

@@ -93,14 +93,18 @@ func (ctlr *Controller) checkValidVirtualServer(
 		}
 	}
 	for _, pool := range vsResource.Spec.Pools {
-		if pool.MultiClusterServices == nil {
-			continue
+		if pool.MultiClusterServices != nil {
+			err = fmt.Sprintf("%v MultiClusterServices is currently not supported for VS CR. Consider removing "+
+				"it from the virtual server %s", ctlr.getMultiClusterLog(), vsName)
+			log.Errorf(err)
+			ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+			return false
 		}
 		for _, mcs := range pool.MultiClusterServices {
 			err := ctlr.checkValidMultiClusterService(mcs, true)
 			if err != nil {
-				// In case of invalid extendedServiceReference, just log the error and proceed
-				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for VS: %s: %v", mcs, vsName, err)
+				// In case of invalid multiClusterServices, just log the error and proceed
+				log.Errorf("[MultiCluster] invalid multiClusterServices: %v for VS: %s: %v", mcs, vsName, err)
 				continue
 			}
 		}
@@ -114,7 +118,22 @@ func (ctlr *Controller) checkValidTransportServer(
 ) bool {
 
 	// Check if the required fields are set as per the recommendations
-	if ctlr.multiClusterMode == "" {
+	// Validation for multiCluster setup with default mode
+	if ctlr.discoveryMode == DefaultMode {
+		if tsResource.Spec.Pool.MultiClusterServices == nil {
+			err := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s but "+
+				"CIS is running with default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+			log.Errorf(err)
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+			return false
+		}
+		if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
+			tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
+			log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+				"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
+		}
+	} else {
+		// validation for non multiCluster case
 		if tsResource.Spec.Pool.MultiClusterServices != nil {
 			err := fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
 				"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
@@ -128,19 +147,6 @@ func (ctlr *Controller) checkValidTransportServer(
 			log.Errorf(err)
 			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
 			return false
-		}
-	} else if ctlr.discoveryMode == DefaultMode {
-		if tsResource.Spec.Pool.MultiClusterServices == nil {
-			err := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s but "+
-				"CIS is running with default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
-			return false
-		}
-		if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
-			tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
-			log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
-				"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
 		}
 	}
 	vsNamespace := tsResource.ObjectMeta.Namespace

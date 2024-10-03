@@ -304,11 +304,11 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string, tsName string) string {
+func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string, vsAddress string, vsPort int32) string {
 	poolName := pool.Name
 	if poolName == "" {
 		if ctlr.multiClusterMode != "" {
-			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "", tsName)
+			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "", vsAddress, vsPort)
 		} else {
 			targetPort := pool.ServicePort
 
@@ -319,7 +319,7 @@ func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host
 				}
 				targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
 			}
-			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
+			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "", 0)
 		}
 	}
 	return poolName
@@ -367,7 +367,7 @@ func (ctlr *Controller) createMd5Hash(text string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, rscName string) string {
+func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, vsAddress string, vsPort int32) string {
 	var poolName string
 	if ctlr.multiClusterMode != "" {
 		poolName = namespace
@@ -385,7 +385,7 @@ func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.I
 	}
 
 	if ctlr.multiClusterMode != "" {
-		hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%s", namespace, rscName))[:10]
+		hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vsAddress, vsPort))[:10]
 		poolName = fmt.Sprintf("%s_%s_multicluster", poolName, hash)
 		if ctlr.discoveryMode == Ratio {
 			if cluster == "" {
@@ -2241,7 +2241,8 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
 		"",
-		vs.ObjectMeta.Name,
+		vs.Spec.VirtualServerAddress,
+		vs.Spec.VirtualServerPort,
 	)
 	rsRef := resourceRef{
 		name:      vs.Name,
@@ -2325,12 +2326,18 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	} else {
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 	}
-
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		if vs.Spec.Pool.Service != "" {
+			log.Warning("Base service is ignored for default discovery mode")
+		}
+		if len(vs.Spec.Pool.AlternateBackends) > 0 {
+			log.Warning("alternate backends are ignored for default discovery mode")
+		}
+	}
 	if ctlr.isSinglePoolRatioEnabled(vs) {
 		defaultWeight := 100
 		pool.Balance = PoolLBMemberRatio
 		pool.SinglePoolRatioEnabled = true
-
 		if ctlr.discoveryMode != DefaultMode {
 			// populate the local cluster weight
 			if vs.Spec.Pool.Weight != nil {

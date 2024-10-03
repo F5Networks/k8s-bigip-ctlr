@@ -1387,6 +1387,11 @@ const (
 	TLSVerion1_3 TLSVersion = "1.3"
 )
 
+const (
+	StatusOk    = "OK"
+	StatusError = "ERROR"
+)
+
 type discoveryMode string
 
 const (

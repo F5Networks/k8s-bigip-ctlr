@@ -22,7 +22,7 @@ type VirtualServer struct {
 // VirtualServerStatus is the status of the VirtualServer resource.
 type VirtualServerStatus struct {
 	VSAddress   string      `json:"vsAddress,omitempty"`
-	Status    string      `json:"status,omitempty"`
+	Status      string      `json:"status,omitempty"`
 	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
 	Error       string      `json:"error,omitempty"`
 }

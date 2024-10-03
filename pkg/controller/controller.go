@@ -116,6 +116,7 @@ const (
 	LBServiceIPAMLabelAnnotation       = "cis.f5.com/ipamLabel"
 	LBServiceIPAnnotation              = "cis.f5.com/ip"
 	LBServiceHostAnnotation            = "cis.f5.com/host"
+	LBServicePartitionAnnotation       = "cis.f5.com/partition"
 	HealthMonitorAnnotation            = "cis.f5.com/health"
 	LBServicePolicyNameAnnotation      = "cis.f5.com/policyName"
 	LegacyHealthMonitorAnnotation      = "virtual-server.f5.com/health"

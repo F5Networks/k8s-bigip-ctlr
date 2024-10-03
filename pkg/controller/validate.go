@@ -31,7 +31,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		err := fmt.Sprintf("%v Default mode is currently not supported for VirtualServer CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
 		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -44,7 +44,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -52,7 +52,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	if !virtualFound {
 		err = fmt.Sprintf("VirtualServer %s is invalid", vsName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -60,7 +60,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	if vsResource.Spec.Partition == CommonPartition {
 		err = fmt.Sprintf("VirtualServer %s cannot be created in Common partition", vsName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -68,7 +68,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
 		err = fmt.Sprintf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -80,7 +80,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		if bindAddr == "" {
 			err = fmt.Sprintf("No IP was specified for the virtual server %s", vsName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 			return false
 		}
 	} else {
@@ -88,7 +88,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		if ipamLabel == "" && bindAddr == "" {
 			err = fmt.Sprintf("No ipamLabel was specified for the virtual server %s", vsName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 			return false
 		}
 	}
@@ -97,7 +97,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 			err = fmt.Sprintf("%v MultiClusterServices is currently not supported for VS CR. Consider removing "+
 				"it from the virtual server %s", ctlr.getMultiClusterLog(), vsName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(VirtualServer, vsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
 			return false
 		}
 		for _, mcs := range pool.MultiClusterServices {
@@ -124,7 +124,7 @@ func (ctlr *Controller) checkValidTransportServer(
 			err := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s but "+
 				"CIS is running with default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 			return false
 		}
 		if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
@@ -138,14 +138,14 @@ func (ctlr *Controller) checkValidTransportServer(
 			err := fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
 				"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 			return false
 		}
 		if tsResource.Spec.Pool.Service == "" || tsResource.Spec.Pool.ServicePort == (intstr.IntOrString{}) {
 			err := fmt.Sprintf("Service/ServicePort is not provided in Pool for TransportServer %s/%s",
 				tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 			return false
 		}
 	}
@@ -158,7 +158,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -166,7 +166,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	if !virtualFound {
 		err = fmt.Sprintf("TransportServer %s is invalid", vsName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -174,7 +174,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	if tsResource.Spec.Partition == CommonPartition {
 		err = fmt.Sprintf("TransportServer %s cannot be created in Common partition", vsName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -186,7 +186,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		if bindAddr == "" {
 			err = fmt.Sprintf("No IP was specified for the transport server %s", vsName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 			return false
 		}
 	} else {
@@ -194,7 +194,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		if ipamLabel == "" && bindAddr == "" {
 			err = fmt.Sprintf("No ipamLabel was specified for the transport server %s", vsName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 			return false
 		}
 	}
@@ -204,7 +204,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
 		err = fmt.Sprintf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", "", errors.New(err))
+		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
 		return false
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
@@ -227,7 +227,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		err := fmt.Sprintf("%v Default mode is currently not supported for IngressLink CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
 		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
 		return false
 	}
 	ilNamespace := il.ObjectMeta.Namespace
@@ -239,7 +239,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
 		return false
 	}
 	// Check if the virtual exists and valid for us.
@@ -247,7 +247,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	if !virtualFound {
 		err = fmt.Sprintf("IngressLink %s is invalid", ilName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -255,7 +255,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	if il.Spec.Partition == CommonPartition {
 		err = fmt.Sprintf("IngressLink %s cannot be created in Common partition", ilName)
 		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
 		return false
 	}
 
@@ -265,7 +265,7 @@ func (ctlr *Controller) checkValidIngressLink(
 		if bindAddr == "" {
 			err = fmt.Sprintf("No IP was specified for ingresslink %s", ilName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+			ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
 			return false
 		}
 	} else {
@@ -273,7 +273,7 @@ func (ctlr *Controller) checkValidIngressLink(
 		if ipamLabel == "" && bindAddr == "" {
 			err = fmt.Sprintf("No ipamLabel was specified for the il server %s", ilName)
 			log.Errorf(err)
-			ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(err))
+			ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
 			return false
 		}
 	}

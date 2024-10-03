@@ -3082,6 +3082,13 @@ func (ctlr *Controller) processLBServices(
 	isSVCDeleted bool,
 ) error {
 
+	// Read the partition annotation if provided
+	var partition string
+	if partitionValue, partitionSpecified := svc.Annotations[LBServicePartitionAnnotation]; partitionSpecified {
+		partition = partitionValue
+	} else {
+		partition = ctlr.Partition
+	}
 	ip, ok1 := svc.Annotations[LBServiceIPAnnotation]
 	ipamLabel, ok2 := svc.Annotations[LBServiceIPAMLabelAnnotation]
 	if !ok1 && !ok2 {
@@ -3136,12 +3143,12 @@ func (ctlr *Controller) processLBServices(
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
-			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 			var hostnames []string
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -3149,7 +3156,7 @@ func (ctlr *Controller) processLBServices(
 		}
 
 		rsCfg := &ResourceConfig{}
-		rsCfg.Virtual.Partition = ctlr.Partition
+		rsCfg.Virtual.Partition = partition
 		rsCfg.Virtual.IpProtocol = strings.ToLower(string(portSpec.Protocol))
 		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.MetaData.namespace = svc.ObjectMeta.Namespace
@@ -3186,7 +3193,18 @@ func (ctlr *Controller) processLBServices(
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
 
-		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		// handle pool settings from policy cr
+		if plc != nil {
+			if plc.Spec.PoolSettings != (cisapiv1.PoolSettingsSpec{}) {
+				err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
+				if err != nil {
+					log.Errorf("%v", err)
+					return nil
+				}
+			}
+		}
+
+		rsMap := ctlr.resources.getPartitionResourceMap(partition)
 
 		rsMap[rsName] = rsCfg
 		if len(rsCfg.MetaData.hosts) > 0 {

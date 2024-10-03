@@ -78,10 +78,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
-							ctlr.updateResourceStatus(VirtualServer, virtual, "", "", errors.New(tenantResponse.message))
+							ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateResourceStatus(VirtualServer, virtual, virtual.Status.VSAddress, "Ok", nil)
+							ctlr.updateResourceStatus(VirtualServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							for _, pool := range virtual.Spec.Pools {
 								var svcNamespace string
@@ -120,10 +120,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
-							ctlr.updateResourceStatus(TransportServer, virtual, "", "", errors.New(tenantResponse.message))
+							ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, "Ok", nil)
+							ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							var svcNamespace string
 							if virtual.Spec.Pool.ServiceNamespace != "" {
@@ -160,10 +160,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if il.Namespace+"/"+il.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
-							ctlr.updateResourceStatus(IngressLink, il, "", "", errors.New(tenantResponse.message))
+							ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, "Ok", nil)
+							ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, StatusOk, nil)
 						}
 					}
 

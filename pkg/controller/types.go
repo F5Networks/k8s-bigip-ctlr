@@ -1400,10 +1400,6 @@ const (
 
 type discoveryMode string
 
-const (
-	StatusOk    = "OK"
-	StatusError = "ERROR"
-)
 type AutoMonitorType string
 
 const (

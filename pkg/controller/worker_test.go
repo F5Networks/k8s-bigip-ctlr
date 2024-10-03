@@ -4067,8 +4067,9 @@ extendedRouteSpec:
 					VirtualServerAddress: "10.1.1.1",
 					HostGroup:            "invalid",
 					Pool: cisapiv1.TSPool{
-						Name:    "pool1",
-						Service: svc1,
+						Name:        "pool1",
+						Service:     svc1,
+						ServicePort: intstr.IntOrString{StrVal: "port-80"},
 					},
 				},
 			)

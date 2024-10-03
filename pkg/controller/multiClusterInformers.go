@@ -339,7 +339,7 @@ func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
 ) (*MultiClusterPoolInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters only
-	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() {
+	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() && ctlr.discoveryMode != DefaultMode {
 		namespace = ""
 	}
 	nsPoolInf, ok := ctlr.multiClusterPoolInformers[clusterName]

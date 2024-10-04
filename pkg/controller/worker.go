@@ -636,6 +636,18 @@ func (ctlr *Controller) processResources() bool {
 		default:
 			if rscDelete {
 				for _, vrt := range ctlr.getAllVirtualServers(nsName) {
+					// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
+					rscRefKey := resourceRef{
+						kind:      VirtualServer,
+						name:      vrt.Name,
+						namespace: vrt.Namespace,
+					}
+					if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
+						// Remove resource key from processedNativeResources on delete event
+						delete(ctlr.resources.processedNativeResources, rscRefKey)
+					}
+					// update the poolMem cache, clusterSvcResource & resource-svc maps
+					ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 					err := ctlr.processVirtualServers(vrt, true)
 					if err != nil {
 						// TODO
@@ -645,6 +657,18 @@ func (ctlr *Controller) processResources() bool {
 				}
 
 				for _, ts := range ctlr.getAllTransportServers(nsName) {
+					// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
+					rscRefKey := resourceRef{
+						kind:      TransportServer,
+						name:      ts.Name,
+						namespace: ts.Namespace,
+					}
+					if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
+						// Remove resource key from processedNativeResources on delete event
+						delete(ctlr.resources.processedNativeResources, rscRefKey)
+					}
+					// update the poolMem cache, clusterSvcResource & resource-svc maps
+					ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
 					err := ctlr.processTransportServers(ts, true)
 					if err != nil {
 						// TODO

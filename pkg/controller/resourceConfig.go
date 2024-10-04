@@ -304,11 +304,11 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string, vsAddress string, vsPort int32) string {
+func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host string, hash string) string {
 	poolName := pool.Name
 	if poolName == "" {
 		if ctlr.multiClusterMode != "" {
-			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "", vsAddress, vsPort)
+			poolName = ctlr.formatPoolNameForTS(ns, "", intstr.IntOrString{}, pool.NodeMemberLabel, host, "", hash)
 		} else {
 			targetPort := pool.ServicePort
 
@@ -319,7 +319,7 @@ func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, host
 				}
 				targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort, "")
 			}
-			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "", 0)
+			poolName = ctlr.formatPoolNameForTS(ns, pool.Service, targetPort, pool.NodeMemberLabel, host, "", "")
 		}
 	}
 	return poolName
@@ -367,10 +367,9 @@ func (ctlr *Controller) createMd5Hash(text string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, vsAddress string, vsPort int32) string {
+func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string, host string, cluster string, hash string) string {
 	var poolName string
 	if ctlr.multiClusterMode != "" {
-		hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vsAddress, vsPort))[:10]
 		poolName = fmt.Sprintf("ts_%s_multicluster", hash)
 	} else {
 		servicePort := fetchPortString(port)
@@ -411,6 +410,33 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 	}
 
 	return AS3NameFormatter(poolName)
+}
+
+func (ctlr *Controller) formatMonitorNameForTS(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string, hash string) string {
+	var monitorName string
+	if ctlr.multiClusterMode != "" {
+		servicePort := fetchPortString(port)
+		monitorName = fmt.Sprintf("ts_%s_%s_%s", hash, servicePort, monitorType)
+	} else {
+		monitorName = fmt.Sprintf("%s_%s", svc, namespace)
+
+	if len(hostName) > 0 {
+		monitorName = monitorName + fmt.Sprintf("_%s", hostName)
+	}
+	if len(path) > 0 && path != "/" {
+		if path[0] == '/' {
+			monitorName = monitorName + fmt.Sprintf("%s", path)
+		} else {
+			monitorName = monitorName + fmt.Sprintf("_%s", path)
+		}
+	}
+
+	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
+		servicePort := fetchPortString(port)
+		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
+	}}
+
+	return AS3NameFormatter(monitorName)
 }
 
 // format the monitor name for an VirtualServer pool
@@ -884,7 +910,7 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 }
 
 func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, vsNamespace, vsName string) {
+	formatPort intstr.IntOrString, vsNamespace, vsName string, hash string) {
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
@@ -896,7 +922,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "")
+				monitorName = ctlr.formatMonitorNameForTS(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "",hash)
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -2224,12 +2250,12 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	vs *cisapiv1.TransportServer,
 ) error {
 	var pool Pool
+	hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vs.Spec.VirtualServerAddress, vs.Spec.VirtualServerPort))[:10]
 	poolName := ctlr.framePoolNameForTS(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
 		"",
-		vs.Spec.VirtualServerAddress,
-		vs.Spec.VirtualServerPort,
+		hash,
 	)
 	rsRef := resourceRef{
 		name:      vs.Name,
@@ -2379,7 +2405,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 
 	if !reflect.DeepEqual(vs.Spec.Pool.Monitor, cisapiv1.Monitor{}) {
 		ctlr.createTransportServerMonitor(vs.Spec.Pool.Monitor, &pool, rsCfg, vs.Spec.Pool.ServicePort,
-			vs.ObjectMeta.Namespace, vs.ObjectMeta.Name)
+			vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, hash)
 	} else if vs.Spec.Pool.Monitors != nil {
 		var formatPort intstr.IntOrString
 		for _, monitor := range vs.Spec.Pool.Monitors {
@@ -2389,7 +2415,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 				formatPort = vs.Spec.Pool.ServicePort
 			}
 			ctlr.createTransportServerMonitor(monitor, &pool, rsCfg, formatPort,
-				vs.ObjectMeta.Namespace, vs.ObjectMeta.Name)
+				vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, hash)
 		}
 	}
 

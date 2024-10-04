@@ -2250,7 +2250,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	vs *cisapiv1.TransportServer,
 ) error {
 	var pool Pool
-	hash := ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vs.Spec.VirtualServerAddress, vs.Spec.VirtualServerPort))[:10]
+	var hash string
+	if ctlr.multiClusterMode != "" {
+		hash = ctlr.createMd5Hash(fmt.Sprintf("%s_%d", vs.Spec.VirtualServerAddress, vs.Spec.VirtualServerPort))[:10]
+	}
 	poolName := ctlr.framePoolNameForTS(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,

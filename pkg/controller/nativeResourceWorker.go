@@ -2056,8 +2056,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 
-			// Setup and start informers for secondary cluster in case of active-active mode HA cluster
-			if ctlr.discoveryMode == Active || ctlr.discoveryMode == Ratio {
+			// Setup and start informers for secondary cluster in case of active-active/ratio/default mode HA cluster
+			if ctlr.discoveryMode != StandBy {
 				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
 				if err != nil {
 					return err
@@ -2089,8 +2089,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 
-			// Setup and start informers for primary cluster in case of active-active mode HA cluster
-			if ctlr.discoveryMode == Active || ctlr.discoveryMode == Ratio {
+			// Setup and start informers for primary cluster in case of active-active/ratio/default mode HA cluster
+			if ctlr.discoveryMode != StandBy {
 				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
 				if err != nil {
 					return err

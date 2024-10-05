@@ -128,4 +128,78 @@ var _ = Describe("Profile", func() {
 
 	})
 
+	It("Client SSL Multiple Secrets", func() {
+		rsCfg := &ResourceConfig{
+			MetaData: metaData{
+				ResourceType: VirtualServer,
+			},
+			Virtual: Virtual{
+				Name:      "crd_virtual_server",
+				Partition: "test",
+				Profiles:  ProfileRefs{},
+			},
+			customProfiles: make(map[SecretKey]CustomProfile),
+		}
+
+		secret1 := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "SampleSecret1",
+				Namespace: "default",
+			},
+			Data: map[string][]byte{
+				"tls.key": []byte("key1"),
+				"tls.crt": []byte("cert1"),
+			},
+		}
+
+		secret2 := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "SampleSecret2",
+				Namespace: "default",
+			},
+			Data: map[string][]byte{
+				"tls.key": []byte("key2"),
+				"tls.crt": []byte("cert2"),
+			},
+		}
+
+		secrets := []*v1.Secret{secret1}
+		tlsCipher := mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher
+
+		err, updated := mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		Expect(err).To(BeNil(), "Failed to Create Client SSL with first secret")
+		Expect(updated).To(BeFalse(), "Expected no update for first Client SSL creation")
+
+		secrets = []*v1.Secret{secret2}
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		Expect(err).To(BeNil(), "Failed to Create Client SSL with second secret")
+		Expect(updated).To(BeFalse(), "Expected no update for second Client SSL creation")
+
+		secret2.Data["tls.crt"] = []byte("newcert2")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secrets, tlsCipher, "clientside")
+		Expect(err).To(BeNil(), "Failed to Update Client SSL with modified second secret")
+		Expect(updated).To(BeTrue(), "Expected update for modified second Client SSL")
+
+	})
+
+	It("Server SSL with empty secrets list", func() {
+		rsCfg := &ResourceConfig{
+			MetaData: metaData{
+				ResourceType: VirtualServer,
+			},
+			Virtual: Virtual{
+				Name:      "crd_virtual_server",
+				Partition: "test",
+				Profiles:  ProfileRefs{},
+			},
+			customProfiles: make(map[SecretKey]CustomProfile),
+		}
+
+		var secrets []*v1.Secret
+		tlsCipher := mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher
+
+		Expect(func() {
+			_, _ = mockCtlr.createSecretServerSSLProfile(rsCfg, secrets, tlsCipher, "serverside")
+		}).To(Panic(), "Expected panic due to empty secrets list")
+	})
 })

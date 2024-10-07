@@ -420,21 +420,22 @@ func (ctlr *Controller) formatMonitorNameForTS(namespace, svc string, monitorTyp
 	} else {
 		monitorName = fmt.Sprintf("%s_%s", svc, namespace)
 
-	if len(hostName) > 0 {
-		monitorName = monitorName + fmt.Sprintf("_%s", hostName)
-	}
-	if len(path) > 0 && path != "/" {
-		if path[0] == '/' {
-			monitorName = monitorName + fmt.Sprintf("%s", path)
-		} else {
-			monitorName = monitorName + fmt.Sprintf("_%s", path)
+		if len(hostName) > 0 {
+			monitorName = monitorName + fmt.Sprintf("_%s", hostName)
+		}
+		if len(path) > 0 && path != "/" {
+			if path[0] == '/' {
+				monitorName = monitorName + fmt.Sprintf("%s", path)
+			} else {
+				monitorName = monitorName + fmt.Sprintf("_%s", path)
+			}
+		}
+
+		if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
+			servicePort := fetchPortString(port)
+			monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
 		}
 	}
-
-	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
-		servicePort := fetchPortString(port)
-		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
-	}}
 
 	return AS3NameFormatter(monitorName)
 }
@@ -922,7 +923,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = ctlr.formatMonitorNameForTS(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "",hash)
+				monitorName = ctlr.formatMonitorNameForTS(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "", hash)
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})

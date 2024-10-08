@@ -56,7 +56,7 @@ func RunController(params Params) *Controller {
 	ctlr.addInformers()
 
 	// Start Sync CM token Manager
-	go ctlr.CMTokenManager.Start(make(chan struct{}), tokenmanager.CMAccessTokenExpiration)
+	go ctlr.CMTokenManager.Start(make(chan struct{}), tokenmanager.CMRefreshTokenExpiration)
 
 	// start request handler
 	ctlr.RequestHandler.startRequestHandler()

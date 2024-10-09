@@ -249,6 +249,12 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInform
 // setup multi cluster informer
 func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
 	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[svcKey.clusterName]; ok {
+		if svcKey.clusterName == "" {
+			if ctlr.multiClusterPoolInformers[""] == nil {
+				ctlr.multiClusterPoolInformers[""] = make(map[string]*MultiClusterPoolInformer)
+			}
+			return nil
+		}
 		restClient := config.KubeClient.CoreV1().RESTClient()
 		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, startInformer); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
@@ -284,6 +290,13 @@ func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) erro
 // updateMultiClusterInformers starts/stops the informers for the given namespace for external clusters including HA peer cluster
 func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInformer bool) error {
 	for clusterName, config := range ctlr.multiClusterConfigs.ClusterConfigs {
+		// For local cluster maintain some placeholder value, as the informers are already maintained in the controller object
+		if clusterName == "" {
+			if ctlr.multiClusterPoolInformers[""] == nil {
+				ctlr.multiClusterPoolInformers[""] = make(map[string]*MultiClusterPoolInformer)
+			}
+			return nil
+		}
 		restClient := config.KubeClient.CoreV1().RESTClient()
 		// Setup informer with the namespace
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, namespace, restClient, startInformer); err != nil {
@@ -333,7 +346,7 @@ func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
 ) (*MultiClusterPoolInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters only
-	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() {
+	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() && ctlr.discoveryMode != DefaultMode {
 		namespace = ""
 	}
 	nsPoolInf, ok := ctlr.multiClusterPoolInformers[clusterName]

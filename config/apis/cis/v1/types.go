@@ -21,8 +21,10 @@ type VirtualServer struct {
 
 // VirtualServerStatus is the status of the VirtualServer resource.
 type VirtualServerStatus struct {
-	VSAddress string `json:"vsAddress,omitempty"`
-	StatusOk  string `json:"status,omitempty"`
+	VSAddress   string      `json:"vsAddress,omitempty"`
+	Status      string      `json:"status,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
 }
 
 // VirtualServerSpec is the spec of the VirtualServer resource.
@@ -121,7 +123,7 @@ type VSPool struct {
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
 	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends"`
-	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
+	MultiClusterServices []MultiClusterServiceReference `json:"multiClusterServices,omitempty"`
 }
 
 // TSPool defines a pool object for Transport Server in BIG-IP.
@@ -142,7 +144,7 @@ type TSPool struct {
 	HostRewrite          string                         `json:"hostRewrite,omitempty"`
 	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends,omitempty"`
-	MultiClusterServices []MultiClusterServiceReference `json:"extendedServiceReferences,omitempty"`
+	MultiClusterServices []MultiClusterServiceReference `json:"multiClusterServices,omitempty"`
 }
 
 // AlternateBackends lists backend svc of A/B
@@ -257,7 +259,10 @@ type IngressLink struct {
 
 // IngressLinkStatus is the status of the ingressLink resource.
 type IngressLinkStatus struct {
-	VSAddress string `json:"vsAddress,omitempty"`
+	VSAddress   string      `json:"vsAddress,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
+	Status      string      `json:"status,omitempty"`
 }
 
 // IngressLinkSpec is Spec for IngressLink
@@ -297,8 +302,10 @@ type TransportServer struct {
 
 // TransportServerStatus is the status of the VirtualServer resource.
 type TransportServerStatus struct {
-	VSAddress string `json:"vsAddress,omitempty"`
-	StatusOk  string `json:"status,omitempty"`
+	VSAddress   string      `json:"vsAddress,omitempty"`
+	Status      string      `json:"status,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
 }
 
 // TransportServerSpec is the spec of the VirtualServer resource.

@@ -1131,7 +1131,8 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
-		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
+		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) ||
+		(svc.Annotations[LBServicePartitionAnnotation] != curSvc.Annotations[LBServicePartitionAnnotation]) {
 		log.Debugf("Enqueueing Old Service: %v %v", svc, getClusterLog(clusterName))
 		key := &rqKey{
 			namespace:   svc.ObjectMeta.Namespace,

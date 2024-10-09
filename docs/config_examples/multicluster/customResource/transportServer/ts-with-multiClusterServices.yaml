@@ -11,11 +11,18 @@ spec:
     - /Common/test_rule2
   mode: standard
   pool:
-    alternateBackends:
-      - service: svc-1-external-service
-        serviceNamespace: default
-        weight: 20
     multiClusterServices:
+    # CIS supports to refer svs from local cluster and ha cluster
+      - clusterName: cluster1
+        namespace: default
+        service: svc-12-external-service
+        servicePort: 1344
+        weight: 70
+      - clusterName: cluster2
+        namespace: default
+        service: svc-21-external-service
+        servicePort: 1344
+        weight: 70
       - clusterName: cluster3
         namespace: default
         service: svc-1-external-service

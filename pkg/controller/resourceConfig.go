@@ -413,30 +413,32 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 }
 
 func (ctlr *Controller) formatMonitorNameForTS(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string, hash string) string {
-	var monitorName string
 	if ctlr.multiClusterMode != "" {
 		servicePort := fetchPortString(port)
-		monitorName = fmt.Sprintf("ts_%s_%s_%s", hash, servicePort, monitorType)
-	} else {
-		monitorName = fmt.Sprintf("%s_%s", svc, namespace)
-
-	if len(hostName) > 0 {
-		monitorName = monitorName + fmt.Sprintf("_%s", hostName)
-	}
-	if len(path) > 0 && path != "/" {
-		if path[0] == '/' {
-			monitorName = monitorName + fmt.Sprintf("%s", path)
-		} else {
-			monitorName = monitorName + fmt.Sprintf("_%s", path)
+		if servicePort == "" {
+			return AS3NameFormatter(fmt.Sprintf("ts_%s_%s", hash, monitorType))
 		}
+		return AS3NameFormatter(fmt.Sprintf("ts_%s_%s_%s", hash, servicePort, monitorType))
+	} else {
+		monitorName := fmt.Sprintf("%s_%s", svc, namespace)
+
+		if len(hostName) > 0 {
+			monitorName = monitorName + fmt.Sprintf("_%s", hostName)
+		}
+		if len(path) > 0 && path != "/" {
+			if path[0] == '/' {
+				monitorName = monitorName + fmt.Sprintf("%s", path)
+			} else {
+				monitorName = monitorName + fmt.Sprintf("_%s", path)
+			}
+		}
+
+		if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
+			servicePort := fetchPortString(port)
+			monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
+		}
+		return AS3NameFormatter(monitorName)
 	}
-
-	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
-		servicePort := fetchPortString(port)
-		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
-	}}
-
-	return AS3NameFormatter(monitorName)
 }
 
 // format the monitor name for an VirtualServer pool
@@ -922,7 +924,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 		} else {
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = ctlr.formatMonitorNameForTS(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "",hash)
+				monitorName = ctlr.formatMonitorNameForTS(vsNamespace, pool.ServiceName, monitor.Type, formatPort, "", "", hash)
 			}
 
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
@@ -2405,16 +2407,20 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	if len(pool.Members) > 0 {
 		rsCfg.MetaData.Active = true
 	}
-
+	var formatPort intstr.IntOrString
 	if !reflect.DeepEqual(vs.Spec.Pool.Monitor, cisapiv1.Monitor{}) {
-		ctlr.createTransportServerMonitor(vs.Spec.Pool.Monitor, &pool, rsCfg, vs.Spec.Pool.ServicePort,
+		if vs.Spec.Pool.Monitor.TargetPort != 0 {
+			formatPort = intstr.IntOrString{IntVal: vs.Spec.Pool.Monitor.TargetPort}
+		} else if ctlr.discoveryMode != DefaultMode {
+			formatPort = vs.Spec.Pool.ServicePort
+		}
+		ctlr.createTransportServerMonitor(vs.Spec.Pool.Monitor, &pool, rsCfg, formatPort,
 			vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, hash)
 	} else if vs.Spec.Pool.Monitors != nil {
-		var formatPort intstr.IntOrString
 		for _, monitor := range vs.Spec.Pool.Monitors {
 			if monitor.TargetPort != 0 {
 				formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
-			} else {
+			} else if ctlr.discoveryMode != DefaultMode {
 				formatPort = vs.Spec.Pool.ServicePort
 			}
 			ctlr.createTransportServerMonitor(monitor, &pool, rsCfg, formatPort,

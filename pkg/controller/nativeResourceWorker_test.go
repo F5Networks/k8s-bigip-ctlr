@@ -2678,6 +2678,116 @@ externalClustersConfig:
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 		})
+
+		It("Process TS default discovery mode with multi cluster config ", func() {
+			one := 1
+			mockCtlr.clusterRatio["cluster1"] = &one
+			two := 2
+			mockCtlr.clusterRatio["cluster2"] = &two
+			three := 3
+			mockCtlr.clusterRatio["cluster3"] = &three
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			weight1 := int32(50)
+			weight2 := int(75)
+			ts := test.NewTransportServer(
+				"SampleTS",
+				"default",
+				cisapiv1.TransportServerSpec{
+					Pool: cisapiv1.TSPool{
+						Service:          "svc1",
+						ServicePort:      intstr.IntOrString{IntVal: 80},
+						ServiceNamespace: "test",
+						Weight:           &weight1,
+						Monitors: []cisapiv1.Monitor{
+							{
+								Type:     "tcp",
+								Timeout:  15,
+								Interval: 15,
+							},
+							{
+								Type:       "tcp",
+								Timeout:    30,
+								Interval:   20,
+								TargetPort: DEFAULT_HTTP_PORT,
+							},
+						},
+						MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+							{
+								ClusterName: "cluster3",
+								Namespace:   "default",
+								SvcName:     "svc",
+								ServicePort: intstr.IntOrString{IntVal: 80},
+							},
+							{
+								ClusterName: "cluster3",
+								Namespace:   "default",
+								SvcName:     "svc-1",
+								ServicePort: intstr.IntOrString{IntVal: 80},
+								Weight:      &weight2,
+							},
+						},
+						AlternateBackends: []cisapiv1.AlternateBackend{
+							{
+								Service:          "svc1-b",
+								ServiceNamespace: "test2",
+							},
+						},
+					},
+				},
+			)
+			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
+			clusterName := "cluster3"
+			// Setup informers with namespaces which are watched by CIS
+			for namespace := range mockCtlr.namespaces {
+				// add common informers  in all modes
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
+					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+				}
+				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+				}
+			}
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(rsCfg.Virtual.PoolName).To(Equal("ts_a764b4bf13_multicluster"))
+			Expect(rsCfg.Monitors[0].Name).To(Equal("ts_a764b4bf13_tcp"))
+			Expect(rsCfg.Monitors[1].Name).To(Equal("ts_a764b4bf13_80_tcp"))
+			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+
+			resourceKey := resourceRef{
+				kind:      TransportServer,
+				namespace: ts.Namespace,
+				name:      ts.Name,
+			}
+
+			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			// for local cluster service mapping must be present
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+
+			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
+				{
+					ClusterName: "cluster3",
+					Namespace:   "default",
+					SvcName:     "test",
+					ServicePort: intstr.IntOrString{IntVal: 80},
+				},
+			}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+		})
 	})
 
 })

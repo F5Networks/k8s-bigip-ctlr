@@ -599,8 +599,20 @@ func (ctlr *Controller) processResources() bool {
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
+		if rscDelete {
+			// Do the clean up for the serviceTypeLB resources
+			for _, svc := range ctlr.getAllLBServices(nsName) {
+				if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+					err := ctlr.processLBServices(svc, true)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+			}
+		}
 		switch ctlr.mode {
-
 		case OpenShiftMode:
 			var triggerDelete bool
 			if rscDelete {
@@ -676,9 +688,14 @@ func (ctlr *Controller) processResources() bool {
 						isRetryableError = true
 					}
 				}
-
-				ctlr.crInformers[nsName].stop()
-				delete(ctlr.crInformers, nsName)
+				if crInf, ok := ctlr.crInformers[nsName]; ok {
+					crInf.stop()
+					delete(ctlr.crInformers, nsName)
+				}
+				if comInf, ok := ctlr.comInformers[nsName]; ok {
+					comInf.stop()
+					delete(ctlr.comInformers, nsName)
+				}
 				ctlr.namespacesMutex.Lock()
 				delete(ctlr.namespaces, nsName)
 				ctlr.namespacesMutex.Unlock()

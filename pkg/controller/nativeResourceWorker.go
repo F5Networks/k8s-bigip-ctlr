@@ -2109,7 +2109,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
 				// Avoid deleting HA cluster related configs
-				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+				if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == "" {
 					continue
 				}
 				log.Infof("[MultiCluster] There is no externalClustersConfig section or there are no clusters defined in it. Removing the cluster config for cluster %s from CIS Cache", clusterName)

@@ -2170,7 +2170,6 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 										// update the poolMem cache, clusterSvcResource & resource-svc maps
 										ctlr.deleteResourceExternalClusterSvcRouteReference(poolId.rsKey)
 										ctlr.processRoutes(routeGroup, false)
-										return
 									}
 								case VirtualServer:
 									var item interface{}
@@ -2184,7 +2183,6 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									if found {
 										_ = ctlr.processVirtualServers(virtual, false)
 									}
-									return
 								case TransportServer:
 									var item interface{}
 									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
@@ -2197,7 +2195,6 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									if found {
 										_ = ctlr.processTransportServers(virtual, false)
 									}
-									return
 								case IngressLink:
 									var item interface{}
 									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)

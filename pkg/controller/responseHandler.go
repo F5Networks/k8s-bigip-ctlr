@@ -2,6 +2,7 @@ package controller
 
 import (
 	"container/list"
+	"errors"
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
@@ -75,9 +76,12 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					}
 					virtual := obj.(*cisapiv1.VirtualServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
-						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+							// update the status for virtual server as tenant posting is failed
+							ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(tenantResponse.message))
+						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
+							ctlr.updateResourceStatus(VirtualServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							for _, pool := range virtual.Spec.Pools {
 								var svcNamespace string
@@ -114,9 +118,12 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					}
 					virtual := obj.(*cisapiv1.TransportServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
-						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+							// update the status for transport server as tenant posting is failed
+							ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(tenantResponse.message))
+						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
+							ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							var svcNamespace string
 							if virtual.Spec.Pool.ServiceNamespace != "" {
@@ -132,6 +139,34 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							}
 						}
 					}
+
+				case IngressLink:
+					// update status
+					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					if !ok {
+						log.Debugf("IngressLink Informer not found for namespace: %v", ns)
+						continue
+					}
+					obj, exist, err := crInf.ilInformer.GetIndexer().GetByKey(rscKey)
+					if err != nil {
+						log.Debugf("Could not fetch IngressLink: %v: %v", rscKey, err)
+						continue
+					}
+					if !exist {
+						log.Debugf("IngressLink Not Found: %v", rscKey)
+						continue
+					}
+					il := obj.(*cisapiv1.IngressLink)
+					if il.Namespace+"/"+il.Name == rscKey {
+						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+							// update the status for ingresslink as tenant posting is failed
+							ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(tenantResponse.message))
+						} else {
+							// update the status for ingresslink as tenant posting is success
+							ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, StatusOk, nil)
+						}
+					}
+
 				case Route:
 					if _, found := rscUpdateMeta.failedTenants[partition]; found {
 						// TODO : distinguish between a 503 and an actual failure

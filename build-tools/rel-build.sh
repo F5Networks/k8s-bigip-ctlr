@@ -16,7 +16,7 @@ RUN_TESTS=${RUN_TESTS:-1}
 if [ $RUN_TESTS -eq 1 ]; then
     go install github.com/onsi/ginkgo/v2/ginkgo
     go install github.com/onsi/gomega
-	  GO111MODULE=off
+	  GO111MODULE=on
 	  go get github.com/wadey/gocovmerge
 	  go get github.com/mattn/goveralls
     echo "Gathering unit test code coverage for 'release' build..."

@@ -258,6 +258,8 @@ func (agent *Agent) agentWorker() {
 
 		if len(agent.incomingTenantDeclMap) == 0 {
 			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(rsConfig.reqId))
+			// notify resourceStatusUpdate response handler for resourcestatus update
+			agent.notifyRscStatusHandler(rsConfig.reqId, false)
 			agent.declUpdate.Unlock()
 			continue
 		}
@@ -357,10 +359,10 @@ func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 
 	rscUpdateMeta := resourceStatusMeta{
 		id,
-		make(map[string]struct{}),
+		make(map[string]tenantResponse),
 	}
 	for tenant := range agent.retryTenantDeclMap {
-		rscUpdateMeta.failedTenants[tenant] = struct{}{}
+		rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
 	}
 	// If triggerred from retry block, process the previous successful request completely
 	if !overwriteCfg {

@@ -839,8 +839,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 					   incr rc
 				   }
 				}
-				# Disable serverside ssl and enable only for reencrypt routes													
-				SSL::disable serverside
+
 				set reencrypt_class "/%[1]s/%[2]s_ssl_reencrypt_servername_dg"
 				set edge_class "/%[1]s/%[2]s_ssl_edge_servername_dg"
 				if { [class exists $reencrypt_class] || [class exists $edge_class] } {
@@ -855,6 +854,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 									set reen_pool [class match -value $wc_routepath equals $reencrypt_class]
 								}
 							}
+							# Disable serverside ssl and enable only for reencrypt routes with valid pool
 							if { not ($reen_pool equals "") } {
 								set dflt_pool $reen_pool
 								SSL::enable serverside
@@ -869,6 +869,8 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 								}
 							}
 							if { not ($edge_pool equals "") } {
+								# Disable serverside ssl for edge routes
+								SSL::disable serverside
 								set dflt_pool $edge_pool
 							}
 						}
@@ -888,6 +890,10 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 							break
 						}
 					}
+				}
+				else {
+					# Disable serverside ssl for passthrough routes as well
+					SSL::disable serverside
 				}
 				# handle the default pool for virtual server
 				set default_class "/%[1]s/%[2]s_default_pool_servername_dg"

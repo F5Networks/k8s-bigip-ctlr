@@ -17,4 +17,6 @@ COPY f5-bigip-ctlr-operator/licenses /licenses
 
 COPY f5-bigip-ctlr-operator/watches.yaml ${HOME}/watches.yaml
 COPY helm-charts/f5-bigip-ctlr  ${HOME}/helm-charts/f5-bigip-ctlr
+COPY f5-bigip-ctlr-operator/watches.yaml ${HOME}/helm-charts/f5-bigip-ctlr/oscp-operator.txt
+
 WORKDIR ${HOME}

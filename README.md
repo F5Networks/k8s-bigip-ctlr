@@ -1,5 +1,4 @@
 [![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=master) ](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=master)
-![Azure DevOps coverage](https://img.shields.io/azure-devops/coverage/f5networks/cis/6)
 ![Azure DevOps tests](https://img.shields.io/azure-devops/tests/f5networks/cis/6)
 
 
@@ -22,7 +21,7 @@ For guides on this and other solutions for Kubernetes, see the
 
 What's New?
 -----------
-Support for Custom Resource Definitions [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/config_examples/customResource/CustomResource.md)
+Support for Custom Resource Definitions [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-20.x/config_examples/customResource/CustomResource.md)
 
 Getting Help
 ------------

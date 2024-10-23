@@ -85,7 +85,7 @@ For OpenShift, use the following command:
 Note: cm_login_secret and cm_secret are mutually exclusive, if both are defined in values.yaml file cm_secret will be given priority.
 
 
-See the CIS documentation for a full list of args supported for CIS [CIS Configuration Options](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-3.x/README.md#configuration-parameters)
+See the CIS documentation for a full list of args supported for CIS [CIS Configuration Options](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/cis-20.x/README.md#configuration-parameters)
 
 > **Note:** Helm value names cannot include the character `-` which is commonly used in the names of parameters passed to the controller. To accomodate Helm, the parameter names in `values.yaml` use `_` and then replace them with `-` when rendering.
 > e.g. `args.cm_url` is rendered as `cm-url` as required by the CIS Controller.

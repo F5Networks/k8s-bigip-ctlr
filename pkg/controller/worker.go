@@ -431,7 +431,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 		if ctlr.managedResources.ManageCustomResources {
-			// TODO: Uncomment the below code once Virtual Server CR is supported for 3.x
+			// TODO: Uncomment the below code once Virtual Server CR is supported for 20.x
 			//virtuals := ctlr.getVirtualsForCustomPolicy(cp)
 			////Sync Custompolicy for Virtual Servers
 			//for _, virtual := range virtuals {
@@ -754,7 +754,7 @@ func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 	return virtualsForTLSProfile
 }
 
-//TODO uncomment the below code once Virtual Server CR is supported for 3.x
+//TODO uncomment the below code once Virtual Server CR is supported for 20.x
 //func (ctlr *Controller) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.VirtualServer {
 //	nsVirtuals := ctlr.getAllVirtualServers(plc.Namespace)
 //	if nil == nsVirtuals {
@@ -3147,7 +3147,7 @@ func (ctlr *Controller) processIngressLink(
 			}
 		}
 		for _, rsName := range delRes {
-			// TODO: Uncomment the below code when ENDS is supported with 3.x
+			// TODO: Uncomment the below code when ENDS is supported with 20.x
 			//var hostnames []string
 			//if rsMap[rsName] != nil {
 			//	rsCfg, err := ctlr.resources.getResourceConfig(partition, rsName, BigIPLabel)
@@ -3259,7 +3259,7 @@ func (ctlr *Controller) processIngressLink(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals
 		rsMap[rsName] = rsCfg
-		// TODO: Uncomment the following lines once CIS 3.x starts supporting EDNS
+		// TODO: Uncomment the following lines once CIS 20.x starts supporting EDNS
 		//var hostnames []string
 		//hostnames = rsCfg.MetaData.hosts
 		//if len(hostnames) > 0 {

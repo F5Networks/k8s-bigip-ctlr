@@ -1,3 +1,3 @@
-.. include:: ./cis-3.x/RELEASE-NOTES.rst
+.. include:: ./cis-20.x/RELEASE-NOTES.rst
 
 .. include:: ../README.md

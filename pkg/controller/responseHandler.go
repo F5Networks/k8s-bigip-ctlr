@@ -93,7 +93,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
 									svc := ctlr.GetService(svcNamespace, pool.Service)
 									if svc != nil {
-										ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+										ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress, "")
 									}
 								}
 							}
@@ -134,7 +134,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
 								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
 								if svc != nil {
-									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress, "")
 								}
 							}
 						}

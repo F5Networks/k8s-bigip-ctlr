@@ -260,7 +260,7 @@ func (m *mockController) addPolicy(plc *cisapiv1.Policy) {
 	cusInf.plcInformer.GetStore().Add(plc)
 
 	if m.resourceQueue != nil {
-		m.enqueuePolicy(plc, Create)
+		m.enqueuePolicy(plc, Create, "")
 	}
 }
 
@@ -269,7 +269,7 @@ func (m *mockController) deletePolicy(plc *cisapiv1.Policy) {
 	cusInf.plcInformer.GetStore().Delete(plc)
 
 	if m.resourceQueue != nil {
-		m.enqueueDeletedPolicy(plc)
+		m.enqueueDeletedPolicy(plc, "")
 	}
 }
 

@@ -101,19 +101,20 @@ type (
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue             workqueue.RateLimitingInterface
-		routeClientV1             routeclient.RouteV1Interface
-		comInformers              map[string]*CommonInformer
-		nrInformers               map[string]*NRInformer
-		crInformers               map[string]*CRInformer
-		nsInformers               map[string]*NSInformer
-		nodeInformer              *NodeInformer
-		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
-		multiClusterNodeInformers map[string]*NodeInformer
-		globalExtendedCMKey       string
-		routeLabel                string
-		namespaceLabelMode        bool
-		processedHostPath         *ProcessedHostPath
+		resourceQueue                 workqueue.RateLimitingInterface
+		routeClientV1                 routeclient.RouteV1Interface
+		comInformers                  map[string]*CommonInformer
+		nrInformers                   map[string]*NRInformer
+		crInformers                   map[string]*CRInformer
+		nsInformers                   map[string]*NSInformer
+		nodeInformer                  *NodeInformer
+		multiClusterPoolInformers     map[string]map[string]*MultiClusterPoolInformer
+		multiClusterResourceInformers map[string]map[string]*MultiClusterResourceInformer
+		multiClusterNodeInformers     map[string]*NodeInformer
+		globalExtendedCMKey           string
+		routeLabel                    string
+		namespaceLabelMode            bool
+		processedHostPath             *ProcessedHostPath
 	}
 
 	// Params defines parameters
@@ -331,8 +332,12 @@ type (
 		gtmConfig      GTMConfig
 		gtmConfigCache GTMConfig
 		nplStore       NPLStore
+		svcLBStore     SvcLBStore
 		supplementContextCache
 	}
+
+	// svcLBStore contains TyoeLB service details.key is IP
+	SvcLBStore map[string]MultiClusterServiceKey
 
 	// LTMConfig contain partition based ResourceMap
 	LTMConfig map[string]*PartitionConfig
@@ -1425,10 +1430,11 @@ const (
 
 type (
 	ExternalClusterConfig struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
+		ClusterName            string                    `yaml:"clusterName"`
+		Secret                 string                    `yaml:"secret"`
+		Ratio                  *int                      `yaml:"ratio"`
+		AdminState             clustermanager.AdminState `yaml:"adminState"`
+		ServiceTypeLBDiscovery bool                      `yaml:"serviceTypeLBDiscovery"`
 	}
 
 	HAClusterConfig struct {
@@ -1446,10 +1452,11 @@ type (
 	}
 
 	ClusterDetails struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
+		ClusterName            string                    `yaml:"clusterName"`
+		Secret                 string                    `yaml:"secret"`
+		Ratio                  *int                      `yaml:"ratio"`
+		AdminState             clustermanager.AdminState `yaml:"adminState"`
+		ServiceTypeLBDiscovery bool                      `yaml:"serviceTypeLBDiscovery"`
 	}
 
 	PoolIdentifier struct {
@@ -1481,5 +1488,12 @@ type (
 		svcInformer cache.SharedIndexInformer
 		epsInformer cache.SharedIndexInformer
 		podInformer cache.SharedIndexInformer
+	}
+
+	MultiClusterResourceInformer struct {
+		namespace   string
+		clusterName string
+		stopCh      chan struct{}
+		plcInformer cache.SharedIndexInformer
 	}
 )

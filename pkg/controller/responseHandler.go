@@ -132,6 +132,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								svcNamespace = virtual.Namespace
 							}
 							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
+								// Don't update the service status if CIS running in default mode with
+								// multiClusterServices provided in the resource
+								if ctlr.discoveryMode == DefaultMode && len(virtual.Spec.Pool.MultiClusterServices) != 0 {
+									break
+								}
 								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
 								if svc != nil {
 									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress, "")

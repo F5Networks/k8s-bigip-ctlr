@@ -316,7 +316,7 @@ func (ctlr *Controller) framePoolNameForTS(ns string, pool cisapiv1.TSPool, cxt 
 		if (intstr.IntOrString{}) == targetPort || (ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode) {
 			targetPort = ctlr.fetchTargetPort(svcNamespace, cxt.Name, pool.ServicePort, cxt.Cluster)
 		}
-		poolName = ctlr.formatPoolNameForTS(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, "")
+		poolName = ctlr.formatPoolNameForTS(svcNamespace, cxt.Name, targetPort, pool.NodeMemberLabel, cxt.Cluster)
 	}
 	return poolName
 }
@@ -370,10 +370,11 @@ func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.I
 		servicePort := fetchPortString(port)
 		if ctlr.discoveryMode == DefaultMode {
 			hash = ctlr.createMd5Hash(fmt.Sprintf("%s_%s_%s_%s", cluster, namespace, svc, servicePort))[:10]
+			poolName = fmt.Sprintf("ts_%s_%s", hash, cluster)
 		} else {
 			hash = ctlr.createMd5Hash(fmt.Sprintf("%s_%s_%s", namespace, svc, servicePort))[:10]
+			poolName = fmt.Sprintf("ts_%s_multicluster", hash)
 		}
-		poolName = fmt.Sprintf("ts_%s_multicluster", hash)
 	} else {
 		servicePort := fetchPortString(port)
 		poolName = fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
@@ -2978,23 +2979,22 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 	var sbcs []SvcBackendCxt
 	defaultWeight := 100
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		sbcs = make([]SvcBackendCxt, len(pool.MultiClusterServices))
-		beIdx := 0
 		if pool.MultiClusterServices != nil {
 			for _, svc := range pool.MultiClusterServices {
+				sbc := SvcBackendCxt{}
 				if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 					continue
 				}
-				sbcs[beIdx].Cluster = svc.ClusterName
-				sbcs[beIdx].Name = svc.SvcName
-				sbcs[beIdx].SvcPort = svc.ServicePort
+				sbc.Cluster = svc.ClusterName
+				sbc.Name = svc.SvcName
+				sbc.SvcPort = svc.ServicePort
 				if svc.Weight != nil {
-					sbcs[beIdx].Weight = float64(*svc.Weight)
+					sbc.Weight = float64(*svc.Weight)
 				} else {
-					sbcs[beIdx].Weight = float64(defaultWeight)
+					sbc.Weight = float64(defaultWeight)
 				}
-				sbcs[beIdx].SvcNamespace = svc.Namespace
-				beIdx = beIdx + 1
+				sbc.SvcNamespace = svc.Namespace
+				sbcs = append(sbcs, sbc)
 			}
 		}
 		return sbcs

@@ -2440,7 +2440,7 @@ func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) 
 	} else {
 		// For multiCluster services
 		for _, mcs := range pool.MultiClusterServices {
-			if mcs.SvcName != pool.ServiceName {
+			if mcs.SvcName != pool.ServiceName && mcs.ClusterName != pool.Cluster && mcs.Namespace != pool.ServiceNamespace {
 				continue
 			}
 			clusterName := mcs.ClusterName

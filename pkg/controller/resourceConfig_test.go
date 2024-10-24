@@ -128,7 +128,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("ts_7bb616e6f5_multicluster"), "Invalid Pool Name for TS")
 			mockCtlr.discoveryMode = DefaultMode
 			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
-			Expect(name).To(Equal("ts_5bd74b770d_multicluster"), "Invalid Pool Name for TS")
+			Expect(name).To(Equal("ts_5bd74b770d_cluster1"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = ""
 			mockCtlr.discoveryMode = ""
 		})

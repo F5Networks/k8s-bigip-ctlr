@@ -18,6 +18,7 @@ extendedSpec: |
       primaryCluster:
         clusterName: cluster1
         secret: default/kubeconfig1
+        serviceTypeLBDiscovery: true # If set to true then CIS will watch for serviceTypeLB in this cluster.default is false
       secondaryCluster:
         clusterName: cluster2
         secret: default/kubeconfig2

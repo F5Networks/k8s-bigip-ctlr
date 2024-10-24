@@ -415,7 +415,7 @@ Following is the sample deployment for primary CIS deployment:
 1. Update the ```multi-cluster-mode``` to *secondary* for secondary CIS deployment in high availablility topology, See [High Availability CIS](#high-availability-cis).
 2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
 
-**Note**: _weight_ needs to be specified onlyonly in A/B scenario
+**Note**: _weight_ needs to be specified only in A/B scenario
 
 **Note**:
 * For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.
@@ -530,6 +530,19 @@ while computing the final ratio.<br>
 * Setting cluster adminState in conjunction with cluster ratio will affect the overall traffic distribution across clusters.
   As the clusters marked as disable or offline will not receive traffic, so any ratio defined for these clusters will be rendered ineffective.
   Thus, in such a scenario it's recommended to set the cluster ratio to 0 for all the clusters marked with disable/offline.
+
+### A/B or Alternate Backends
+What it is?
+
+* A/B or Alternate Backends is a deployment strategy that allows you to release a new version of an application (version B) to a subset of users, while the majority still uses the old version (version A).
+* It helps in comparing two versions of a service or application (referred to as A and B) to determine which one performs better based on specific metrics, such as response time, error rates, or user engagement.
+* It allows you to gradually release changes to a subset of users and gather data to make informed decisions about whether to fully roll out the new version.
+* This services defined in Alternate Backends exist in either of the HA peer clusters or in both of the HA clusters. Since HA clusters usually hold similar configurations, ideally these services exist in both the HA clusters.
+
+What it isn't?
+
+* Services defined as Alternate Backends don't have to be created only in the other HA peer cluster(by other HA peer cluster it means if CIS is running in Primary cluster then Secondary cluster is the other HA peer cluster and vice versa).
+* Alternate Backends are not primarily used for failover scenarios, however BIGIP does forward the traffic to any of the available backend service if any service goes down or fails health check.
 
 ### Cluster adminState to enable/disable/offline a cluster
 adminState can be provided for a cluster to dictate the state of a particular cluster.

@@ -4,6 +4,9 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 Next Release
 -------------
 
+2.18.1
+-------------
+
 Added Functionality
 ```````````````````
 **What's new:**
@@ -16,16 +19,12 @@ Bug Fixes
 ````````````
 * `Issue 3518 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3518>`_: CIS is reposting the declaration because of re-ordering of the pool-members
 * `Issue 3520 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3520>`_: [LOGS] improve log message Finished syncing virtual servers xxx in namespace yyy(199.218µs), 1/7
-* `Issue 3542 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3542>`_: Change of weight from primary to alternate backend is not graceful for Transport server
 * `Issue 3507 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3507>`_: Controller stops posting changes at runtime when multiple ingress use the same backend service
 * `Issue 3501 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3501>`_: CIS with oneconnect and TLS breaks some connections
 * Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
 * `Issue 3535 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3535>`_: CIS with namespace-label is not working correctly in multicluster mode
 * `Issue 3508 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3508>`_: Fix to disable default uid in F5 BIG-IP Controller Operator
 * Fix for handling resource deletion in case of multiple VS/TS sharing the service
-
-Upgrade notes
-``````````````
 
 
 2.18.0

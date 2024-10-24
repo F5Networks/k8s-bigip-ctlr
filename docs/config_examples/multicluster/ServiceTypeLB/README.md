@@ -36,6 +36,3 @@ extendedSpec: |
 
 * Policy referred through annotation in service need to be created in same cluster and same namespace as service.
 * If multiple services are annotated with same IP, older service processed is honored and later is treated as invalid config.
-
-
-   

@@ -102,7 +102,6 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-		mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default", false)
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -1033,31 +1032,6 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_1_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 
 		})
-		It("Processing ServiceTypeLoadBalancer with partition annotation", func() {
-			// initialise mockCtlr
-			mockCtlr.Partition = "test"
-			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
-			mockCtlr.resources.Init()
-
-			// Create the serviceTypeLB resource
-			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
-			svc1.Annotations = make(map[string]string)
-			svc1.Annotations[LBServiceIPAnnotation] = "10.10.10.2"
-			partition := "partition1"
-			svc1.Annotations[LBServicePartitionAnnotation] = partition
-			// Process the serviceTypeLB
-			_ = mockCtlr.processLBServices(svc1, false)
-			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
-			Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
-			// Delete the serviceTypeLB
-			_ = mockCtlr.processLBServices(svc1, true)
-			// Update new partition annotation in the serviceTypeLB
-			newPartition := "partition2"
-			svc1.Annotations[LBServicePartitionAnnotation] = newPartition
-			_ = mockCtlr.processLBServices(svc1, false)
-			Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
-			Expect(mockCtlr.resources.ltmConfig[newPartition].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
-		})
 
 		It("Processing External DNS", func() {
 			mockCtlr.resources.Init()
@@ -1599,6 +1573,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -2157,7 +2132,7 @@ var _ = Describe("Worker Tests", func() {
 
 				rscUpdateMeta := resourceStatusMeta{
 					0,
-					make(map[string]tenantResponse),
+					make(map[string]struct{}),
 				}
 
 				time.Sleep(10 * time.Millisecond)
@@ -2172,7 +2147,7 @@ var _ = Describe("Worker Tests", func() {
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
-				rscUpdateMeta.failedTenants["test"] = tenantResponse{}
+				rscUpdateMeta.failedTenants["test"] = struct{}{}
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
 				time.Sleep(10 * time.Millisecond)
@@ -2412,7 +2387,7 @@ var _ = Describe("Worker Tests", func() {
 
 				rscUpdateMeta := resourceStatusMeta{
 					0,
-					make(map[string]tenantResponse),
+					make(map[string]struct{}),
 				}
 
 				mockCtlr.Agent.respChan <- rscUpdateMeta
@@ -2427,7 +2402,7 @@ var _ = Describe("Worker Tests", func() {
 				rscUpdateMeta.id = 3
 				mockCtlr.Agent.respChan <- rscUpdateMeta
 
-				rscUpdateMeta.failedTenants["test"] = tenantResponse{}
+				rscUpdateMeta.failedTenants["test"] = struct{}{}
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				config.reqId = mockCtlr.Controller.enqueueReq(config)
 				rscUpdateMeta.id = 3
@@ -3911,7 +3886,7 @@ extendedRouteSpec:
 				//Expect(len(mockCtlr.getOrderedRoutes(""))).To(Equal(1), "Invalid no of Routes")
 				rscUpdateMeta := resourceStatusMeta{
 					0,
-					make(map[string]tenantResponse),
+					make(map[string]struct{}),
 				}
 
 				mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
@@ -3957,7 +3932,6 @@ extendedRouteSpec:
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			_ = mockCtlr.addNamespacedInformers("default", false)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")

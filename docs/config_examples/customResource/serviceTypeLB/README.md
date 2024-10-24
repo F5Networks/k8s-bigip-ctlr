@@ -42,7 +42,6 @@ Annotation supported for service type LoadBalancer:
 | cis.f5.com/policyName | Optional  | Name of Policy CR to attach profiles/policies defined in it.                                              | service-type-lb-with-policyname.yaml  |
 | cis.f5.com/ip         | Mandatory | Specify the ip address for the ltm virtual server.                                                        | example-service-type-lb-staic-ip.yaml |
 | cis.f5.com/host       | Optional  | Specify the hostname for configuring the WideIP pools on the GTM server, It works along with the EDNS CR. | service-type-lb-with-hostname.yaml    |
-| cis.f5.com/partition  | Optional  | The BIG-IP partition in which the Controller should create/update/delete objects for this ServiceTypeLB.  | service-type-lb-with-custom-partition.yaml    |
 
 Note:-
 

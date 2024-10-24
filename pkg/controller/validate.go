@@ -17,7 +17,6 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
@@ -31,37 +30,28 @@ func (ctlr *Controller) checkValidVirtualServer(
 	vsNamespace := vsResource.ObjectMeta.Namespace
 	vsName := vsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
-	var err string
 
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
-		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
 	_, virtualFound, _ := crInf.vsInformer.GetIndexer().GetByKey(vkey)
 	if !virtualFound {
-		err = fmt.Sprintf("VirtualServer %s is invalid", vsName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
+		log.Infof("VirtualServer %s is invalid", vsName)
 		return false
 	}
 
 	// Check if Partition is set as Common
 	if vsResource.Spec.Partition == CommonPartition {
-		err = fmt.Sprintf("VirtualServer %s cannot be created in Common partition", vsName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
+		log.Errorf("VirtualServer %s cannot be created in Common partition", vsName)
 		return false
 	}
 
 	// Check if HTTPTraffic is set for insecure VS
 	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
-		err = fmt.Sprintf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
+		log.Errorf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
 		return false
 	}
 
@@ -71,17 +61,13 @@ func (ctlr *Controller) checkValidVirtualServer(
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
 		if bindAddr == "" {
-			err = fmt.Sprintf("No IP was specified for the virtual server %s", vsName)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
+			log.Infof("No IP was specified for the virtual server %s", vsName)
 			return false
 		}
 	} else {
 		ipamLabel := vsResource.Spec.IPAMLabel
 		if ipamLabel == "" && bindAddr == "" {
-			err = fmt.Sprintf("No ipamLabel was specified for the virtual server %s", vsName)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(VirtualServer, vsResource, "", StatusError, errors.New(err))
+			log.Infof("No ipamLabel was specified for the virtual server %s", vsName)
 			return false
 		}
 	}
@@ -109,29 +95,22 @@ func (ctlr *Controller) checkValidTransportServer(
 	vsNamespace := tsResource.ObjectMeta.Namespace
 	vsName := tsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
-	var err string
 
 	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
 	if !ok {
-		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
 	_, virtualFound, _ := crInf.tsInformer.GetIndexer().GetByKey(vkey)
 	if !virtualFound {
-		err = fmt.Sprintf("TransportServer %s is invalid", vsName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+		log.Infof("TransportServer %s is invalid", vsName)
 		return false
 	}
 
 	// Check if Partition is set as Common
 	if tsResource.Spec.Partition == CommonPartition {
-		err = fmt.Sprintf("TransportServer %s cannot be created in Common partition", vsName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+		log.Errorf("TransportServer %s cannot be created in Common partition", vsName)
 		return false
 	}
 
@@ -141,17 +120,13 @@ func (ctlr *Controller) checkValidTransportServer(
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
 		if bindAddr == "" {
-			err = fmt.Sprintf("No IP was specified for the transport server %s", vsName)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+			log.Infof("No IP was specified for the transport server %s", vsName)
 			return false
 		}
 	} else {
 		ipamLabel := tsResource.Spec.IPAMLabel
 		if ipamLabel == "" && bindAddr == "" {
-			err = fmt.Sprintf("No ipamLabel was specified for the transport server %s", vsName)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+			log.Infof("No ipamLabel was specified for the transport server %s", vsName)
 			return false
 		}
 	}
@@ -159,9 +134,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	if tsResource.Spec.Type == "" {
 		tsResource.Spec.Type = "tcp"
 	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
-		err = fmt.Sprintf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+		log.Errorf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
 		return false
 	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
@@ -184,29 +157,22 @@ func (ctlr *Controller) checkValidIngressLink(
 	ilNamespace := il.ObjectMeta.Namespace
 	ilName := il.ObjectMeta.Name
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
-	var err string
 
 	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace)
 	if !ok {
-		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
+		log.Errorf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
 		return false
 	}
 	// Check if the virtual exists and valid for us.
 	_, virtualFound, _ := crInf.ilInformer.GetIndexer().GetByKey(ilkey)
 	if !virtualFound {
-		err = fmt.Sprintf("IngressLink %s is invalid", ilName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
+		log.Infof("IngressLink %s is invalid", ilName)
 		return false
 	}
 
 	// Check if Partition is set as Common
 	if il.Spec.Partition == CommonPartition {
-		err = fmt.Sprintf("IngressLink %s cannot be created in Common partition", ilName)
-		log.Errorf(err)
-		ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
+		log.Errorf("IngressLink %s cannot be created in Common partition", ilName)
 		return false
 	}
 
@@ -214,17 +180,13 @@ func (ctlr *Controller) checkValidIngressLink(
 
 	if ctlr.ipamCli == nil {
 		if bindAddr == "" {
-			err = fmt.Sprintf("No IP was specified for ingresslink %s", ilName)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
+			log.Infof("No IP was specified for ingresslink %s", ilName)
 			return false
 		}
 	} else {
 		ipamLabel := il.Spec.IPAMLabel
 		if ipamLabel == "" && bindAddr == "" {
-			err = fmt.Sprintf("No ipamLabel was specified for the il server %s", ilName)
-			log.Errorf(err)
-			ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(err))
+			log.Infof("No ipamLabel was specified for the il server %s", ilName)
 			return false
 		}
 	}

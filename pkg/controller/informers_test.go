@@ -174,7 +174,7 @@ var _ = Describe("Informers Tests", func() {
 					VirtualServerAddress: "5.6.7.8",
 					SNAT:                 "none",
 				})
-			updatedStatusVS.Status.Status = StatusOk
+			updatedStatusVS.Status.StatusOk = "OK"
 			mockCtlr.enqueueUpdatedVirtualServer(updatedVS2, updatedStatusVS)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0), "VS status update should be skipped")
 
@@ -259,7 +259,7 @@ var _ = Describe("Informers Tests", func() {
 			// Verify TS status update event is not queued for processing
 			queueLen := mockCtlr.resourceQueue.Len()
 			updatedStatusTS := tsWithPartition.DeepCopy()
-			updatedStatusTS.Status.Status = StatusOk
+			updatedStatusTS.Status.StatusOk = "Ok"
 			mockCtlr.enqueueUpdatedTransportServer(tsWithPartition, updatedStatusTS)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(queueLen), "TS status update should be skipped")
 

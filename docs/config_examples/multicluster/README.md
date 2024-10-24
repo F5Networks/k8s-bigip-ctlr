@@ -415,7 +415,7 @@ Following is the sample deployment for primary CIS deployment:
 1. Update the ```multi-cluster-mode``` to *secondary* for secondary CIS deployment in high availablility topology, See [High Availability CIS](#high-availability-cis).
 2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
 
-**Note**: _weight_ needs to be specified only in A/B scenario
+**Note**: _weight_ needs to be specified only in [A/B](#ab-or-alternate-backends) scenario
 
 **Note**:
 * For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.
@@ -519,7 +519,7 @@ Following is the sample deployment for primary CIS deployment:
 
 ### Cluster wise Ratio for traffic distribution
 CIS supports distribution of traffic across clusters as per the ratio configured for each cluster in the extended ConfigMap.<br>
-It works even along with A/B where different weights are defined for each service. In such a case the ratio of traffic 
+It works even along with [A/B](#ab-or-alternate-backends) where different weights are defined for each service. In such a case the ratio of traffic 
 distribution is computed taking into consideration both the service weights and cluster ratio.<br>
 However, the ratio of the clusters those haven't hosted any services linked to the concerned route are not taken into consideration 
 while computing the final ratio.<br>
@@ -616,13 +616,13 @@ CIS requires read-only permission in Kubeconfig of external clusters to access r
 No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts as a single point of BIG-IP Orchestrator and supports Multi-Cluster.
 
 ### Is traffic splitting with cluster ratio supported?
-Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with A/B as well.
+Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with [A/B](#ab-or-alternate-backends) as well.
 
 ### Is A/B supported in multiCluster mode?
-Yes. CIS supports A/B with multiCluster.
+Yes. CIS supports [A/B](#ab-or-alternate-backends) with multiCluster.
 
 ### Is A/B custom persistence supported in all the modes?
-No. A/B persistence is supported in ratio mode and pool member type as cluster.
+No. [A/B](#ab-or-alternate-backends) persistence is supported in ratio mode and pool member type as cluster.
 
 ### Does Secondary CIS require resource manifests existing in Primary Cluster?
 Yes. CIS on Secondary Cluster will not process the CIS monitored resource manifests[NextGen Routes, CRDs, extendedConfigmap] if they are not available in Primary Cluster.

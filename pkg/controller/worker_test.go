@@ -898,7 +898,7 @@ var _ = Describe("Worker Tests", func() {
 	Describe("Processing Resources", func() {
 		It("Processing ServiceTypeLoadBalancer", func() {
 			// Service when IPAM is not available
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
 
 			mockCtlr.Agent = &Agent{
@@ -917,7 +917,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.resources.Init()
 
 			// Service Without annotation
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
 
 			svc1.Annotations = make(map[string]string)
@@ -925,7 +925,7 @@ var _ = Describe("Worker Tests", func() {
 
 			svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
 
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
 
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -949,10 +949,10 @@ var _ = Describe("Worker Tests", func() {
 			}
 			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 
-			_ = mockCtlr.processLBServices(svc1, true)
+			_ = mockCtlr.processLBServices(svc1, true, "")
 			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
 			lbClass := "f5-bigip-ctlr"
@@ -1009,26 +1009,26 @@ var _ = Describe("Worker Tests", func() {
 			}
 			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_1_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 
-			_ = mockCtlr.processLBServices(svc1, true)
+			_ = mockCtlr.processLBServices(svc1, true, "")
 			svc1.Annotations[LBServiceIPAnnotation] = "10.10.10.2"
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 
-			_ = mockCtlr.processLBServices(svc1, true)
+			_ = mockCtlr.processLBServices(svc1, true, "")
 			svc1.Annotations[LBServiceIPAnnotation] = "10.10.10.3"
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_3_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 
-			_ = mockCtlr.processLBServices(svc1, true)
+			_ = mockCtlr.processLBServices(svc1, true, "")
 			delete(svc1.Annotations, LBServiceIPAnnotation)
 			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 			Expect(mockCtlr.resources.ltmConfig["default"].ResourceMap["vs_lb_svc_default_svc1_10_10_10_1_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 
@@ -1046,15 +1046,15 @@ var _ = Describe("Worker Tests", func() {
 			partition := "partition1"
 			svc1.Annotations[LBServicePartitionAnnotation] = partition
 			// Process the serviceTypeLB
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 			Expect(mockCtlr.resources.ltmConfig[partition].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 			// Delete the serviceTypeLB
-			_ = mockCtlr.processLBServices(svc1, true)
+			_ = mockCtlr.processLBServices(svc1, true, "")
 			// Update new partition annotation in the serviceTypeLB
 			newPartition := "partition2"
 			svc1.Annotations[LBServicePartitionAnnotation] = newPartition
-			_ = mockCtlr.processLBServices(svc1, false)
+			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig[partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
 			Expect(mockCtlr.resources.ltmConfig[newPartition].ResourceMap["vs_lb_svc_default_svc1_10_10_10_2_80"]).NotTo(BeNil(), "Invalid Resource Configs")
 		})
@@ -1301,7 +1301,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.resources.Init()
 
 				// Service Without annotation
-				_ = mockCtlr.processLBServices(svc1, false)
+				_ = mockCtlr.processLBServices(svc1, false, "")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0),
 					"Resource Config should be empty")
 
@@ -1334,7 +1334,7 @@ var _ = Describe("Worker Tests", func() {
 				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 
 				// Policy CRD not found
-				_ = mockCtlr.processLBServices(svc1, false)
+				_ = mockCtlr.processLBServices(svc1, false, "")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0),
 					"Resource Config should be empty")
 
@@ -1350,7 +1350,7 @@ var _ = Describe("Worker Tests", func() {
 				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Add(plc)
 
 				// Policy CRD exists
-				_ = mockCtlr.processLBServices(svc1, false)
+				_ = mockCtlr.processLBServices(svc1, false, "")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 				rsname := "vs_lb_svc_default_svc1_10_10_10_1_80"
 				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(DEFAULT_SNAT),
@@ -1365,7 +1365,7 @@ var _ = Describe("Worker Tests", func() {
 				// SNAT set to SNAT pool name
 				plc.Spec.SNAT = "Common/test"
 				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Update(plc)
-				_ = mockCtlr.processLBServices(svc1, false)
+				_ = mockCtlr.processLBServices(svc1, false, "")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
 					"Invalid Resource Configs")
@@ -1373,7 +1373,7 @@ var _ = Describe("Worker Tests", func() {
 				// SNAT set to none
 				plc.Spec.SNAT = "none"
 				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Update(plc)
-				_ = mockCtlr.processLBServices(svc1, false)
+				_ = mockCtlr.processLBServices(svc1, false, "")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
 					"Invalid Resource Configs")
@@ -3591,9 +3591,9 @@ extendedRouteSpec:
 					},
 				}
 				policy.Spec.Profiles.AnalyticsProfiles = cisapiv1.AnalyticsProfiles{}
-				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.enqueuePolicy(policy, Update, "")
 				mockCtlr.processResources()
-				mockCtlr.enqueuePolicy(insecureVSPolicy, Update)
+				mockCtlr.enqueuePolicy(insecureVSPolicy, Update, "")
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
@@ -3602,7 +3602,7 @@ extendedRouteSpec:
 
 				// both vs should have http analytics profile
 				policy.Spec.Profiles.AnalyticsProfiles = insecureVSPolicy.Spec.Profiles.AnalyticsProfiles
-				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.enqueuePolicy(policy, Update, "")
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(Equal("/Common/test"), "http profile analytics not processed correctly")
@@ -3612,9 +3612,9 @@ extendedRouteSpec:
 				// both vs should not have http analytics profile
 				policy.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile = ""
 				insecureVSPolicy.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile = ""
-				mockCtlr.enqueuePolicy(policy, Update)
+				mockCtlr.enqueuePolicy(policy, Update, "")
 				mockCtlr.processResources()
-				mockCtlr.enqueuePolicy(insecureVSPolicy, Update)
+				mockCtlr.enqueuePolicy(insecureVSPolicy, Update, "")
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Virtual.AnalyticsProfiles.HTTPAnalyticsProfile).
 					To(BeEmpty(), "http profile analytics not processed correctly")

@@ -148,7 +148,6 @@ stages:
           - script: |
               set -ex
               docker pull $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion)
-              docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):latest
               docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):$(BUILD_VERSION)
               patch_version=`echo $(BUILD_VERSION) | awk -F '.'  '{print $3}'`
               if [ "${patch_version}" == "0" ] ; then
@@ -156,7 +155,6 @@ stages:
                 docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):${stripped_version}
                 docker push $(docker_repo):${stripped_version}
               fi
-              docker push $(docker_repo):latest
               docker push $(docker_repo):$(BUILD_VERSION)
             displayName: 'Push image to DockerHub'
             condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')

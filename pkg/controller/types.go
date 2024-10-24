@@ -417,7 +417,7 @@ type (
 
 	resourceStatusMeta struct {
 		id            int
-		failedTenants map[string]struct{}
+		failedTenants map[string]tenantResponse
 	}
 
 	resourceRef struct {
@@ -842,6 +842,7 @@ type (
 		agentResponseCode int
 		taskId            string
 		isDeleted         bool
+		message           string
 	}
 
 	tenantParams struct {
@@ -1387,6 +1388,12 @@ const (
 )
 
 type HAModeType string
+
+const (
+	StatusOk    = "OK"
+	StatusError = "ERROR"
+)
+
 type AutoMonitorType string
 
 const (

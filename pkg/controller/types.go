@@ -95,7 +95,7 @@ type (
 		multiClusterMode            string
 		loadBalancerClass           string
 		manageLoadBalancerClassOnly bool
-		haModeType                  HAModeType
+		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		resourceContext
@@ -417,7 +417,7 @@ type (
 
 	resourceStatusMeta struct {
 		id            int
-		failedTenants map[string]struct{}
+		failedTenants map[string]tenantResponse
 	}
 
 	resourceRef struct {
@@ -842,6 +842,7 @@ type (
 		agentResponseCode int
 		taskId            string
 		isDeleted         bool
+		message           string
 	}
 
 	tenantParams struct {
@@ -1321,7 +1322,7 @@ type (
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
 		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
 		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType                `yaml:"mode"`
+		HAMode                    discoveryMode             `yaml:"mode"`
 		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
 		LocalClusterAdminState    clustermanager.AdminState `yaml:"localClusterAdminState"`
 	}
@@ -1386,13 +1387,19 @@ const (
 	TLSVerion1_3 TLSVersion = "1.3"
 )
 
-type HAModeType string
+const (
+	StatusOk    = "OK"
+	StatusError = "ERROR"
+)
+
+type discoveryMode string
 type AutoMonitorType string
 
 const (
-	Active          HAModeType      = "active-active"
-	StandBy         HAModeType      = "active-standby"
-	Ratio           HAModeType      = "ratio"
+	Active          discoveryMode   = "active-active"
+	StandBy         discoveryMode   = "active-standby"
+	Ratio           discoveryMode   = "ratio"
+	DefaultMode     discoveryMode   = "default"
 	None            AutoMonitorType = "none"
 	ReadinessProbe  AutoMonitorType = "readiness-probe"
 	ServiceEndpoint AutoMonitorType = "service-endpoint"
@@ -1430,7 +1437,7 @@ type (
 
 	HAMode struct {
 		// type can be active-active, active-standby, ratio
-		Type HAModeType `yaml:"type"`
+		Type discoveryMode `yaml:"type"`
 	}
 
 	ClusterDetails struct {

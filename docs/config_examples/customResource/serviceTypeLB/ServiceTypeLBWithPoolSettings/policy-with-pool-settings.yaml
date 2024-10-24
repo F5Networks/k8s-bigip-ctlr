@@ -1,0 +1,18 @@
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: test-policy
+  namespace: default
+spec:
+  poolSettings:
+    # reselectTries specifies the maximum number of attempts to find a responsive member for a connection
+    # Supported values: [0, 65535]
+    reselectTries: 1
+    # serviceDownAction specifies connection handling when member is non-responsive
+    # Supported values: “drop”, “none”, “reselect”, “reset”
+    serviceDownAction: reselect
+    # BIG-IP AS3 sets the connection rate to a newly-active member slowly during this interval (seconds)
+    # Supported values: [0, 900]
+    slowRampTime: 20

@@ -284,13 +284,6 @@ func (ctlr *Controller) setupAndStartHAClusterInformers(clusterName string) erro
 // updateMultiClusterInformers starts/stops the informers for the given namespace for external clusters including HA peer cluster
 func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInformer bool) error {
 	for clusterName, config := range ctlr.multiClusterConfigs.ClusterConfigs {
-		// For local cluster maintain some placeholder value, as the informers are already maintained in the controller object
-		if clusterName == "" {
-			if ctlr.multiClusterPoolInformers[""] == nil {
-				ctlr.multiClusterPoolInformers[""] = make(map[string]*MultiClusterPoolInformer)
-			}
-			return nil
-		}
 		restClient := config.KubeClient.CoreV1().RESTClient()
 		// Setup informer with the namespace
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, namespace, restClient, startInformer); err != nil {

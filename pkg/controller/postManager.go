@@ -204,13 +204,13 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func (postMgr *PostManager) updateTenantResponseCode(code int, id string, tenant string, isDeleted bool, message string) {
+func (postMgr *PostManager) updateTenantResponseCode(code int, id string, tenant string, isDeleted bool) {
 	// Update status for a specific tenant if mentioned, else update the response for all tenants
 	if tenant != "" {
-		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, isDeleted, message}
+		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, isDeleted}
 	} else {
 		for tenant := range postMgr.tenantResponseMap {
-			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, false, message}
+			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, false}
 		}
 	}
 }
@@ -227,7 +227,7 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
-					postMgr.updateTenantResponseCode(int(code), "", tenant, updateTenantDeletion(tenant, declaration), "")
+					postMgr.updateTenantResponseCode(int(code), "", tenant, updateTenantDeletion(tenant, declaration))
 				} else {
 					unknownResponse = true
 				}
@@ -275,7 +275,7 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 							return
 						}
 						// reset task id, so that any unknownResponse failed will go to post call in the next retry
-						postMgr.updateTenantResponseCode(int(code), "", tenant, updateTenantDeletion(tenant, declaration), "")
+						postMgr.updateTenantResponseCode(int(code), "", tenant, updateTenantDeletion(tenant, declaration))
 						if _, ok := v["response"]; ok {
 							log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"], v["response"])
 						} else {
@@ -297,7 +297,7 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 		}
 	} else if httpResp.StatusCode != http.StatusServiceUnavailable {
 		// reset task id, so that any failed tenants will go to post call in the next retry
-		postMgr.updateTenantResponseCode(httpResp.StatusCode, "", "", false, "")
+		postMgr.updateTenantResponseCode(httpResp.StatusCode, "", "", false)
 	}
 	if !postMgr.LogAS3Response && unknownResponse {
 		postMgr.logAS3Response(responseMap)
@@ -315,10 +315,10 @@ func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					if code != 200 {
-						postMgr.updateTenantResponseCode(int(code), "", tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", v["code"]))
+						postMgr.updateTenantResponseCode(int(code), "", tenant, false)
 						log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					} else {
-						postMgr.updateTenantResponseCode(int(code), "", tenant, updateTenantDeletion(tenant, declaration), "")
+						postMgr.updateTenantResponseCode(int(code), "", tenant, updateTenantDeletion(tenant, declaration))
 						log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					}
 				} else {
@@ -339,7 +339,7 @@ func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}
 func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interface{}) {
 	// traverse all response results
 	if respId, ok := (responseMap["id"]).(string); ok {
-		postMgr.updateTenantResponseCode(http.StatusAccepted, respId, "", false, "")
+		postMgr.updateTenantResponseCode(http.StatusAccepted, respId, "", false)
 		log.Debugf("[AS3]%v Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, respId, timeoutMedium)
 	} else {
 		postMgr.logAS3Response(responseMap)
@@ -347,36 +347,30 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 }
 
 func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, id int) {
-	var message string
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
-		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 	} else {
 		postMgr.logAS3Response(responseMap)
 	}
 	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", postMgr.postManagerPrefix, timeoutMedium)
-	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, "", "", false, message)
+	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, id int) {
 	var unknownResponse bool
-	var message string
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
-		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 	} else {
 		unknownResponse = true
-		message = "Big-IP Responded with error -- verify the logs for detailed error"
 	}
 	if postMgr.LogAS3Response || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}
-	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false, message)
+	postMgr.updateTenantResponseCode(http.StatusNotFound, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseStatusUnAuthorized(responseMap map[string]interface{}, id int) {
 	var unknownResponse bool
-	var message string
 	if _, ok := responseMap["code"].(float64); ok {
 		if _, ok := responseMap["message"].(string); ok {
 			log.Errorf("%v[AS3]%v authentication failed,"+
@@ -385,16 +379,14 @@ func (postMgr *PostManager) handleResponseStatusUnAuthorized(responseMap map[str
 			log.Errorf("%v[AS3]%v authentication failed,"+
 				" Error response from BIGIP with status code: 401", getRequestPrefix(id), postMgr.postManagerPrefix)
 		}
-		message = "authentication failed, Error response from BIGIP with status code: 401 -- verify the logs for detailed error"
 	} else {
 		unknownResponse = true
-		message = "Big-IP Responded with error -- verify the logs for detailed error"
 	}
 
 	if postMgr.LogAS3Response || unknownResponse {
 		postMgr.logAS3Response(responseMap)
 	}
-	postMgr.updateTenantResponseCode(http.StatusUnauthorized, "", "", false, message)
+	postMgr.updateTenantResponseCode(http.StatusUnauthorized, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, id int) {
@@ -406,25 +398,26 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(id), postMgr.postManagerPrefix, v["code"], v["tenant"], v["message"])
-					postMgr.updateTenantResponseCode(int(code), "", tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
+					postMgr.updateTenantResponseCode(int(code), "", tenant, false)
 				} else {
 					unknownResponse = true
 				}
 			} else {
 				unknownResponse = true
 			}
+
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(id), postMgr.postManagerPrefix, err["code"])
 		if code, ok := err["code"].(float64); ok {
-			postMgr.updateTenantResponseCode(int(code), "", "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"]))
+			postMgr.updateTenantResponseCode(int(code), "", "", false)
 		} else {
 			unknownResponse = true
 		}
 	} else {
 		unknownResponse = true
 		if code, ok := responseMap["code"].(float64); ok {
-			postMgr.updateTenantResponseCode(int(code), "", "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
+			postMgr.updateTenantResponseCode(int(code), "", "", false)
 		}
 	}
 	if postMgr.LogAS3Response || unknownResponse {
@@ -782,7 +775,7 @@ func (postMgr *PostManager) updateRetryMap(tenant string, resp tenantResponse, t
 	} else {
 		postMgr.retryTenantDeclMap[tenant] = &tenantParams{
 			tenDecl,
-			tenantResponse{resp.agentResponseCode, resp.taskId, false, resp.message},
+			tenantResponse{resp.agentResponseCode, resp.taskId, false},
 		}
 	}
 }

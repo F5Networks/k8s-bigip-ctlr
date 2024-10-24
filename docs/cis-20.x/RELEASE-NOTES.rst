@@ -19,6 +19,11 @@ Added Functionality
     * Support for CIS deployment parameter "ipam-namespace" to configure the namespace for IPAM CR
     * Helm chart support
 
+Known Issues:
+``````````````
+* On 422 error, CIS is not processing the latest/modified resource config. Its recommended to restart the CIS
+* CIS cleanup of ingressLink CR is not working intermittently. Its recommended to restart the CIS
+
 
 3.0.0-beta-2
 -------------

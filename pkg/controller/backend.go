@@ -1848,14 +1848,16 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 			svc.VirtualPort = port
 		}
 	}
-	var poolPointer as3ResourcePointer
-	ps := strings.Split(cfg.Virtual.PoolName, "/")
-	poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
-		tenant,
-		as3SharedApplication,
-		ps[len(ps)-1],
-	)
-	svc.Pool = &poolPointer
+	if cfg.Virtual.PoolName != "" {
+		var poolPointer as3ResourcePointer
+		ps := strings.Split(cfg.Virtual.PoolName, "/")
+		poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+			tenant,
+			as3SharedApplication,
+			ps[len(ps)-1],
+		)
+		svc.Pool = &poolPointer
+	}
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

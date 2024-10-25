@@ -35,7 +35,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-3.x/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/cis-20.x/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 
 **TransportServer Components**
@@ -79,11 +79,11 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/cis-3.x/config_examples/customResource/TransportServer
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/cis-20.x/config_examples/customResource/TransportServer
 
 ## IngressLink
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/cis-3.x/config_examples/customResource/IngressLink/README.md
+Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/cis-20.x/config_examples/customResource/IngressLink/README.md
 
 
 # IP address management using the IPAM controller

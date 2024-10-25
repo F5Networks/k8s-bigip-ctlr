@@ -432,7 +432,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 func updateTenantDeletion(tenant string, declaration map[string]interface{}) bool {
 	// We are finding the tenant is deleted based on the AS3 API response,
 	// if results contain the partition with status code of 200 and declaration does not contain the partition we assume that partition is deleted.
-	// This is a workaround to handle the deletion of tenant in AS3 API response for CIS 3.x, presently AS3 returns class AS3, where as it's expected to return class ADC
+	// This is a workaround to handle the deletion of tenant in AS3 API response for CIS 20.x, presently AS3 returns class AS3, where as it's expected to return class ADC
 	// TODO: Revert this change once fixed
 	// Currently the response is in the format
 	/*

@@ -148,7 +148,6 @@ stages:
           - script: |
               set -ex
               docker pull $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion)
-              docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):latest
               docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):$(BUILD_VERSION)
               patch_version=`echo $(BUILD_VERSION) | awk -F '.'  '{print $3}'`
               if [ "${patch_version}" == "0" ] ; then
@@ -156,7 +155,6 @@ stages:
                 docker tag $(quay_path):$(BUILD_VERSION)-$(Build.SourceVersion) $(docker_repo):${stripped_version}
                 docker push $(docker_repo):${stripped_version}
               fi
-              docker push $(docker_repo):latest
               docker push $(docker_repo):$(BUILD_VERSION)
             displayName: 'Push image to DockerHub'
             condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
@@ -202,9 +200,9 @@ stages:
               echo "##vso[task.setvariable variable=BUILD_VERSION]$FILE_VALUE"
             displayName: Set CIS Version
           - script: |
-              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/cis-3.x/config_examples/customResourceDefinitions"
+              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/cis-20.x/config_examples/customResourceDefinitions"
               if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=chartsUpdated]True"; fi
-              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/cis3.x/rbac/clusterrole.yaml"
+              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/cis-20.x/rbac/clusterrole.yaml"
               if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=chartsUpdated]True"; fi
             displayName: Check Helm changes
           - script: echo '##vso[task.setvariable variable=chartPath]stable'
@@ -226,7 +224,7 @@ stages:
             condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
           - script: |
               mkdir -p ./helm-charts/f5-bigip-ctlr/crds
-              cp ./docs/cis-3.x/config_examples/customResourceDefinitions/$(chartPath)/customresourcedefinitions.yml ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
+              cp ./docs/cis-20.x/config_examples/customResourceDefinitions/$(chartPath)/customresourcedefinitions.yml ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
               sed -i '/^metadata:/r ./helm-charts/labels.txt' ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
               # Use sed to insert the annotations
               sed -i "/name: deployconfigs.cis.f5.com/a\  annotations:\n    \"helm.sh/hook\": crd-install" ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
@@ -261,7 +259,7 @@ stages:
       - job: BuildOperator
         steps:
           - script: |
-              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|f5-bigip-ctlr-operator/\|docs/cis3.x/rbac/clusterrole.yaml"
+              git diff HEAD HEAD~ --name-only | grep "helm-charts/\|f5-bigip-ctlr-operator/\|docs/cis-20.x/rbac/clusterrole.yaml"
               if [ $? == 0 ] ; then echo "##vso[task.setvariable variable=operatorUpdated]True"; fi
             displayName: Check Operator changes
           - task: Docker@2

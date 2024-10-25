@@ -48,6 +48,7 @@ Compatibility Matrix
 | v2.17.0     | v17.0          | v1.31              | v4.15.0*                                                      | Yes | Yes                | v3.50       | v0.1.10     | v0.0.5            | v0.0.30           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.17.1     | v17.0          | v1.31              | v4.15.0*                                                      | Yes | Yes                | v3.50       | v0.1.10     | v0.0.5            | v0.0.31           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.18.0     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.32           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.18.1     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.33           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
 Compatibility Matrix for Multi Cluster Support
@@ -60,6 +61,7 @@ Compatibility Matrix for Multi Cluster Support
 | v2.16.0     | v17.0          | v1.29              | v4.14.0*           | Yes      | No  | Yes                | v3.50       | v0.0.29           |
 | v2.17.0     | v17.0          | v1.31              | v4.15.0*           | Yes      | No  | Yes                | v3.50       | v0.0.30           |
 | v2.18.0     | v17.0          | v1.31              | v4.16.0*           | Yes      | No  | Yes                | v3.52       | v0.0.32           |
+| v2.18.1     | v17.0          | v1.31              | v4.16.0*           | Yes      | No  | Yes                | v3.52       | v0.0.33           |
 
 
 
@@ -403,3 +405,7 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
   * By default, from CIS version 2.18.0 onwards, CIS will process all the services that do not have the loadBalancerClass field set in the service spec. CIS will not process the services that have the loadBalancerClass field set in the service spec.
   * The Load Balancer Class supports all the Custom Resources (VirtualServer, TransportServer, and IngressLink) and the loadBalancer service, and you cannot disable it. You need to either remove the loadBalancerClass field from the service or configure the CIS deployment parameter `load-balancer-class` to the same value as the loadBalancerClass field in the service.
   * Also see the deployment parameter `manage-load-balancer-class-only`, to control the behavior of CIS for services with loadBalancerClass field set in the service spec.
+
+### **Upgrading from 2.18.0 to 2.18.1:**
+
+Refer Release Notes for [CIS v2.18.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)

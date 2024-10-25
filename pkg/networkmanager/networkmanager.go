@@ -202,7 +202,7 @@ func (nm *NetworkManager) SetInstanceIds(bigIpConfigs []cisapiv1.BigIpConfig, co
 	}
 
 	// Set authorization header
-	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
+	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetAccessToken())
 
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
@@ -263,7 +263,7 @@ func (nm *NetworkManager) GetL3ForwardsFromInstance(instanceId string, controlle
 	}
 
 	// Set authorization header
-	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
+	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetAccessToken())
 
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
@@ -336,7 +336,7 @@ func (nm *NetworkManager) DeleteL3Forward(instanceId, l3ForwardID string) error 
 	}
 
 	// Set authorization header
-	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
+	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetAccessToken())
 
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
@@ -387,7 +387,7 @@ func (nm *NetworkManager) GetTaskStatus(taskRef string) (string, string, error) 
 		return "", "", err
 	}
 	// Set authorization header
-	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetToken())
+	req.Header.Set("Authorization", "Bearer "+nm.CMTokenManager.GetAccessToken())
 
 	// Perform request
 	resp, err := nm.httpClient.Do(req)
@@ -576,7 +576,7 @@ func (nm *NetworkManager) HandleL3ForwardRequest(req *NetworkConfigRequest, l3Fo
 		}
 
 		// create the l3 forward
-		err := nm.PostL3Forward(nm.CMTokenManager.ServerURL+InstancesURI+req.BigIp.InstanceId+L3Forwards, nm.CMTokenManager.GetToken(), l3Forward)
+		err := nm.PostL3Forward(nm.CMTokenManager.ServerURL+InstancesURI+req.BigIp.InstanceId+L3Forwards, nm.CMTokenManager.GetAccessToken(), l3Forward)
 		if err != nil {
 			bigipStatus.L3Status = &cisapiv1.L3Status{
 				Message:       Create + Failed,

@@ -195,7 +195,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 	}
 	log.Infof("%v[AS3]%v posting request to %v", getRequestPrefix(cfg.id), postMgr.postManagerPrefix, cfg.as3APIURL)
 	// add authorization header to the req
-	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetAccessToken())
 	// add content type header to the req
 	req.Header.Add("Content-Type", "application/json")
 	httpResp, responseMap := postMgr.httpPOST(req)
@@ -268,17 +268,17 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 // 		return
 // 	}
 // 	// add authorization header to the req
-// 	if postMgr.tokenManager.GetToken() == "" {
+// 	if postMgr.tokenManager.GetAccessToken() == "" {
 // 		log.Debugf("[AS3] Waiting for max 5 seconds for token syncing..")
 // 		t := 0
 // 		for t < 5 {
 // 			time.Sleep(1 * time.Second)
-// 			if postMgr.tokenManager.GetToken() != "" {
+// 			if postMgr.tokenManager.GetAccessToken() != "" {
 // 				log.Debugf("[AS3] Token is now available")
 // 				break
 // 			}
 // 		}
-// 		if postMgr.tokenManager.GetToken() == "" {
+// 		if postMgr.tokenManager.GetAccessToken() == "" {
 // 			log.Errorf("[AS3]%v Creating new HTTP request error: access token missing ", postMgr.postManagerPrefix)
 // 			return
 // 		}
@@ -311,7 +311,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 // 	}
 // 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+"/deployments")
 // 	// add authorization header to the req
-// 	deployReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// 	deployReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetAccessToken())
 // 	deployReq.Header.Add("Content-Type", "application/json")
 
 // 	httpDeployResp, deployResponseMap := postMgr.httpPOST(deployReq)
@@ -343,7 +343,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 // 	}
 // 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL)
 // 	// add authorization header to the req
-// 	declareReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// 	declareReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetAccessToken())
 
 // 	httpDeclareResp, declareResponseMap := postMgr.httpPOST(declareReq)
 // 	if httpDeclareResp == nil || declareResponseMap == nil {
@@ -378,7 +378,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 // 	}
 // 	log.Debugf("[AS3]%v posting update request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
 // 	// add authorization header to the req
-// 	updateReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// 	updateReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetAccessToken())
 // 	updateReq.Header.Add("Content-Type", "application/json")
 
 // 	httpUpdateResp, updateResponseMap := postMgr.httpPOST(updateReq)
@@ -411,7 +411,7 @@ func (postMgr *PostManager) postConfig(cfg *as3Config) {
 // 	}
 // 	log.Debugf("[AS3]%v posting request to %v", postMgr.postManagerPrefix, cfg.as3APIURL+docID)
 // 	// add authorization header to the req
-// 	deleteReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+// 	deleteReq.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetAccessToken())
 
 // 	httpDeclareResp, declareResponseMap := postMgr.httpPOST(deleteReq)
 // 	if httpDeclareResp == nil || declareResponseMap == nil {
@@ -570,7 +570,7 @@ func (postMgr *PostManager) getTenantConfigStatus(id string, cfg *as3Config) {
 	}
 	log.Debugf("[AS3]%v posting request with taskId to %v", postMgr.postManagerPrefix, url)
 	// add authorization header to the req
-	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetToken())
+	req.Header.Add("Authorization", "Bearer "+postMgr.tokenManager.GetAccessToken())
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
@@ -795,7 +795,7 @@ func (postMgr *PostManager) GetBigipAS3Version() (string, string, string, error)
 
 	log.Debugf("[AS3]%v posting GET BIGIP AS3 Version request on %v", postMgr.postManagerPrefix, url)
 	// add authorization header to the req
-	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
+	req.Header.Add("Authorization", postMgr.tokenManager.GetAccessToken())
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -833,7 +833,7 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 
 	log.Debugf("[AS3]%v Posting GET BIGIP Reg Key request on %v", postMgr.postManagerPrefix, url)
 	// add authorization header to the req
-	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
+	req.Header.Add("Authorization", postMgr.tokenManager.GetAccessToken())
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
@@ -865,7 +865,7 @@ func (postMgr *PostManager) GetAS3DeclarationFromBigIP() (map[string]interface{}
 
 	log.Debugf("[AS3]%v posting GET BIGIP AS3 declaration request on %v", postMgr.postManagerPrefix, url)
 	// add authorization header to the req
-	req.Header.Add("Authorization", postMgr.tokenManager.GetToken())
+	req.Header.Add("Authorization", postMgr.tokenManager.GetAccessToken())
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {

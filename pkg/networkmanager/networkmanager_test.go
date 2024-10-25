@@ -22,7 +22,7 @@ func stringToJson(s string) map[string]interface{} {
 var _ = Describe("Network Manager Tests", func() {
 	var tokenManager *tokenmanager.TokenManager
 	var server *ghttp.Server
-	var tokenResponse tokenmanager.TokenResponse
+	var tokenResponse tokenmanager.AccessTokenResponse
 	var networkManager *NetworkManager
 	var inventoryResponse string
 	var l3ForwardResponse string
@@ -66,7 +66,7 @@ var _ = Describe("Network Manager Tests", func() {
 					Password: "admin",
 				}, "", true, mockStatusManager)
 
-				tokenResponse = tokenmanager.TokenResponse{
+				tokenResponse = tokenmanager.AccessTokenResponse{
 					AccessToken: "test.token",
 				}
 				server.AppendHandlers(
@@ -218,7 +218,7 @@ var _ = Describe("Network Manager Tests", func() {
 					Password: "admin",
 				}, "", true, mockStatusManager)
 
-				tokenResponse = tokenmanager.TokenResponse{
+				tokenResponse = tokenmanager.AccessTokenResponse{
 					AccessToken: "test.token",
 				}
 				server.AppendHandlers(
@@ -401,7 +401,7 @@ var _ = Describe("Network Manager Tests", func() {
 					Password: "admin",
 				}, "", true, mockStatusManager)
 
-				tokenResponse = tokenmanager.TokenResponse{
+				tokenResponse = tokenmanager.AccessTokenResponse{
 					AccessToken: "test.token",
 				}
 				server.AppendHandlers(

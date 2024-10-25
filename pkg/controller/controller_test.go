@@ -80,7 +80,7 @@ var _ = Describe("New Controller", func() {
 	})
 	It("should create, start and stop the controller", func() {
 		statusCode = 200
-		responseLogin := tokenmanager.TokenResponse{
+		responseLogin := tokenmanager.AccessTokenResponse{
 			AccessToken: "test.token",
 		}
 		server.AppendHandlers(
@@ -99,7 +99,7 @@ var _ = Describe("New Controller", func() {
 		ctlr := NewController(params, mockStatusManager)
 		Expect(ctlr).ToNot(BeNil())
 		time.Sleep(1 * time.Second)
-		token := ctlr.CMTokenManager.GetToken()
+		token := ctlr.CMTokenManager.GetAccessToken()
 		Expect(token).To(BeEquivalentTo("test.token"), "Token should be empty")
 		Expect(ctlr.CMTokenManager.CMVersion).To(Equal("20.1.0"))
 		Expect(ctlr.RequestHandler).ToNot(BeNil())

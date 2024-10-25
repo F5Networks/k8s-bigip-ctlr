@@ -7,7 +7,7 @@ ENV HOME=/opt/helm
 LABEL name="F5 Container Ingress Services Operator" \
       maintainer="f5_cis_operators@f5.com" \
       vendor="F5 Networks Inc." \
-      version="v1.18.0" \
+      version="v1.19.0" \
       release="1" \
       summary="Container Ingress Services Operator for F5 BIG-IP" \
       description="F5 BIG-IP Controller Operator is a Service Operator which installs F5 BIG-IP Controller (Container Ingress Services) on Kubernetes and OpenShift platforms and respective supported versions."
@@ -17,4 +17,6 @@ COPY f5-bigip-ctlr-operator/licenses /licenses
 
 COPY f5-bigip-ctlr-operator/watches.yaml ${HOME}/watches.yaml
 COPY helm-charts/f5-bigip-ctlr  ${HOME}/helm-charts/f5-bigip-ctlr
+COPY f5-bigip-ctlr-operator/watches.yaml ${HOME}/helm-charts/f5-bigip-ctlr/oscp-operator.txt
+
 WORKDIR ${HOME}

@@ -45,21 +45,22 @@ spec:
 {{- end }}
       securityContext:
         {{- $securityContext := .Values.securityContext | default dict }}
+        {{- $oscpOperator := .Files.Glob "oscp-operator.txt"  }}
         {{- if $securityContext.runAsUser }}
         runAsUser: {{ $securityContext.runAsUser }}
-        {{- else }}
+        {{- else if (not $oscpOperator) }}
         runAsUser: 1000
         {{- end }}
         {{- $securityContext := .Values.securityContext | default dict }}
         {{- if $securityContext.runAsGroup }}
         runAsGroup: {{ $securityContext.runAsGroup }}
-        {{- else }}
+        {{- else if (not $oscpOperator) }}
         runAsGroup: 1000
         {{- end }}
         {{- $securityContext := .Values.securityContext | default dict }}
         {{- if $securityContext.fsGroup }}
         fsGroup: {{ $securityContext.fsGroup }}
-        {{- else }}
+        {{- else if (not $oscpOperator) }}
         fsGroup: 1000
         {{- end }}
       containers:

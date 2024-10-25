@@ -1,6 +1,31 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+2.18.1
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * CRD
+        * `Issue 3536 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3536>`_: Support CRD status for VS, TS and IngressLink
+        * Support for custom partition and Pool settings for ServiceTypeLB service. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/serviceTypeLB>`_
+
+
+Bug Fixes
+````````````
+* `Issue 3518 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3518>`_: CIS is reposting the declaration because of re-ordering of the pool-members
+* `Issue 3520 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3520>`_: [LOGS] improve log message Finished syncing virtual servers xxx in namespace yyy(199.218µs), 1/7
+* `Issue 3507 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3507>`_: Controller stops posting changes at runtime when multiple ingress use the same backend service
+* `Issue 3501 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3501>`_: CIS with oneconnect and TLS breaks some connections
+* Remove pool members of GTM when host removed or updated on transport server, ingresslink, and, service type lb
+* `Issue 3535 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3535>`_: CIS with namespace-label is not working correctly in multicluster mode
+* `Issue 3508 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3508>`_: Fix to disable default uid in F5 BIG-IP Controller Operator
+* Fix for handling resource deletion in case of multiple VS/TS sharing the service
+
 
 2.18.0
 -------------
@@ -29,7 +54,6 @@ Bug Fixes
 * `Issue 3396 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3396>`_: Fix adding pool members from external clusters in nodeportLocal mc mode
 * `Issue 3351 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3351>`_: improve message handling when getting HTTP/401 from AS3
 * Fix pool members not getting updated for VS/TS on re-deployment of application with different servicePort and targetPort.
-
 
 Upgrade notes
 ``````````````

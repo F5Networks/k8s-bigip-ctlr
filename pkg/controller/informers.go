@@ -294,6 +294,10 @@ func (ctlr *Controller) addNamespacedInformers(
 			comInf.start()
 		}
 	}
+	// add multiCluster informers for the new namespace to watch resources from other clusters
+	if ctlr.multiClusterMode != "" {
+		ctlr.updateMultiClusterInformers(namespace, startInformer)
+	}
 
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
@@ -879,6 +883,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
 		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
+		oldVS.Spec.Host != newVS.Spec.Host ||
 		oldVSPartition != newVSPartition {
 		log.Debugf("Enqueueing TransportServer: %v", oldVS)
 
@@ -990,6 +995,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	newILPartition := ctlr.getCRPartition(newIngLink.Spec.Partition)
 	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress ||
 		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel ||
+		oldIngLink.Spec.Host != newIngLink.Spec.Host ||
 		oldILPartition != newILPartition {
 
 		// delete vs from previous partition on priority when partition is changed
@@ -1121,11 +1127,21 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		}
 	}
 
+	// Check partition update for LoadBalancer service
+	partitionUpdate := false
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		oldPartition, _ := svc.Annotations[LBServicePartitionAnnotation]
+		newPartition, _ := curSvc.Annotations[LBServicePartitionAnnotation]
+		if oldPartition != newPartition {
+			partitionUpdate = true
+		}
+	}
+
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
-		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation]) ||
+		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
-		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
+		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) || partitionUpdate {
 		log.Debugf("Enqueueing Old Service: %v %v", svc, getClusterLog(clusterName))
 		key := &rqKey{
 			namespace:   svc.ObjectMeta.Namespace,

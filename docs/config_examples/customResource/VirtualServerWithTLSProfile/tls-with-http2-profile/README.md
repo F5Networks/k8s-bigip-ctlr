@@ -19,7 +19,7 @@ profiles:
 **Note:**
 1. Currently, AS3 supports setting either client or server http2 profile on virtual server but doesn't allow both.See [here](https://github.com/F5Networks/f5-appsvcs-extension/issues/793)
 2. Renegotiation must be disabled on client/server ssl profiles attached to virtual server before configuring http2 client/server profile on virtual server.
-3. If you are using http2 server profile on virtual server, then you must enable httpMrfRoutingEnabled on virtual server for successful HTTP/2 full-proxy deploymen.For More details refer [here](https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/big-ip-http2-full-proxy-configuration-14-1-0/01.html)
+3. If you are using http2 server profile on virtual server, then you must enable httpMrfRoutingEnabled on virtual server for successful HTTP/2 full-proxy deploymen.For More details refer _https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/big-ip-http2-full-proxy-configuration-14-1-0/01.html_
 
 ## tls-ssl-secrets-renegotiation-disabled.yaml
 

@@ -193,11 +193,36 @@ func (comInfr *CommonInformer) start() {
 		go comInfr.cmInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.cmInformer.HasSynced)
 	}
-	cache.WaitForNamedCacheSync(
-		"F5 CIS Ingress Controller",
-		comInfr.stopCh,
-		cacheSyncs...,
-	)
+	//for local cluster
+	if comInfr.clusterName == "" {
+		cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress",
+			comInfr.stopCh,
+			cacheSyncs...,
+		)
+	} else {
+		// Wait for the all informer caches for the cluster to be synced before proceeding further to ensure it has the latest data.
+		// Typically, informer cache synchronization is a fast process.However, if it takes longer than 30 seconds, it may
+		// indicate an issue with the API server of the cluster.
+		// To avoid CIS getting blocked indefinitely, we are setting a timeout of 30 seconds and then CIS will continue to
+		// proceed further after logging the error to indicate the admin which cluster is having issues.
+		// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
+		// will start processing the events as and when it receives those from the affected cluster.
+		infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		log.Debugf("[MultiCluster] Waiting for 30 Seconds for informer caches to sync for Cluster: %s", comInfr.clusterName)
+		if cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			infSyncCtx.Done(),
+			cacheSyncs...,
+		) {
+			log.Debugf("[MultiCluster] Successfully synced informer caches for Cluster: %s", comInfr.clusterName)
+		} else {
+			log.Warningf("[MultiCluster] Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
+				"API server in Cluster: %s", comInfr.clusterName, comInfr.clusterName)
+		}
+	}
+
 }
 
 func (comInfr *CommonInformer) stop() {
@@ -207,17 +232,17 @@ func (comInfr *CommonInformer) stop() {
 func (ctlr *Controller) watchingAllNamespaces() bool {
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
-		if len(ctlr.comInformers) == 0 || len(ctlr.nrInformers) == 0 {
+		if len(ctlr.multiClusterConfigs.ClusterInformers[""].comInformers) == 0 || len(ctlr.multiClusterConfigs.ClusterInformers[""].nrInformers) == 0 {
 			return false
 		}
-		_, watchingAll := ctlr.comInformers[""]
+		_, watchingAll := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[""]
 		return watchingAll
 	case CustomResourceMode:
-		if len(ctlr.crInformers) == 0 {
+		if len(ctlr.multiClusterConfigs.ClusterInformers[""].crInformers) == 0 {
 			// Not watching any namespaces.
 			return false
 		}
-		_, watchingAll := ctlr.crInformers[""]
+		_, watchingAll := ctlr.multiClusterConfigs.ClusterInformers[""].crInformers[""]
 		return watchingAll
 	}
 	return false
@@ -229,7 +254,7 @@ func (ctlr *Controller) getNamespacedCRInformer(
 	if ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
-	crInf, found := ctlr.crInformers[namespace]
+	crInf, found := ctlr.multiClusterConfigs.ClusterInformers[""].crInformers[namespace]
 	return crInf, found
 }
 
@@ -239,7 +264,7 @@ func (ctlr *Controller) getNamespacedCommonInformer(
 	if ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
-	comInf, found := ctlr.comInformers[namespace]
+	comInf, found := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace]
 	return comInf, found
 }
 
@@ -249,14 +274,14 @@ func (ctlr *Controller) getNamespacedNativeInformer(
 	if ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
-	nrInf, found := ctlr.nrInformers[namespace]
+	nrInf, found := ctlr.multiClusterConfigs.ClusterInformers[""].nrInformers[namespace]
 	return nrInf, found
 }
 
 func (ctlr *Controller) getWatchingNamespaces() []string {
 	var namespaces []string
 	if ctlr.watchingAllNamespaces() {
-		nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+		nss, err := ctlr.multiClusterConfigs.ClusterConfigs[""].kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Unable to Fetch Namespaces: %v", err)
 			return nil
@@ -266,7 +291,7 @@ func (ctlr *Controller) getWatchingNamespaces() []string {
 		}
 		return namespaces
 	}
-	for ns, _ := range ctlr.namespaces {
+	for ns, _ := range ctlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 		namespaces = append(namespaces, ns)
 	}
 	return namespaces
@@ -275,21 +300,22 @@ func (ctlr *Controller) getWatchingNamespaces() []string {
 func (ctlr *Controller) addNamespacedInformers(
 	namespace string,
 	startInformer bool,
+	clusterName string,
 ) error {
 	if ctlr.watchingAllNamespaces() {
 		return fmt.Errorf(
 			"Cannot add additional namespaces when already watching all.")
 	}
-	if len(ctlr.crInformers) > 0 && "" == namespace {
+	if len(ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers) > 0 && "" == namespace {
 		return fmt.Errorf(
 			"Cannot watch all namespaces when already watching specific ones.")
 	}
 
 	// add common informers  in all modes
-	if _, found := ctlr.comInformers[namespace]; !found {
-		comInf := ctlr.newNamespacedCommonResourceInformer(namespace)
+	if _, found := ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace]; !found {
+		comInf := ctlr.newNamespacedCommonResourceInformer(namespace, clusterName)
 		ctlr.addCommonResourceEventHandlers(comInf)
-		ctlr.comInformers[namespace] = comInf
+		ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace] = comInf
 		if startInformer {
 			comInf.start()
 		}
@@ -302,10 +328,10 @@ func (ctlr *Controller) addNamespacedInformers(
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
 		// Create native resource informers in openshift mode only
-		if _, found := ctlr.nrInformers[namespace]; !found {
+		if _, found := ctlr.multiClusterConfigs.ClusterInformers[clusterName].nrInformers[namespace]; !found {
 			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
 			ctlr.addNativeResourceEventHandlers(nrInf)
-			ctlr.nrInformers[namespace] = nrInf
+			ctlr.multiClusterConfigs.ClusterInformers[clusterName].nrInformers[namespace] = nrInf
 			if startInformer {
 				nrInf.start()
 			}
@@ -313,10 +339,10 @@ func (ctlr *Controller) addNamespacedInformers(
 	default:
 		// create customer resource informers in custom resource mode
 		// Enabling CRInformers only for custom resource mode
-		if _, found := ctlr.crInformers[namespace]; !found {
-			crInf := ctlr.newNamespacedCustomResourceInformer(namespace)
+		if _, found := ctlr.multiClusterConfigs.ClusterInformers[clusterName].crInformers[namespace]; !found {
+			crInf := ctlr.newNamespacedCustomResourceInformerForCluster(namespace, clusterName)
 			ctlr.addCustomResourceEventHandlers(crInf)
-			ctlr.crInformers[namespace] = crInf
+			ctlr.multiClusterConfigs.ClusterInformers[clusterName].crInformers[namespace] = crInf
 			if startInformer {
 				crInf.start()
 			}
@@ -325,12 +351,13 @@ func (ctlr *Controller) addNamespacedInformers(
 	return nil
 }
 
-func (ctlr *Controller) newNamespacedCustomResourceInformer(
+func (ctlr *Controller) newNamespacedCustomResourceInformerForCluster(
 	namespace string,
+	clusterName string,
 ) *CRInformer {
 	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.customResourceSelector.String()
+		options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].customResourceSelector.String()
 	}
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
@@ -343,7 +370,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 	}
 
 	crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-		ctlr.kubeCRClient,
+		ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -351,21 +378,21 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 	)
 
 	crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-		ctlr.kubeCRClient,
+		ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
 	crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
-		ctlr.kubeCRClient,
+		ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
 	crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
-		ctlr.kubeCRClient,
+		ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -390,12 +417,12 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.LabelSelector = ctlr.routeLabel
-					return ctlr.routeClientV1.Routes(namespace).List(context.TODO(), options)
+					options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].routeLabel
+					return ctlr.multiClusterConfigs.ClusterConfigs[""].routeClientV1.Routes(namespace).List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.LabelSelector = ctlr.routeLabel
-					return ctlr.routeClientV1.Routes(namespace).Watch(context.TODO(), options)
+					options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].routeLabel
+					return ctlr.multiClusterConfigs.ClusterConfigs[""].routeClientV1.Routes(namespace).Watch(context.TODO(), options)
 				},
 			},
 			&routeapi.Route{},
@@ -411,15 +438,13 @@ func (ctlr *Controller) getNodeInformer(clusterName string) NodeInformer {
 	resyncPeriod := 0 * time.Second
 	var restClientv1 rest.Interface
 	nodeOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.nodeLabelSelector
+		options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].nodeLabelSelector
 	}
-	if clusterName == "" {
-		restClientv1 = ctlr.kubeClient.CoreV1().RESTClient()
-	} else {
-		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
-			restClientv1 = config.KubeClient.CoreV1().RESTClient()
-		}
+
+	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+		restClientv1 = config.kubeClient.CoreV1().RESTClient()
 	}
+
 	return NodeInformer{stopCh: make(chan struct{}),
 		nodeInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -451,19 +476,21 @@ func (ctlr *Controller) addNodeEventUpdateHandler(nodeInformer *NodeInformer) {
 
 func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	namespace string,
+	clusterName string,
 ) *CommonInformer {
 	log.Debugf("Creating Common Resource Informers for Namespace: %v", namespace)
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.customResourceSelector.String()
+		options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].customResourceSelector.String()
 	}
 	comInf := &CommonInformer{
-		namespace: namespace,
-		stopCh:    make(chan struct{}),
+		namespace:   namespace,
+		clusterName: clusterName,
+		stopCh:      make(chan struct{}),
 		svcInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -505,7 +532,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	}
 
 	comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
-		ctlr.kubeCRClient,
+		ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -513,7 +540,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	)
 
 	comInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
-		ctlr.kubeCRClient,
+		ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -522,7 +549,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	// start the cm informer if it's specified in deployment
 	if ctlr.globalExtendedCMKey != "" {
 		nrOptions := func(options *metav1.ListOptions) {
-			options.LabelSelector = ctlr.nativeResourceSelector.String()
+			options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector.String()
 		}
 		comInf.cmInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -1129,16 +1156,6 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		}
 	}
 
-	// Check partition update for LoadBalancer service
-	partitionUpdate := false
-	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
-		oldPartition, _ := svc.Annotations[LBServicePartitionAnnotation]
-		newPartition, _ := curSvc.Annotations[LBServicePartitionAnnotation]
-		if oldPartition != newPartition {
-			partitionUpdate = true
-		}
-	}
-
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
@@ -1399,7 +1416,7 @@ func (nodeInfr *NodeInformer) stop() {
 	close(nodeInfr.stopCh)
 }
 
-func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
+func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, clusterName string) error {
 	selector, err := createLabelSelector(label)
 	if err != nil {
 		return fmt.Errorf("unable to setup namespace-label informer for label: %v, Error:%v", label, err)
@@ -1408,15 +1425,15 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 		options.LabelSelector = selector.String()
 	}
 
-	if 0 != len(ctlr.crInformers) {
+	if 0 != len(ctlr.multiClusterConfigs.ClusterInformers[clusterName].crInformers) {
 		return fmt.Errorf("cannot set a namespace label informer when informers " +
 			"have been setup for one or more namespaces")
 	}
 
 	resyncPeriod := 0 * time.Second
-	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeClient.CoreV1().RESTClient()
 
-	ctlr.nsInformers[label] = &NSInformer{
+	ctlr.multiClusterConfigs.ClusterInformers[clusterName].nsInformers[label] = &NSInformer{
 		stopCh: make(chan struct{}),
 		nsInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -1431,7 +1448,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
 		),
 	}
 
-	ctlr.nsInformers[label].nsInformer.AddEventHandlerWithResyncPeriod(
+	ctlr.multiClusterConfigs.ClusterInformers[clusterName].nsInformers[label].nsInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { ctlr.enqueueNamespace(obj) },
 			DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedNamespace(obj) },

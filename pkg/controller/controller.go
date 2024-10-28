@@ -29,8 +29,6 @@ import (
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 
@@ -41,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -142,7 +139,6 @@ const (
 func NewController(params Params, startController bool) *Controller {
 
 	ctlr := &Controller{
-		namespaces:                  make(map[string]bool),
 		resources:                   NewResourceStore(),
 		Agent:                       params.Agent,
 		PoolMemberType:              params.PoolMemberType,
@@ -151,16 +147,13 @@ func NewController(params Params, startController bool) *Controller {
 		initState:                   true,
 		dgPath:                      strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:                  params.ShareNodes,
-		eventNotifier:               apm.NewEventNotifier(nil),
 		defaultRouteDomain:          params.DefaultRouteDomain,
 		mode:                        params.Mode,
-		namespaceLabel:              params.NamespaceLabel,
-		nodeLabelSelector:           params.NodeLabelSelector,
 		ciliumTunnelName:            params.CiliumTunnelName,
 		StaticRoutingMode:           params.StaticRoutingMode,
 		OrchestrationCNI:            params.OrchestrationCNI,
 		StaticRouteNodeCIDR:         params.StaticRouteNodeCIDR,
-		multiClusterConfigs:         clustermanager.NewMultiClusterConfig(),
+		multiClusterConfigs:         newResourceHandler(),
 		multiClusterResources:       newMultiClusterResourceStore(),
 		multiClusterMode:            params.MultiClusterMode,
 		loadBalancerClass:           params.LoadBalancerClass,
@@ -173,18 +166,15 @@ func NewController(params Params, startController bool) *Controller {
 
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
-	ctlr.comInformers = make(map[string]*CommonInformer)
-	ctlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
-	ctlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
-	ctlr.multiClusterResourceInformers = make(map[string]map[string]*MultiClusterResourceInformer)
-	ctlr.nrInformers = make(map[string]*NRInformer)
-	ctlr.crInformers = make(map[string]*CRInformer)
-	ctlr.nsInformers = make(map[string]*NSInformer)
-	ctlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	ctlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+	ctlr.multiClusterConfigs.ClusterConfigs[""] = newClusterConfig()
+	ctlr.multiClusterConfigs.ClusterConfigs[""].nodeLabelSelector = params.NodeLabelSelector
+	ctlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+	ctlr.multiClusterConfigs.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	ctlr.multiClusterConfigs.ClusterConfigs[""].namespaceLabel = params.NamespaceLabel
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
-		ctlr.routeLabel = params.RouteLabel
+		ctlr.multiClusterConfigs.ClusterConfigs[""].routeLabel = params.RouteLabel
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
 		ctlr.processedHostPath = &processedHostPath
@@ -199,33 +189,33 @@ func NewController(params Params, startController bool) *Controller {
 		ctlr.shareNodes = true
 	}
 
-	if err := ctlr.setupClients(params.Config, params.IPAM); err != nil {
+	if err := ctlr.setupClientsforCluster(params.Config, params.IPAM, ""); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 
-	if ctlr.namespaceLabel == "" {
+	if ctlr.multiClusterConfigs.ClusterConfigs[""].namespaceLabel == "" {
 		if len(params.Namespaces) == 0 {
-			ctlr.namespaces[""] = true
+			ctlr.multiClusterConfigs.ClusterConfigs[""].namespaces[""] = true
 			log.Debug("No namespaces provided. Watching all namespaces")
 		} else {
 			for _, ns := range params.Namespaces {
-				ctlr.namespaces[ns] = true
+				ctlr.multiClusterConfigs.ClusterConfigs[""].namespaces[ns] = true
 			}
 		}
 	} else {
-		err2 := ctlr.createNamespaceLabeledInformer(ctlr.namespaceLabel)
+		err2 := ctlr.createNamespaceLabeledInformerForCluster(ctlr.multiClusterConfigs.ClusterConfigs[""].namespaceLabel, "")
 		if err2 != nil {
 			log.Errorf("%v", err2)
-			for _, nsInf := range ctlr.nsInformers {
+			for _, nsInf := range ctlr.multiClusterConfigs.ClusterInformers[""].nsInformers {
 				for _, v := range nsInf.nsInformer.GetIndexer().List() {
 					ns := v.(*v1.Namespace)
-					ctlr.namespaces[ns.ObjectMeta.Name] = true
+					ctlr.multiClusterConfigs.ClusterConfigs[""].namespaces[ns.ObjectMeta.Name] = true
 				}
 			}
 		}
 	}
 
-	if err3 := ctlr.setupInformers(); err3 != nil {
+	if err3 := ctlr.setupInformers(""); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
 
@@ -288,7 +278,7 @@ func (ctlr *Controller) setOtherSDNType() {
 	ctlr.TeemData.Lock()
 	defer ctlr.TeemData.Unlock()
 	if ctlr.OrchestrationCNI == "" && (ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel") {
-		kubePods, err := ctlr.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
+		kubePods, err := ctlr.multiClusterConfigs.ClusterConfigs[""].kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
 		if nil != err {
 			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
 			return
@@ -309,7 +299,7 @@ func (ctlr *Controller) setOtherSDNType() {
 // validate IPAM configuration
 func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 	// verify the ipam configuration
-	for ns, _ := range ctlr.namespaces {
+	for ns, _ := range ctlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 		if ns == "" {
 			return true
 		} else {
@@ -323,7 +313,7 @@ func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 
 // Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
-	err := ipammachinery.RegisterCRD(ctlr.kubeAPIClient)
+	err := ipammachinery.RegisterCRD(ctlr.multiClusterConfigs.ClusterConfigs[""].kubeAPIClient)
 	if err != nil {
 		log.Errorf("[IPAM] error while registering CRD %v", err)
 	}
@@ -402,54 +392,56 @@ func createLabelSelector(label string) (labels.Selector, error) {
 	return l, nil
 }
 
-// setupClients sets Kubernetes Clients.
-func (ctlr *Controller) setupClients(config *rest.Config, ipamClient bool) error {
-	var kubeCRClient *versioned.Clientset
-	var err error
-	kubeCRClient, err = versioned.NewForConfig(config)
+// setupClientsforCluster sets Kubernetes Clients.
+func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient bool, clusterName string) error {
+	kubeCRClient, err := clustermanager.CreateKubeCRClientFromKubeConfig(config)
 	if err != nil {
-		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
+		return fmt.Errorf("Failed to create Custom Resource kubeClient: %v", err)
 	}
 
-	kubeClient, err := kubernetes.NewForConfig(config)
+	kubeClient, err := clustermanager.CreateKubeClientFromKubeConfig(config)
 	if err != nil {
 		return fmt.Errorf("Failed to create kubeClient: %v", err)
 	}
 
 	var kubeIPAMClient *extClient.Clientset
 	if ipamClient {
-		kubeIPAMClient, err = extClient.NewForConfig(config)
+		kubeIPAMClient, err = clustermanager.CreateKubeIPAMClientFromKubeConfig(config)
 		if err != nil {
-			log.Errorf("Failed to create client: %v", err)
+			log.Errorf("Failed to create ipam client: %v", err)
 		}
 	}
 
 	var rclient *routeclient.RouteV1Client
 	if ctlr.mode == OpenShiftMode {
-		rclient, err = routeclient.NewForConfig(config)
+		rclient, err = clustermanager.CreateRouteClientFromKubeconfig(config)
 		if nil != err {
 			return fmt.Errorf("Failed to create Route Client: %v", err)
 		}
 	}
 
-	log.Debug("Client Created")
-	ctlr.kubeAPIClient = kubeIPAMClient
-	ctlr.kubeCRClient = kubeCRClient
-	ctlr.kubeClient = kubeClient
-	ctlr.routeClientV1 = rclient
+	log.Debugf("Clients Created for cluster: %s", clusterName)
+
+	//Update the clusterConfig store
+	ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeClient = kubeClient
+	ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient = kubeCRClient
+	ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeAPIClient = kubeIPAMClient
+	ctlr.multiClusterConfigs.ClusterConfigs[clusterName].routeClientV1 = rclient
+
 	return nil
 }
 
-func (ctlr *Controller) setupInformers() error {
-	for n := range ctlr.namespaces {
-		if err := ctlr.addNamespacedInformers(n, false); err != nil {
-			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
+func (ctlr *Controller) setupInformers(clusterName string) error {
+	ctlr.multiClusterConfigs.ClusterInformers[clusterName] = initInformerStore()
+	for n := range ctlr.multiClusterConfigs.ClusterConfigs[clusterName].namespaces {
+		if err := ctlr.addNamespacedInformers(n, false, clusterName); err != nil {
+			log.Errorf("Unable to setup informer for namespace: %v in cluster %s, Error:%v", n, clusterName, err)
 			return err
 		}
 	}
-	nodeInf := ctlr.getNodeInformer("")
-	ctlr.nodeInformer = &nodeInf
-	ctlr.addNodeEventUpdateHandler(ctlr.nodeInformer)
+	nodeInf := ctlr.getNodeInformer(clusterName)
+	ctlr.multiClusterConfigs.ClusterInformers[clusterName].nodeInformer = &nodeInf
+	ctlr.addNodeEventUpdateHandler(&nodeInf)
 	return nil
 }
 
@@ -459,37 +451,14 @@ func (ctlr *Controller) Start() {
 	defer utilruntime.HandleCrash()
 	defer ctlr.resourceQueue.ShutDown()
 
-	// start nsinformer in all modes
-	for _, nsInf := range ctlr.nsInformers {
-		nsInf.start()
-	}
-
-	// start nodeinformer in all modes
-	ctlr.nodeInformer.start()
-
-	// start comInformers for all modes
-	for _, inf := range ctlr.comInformers {
-		inf.start()
-	}
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		// nrInformers only with openShiftMode
-		for _, inf := range ctlr.nrInformers {
-			inf.start()
-		}
-	default:
-		// start customer resource informers in custom resource mode only
-		for _, inf := range ctlr.crInformers {
-			inf.start()
-		}
-	}
+	ctlr.StartInformers("")
 
 	if ctlr.ipamCli != nil {
 		go ctlr.ipamCli.Start()
 	}
 
 	if ctlr.vxlanMgr != nil {
-		ctlr.vxlanMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
+		ctlr.vxlanMgr.ProcessAppmanagerEvents(ctlr.multiClusterConfigs.ClusterConfigs[""].kubeClient)
 	}
 
 	stopChan := make(chan struct{})
@@ -502,36 +471,7 @@ func (ctlr *Controller) Start() {
 
 // Stop the Controller
 func (ctlr *Controller) Stop() {
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		// stop native resource informers
-		for _, inf := range ctlr.nrInformers {
-			inf.stop()
-		}
-	default:
-		// stop custom resource informers
-		for _, inf := range ctlr.crInformers {
-			inf.stop()
-		}
-	}
-
-	// stop common informers & namespace informers in all modes
-	for _, inf := range ctlr.comInformers {
-		inf.stop()
-	}
-	for _, nsInf := range ctlr.nsInformers {
-		nsInf.stop()
-	}
-	// stop node Informer
-	ctlr.nodeInformer.stop()
-
-	// stop multi cluster informers
-	for _, poolInformers := range ctlr.multiClusterPoolInformers {
-		for _, inf := range poolInformers {
-			inf.stop()
-		}
-	}
-
+	ctlr.StopInformers("")
 	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
@@ -541,6 +481,60 @@ func (ctlr *Controller) Stop() {
 	}
 }
 
+func (ctlr *Controller) StartInformers(clusterName string) {
+
+	// start nsinformer in all modes
+	for _, nsInf := range ctlr.multiClusterConfigs.ClusterInformers[""].nsInformers {
+		nsInf.start()
+	}
+
+	// start nodeinformer in all modes
+	ctlr.multiClusterConfigs.ClusterInformers[clusterName].nodeInformer.start()
+
+	// start comInformers for all modes
+	for _, inf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers {
+		inf.start()
+	}
+	switch ctlr.mode {
+	case OpenShiftMode, KubernetesMode:
+		// nrInformers only with openShiftMode
+		for _, inf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].nrInformers {
+			inf.start()
+		}
+	default:
+		// start customer resource informers in custom resource mode only
+		for _, inf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].crInformers {
+			inf.start()
+		}
+	}
+}
+
+func (ctlr *Controller) StopInformers(clusterName string) {
+	switch ctlr.mode {
+	case OpenShiftMode, KubernetesMode:
+		// stop native resource informers
+		for _, inf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].nrInformers {
+			inf.stop()
+		}
+	default:
+		// stop custom resource informers
+		for _, inf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].crInformers {
+			inf.stop()
+		}
+	}
+
+	// stop common informers & namespace informers in all modes
+	for _, inf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers {
+		inf.stop()
+	}
+	for _, nsInf := range ctlr.multiClusterConfigs.ClusterInformers[clusterName].nsInformers {
+		nsInf.stop()
+	}
+	// stop node Informer
+	ctlr.multiClusterConfigs.ClusterInformers[clusterName].nodeInformer.stop()
+
+}
+
 func (ctlr *Controller) CISHealthCheck() {
 	// Expose cis health endpoint
 	http.Handle("/ready", ctlr.CISHealthCheckHandler())
@@ -548,10 +542,10 @@ func (ctlr *Controller) CISHealthCheck() {
 
 func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if ctlr.kubeClient != nil {
+		if ctlr.multiClusterConfigs.ClusterConfigs[""].kubeClient != nil {
 			var response string
 			// Check if kube-api server is reachable
-			_, err := ctlr.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+			_, err := ctlr.multiClusterConfigs.ClusterConfigs[""].kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
 			if err != nil {
 				response = "kube-api server is not reachable."
 			}
@@ -569,4 +563,28 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 			}
 		}
 	})
+}
+
+func newResourceHandler() *ResourceHandler {
+	return &ResourceHandler{
+		ClusterConfigs:      make(map[string]*ClusterConfig),
+		ClusterInformers:    make(map[string]*InformerStore),
+		uniqueAppIdentifier: make(map[string]struct{}),
+	}
+}
+
+func initInformerStore() *InformerStore {
+	return &InformerStore{
+		crInformers:  make(map[string]*CRInformer),
+		nrInformers:  make(map[string]*NRInformer),
+		nsInformers:  make(map[string]*NSInformer),
+		comInformers: make(map[string]*CommonInformer),
+	}
+}
+
+func newClusterConfig() *ClusterConfig {
+	return &ClusterConfig{
+		namespaces:    make(map[string]bool),
+		eventNotifier: NewEventNotifier(nil),
+	}
 }

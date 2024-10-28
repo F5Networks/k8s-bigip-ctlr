@@ -17,9 +17,7 @@
 package controller
 
 import (
-	"context"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
 	"os"
 	"sort"
@@ -33,95 +31,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func (poolInfr *MultiClusterPoolInformer) start() {
-	var cacheSyncs []cache.InformerSynced
-	if poolInfr.svcInformer != nil {
-		log.Infof("[MultiCluster] Starting Service Informer for Cluster:%v", poolInfr.clusterName)
-		go poolInfr.svcInformer.Run(poolInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, poolInfr.svcInformer.HasSynced)
-	}
-	if poolInfr.epsInformer != nil {
-		log.Infof("[MultiCluster] Starting Endpoint Informer for Cluster:%v", poolInfr.clusterName)
-		go poolInfr.epsInformer.Run(poolInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, poolInfr.epsInformer.HasSynced)
-	}
-	if poolInfr.podInformer != nil {
-		log.Infof("[MultiCluster] Starting Pod Informer for Cluster:%v", poolInfr.clusterName)
-		go poolInfr.podInformer.Run(poolInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, poolInfr.podInformer.HasSynced)
-	}
-	// Wait for the all informer caches for the cluster to be synced before proceeding further to ensure it has the latest data.
-	// Typically, informer cache synchronization is a fast process.However, if it takes longer than 30 seconds, it may
-	// indicate an issue with the API server of the cluster.
-	// To avoid CIS getting blocked indefinitely, we are setting a timeout of 30 seconds and then CIS will continue to
-	// proceed further after logging the error to indicate the admin which cluster is having issues.
-	// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
-	// will start processing the events as and when it receives those from the affected cluster.
-	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	log.Debugf("[MultiCluster] Waiting for 30 Seconds for informer caches to sync for Cluster: %s", poolInfr.clusterName)
-	if cache.WaitForNamedCacheSync(
-		"F5 CIS Ingress Controller",
-		infSyncCtx.Done(),
-		cacheSyncs...,
-	) {
-		log.Debugf("[MultiCluster] Successfully synced informer caches for Cluster: %s", poolInfr.clusterName)
-	} else {
-		log.Warningf("[MultiCluster] Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
-			"API server in Cluster: %s", poolInfr.clusterName, poolInfr.clusterName)
-	}
-}
-
-func (poolInfr *MultiClusterPoolInformer) stop() {
-	close(poolInfr.stopCh)
-}
-
-func (rscInfr *MultiClusterResourceInformer) start() {
-	var cacheSyncs []cache.InformerSynced
-	if rscInfr.plcInformer != nil {
-		log.Infof("[MultiCluster] Starting policy Informer for Cluster:%v", rscInfr.clusterName)
-		go rscInfr.plcInformer.Run(rscInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, rscInfr.plcInformer.HasSynced)
-	}
-	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	log.Debugf("[MultiCluster] Waiting for 30 Seconds for resource informer caches to sync for Cluster: %s", rscInfr.clusterName)
-	if cache.WaitForNamedCacheSync(
-		"F5 CIS Ingress Controller",
-		infSyncCtx.Done(),
-		cacheSyncs...,
-	) {
-		log.Debugf("[MultiCluster] Successfully synced resource informer caches for Cluster: %s", rscInfr.clusterName)
-	} else {
-		log.Warningf("[MultiCluster] Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
-			"API server in Cluster: %s", rscInfr.clusterName, rscInfr.clusterName)
-	}
-}
-
-func (rscInfr *MultiClusterResourceInformer) stop() {
-	close(rscInfr.stopCh)
-}
-
-//func (ctlr *Controller) getMultiClusterNamespacedPoolInformer(
-//	namespace string,
-//	clusterName string,
-//) (*MultiClusterPoolInformer, bool) {
-//	if ctlr.watchingAllNamespaces() {
-//		namespace = ""
-//	}
-//
-//	if ctlr.multiClusterPoolInformers == nil {
-//		log.Debugf("[MultiCluster] informer not found for cluster %v", clusterName)
-//		return nil, false
-//	}
-//
-//	if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
-//		poolInf, found := ctlr.multiClusterPoolInformers[clusterName][namespace]
-//		return poolInf, found
-//	}
-//	return nil, false
-//}
-
 func (ctlr *Controller) addMultiClusterNamespacedInformers(
 	clusterName string,
 	namespace string,
@@ -130,13 +39,14 @@ func (ctlr *Controller) addMultiClusterNamespacedInformers(
 ) error {
 
 	// add common informers  in all modes
-	if _, found := ctlr.multiClusterPoolInformers[clusterName]; !found {
-		ctlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+	if _, found := ctlr.multiClusterConfigs.ClusterInformers[clusterName]; !found {
+		ctlr.multiClusterConfigs.ClusterInformers[clusterName] = initInformerStore()
 	}
-	if _, found := ctlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+
+	if _, found := ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace]; !found {
 		poolInfr := ctlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClientV1)
 		ctlr.addMultiClusterPoolEventHandlers(poolInfr)
-		ctlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+		ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace] = poolInfr
 		if startInformer {
 			poolInfr.start()
 		}
@@ -148,13 +58,13 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 	namespace string,
 	clusterName string,
 	restClientv1 rest.Interface,
-) *MultiClusterPoolInformer {
+) *CommonInformer {
 	log.Debugf("[MultiCluster] Creating multi cluster pool Informers for Namespace: %v %v", namespace, getClusterLog(clusterName))
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	comInf := &MultiClusterPoolInformer{
+	comInf := &CommonInformer{
 		namespace:   namespace,
 		clusterName: clusterName,
 		stopCh:      make(chan struct{}),
@@ -198,10 +108,23 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
+	crOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = ctlr.multiClusterConfigs.ClusterConfigs[""].customResourceSelector.String()
+	}
+	//Enable policy informer if serviceTypeLB is enabled.
+	if ctlr.discoveryMode == DefaultMode && ctlr.multiClusterConfigs.ClusterConfigs[clusterName].ServiceTypeLBDiscovery {
+		comInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
+			ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
+	}
 	return comInf
 }
 
-func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPoolInformer) {
+func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *CommonInformer) {
 	if poolInf.svcInformer != nil {
 		poolInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
@@ -233,6 +156,18 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *MultiClusterPo
 		)
 		poolInf.podInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Pod, poolInf.clusterName))
 	}
+
+	if poolInf.plcInformer != nil {
+		poolInf.plcInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create, poolInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update, poolInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj, poolInf.clusterName) },
+			},
+		)
+		poolInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, poolInf.clusterName))
+	}
+
 }
 
 // whenever global configmap is modified check for removed cluster configs
@@ -244,24 +179,25 @@ func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
 	}
 
 	// remove the  pool informers for clusters whose config has been removed
-	for clusterName, clsSet := range ctlr.multiClusterPoolInformers {
+	for clusterName, InfSet := range ctlr.multiClusterConfigs.ClusterInformers {
 		// if cluster config not present in global CM remove the informer
-		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; !ok {
-			for _, nsPoolInf := range clsSet {
+		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; !ok {
+			for ns, nsPoolInf := range InfSet.comInformers {
 				nsPoolInf.stop()
+				delete(ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers, ns)
 			}
-			delete(ctlr.multiClusterPoolInformers, clusterName)
-		}
-	}
-	if ctlr.discoveryMode == DefaultMode {
-		// remove the resource informers for clusters whose config has been removed or serviceTypeLBDiscovery updated
-		for clusterName, clsSet := range ctlr.multiClusterResourceInformers {
-			//if cluster config not present in global CM remove the informer
-			if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; !ok {
-				for _, nsRscInf := range clsSet {
-					nsRscInf.stop()
+		} else {
+			// delete informers for cluster if serviceTypeLBDiscovery is disabled in default mode
+			if ctlr.discoveryMode == DefaultMode && !config.ServiceTypeLBDiscovery {
+				//for HA pair dont remove pool informers.
+				if clusterName == ctlr.multiClusterConfigs.HAPairClusterName || clusterName == ctlr.multiClusterConfigs.LocalClusterName || clusterName == "" {
+					continue
+				} else {
+					for ns, nsPoolInf := range InfSet.comInformers {
+						nsPoolInf.stop()
+						delete(ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers, ns)
+					}
 				}
-				delete(ctlr.multiClusterResourceInformers, clusterName)
 			}
 		}
 	}
@@ -272,16 +208,13 @@ func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
 func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInformer bool) error {
 
 	// remove the pool informers for clusters whose config has been removed
-	if clsSet, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
-		for _, nsPoolInf := range clsSet {
+	if clsSet, ok := ctlr.multiClusterConfigs.ClusterInformers[clusterName]; ok {
+		for ns, nsPoolInf := range clsSet.comInformers {
 			if stopInformer {
 				nsPoolInf.stop()
 			}
-			delete(ctlr.multiClusterPoolInformers, clusterName)
+			delete(ctlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers, ns)
 		}
-	}
-	if _, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-		delete(ctlr.multiClusterNodeInformers, clusterName)
 	}
 	return nil
 }
@@ -290,12 +223,9 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInform
 func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
 	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[svcKey.clusterName]; ok {
 		if svcKey.clusterName == "" {
-			if ctlr.multiClusterPoolInformers[""] == nil {
-				ctlr.multiClusterPoolInformers[""] = make(map[string]*MultiClusterPoolInformer)
-			}
 			return nil
 		}
-		restClient := config.KubeClient.CoreV1().RESTClient()
+		restClient := config.kubeClient.CoreV1().RESTClient()
 		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, startInformer); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
 			return err
@@ -312,9 +242,9 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 
 // setupAndStartExternalClusterInformers sets up and starts pool and node informers for the external cluster
 func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string) error {
-	restClient := ctlr.multiClusterConfigs.ClusterConfigs[clusterName].KubeClient.CoreV1().RESTClient()
+	restClient := ctlr.multiClusterConfigs.ClusterConfigs[clusterName].kubeClient.CoreV1().RESTClient()
 	// Setup informers with namespaces which are watched by CIS
-	for n := range ctlr.namespaces {
+	for n := range ctlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
 			return err
@@ -332,12 +262,9 @@ func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInfor
 	for clusterName, config := range ctlr.multiClusterConfigs.ClusterConfigs {
 		// For local cluster maintain some placeholder value, as the informers are already maintained in the controller object
 		if clusterName == "" {
-			if ctlr.multiClusterPoolInformers[""] == nil {
-				ctlr.multiClusterPoolInformers[""] = make(map[string]*MultiClusterPoolInformer)
-			}
 			return nil
 		}
-		restClient := config.KubeClient.CoreV1().RESTClient()
+		restClient := config.kubeClient.CoreV1().RESTClient()
 		// Setup informer with the namespace
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, namespace, restClient, startInformer); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, namespace, err)
@@ -349,10 +276,10 @@ func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInfor
 
 // setupMultiClusterNodeInformers sets up and starts node informers for cluster if it hasn't been started
 func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, startInformer bool) error {
-	if _, ok := ctlr.multiClusterNodeInformers[clusterName]; !ok {
+	if ctlr.multiClusterConfigs.ClusterInformers[clusterName].nodeInformer == nil {
 		nodeInf := ctlr.getNodeInformer(clusterName)
 		ctlr.addNodeEventUpdateHandler(&nodeInf)
-		ctlr.multiClusterNodeInformers[clusterName] = &nodeInf
+		ctlr.multiClusterConfigs.ClusterInformers[clusterName].nodeInformer = &nodeInf
 		if startInformer {
 			nodeInf.start()
 			time.Sleep(100 * time.Millisecond)
@@ -367,7 +294,7 @@ func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, start
 			if err != nil {
 				return err
 			}
-			nodeInf.oldNodes = nodes
+			ctlr.multiClusterConfigs.ClusterConfigs[clusterName].oldNodes = nodes
 		}
 	}
 	return nil
@@ -384,105 +311,27 @@ func (ctlr *Controller) checkSecondaryCISConfig() {
 
 func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
-) (*MultiClusterPoolInformer, bool) {
+) (*CommonInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters
 	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() && ctlr.discoveryMode != DefaultMode {
 		namespace = ""
 	}
 	//check for default mode and serviceTypeLBEnabled will be watching all namespaces.
 	if ctlr.discoveryMode == DefaultMode && ctlr.watchingAllNamespaces() {
-		if config, ok := ctlr.resources.externalClustersConfig[clusterName]; ok {
+		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
 			if config.ServiceTypeLBDiscovery {
 				namespace = ""
 			}
 		}
 
 	}
-	nsPoolInf, ok := ctlr.multiClusterPoolInformers[clusterName]
+	infStore, ok := ctlr.multiClusterConfigs.ClusterInformers[clusterName]
 	if !ok {
 		return nil, false
 	}
-	poolInf, found := nsPoolInf[namespace]
-	return poolInf, found
-}
-
-// setupAndStartExternalClusterResourceInformers setups and starts resource informers like policy cr in external cluster
-func (ctlr *Controller) setupAndStartExternalClusterResourceInformers(clusterName string) error {
-	kubeCRClient := ctlr.multiClusterConfigs.ClusterConfigs[clusterName].KubeCRClient
-	// Setup informers with namespaces which are watched by CIS
-	for n := range ctlr.namespaces {
-		if err := ctlr.addMultiClusterNamespacedResourceInformers(clusterName, n, kubeCRClient, true); err != nil {
-			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
-			return err
-		}
+	if infStore.comInformers != nil {
+		poolInf, found := infStore.comInformers[namespace]
+		return poolInf, found
 	}
-	return nil
-}
-
-func (ctlr *Controller) addMultiClusterNamespacedResourceInformers(clusterName string, namespace string, kubeCRClient versioned.Interface, startInformer bool) error {
-	if _, found := ctlr.multiClusterResourceInformers[clusterName]; !found {
-		ctlr.multiClusterResourceInformers[clusterName] = make(map[string]*MultiClusterResourceInformer)
-	}
-	if _, found := ctlr.multiClusterResourceInformers[clusterName][namespace]; !found {
-		rscInfr := ctlr.newMultiClusterNamespacedResourceInformer(namespace, clusterName, kubeCRClient)
-		ctlr.addMultiClusterResourceEventHandlers(rscInfr)
-		ctlr.multiClusterResourceInformers[clusterName][namespace] = rscInfr
-		if startInformer {
-			rscInfr.start()
-		}
-	}
-	return nil
-}
-
-func (ctlr *Controller) newMultiClusterNamespacedResourceInformer(
-	namespace string,
-	clusterName string,
-	kubeCRClient versioned.Interface,
-) *MultiClusterResourceInformer {
-	log.Debugf("[MultiCluster] Creating multi cluster Resource Informers for Namespace: %v %v", namespace, getClusterLog(clusterName))
-	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = ctlr.customResourceSelector.String()
-	}
-	resyncPeriod := 0 * time.Second
-	rscInf := &MultiClusterResourceInformer{
-		namespace:   namespace,
-		clusterName: clusterName,
-		stopCh:      make(chan struct{}),
-		plcInformer: cisinfv1.NewFilteredPolicyInformer(
-			kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		),
-	}
-	return rscInf
-}
-
-func (ctlr *Controller) addMultiClusterResourceEventHandlers(rscInf *MultiClusterResourceInformer) {
-	if rscInf.plcInformer != nil {
-		rscInf.plcInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create, rscInf.clusterName) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update, rscInf.clusterName) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj, rscInf.clusterName) },
-			},
-		)
-		rscInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, rscInf.clusterName))
-	}
-}
-
-func (ctlr *Controller) getNamespaceMultiClusterResourceInformer(
-	namespace string, clusterName string,
-) (*MultiClusterResourceInformer, bool) {
-
-	if ctlr.watchingAllNamespaces() {
-		namespace = ""
-	}
-	nsRscInf, ok := ctlr.multiClusterResourceInformers[clusterName]
-	if !ok {
-		return nil, false
-	}
-	rscInf, found := nsRscInf[namespace]
-	return rscInf, found
+	return nil, false
 }

@@ -34,6 +34,9 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		log.Debugf("Finished syncing RouteGroup/Namespace %v (%v)",
 			routeGroup, endTime.Sub(startTime))
 	}()
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		return fmt.Errorf("%v default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+	}
 	var extdSpec *ExtendedRouteGroupSpec
 	var partition string
 	if routeGroup == defaultRouteGroupName {

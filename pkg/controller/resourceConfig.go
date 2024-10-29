@@ -2316,14 +2316,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	} else {
 		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 	}
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		if vs.Spec.Pool.Service != "" {
-			log.Warning("Base service is ignored for default discovery mode")
-		}
-		if len(vs.Spec.Pool.AlternateBackends) > 0 {
-			log.Warning("alternate backends are ignored for default discovery mode")
-		}
-	}
+
 	if ctlr.isSinglePoolRatioEnabled(vs) {
 		defaultWeight := 100
 		pool.Balance = PoolLBMemberRatio

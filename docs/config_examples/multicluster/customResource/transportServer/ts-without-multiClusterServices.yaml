@@ -17,12 +17,3 @@ spec:
       type: tcp
       interval: 10
       timeout: 10
-    multiClusterServices:
-    - clusterName: cluster2
-      service: svc-1
-      namespace: ns1
-      servicePort: 8181
-    - clusterName: cluster3
-      service: svc-ext-1
-      namespace: ns2
-      servicePort: 8282

@@ -2474,6 +2474,7 @@ externalClustersConfig:
 		var rsCfg *ResourceConfig
 		BeforeEach(func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
 			mockCtlr.processGlobalExtendedConfigMap()
 		})
 		It("Process VS with multi cluster config", func() {
@@ -2760,7 +2761,7 @@ externalClustersConfig:
 			Expect(rsCfg.Monitors[1].Name).To(Equal("ts_a764b4bf13_80_tcp"))
 			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
 
 			resourceKey := resourceRef{
 				kind:      TransportServer,

@@ -253,10 +253,6 @@ func (ctlr *Controller) processResources() bool {
 		if ctlr.mode != OpenShiftMode {
 			break
 		}
-		if ctlr.discoveryMode == DefaultMode {
-			log.Errorf("Routes are not supported with multiCluster mode: %v", ctlr.discoveryMode)
-			break
-		}
 		route := rKey.rsc.(*routeapi.Route)
 		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
 		// so should not trigger delete from here
@@ -305,10 +301,6 @@ func (ctlr *Controller) processResources() bool {
 		}
 	case VirtualServer:
 		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
-			break
-		}
-		if ctlr.discoveryMode == DefaultMode {
-			log.Errorf("Virtual servers are not supported with multiCluster mode: %v", ctlr.discoveryMode)
 			break
 		}
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
@@ -3027,7 +3019,6 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
-	ctlr.updateResourceStatus(TransportServer, virtual, ip, "", nil)
 	if len(rsCfg.MetaData.hosts) > 0 {
 		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 	}

@@ -16,7 +16,7 @@ spec:
       alternateBackends:
         - service: svc-edge-b
           weight: 30
-      extendedServiceReferences:
+      multiClusterServices:
         - clusterName: cluster2
           namespace: ns1
           servicePort: 80

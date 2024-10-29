@@ -39,7 +39,7 @@ var _ = Describe("MultiClusterWorker", func() {
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 	It("Get service from HA cluster", func() {
-		mockCtlr.haModeType = Active
+		mockCtlr.discoveryMode = Active
 		svcKey := MultiClusterServiceKey{
 			serviceName: "svc1",
 			namespace:   "ns",

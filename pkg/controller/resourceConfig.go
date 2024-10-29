@@ -600,6 +600,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						}
 					}
 					pool.MultiClusterServices = pl.MultiClusterServices
+					//for _, svc := range pl.MultiClusterServices {
+					//	if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
+					//		svc.ClusterName = ""
+					//	}
+					//}
 					// update the multicluster resource serviceMap with local cluster services
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
 					// update the multicluster resource serviceMap with HA pair cluster services
@@ -2298,7 +2303,8 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		// check the multi cluster services and populate the weights
 		for _, plSvc := range vs.Spec.Pool.MultiClusterServices {
 			for idx, svc := range pool.MultiClusterServices {
-				if svc.ClusterName == plSvc.ClusterName && svc.SvcName == plSvc.SvcName {
+				if ((svc.ClusterName == plSvc.ClusterName) ||
+					plSvc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName && svc.ClusterName == "") && svc.SvcName == plSvc.SvcName {
 					if plSvc.Weight != nil {
 						pool.MultiClusterServices[idx].Weight = plSvc.Weight
 					} else {
@@ -3028,7 +3034,10 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
 		// cluster credentials must be specified in the extended configmap
-		if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+		//if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
+		//	svc.ClusterName = ""
+		//}
+		if ctlr.checkValidExtendedService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -3137,8 +3146,11 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	}
 	// External services
 	for _, svc := range pool.MultiClusterServices {
+		//if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
+		//	svc.ClusterName = ""
+		//}
 		// Skip invalid extended service
-		if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+		if ctlr.checkValidExtendedService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		beIdx = beIdx + 1

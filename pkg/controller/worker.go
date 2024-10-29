@@ -2330,7 +2330,8 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
 		// already populated while updating the HA cluster pair service pool members above
 		if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok || clusterName == "" {
-			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
+			targetPort := ctlr.fetchTargetPort(mcs.Namespace, mcs.SvcName, mcs.ServicePort, clusterName)
+			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, targetPort,
 				pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 

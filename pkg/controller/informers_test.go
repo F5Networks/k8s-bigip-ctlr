@@ -393,7 +393,7 @@ var _ = Describe("Informers Tests", func() {
 				"SamplePolicy",
 				namespace,
 				cisapiv1.PolicySpec{})
-			mockCtlr.enqueuePolicy(plc, Create)
+			mockCtlr.enqueuePolicy(plc, Create, "")
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Policy Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Policy  Failed")
@@ -402,12 +402,12 @@ var _ = Describe("Informers Tests", func() {
 				"SamplePolicy2",
 				namespace,
 				cisapiv1.PolicySpec{})
-			mockCtlr.enqueueDeletedPolicy(newPlc)
+			mockCtlr.enqueueDeletedPolicy(newPlc, "")
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Policy Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Policy  Failed")
 
-			mockCtlr.enqueuePolicy(plc, Create)
+			mockCtlr.enqueuePolicy(plc, Create, "")
 			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 		It("Primary Cluster Down Event", func() {

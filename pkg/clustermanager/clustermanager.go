@@ -1,6 +1,7 @@
 package clustermanager
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -22,4 +23,16 @@ func CreateKubeClientFromKubeConfig(kubeConfig *[]byte) (kubernetes.Interface, e
 		return nil, err
 	}
 	return kubeClient, nil
+}
+
+func CreateKubeCRClientFromKubeConfig(kubeConfig *[]byte) (versioned.Interface, error) {
+	config, err := clientcmd.RESTConfigFromKubeConfig(*kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	kubeCRClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return kubeCRClient, nil
 }

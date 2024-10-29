@@ -481,9 +481,11 @@ func (ctlr *Controller) processResources() bool {
 				}
 			}
 			//Sync Custompolicy for Services of type LB
-			lbServices := ctlr.getLBServicesForCustomPolicy(cp)
+			lbServices := ctlr.getLBServicesForCustomPolicy(cp, rKey.clusterName)
+
 			for _, lbService := range lbServices {
-				err := ctlr.processLBServices(lbService, false)
+				//policy is always applied at active i.e local cluster?
+				err := ctlr.processLBServices(lbService, false, rKey.clusterName)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
@@ -498,7 +500,6 @@ func (ctlr *Controller) processResources() bool {
 			namespace:   svc.Namespace,
 			clusterName: rKey.clusterName,
 		}
-
 		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 			if rKey.event != Create {
 				rsRef := resourceRef{
@@ -508,8 +509,20 @@ func (ctlr *Controller) processResources() bool {
 				}
 				// clean the CIS cache
 				ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
+			} else {
+				//For creation of service check for duplicate ip on serviceTypeLB Resource
+				if ip, ok := svc.Annotations[LBServiceIPAnnotation]; ok {
+					//same service can be updated but event is create.
+					if val, ok := ctlr.resources.svcLBStore[ip]; ok {
+						if val != svcKey {
+							log.Errorf("IP %s already exists on service %s,Processing serviceType LB skipped for %s", ip, val, svcKey)
+							break
+						}
+					}
+				}
 			}
-			err := ctlr.processLBServices(svc, rscDelete)
+
+			err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
@@ -550,7 +563,7 @@ func (ctlr *Controller) processResources() bool {
 		_ = ctlr.processService(svc, rKey.clusterName)
 
 		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
-			err := ctlr.processLBServices(svc, rscDelete)
+			err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
@@ -581,7 +594,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		_ = ctlr.processService(svc, rKey.clusterName)
 		if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
-			err := ctlr.processLBServices(svc, rscDelete)
+			err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
@@ -599,8 +612,20 @@ func (ctlr *Controller) processResources() bool {
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
+		if rscDelete {
+			// Do the clean up for the serviceTypeLB resources
+			for _, svc := range ctlr.getAllLBServices(nsName, rKey.clusterName) {
+				if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+					err := ctlr.processLBServices(svc, true, rKey.clusterName)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+			}
+		}
 		switch ctlr.mode {
-
 		case OpenShiftMode:
 			var triggerDelete bool
 			if rscDelete {
@@ -676,9 +701,14 @@ func (ctlr *Controller) processResources() bool {
 						isRetryableError = true
 					}
 				}
-
-				ctlr.crInformers[nsName].stop()
-				delete(ctlr.crInformers, nsName)
+				if crInf, ok := ctlr.crInformers[nsName]; ok {
+					crInf.stop()
+					delete(ctlr.crInformers, nsName)
+				}
+				if comInf, ok := ctlr.comInformers[nsName]; ok {
+					comInf.stop()
+					delete(ctlr.comInformers, nsName)
+				}
 				ctlr.namespacesMutex.Lock()
 				delete(ctlr.namespaces, nsName)
 				ctlr.namespacesMutex.Unlock()
@@ -860,8 +890,8 @@ func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy)
 }
 
 // getLBServicesForCustomPolicy gets all services of type LB affected by the policy
-func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy) []*v1.Service {
-	LBServices := ctlr.getAllLBServices(plc.Namespace)
+func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy, clusterName string) []*v1.Service {
+	LBServices := ctlr.getAllLBServices(plc.Namespace, clusterName)
 	if nil == LBServices {
 		log.Debugf("No LB service found in namespace %s",
 			plc.Namespace)
@@ -877,8 +907,8 @@ func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy) []*v1
 		}
 	}
 
-	log.Debugf("LB Services %v are affected with Custom Policy %s: ",
-		plcSvcNames, plc.Name)
+	log.Debugf("LB Services %v are affected with Custom Policy %s: in cluster %s",
+		plcSvcNames, plc.Name, clusterName)
 
 	return plcSvcs
 }
@@ -1819,6 +1849,29 @@ func (ctlr *Controller) getPolicy(ns string, plcName string) (*cisapiv1.Policy, 
 	return obj.(*cisapiv1.Policy), nil
 }
 
+// getPolicy fetches the policy CR
+func (ctlr *Controller) getPolicyFromExternalCluster(ns string, plcName string, clusterName string) (*cisapiv1.Policy, error) {
+	rscInf, ok := ctlr.getNamespaceMultiClusterResourceInformer(ns, clusterName)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v in cluster: %v", ns, clusterName)
+		return nil, fmt.Errorf("Informer not found for namespace: %v in cluster: %v", ns, clusterName)
+	}
+	key := ns + "/" + plcName
+
+	obj, exist, err := rscInf.plcInformer.GetIndexer().GetByKey(key)
+	if err != nil {
+		log.Errorf("Error while fetching Policy: %v: %v: %v",
+			key, clusterName, err)
+		return nil, fmt.Errorf("Error while fetching Policy: %v: %v in cluster %v", key, err, clusterName)
+	}
+
+	if !exist {
+		log.Errorf("Policy Not Found: %v in cluster %v", key, clusterName)
+		return nil, fmt.Errorf("Policy Not Found: %v in cluster %v", key, clusterName)
+	}
+	return obj.(*cisapiv1.Policy), nil
+}
+
 func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
 	for _, vrt := range virtuals {
 		if vrt.Spec.IPAMLabel != "" {
@@ -2265,6 +2318,10 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 
 // updatePoolMembersForResources updates the pool members for service present in the provided Pool
 func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
+	if ctlr.discoveryMode == DefaultMode {
+		ctlr.updatePoolMembersForResourcesForDefaultMode(pool)
+		return
+	}
 	var poolMembers []PoolMember
 	var clsSvcPoolMemMap = make(map[MultiClusterServiceKey][]PoolMember)
 	// for local cluster
@@ -2287,7 +2344,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// for HA cluster pair service
 	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
 	// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
-	if (ctlr.haModeType == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
+	if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
 		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
@@ -2311,8 +2368,12 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
+		clusterName := mcs.ClusterName
+		if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+			clusterName = ""
+		}
 		// Skip invalid extended service or if adding pool member is restricted for the cluster
-		if ctlr.checkValidExtendedService(mcs) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) {
+		if ctlr.checkValidMultiClusterService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) {
 			continue
 		}
 		// Update pool members for all the multi cluster services specified in the route annotations
@@ -2320,7 +2381,8 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
 		// already populated while updating the HA cluster pair service pool members above
 		if _, ok := ctlr.multiClusterPoolInformers[mcs.ClusterName]; ok && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
-			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, mcs.ServicePort,
+			targetPort := ctlr.fetchTargetPort(mcs.Namespace, mcs.SvcName, mcs.ServicePort, clusterName)
+			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, targetPort,
 				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 
@@ -2364,6 +2426,49 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	pool.Members = poolMembers
 }
 
+func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) {
+	var poolMembers []PoolMember
+	var clsSvcPoolMemMap = make(map[MultiClusterServiceKey][]PoolMember)
+	if len(pool.MultiClusterServices) == 0 {
+		poolMembers = ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+			pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)
+		pool.Members = poolMembers
+		return
+	} else {
+		// For multiCluster services
+		for _, mcs := range pool.MultiClusterServices {
+			if mcs.SvcName != pool.ServiceName || mcs.ClusterName != pool.Cluster || mcs.Namespace != pool.ServiceNamespace {
+				continue
+			}
+			clusterName := mcs.ClusterName
+			if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+				clusterName = ""
+			}
+			// Skip invalid extended service or if adding pool member is restricted for the cluster
+			if ctlr.checkValidMultiClusterService(mcs, false) != nil {
+				continue
+			}
+
+			// Update pool members for all the multi cluster services specified in the pool
+			if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok || clusterName == "" {
+				targetPort := ctlr.fetchTargetPort(mcs.Namespace, mcs.SvcName, mcs.ServicePort, clusterName)
+				pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, targetPort,
+					pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+				poolMembers = append(poolMembers, pms...)
+
+				if pool.SinglePoolRatioEnabled {
+					clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: mcs.SvcName, namespace: mcs.Namespace,
+						clusterName: clusterName}] = pms
+				}
+			}
+		}
+	}
+	if pool.SinglePoolRatioEnabled {
+		poolMembers = ctlr.updatePoolMemberWeights(clsSvcPoolMemMap, pool)
+	}
+	pool.Members = poolMembers
+}
+
 func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServiceKey][]PoolMember, pool *Pool) []PoolMember {
 	var totalWeight = 0
 	var defaultWeight = 100
@@ -2372,41 +2477,43 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 
 	// in non ratio mode don't do any ratio calculation
 	// assign simple weights
-	if len(ctlr.clusterRatio) == 0 {
+	if len(ctlr.clusterRatio) == 0 || ctlr.discoveryMode == DefaultMode {
 		// for each service -  pool members
 		for svcKey, plMem := range svcMemMap {
-			// for local or ha cluster check config
-			if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
-				svcKey.namespace == pool.ServiceNamespace {
-				if pool.Weight > 0 {
-					ratio = int(float32(pool.Weight) / float32(len(plMem)))
-				}
-				for idx, _ := range plMem {
-					if pool.Weight == 0 {
-						plMem[idx].AdminState = "disable"
-					} else {
-						plMem[idx].Ratio = ratio
-					}
-				}
-				poolMem = append(poolMem, plMem...)
-			}
-
-			for _, svc := range pool.AlternateBackends {
+			if ctlr.discoveryMode != DefaultMode {
 				// for local or ha cluster check config
-				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == svc.Service &&
-					svcKey.namespace == svc.ServiceNamespace {
-					if svc.Weight > 0 {
-						ratio = int(float32(svc.Weight) / float32(len(plMem)))
+				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
+					svcKey.namespace == pool.ServiceNamespace {
+					if pool.Weight > 0 {
+						ratio = int(float32(pool.Weight) / float32(len(plMem)))
 					}
 					for idx, _ := range plMem {
-						if svc.Weight == 0 {
+						if pool.Weight == 0 {
 							plMem[idx].AdminState = "disable"
 						} else {
 							plMem[idx].Ratio = ratio
 						}
 					}
 					poolMem = append(poolMem, plMem...)
-					break
+				}
+
+				for _, svc := range pool.AlternateBackends {
+					// for local or ha cluster check config
+					if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == svc.Service &&
+						svcKey.namespace == svc.ServiceNamespace {
+						if svc.Weight > 0 {
+							ratio = int(float32(svc.Weight) / float32(len(plMem)))
+						}
+						for idx, _ := range plMem {
+							if svc.Weight == 0 {
+								plMem[idx].AdminState = "disable"
+							} else {
+								plMem[idx].Ratio = ratio
+							}
+						}
+						poolMem = append(poolMem, plMem...)
+						break
+					}
 				}
 			}
 
@@ -2485,7 +2592,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		}
 
 		for _, svc := range pool.MultiClusterServices {
-			if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+			if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 				continue
 			}
 			if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -2582,6 +2689,12 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 // fetchPoolMembersForService returns pool members associated with a service created in specified cluster
 func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNamespace string,
 	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32, bigipRouteDomain int32) []PoolMember {
+
+	if ctlr.multiClusterMode != "" {
+		if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+			clusterName = ""
+		}
+	}
 	svcKey := MultiClusterServiceKey{
 		serviceName: serviceName,
 		namespace:   serviceNamespace,
@@ -2938,6 +3051,8 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.MetaData.baseResources = make(map[string]string)
+	rsCfg.IntDgMap = make(InternalDataGroupMap)
+	rsCfg.IRulesMap = make(IRulesMap)
 	if virtual.Spec.BigIPRouteDomain > 0 {
 		if ctlr.PoolMemberType == Cluster {
 			log.Warning("bigipRouteDomain is not supported in cluster mode")
@@ -3001,7 +3116,6 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
-	ctlr.updateResourceStatus(TransportServer, virtual, ip, "", nil)
 	if len(rsCfg.MetaData.hosts) > 0 {
 		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 	}
@@ -3053,24 +3167,51 @@ func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.Tra
 }
 
 // getAllLBServices returns list of all valid LB Services in rkey namespace.
-func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
+func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) []*v1.Service {
 	var allLBServices []*v1.Service
-
-	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
-		return nil
-	}
 	var orderedSVCs []interface{}
 	var err error
+	if clusterName == "" {
+		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return nil
+		}
 
-	if namespace == "" {
-		orderedSVCs = comInf.svcInformer.GetIndexer().List()
+		if namespace == "" {
+			orderedSVCs = comInf.svcInformer.GetIndexer().List()
+		} else {
+			orderedSVCs, err = comInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
+			if err != nil {
+				log.Errorf("Unable to get list of Services for namespace '%v': %v",
+					namespace, err)
+				return nil
+			}
+		}
 	} else {
-		orderedSVCs, err = comInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
-		if err != nil {
-			log.Errorf("Unable to get list of Services for namespace '%v': %v",
-				namespace, err)
+		//For external cluster LB
+		if _, ok := ctlr.multiClusterPoolInformers[clusterName]; ok {
+			if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces() {
+				//In HA pair cluster pool informers created for cis watched namespaces
+				namespace = ""
+			}
+			poolInf, ok := ctlr.getNamespaceMultiClusterPoolInformer(namespace, clusterName)
+			if !ok {
+				log.Errorf("Pool Informer not found for namespace: %v in cluster %s", namespace, clusterName)
+				return nil
+			}
+			if namespace == "" {
+				orderedSVCs = poolInf.svcInformer.GetIndexer().List()
+			} else {
+				orderedSVCs, err = poolInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
+				if err != nil {
+					log.Errorf("Unable to get list of Services for namespace '%v': %v",
+						namespace, err)
+					return nil
+				}
+			}
+		} else {
+			log.Errorf("Pool Informer not found for namespace: %v in cluster %s", namespace, clusterName)
 			return nil
 		}
 	}
@@ -3087,6 +3228,7 @@ func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
 func (ctlr *Controller) processLBServices(
 	svc *v1.Service,
 	isSVCDeleted bool,
+	clusterName string,
 ) error {
 
 	// Read the partition annotation if provided
@@ -3138,15 +3280,15 @@ func (ctlr *Controller) processLBServices(
 	}
 
 	if !isSVCDeleted {
-		ctlr.setLBServiceIngressStatus(svc, ip)
+		ctlr.setLBServiceIngressStatus(svc, ip, clusterName)
 	} else {
-		ctlr.unSetLBServiceIngressStatus(svc, ip)
+		ctlr.unSetLBServiceIngressStatus(svc, ip, clusterName)
 	}
 
 	for _, portSpec := range svc.Spec.Ports {
 
-		log.Debugf("Processing Service Type LB %s for port %v",
-			svc.ObjectMeta.Name, portSpec)
+		log.Debugf("Processing Service Type LB %s for port %v in cluster %v",
+			svc.ObjectMeta.Name, portSpec, clusterName)
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
@@ -3180,7 +3322,7 @@ func (ctlr *Controller) processLBServices(
 		}
 		processingError := false
 		// Handle policy
-		plc, err := ctlr.getPolicyFromLBService(svc)
+		plc, err := ctlr.getPolicyFromLBService(svc, clusterName)
 		if plc != nil {
 			err := ctlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
@@ -3194,11 +3336,11 @@ func (ctlr *Controller) processLBServices(
 		}
 
 		if processingError {
-			log.Errorf("Cannot Publish LB Service %s", svc.ObjectMeta.Name)
+			log.Errorf("Cannot Publish LB Service %s in namespace %s belonging to cluster %s", svc.ObjectMeta.Name, svc.ObjectMeta.Namespace, clusterName)
 			break
 		}
 
-		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
+		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName)
 
 		// handle pool settings from policy cr
 		if plc != nil {
@@ -3217,8 +3359,15 @@ func (ctlr *Controller) processLBServices(
 		if len(rsCfg.MetaData.hosts) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 		}
+		if _, ok := ctlr.resources.svcLBStore[ip]; !ok {
+			//Update svcLB store
+			ctlr.resources.svcLBStore[ip] = MultiClusterServiceKey{
+				serviceName: svc.Name,
+				namespace:   svc.Namespace,
+				clusterName: clusterName,
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -3805,7 +3954,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			ctlr.TeemData.ResourceType.IPAMSvcLB[ns]++
 			ctlr.TeemData.Unlock()
 			svc := item.(*v1.Service)
-			err = ctlr.processLBServices(svc, false)
+			err = ctlr.processLBServices(svc, false, "")
 			if err != nil {
 				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
 			}
@@ -3930,7 +4079,7 @@ func (ctlr *Controller) processIngressLink(
 				return nil
 			}
 			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
-				ctlr.setLBServiceIngressStatus(svc, ip)
+				ctlr.setLBServiceIngressStatus(svc, ip, "")
 			}
 		}
 	} else {
@@ -4188,6 +4337,7 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 func (ctlr *Controller) setLBServiceIngressStatus(
 	svc *v1.Service,
 	ip string,
+	clusterName string,
 ) {
 	if _, ok := ctlr.shouldProcessServiceTypeLB(svc); !ok {
 		return
@@ -4199,8 +4349,14 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 	} else if svc.Status.LoadBalancer.Ingress[0].IP != ip {
 		svc.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
-
-	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+	var updateErr error
+	if clusterName == "" {
+		_, updateErr = ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+	} else {
+		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+			_, updateErr = config.KubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+		}
+	}
 	if nil != updateErr {
 		// Multi-service causes the controller to try to update the status multiple times
 		// at once. Ignore this error.
@@ -4220,14 +4376,30 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 func (ctlr *Controller) unSetLBServiceIngressStatus(
 	svc *v1.Service,
 	ip string,
+	clusterName string,
 ) {
-
+	var service interface{}
+	var found bool
+	var err error
 	svcName := svc.Namespace + "/" + svc.Name
-	comInf, _ := ctlr.getNamespacedCommonInformer(svc.Namespace)
-	service, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcName)
-	if !found || err != nil {
-		log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
-		return
+	if clusterName == "" {
+		comInf, _ := ctlr.getNamespacedCommonInformer(svc.Namespace)
+		service, found, err = comInf.svcInformer.GetIndexer().GetByKey(svcName)
+		if !found || err != nil {
+			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
+			return
+		}
+	} else {
+		poolInf, ok := ctlr.getNamespaceMultiClusterPoolInformer(svc.Namespace, clusterName)
+		if !ok {
+			log.Debugf("Unable to find informer for namespace %s in cluster %s", svc.Namespace, clusterName)
+			return
+		}
+		service, found, err = poolInf.svcInformer.GetIndexer().GetByKey(svcName)
+		if !found || err != nil {
+			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
+			return
+		}
 	}
 	svc = service.(*v1.Service)
 	index := -1
@@ -4241,9 +4413,15 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 	if index != -1 {
 		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 			svc.Status.LoadBalancer.Ingress[index+1:]...)
-
-		_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
-			context.TODO(), svc, metav1.UpdateOptions{})
+		var updateErr error
+		if clusterName == "" {
+			_, updateErr = ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+				context.TODO(), svc, metav1.UpdateOptions{})
+		} else {
+			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+				_, updateErr = config.KubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+			}
+		}
 		if nil != updateErr {
 			// Multi-service causes the controller to try to update the status multiple times
 			// at once. Ignore this error.
@@ -4593,19 +4771,19 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 		// Read multiCluster mode
-		// Set the active-active/active-standby/ratio mode for the HA cluster
+		// Set the active-active/active-standby/ratio/Default mode for the HA cluster
 		if es.HAMode != "" {
-			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio {
-				ctlr.haModeType = es.HAMode
+			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio || es.HAMode == DefaultMode {
+				ctlr.discoveryMode = es.HAMode
 				ctlr.Agent.HAMode = true
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
-					"active-standby, ratio)")
+					"active-standby, ratio, default)")
 				os.Exit(1)
 			}
 		}
 		// Update cluster ratio
-		if ctlr.haModeType == Ratio && ctlr.multiClusterMode == StandAloneCIS {
+		if ctlr.discoveryMode == Ratio && ctlr.multiClusterMode == StandAloneCIS {
 			if es.LocalClusterRatio != nil {
 				ctlr.clusterRatio[""] = es.LocalClusterRatio
 			} else {
@@ -4739,13 +4917,17 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 }
 
 // getPolicyFromLBService gets the policy attached to the service and returns it
-func (ctlr *Controller) getPolicyFromLBService(svc *v1.Service) (*cisapiv1.Policy, error) {
+func (ctlr *Controller) getPolicyFromLBService(svc *v1.Service, clustername string) (*cisapiv1.Policy, error) {
 	plcName, found := svc.Annotations[LBServicePolicyNameAnnotation]
 	if !found || plcName == "" {
 		return nil, nil
 	}
 	ns := svc.Namespace
-	return ctlr.getPolicy(ns, plcName)
+	if clustername == "" {
+		return ctlr.getPolicy(ns, plcName)
+	} else {
+		return ctlr.getPolicyFromExternalCluster(ns, plcName, clustername)
+	}
 }
 
 // skipVirtual return true if virtuals don't have any common HTTP/HTTPS ports, else returns false
@@ -4899,7 +5081,7 @@ func (ctlr *Controller) fetchNodesFromClusters() []interface{} {
 	var nodescluster []interface{}
 	if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 		for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
-			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+			if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok && clusterName != "" {
 				nodesObj, err := config.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.nodeLabelSelector})
 				if err != nil {
 					log.Debugf("[MultiCluster] Unable to fetch nodes for cluster %v with err %v", clusterName, err)
@@ -4972,7 +5154,7 @@ func (ctlr *Controller) getResourceServicePortForRoute(
 	}
 
 	// 2. look for base service in the HA peer cluster
-	if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+	if ctlr.discoveryMode == Active && ctlr.multiClusterPoolInformers != nil {
 		port, err := ctlr.getSvcPortFromHACluster(route.Namespace, route.Spec.To.Name, portName, resource.ResourceTypeRoute)
 		// If service and port found then return the port
 		if err == nil && port != 0 {
@@ -4997,7 +5179,7 @@ func (ctlr *Controller) getResourceServicePortForRoute(
 	}
 
 	// 4th look for the AB services in the HA peer clusters
-	if ctlr.haModeType == Active && ctlr.multiClusterPoolInformers != nil {
+	if ctlr.discoveryMode == Active && ctlr.multiClusterPoolInformers != nil {
 		for _, ab := range route.Spec.AlternateBackends {
 			port, err := ctlr.getSvcPortFromHACluster(route.Namespace, ab.Name, portName, resource.ResourceTypeRoute)
 			if nil != err || port == 0 {

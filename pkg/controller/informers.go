@@ -635,9 +635,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.plcInformer != nil {
 		comInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj, "") },
 			},
 		)
 		comInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, Local))
@@ -931,29 +931,31 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
+func (ctlr *Controller) enqueuePolicy(obj interface{}, event string, clusterName string) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
-		namespace: pol.ObjectMeta.Namespace,
-		kind:      CustomPolicy,
-		rscName:   pol.ObjectMeta.Name,
-		rsc:       obj,
-		event:     event,
+		namespace:   pol.ObjectMeta.Namespace,
+		kind:        CustomPolicy,
+		rscName:     pol.ObjectMeta.Name,
+		rsc:         obj,
+		event:       event,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}, clusterName string) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
-		namespace: pol.ObjectMeta.Namespace,
-		kind:      CustomPolicy,
-		rscName:   pol.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   pol.ObjectMeta.Namespace,
+		kind:        CustomPolicy,
+		rscName:     pol.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
@@ -1127,21 +1129,12 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		}
 	}
 
-	// Check partition update for LoadBalancer service
-	partitionUpdate := false
-	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
-		oldPartition, _ := svc.Annotations[LBServicePartitionAnnotation]
-		newPartition, _ := curSvc.Annotations[LBServicePartitionAnnotation]
-		if oldPartition != newPartition {
-			partitionUpdate = true
-		}
-	}
-
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
 		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
-		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) || partitionUpdate {
+		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) ||
+		(svc.Annotations[LBServicePartitionAnnotation] != curSvc.Annotations[LBServicePartitionAnnotation]) {
 		log.Debugf("Enqueueing Old Service: %v %v", svc, getClusterLog(clusterName))
 		key := &rqKey{
 			namespace:   svc.ObjectMeta.Namespace,

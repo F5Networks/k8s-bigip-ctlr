@@ -370,7 +370,7 @@ spec:
                         maximum: 65535
                       serviceDownAction:
                         type: string
-                      extendedServiceReferences:
+                      multiClusterServices:
                         type: array
                         items:
                           type: object
@@ -770,7 +770,7 @@ spec:
                       maximum: 65535
                     serviceDownAction:
                       type: string
-                    extendedServiceReferences:
+                    multiClusterServices:
                       type: array
                       items:
                         type: object
@@ -791,9 +791,11 @@ spec:
                             type: integer
                             minimum: 0
                             maximum: 100
-                  required:
-                      - service
-                      - servicePort
+                        required:
+                            - clusterName
+                            - service
+                            - namespace
+                            - servicePort
               required:
                 - virtualServerPort
                 - pool

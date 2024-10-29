@@ -34,6 +34,9 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		log.Debugf("Finished syncing RouteGroup/Namespace %v (%v)",
 			routeGroup, endTime.Sub(startTime))
 	}()
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		return fmt.Errorf("%v default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+	}
 	var extdSpec *ExtendedRouteGroupSpec
 	var partition string
 	if routeGroup == defaultRouteGroupName {
@@ -190,7 +193,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Debugf("Updated Route %s with TLS", rt.ObjectMeta.Name)
 			} else {
 				// handle ab deployment for insecure routes
-				if isRouteABDeployment(rt) || ctlr.haModeType == Ratio {
+				if isRouteABDeployment(rt) || ctlr.discoveryMode == Ratio {
 					ctlr.handleInsecureABRoute(rsCfg, rt, servicePort)
 				}
 			}
@@ -489,7 +492,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 
 		if ctlr.multiClusterMode != "" {
-			if ctlr.haModeType != Ratio {
+			if ctlr.discoveryMode != Ratio {
 				var multiClusterServices []cisapiv1.MultiClusterServiceReference
 				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 					for svc, config := range svcs {
@@ -511,7 +514,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				// update the multicluster resource serviceMap with local cluster services
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
 				// update the multicluster resource serviceMap with HA pair cluster services
-				if ctlr.haModeType == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+				if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
 						ctlr.multiClusterConfigs.HAPairClusterName)
 				}
@@ -592,7 +595,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
 		var rules *Rules
-		if isRouteABDeployment(route) || ctlr.haModeType == Ratio {
+		if isRouteABDeployment(route) || ctlr.discoveryMode == Ratio {
 			rules = ctlr.prepareABRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
 		} else {
 			rules = ctlr.prepareRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
@@ -1820,7 +1823,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 				ctlr.multiClusterResources.Lock()
 				defer ctlr.multiClusterResources.Unlock()
 				for _, svc := range clusterSvcs {
-					err := ctlr.checkValidExtendedService(svc)
+					err := ctlr.checkValidMultiClusterService(svc, true)
 					if err != nil {
 						// In case of invalid extendedServiceReference, just log the error and proceed
 						log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for Route: %s: %v", svc, route.Name, err)
@@ -1986,26 +1989,27 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	primaryClusterName := ""
 	secondaryClusterName := ""
 	if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && haClusterConfig != (HAClusterConfig{}) {
-		// If HA mode not set use active-standby mode as defualt
-		if ctlr.haModeType == "" {
-			ctlr.haModeType = StandBy
+		// If HA mode not set use default mode
+		if ctlr.discoveryMode == "" {
+			ctlr.discoveryMode = DefaultMode
 		}
 		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
 		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
-			if ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Ratio {
 				if haClusterConfig.PrimaryCluster.Ratio != nil {
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = haClusterConfig.PrimaryCluster.Ratio
 				} else {
 					one := 1
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
 				}
+				ctlr.clusterRatio[""] = ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName]
 			}
 			ctlr.readAndUpdateClusterAdminState(haClusterConfig.PrimaryCluster, ctlr.multiClusterMode == PrimaryCIS)
 		}
 		if haClusterConfig.SecondaryCluster != (ClusterDetails{}) {
 			secondaryClusterName = haClusterConfig.SecondaryCluster.ClusterName
-			if ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Ratio {
 				if haClusterConfig.SecondaryCluster.Ratio != nil {
 					ctlr.clusterRatio[haClusterConfig.SecondaryCluster.ClusterName] = haClusterConfig.SecondaryCluster.Ratio
 				} else {
@@ -2052,9 +2056,16 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 
-			// Setup and start informers for secondary cluster in case of active-active mode HA cluster
-			if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
-				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
+			// Setup and start informers for secondary cluster in case of active-active/ratio/default mode HA cluster
+			if ctlr.discoveryMode != StandBy {
+				err := ctlr.setupAndStartExternalClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
+				if err != nil {
+					return err
+				}
+			}
+			// for default mode with svcTypeLB enable policy informer
+			if ctlr.discoveryMode == DefaultMode && haClusterConfig.SecondaryCluster.ServiceTypeLBDiscovery {
+				err := ctlr.setupAndStartExternalClusterResourceInformers(haClusterConfig.SecondaryCluster.ClusterName)
 				if err != nil {
 					return err
 				}
@@ -2085,9 +2096,16 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				os.Exit(1)
 			}
 
-			// Setup and start informers for primary cluster in case of active-active mode HA cluster
-			if ctlr.haModeType == Active || ctlr.haModeType == Ratio {
-				err := ctlr.setupAndStartHAClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
+			// Setup and start informers for primary cluster in case of active-active/ratio/default mode HA cluster
+			if ctlr.discoveryMode != StandBy {
+				err := ctlr.setupAndStartExternalClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
+				if err != nil {
+					return err
+				}
+			}
+			// for default mode with svcTypeLB enable policy informer
+			if ctlr.discoveryMode == DefaultMode && haClusterConfig.PrimaryCluster.ServiceTypeLBDiscovery {
+				err := ctlr.setupAndStartExternalClusterResourceInformers(haClusterConfig.PrimaryCluster.ClusterName)
 				if err != nil {
 					return err
 				}
@@ -2105,7 +2123,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		if ctlr.multiClusterConfigs != nil && len(ctlr.multiClusterConfigs.ClusterConfigs) > 0 {
 			for clusterName, _ := range ctlr.multiClusterConfigs.ClusterConfigs {
 				// Avoid deleting HA cluster related configs
-				if clusterName == primaryClusterName || clusterName == secondaryClusterName {
+				if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == "" {
 					continue
 				}
 				log.Infof("[MultiCluster] There is no externalClustersConfig section or there are no clusters defined in it. Removing the cluster config for cluster %s from CIS Cache", clusterName)
@@ -2165,7 +2183,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			// TODO: handle scenarios when cluster names are swapped in the extended config, may be the key should be a
 			// combination of cluster name and secret name
 			// Before continuing set cluster ratio to ensure any update in ratio of an external cluster isn't missed
-			if ctlr.haModeType == Ratio {
+			if ctlr.discoveryMode == Ratio {
 				if mcc.Ratio != nil {
 					ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
 				} else {
@@ -2175,6 +2193,32 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 			// Update cluster admin state so that admin state updates are not missed
 			ctlr.readAndUpdateClusterAdminState(mcc, false)
+			if ctlr.discoveryMode == DefaultMode {
+				// check if serviceTypeLB is updated and handle informer creation/deletion
+				if mcc.ServiceTypeLBDiscovery {
+					//create pool and resource informers if not present
+					if _, ok := ctlr.multiClusterPoolInformers[mcc.ClusterName]; !ok {
+						err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+						if err != nil {
+							return err
+						}
+					}
+					if _, ok := ctlr.multiClusterResourceInformers[mcc.ClusterName]; !ok {
+						err = ctlr.setupAndStartExternalClusterResourceInformers(mcc.ClusterName)
+						if err != nil {
+							return err
+						}
+					}
+				} else {
+					//delete pool and resource informers if present for cluster
+					if clsSet, ok := ctlr.multiClusterResourceInformers[mcc.ClusterName]; ok {
+						for _, nsRscInf := range clsSet {
+							nsRscInf.stop()
+						}
+						delete(ctlr.multiClusterResourceInformers, mcc.ClusterName)
+					}
+				}
+			}
 			continue
 		}
 
@@ -2185,7 +2229,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			continue
 		}
 		// Set cluster ratio
-		if ctlr.haModeType == Ratio {
+		if ctlr.discoveryMode == Ratio {
 			if mcc.Ratio != nil {
 				ctlr.clusterRatio[mcc.ClusterName] = mcc.Ratio
 			} else {
@@ -2194,6 +2238,17 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 		}
 		ctlr.readAndUpdateClusterAdminState(mcc, false)
+		//Setup and start pool informers for external cluster in case of default mode and serviceTypeLBDiscovery set to true
+		if ctlr.discoveryMode == DefaultMode && mcc.ServiceTypeLBDiscovery {
+			err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+			if err != nil {
+				return err
+			}
+			err = ctlr.setupAndStartExternalClusterResourceInformers(mcc.ClusterName)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
 	for clusterName, _ := range ctlr.resources.externalClustersConfig {
@@ -2235,10 +2290,17 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 		return fmt.Errorf("[MultiCluster] failed to create kubeClient from kube-config fetched from secret %s for the "+
 			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
 	}
+	kubeCRClient, err := clustermanager.CreateKubeCRClientFromKubeConfig(&kubeConfig)
+	if err != nil {
+		return fmt.Errorf("[MultiCluster] failed to create kubeCRClient from kube-config fetched from secret %s for the "+
+			"cluster %s, Error: %v", mcc.Secret, mcc.ClusterName, err)
+	}
 	// Update the clusterKubeConfig store
 	ctlr.multiClusterConfigs.ClusterConfigs[mcc.ClusterName] = clustermanager.ClusterConfig{
-		KubeClient: kubeClient,
+		KubeClient:   kubeClient,
+		KubeCRClient: kubeCRClient,
 	}
+	ctlr.multiClusterConfigs.ClusterConfigs[""] = clustermanager.ClusterConfig{}
 	return nil
 }
 

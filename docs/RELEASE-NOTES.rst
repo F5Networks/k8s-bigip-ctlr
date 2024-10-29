@@ -10,6 +10,9 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
+    * Multi Cluster
+        * Support to add HA services in multiClusterServices for Transport Servers.
+        * Support for traffic distribution with weights in multiClusterServices in default mode for TS
     * CRD
         * `Issue 3536 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3536>`_: Support CRD status for VS, TS and IngressLink
         * Support for custom partition and Pool settings for ServiceTypeLB service. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/serviceTypeLB>`_
@@ -114,7 +117,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
-        * Support Alternate backend and cluster Ratio for Transport Server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/customResource/transportServer/ts-with-weight-extended-service.yaml>`_.
+        * Support Alternate backend and cluster Ratio for Transport Server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/customResource/transportServer/>`_.
     * CRD
         * `Issue 3337 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3337>`_: Support for access profile and per request policy in policy CRD and VS CRD. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/Policy/policy-with-profileAccess.yaml>`_.
         * `Issue 3352 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3352>`_: Add support for alternate backend,weight and ratio for transport server. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/TransportServer/ts-with-weight-alternate-backend/ts-with-weight-alternate-backend.yaml>`_.
@@ -179,7 +182,7 @@ Added Functionality
     * Multi Cluster
         * `Issue 3284 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3284>`_: Add support to avoid service pool creation for clusters under maintenance. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/extendedConfigmap/>`_
         * Streamline the naming convention for extended service references and multi cluster references annotations.
-        * See `Example with the updated field names for extendedServiceReferences in VS CRD: <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/customResource/virtualServer/vs-with-extended-services.yaml>`_
+        * See `Example with the updated field names for extendedServiceReferences in VS CRD: <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/customResource/virtualServer/>`_
         * See `Example the updated field names for multiClusterServices annotation in NextGenRoutes: <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/multicluster/routes/route-with-multicluster-service-annotation.yaml>`_
     * CRD
         * `Issue 3225 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3225>`_: Support for Host Persistence to configure and disable the Persistence in VS Policy Rule action based on host in VirtualServer. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/virtual-server-with-hostPersistence/>`_

@@ -470,8 +470,20 @@ func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
 		}
 	}
-
-	dnsConfig["Common"] = wideIPs
+	deletedTenants := []string{}
+	activeTenants := []string{}
+	for tenant, partitionConfig := range config.ltmConfig {
+		if len(partitionConfig.ResourceMap) == 0 {
+			deletedTenants = append(deletedTenants, tenant)
+		} else {
+			activeTenants = append(activeTenants, tenant)
+		}
+	}
+	dnsConfig["deletedTenants"] = deletedTenants
+	dnsConfig["activeTenants"] = activeTenants
+	wideIpConfig := make(map[string]interface{})
+	wideIpConfig["Common"] = wideIPs
+	dnsConfig["config"] = wideIpConfig
 	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
 
 	if nil != err {

@@ -3037,7 +3037,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 		//if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
 		//	svc.ClusterName = ""
 		//}
-		if ctlr.checkValidExtendedService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+		if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -3150,7 +3150,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 		//	svc.ClusterName = ""
 		//}
 		// Skip invalid extended service
-		if ctlr.checkValidExtendedService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+		if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		beIdx = beIdx + 1

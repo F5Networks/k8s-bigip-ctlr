@@ -2316,7 +2316,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			clusterName = ""
 		}
 		// Skip invalid extended service or if adding pool member is restricted for the cluster
-		if ctlr.checkValidExtendedService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) ||
+		if ctlr.checkValidMultiClusterService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) ||
 			//(ctlr.haModeType == StandBy && ctlr.multiClusterMode == SecondaryCIS && clusterName == "") ||
 			(ctlr.haModeType == StandBy && clusterName == ctlr.multiClusterConfigs.HAPairClusterName) {
 			continue
@@ -2492,7 +2492,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		}
 
 		for _, svc := range pool.MultiClusterServices {
-			if ctlr.checkValidExtendedService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+			if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 				continue
 			}
 			if _, ok := clusterSvcMap[svc.ClusterName]; !ok {

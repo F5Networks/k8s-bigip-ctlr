@@ -120,11 +120,15 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 		It("Pool name for TS", func() {
 			var name string
-			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "", "hash123")
-			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name for TS")
+			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
+			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = PrimaryCIS
-			name = mockCtlr.formatPoolNameForTS(namespace, "", intstr.IntOrString{}, "", "", "cluster1", "hash123")
-			Expect(name).To(Equal("ts_hash123_multicluster"), "Invalid Pool Name for TS")
+			mockCtlr.discoveryMode = ""
+			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
+			Expect(name).To(Equal("ts_7bb616e6f5_multicluster"), "Invalid Pool Name for TS")
+			mockCtlr.discoveryMode = DefaultMode
+			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
+			Expect(name).To(Equal("ts_5bd74b770d_multicluster"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = ""
 			mockCtlr.discoveryMode = ""
 		})

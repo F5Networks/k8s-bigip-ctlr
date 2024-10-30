@@ -2680,7 +2680,7 @@ externalClustersConfig:
 
 		})
 
-		It("Process TS default discovery mode with multi cluster config ", func() {
+		It("Process TS default discovery mode with multi cluster config", func() {
 			one := 1
 			mockCtlr.clusterRatio["cluster1"] = &one
 			two := 2
@@ -2756,9 +2756,13 @@ externalClustersConfig:
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(rsCfg.Virtual.PoolName).To(Equal("ts_a764b4bf13_multicluster"))
-			Expect(rsCfg.Monitors[0].Name).To(Equal("ts_a764b4bf13_tcp"))
-			Expect(rsCfg.Monitors[1].Name).To(Equal("ts_a764b4bf13_80_tcp"))
+			Expect(len(rsCfg.Monitors)).To(Equal(4))
+			Expect(len(rsCfg.Pools)).To(Equal(2))
+			Expect(len(rsCfg.IRulesMap)).To(Equal(1))
+			Expect(rsCfg.Monitors[0].Name).To(Equal("ts_a14c7d9d69_tcp"))
+			Expect(rsCfg.Monitors[1].Name).To(Equal("ts_a14c7d9d69_80_tcp"))
+			Expect(rsCfg.Monitors[2].Name).To(Equal("ts_45adc6e986_tcp"))
+			Expect(rsCfg.Monitors[3].Name).To(Equal("ts_45adc6e986_80_tcp"))
 			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))

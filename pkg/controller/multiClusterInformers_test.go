@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -11,11 +10,10 @@ var _ = Describe("MultiClusterInformers", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterConfigs = newResourceHandler()
 		clusterName := "cluster-1"
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName] = clustermanager.ClusterConfig{KubeClient: k8sfake.NewSimpleClientset()}
-		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
-		mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
+		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
+		mockCtlr.multiClusterConfigs.ClusterInformers[clusterName] = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 	It("Setup and start multi-cluster informers NodePortLocal", func() {
@@ -31,8 +29,7 @@ var _ = Describe("MultiClusterInformers", func() {
 		Expect(found).To(BeTrue())
 		Expect(poolInf).ToNot(BeNil())
 		mockCtlr.stopMultiClusterInformers(svcKey.clusterName, false)
-		Expect(len(mockCtlr.multiClusterPoolInformers)).To(Equal(0))
-		Expect(len(mockCtlr.multiClusterNodeInformers)).To(Equal(0))
+		Expect(len(mockCtlr.multiClusterConfigs.ClusterInformers["cluster-1"].comInformers)).To(Equal(0))
 	})
 	It("Setup and start multi-cluster informers Cluster", func() {
 		mockCtlr.PoolMemberType = Cluster
@@ -49,9 +46,7 @@ var _ = Describe("MultiClusterInformers", func() {
 		ns := "test-new-ns"
 		err := mockCtlr.updateMultiClusterInformers(ns, false)
 		Expect(err).To(BeNil())
-		Expect(len(mockCtlr.multiClusterPoolInformers)).NotTo(Equal(0))
-		for clusterNameKey, _ := range mockCtlr.multiClusterPoolInformers {
-			Expect(mockCtlr.multiClusterPoolInformers[clusterNameKey]).To(HaveKey(ns))
-		}
+		Expect(len(mockCtlr.multiClusterConfigs.ClusterInformers)).NotTo(Equal(0))
+		Expect(mockCtlr.multiClusterConfigs.ClusterInformers["cluster-1"].comInformers).To(HaveKey(ns))
 	})
 })

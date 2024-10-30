@@ -36,9 +36,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
 	v1 "k8s.io/api/core/v1"
@@ -55,15 +53,6 @@ type (
 	Controller struct {
 		mode                        ControllerMode
 		resources                   *ResourceStore
-		kubeCRClient                versioned.Interface
-		kubeClient                  kubernetes.Interface
-		kubeAPIClient               *extClient.Clientset
-		eventNotifier               *apm.EventNotifier
-		nativeResourceSelector      labels.Selector
-		customResourceSelector      labels.Selector
-		namespacesMutex             sync.Mutex
-		namespaces                  map[string]bool
-		nodeLabelSelector           string
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
@@ -71,8 +60,6 @@ type (
 		Partition                   string
 		Agent                       *Agent
 		PoolMemberType              string
-		nodePoller                  pollers.Poller
-		oldNodes                    []Node
 		UseNodeInternal             bool
 		initState                   bool
 		firstPostResponse           bool
@@ -84,13 +71,12 @@ type (
 		defaultRouteDomain          int
 		TeemData                    *teem.TeemsData
 		requestQueue                *requestQueue
-		namespaceLabel              string
 		ipamHostSpecEmpty           bool
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		multiClusterConfigs         *clustermanager.MultiClusterConfig
+		multiClusterConfigs         *ResourceHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
@@ -101,20 +87,45 @@ type (
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue                 workqueue.RateLimitingInterface
-		routeClientV1                 routeclient.RouteV1Interface
-		comInformers                  map[string]*CommonInformer
-		nrInformers                   map[string]*NRInformer
-		crInformers                   map[string]*CRInformer
-		nsInformers                   map[string]*NSInformer
-		nodeInformer                  *NodeInformer
-		multiClusterPoolInformers     map[string]map[string]*MultiClusterPoolInformer
-		multiClusterResourceInformers map[string]map[string]*MultiClusterResourceInformer
-		multiClusterNodeInformers     map[string]*NodeInformer
-		globalExtendedCMKey           string
-		routeLabel                    string
-		namespaceLabelMode            bool
-		processedHostPath             *ProcessedHostPath
+		resourceQueue       workqueue.RateLimitingInterface
+		globalExtendedCMKey string
+		namespaceLabelMode  bool
+		processedHostPath   *ProcessedHostPath
+	}
+
+	InformerStore struct {
+		comInformers map[string]*CommonInformer
+		nrInformers  map[string]*NRInformer
+		crInformers  map[string]*CRInformer
+		nsInformers  map[string]*NSInformer
+		nodeInformer *NodeInformer
+	}
+
+	ResourceHandler struct {
+		ClusterConfigs      map[string]*ClusterConfig
+		ClusterInformers    map[string]*InformerStore
+		HAPairClusterName   string
+		LocalClusterName    string
+		uniqueAppIdentifier map[string]struct{}
+		eventQueue          workqueue.RateLimitingInterface
+	}
+
+	//ClusterConfig holds configuration specific for cluster
+	ClusterConfig struct {
+		ExternalClusterConfig
+		kubeClient             kubernetes.Interface
+		kubeCRClient           versioned.Interface
+		kubeAPIClient          *extClient.Clientset
+		routeClientV1          routeclient.RouteV1Interface
+		routeLabel             string
+		nativeResourceSelector labels.Selector
+		customResourceSelector labels.Selector
+		namespaceLabel         string
+		namespacesMutex        sync.Mutex
+		namespaces             map[string]bool
+		nodeLabelSelector      string
+		oldNodes               []Node
+		eventNotifier          *EventNotifier
 	}
 
 	// Params defines parameters
@@ -160,6 +171,7 @@ type (
 	CommonInformer struct {
 		namespace       string
 		stopCh          chan struct{}
+		clusterName     string
 		svcInformer     cache.SharedIndexInformer
 		epsInformer     cache.SharedIndexInformer
 		ednsInformer    cache.SharedIndexInformer
@@ -180,7 +192,6 @@ type (
 		stopCh       chan struct{}
 		nodeInformer cache.SharedIndexInformer
 		clusterName  string
-		oldNodes     []Node
 	}
 
 	NSInformer struct {
@@ -426,9 +437,10 @@ type (
 	}
 
 	resourceRef struct {
-		kind      string
-		name      string
-		namespace string
+		kind        string
+		name        string
+		namespace   string
+		clusterName string
 	}
 
 	VSSpecProperties struct {
@@ -514,8 +526,6 @@ type (
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
-		// stores valid externalClustersConfig from extendendCM
-		externalClustersConfig map[string]ExternalClusterConfig
 	}
 
 	// key is group identifier
@@ -1477,21 +1487,5 @@ type (
 	}
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
-	}
-
-	MultiClusterPoolInformer struct {
-		namespace   string
-		clusterName string
-		stopCh      chan struct{}
-		svcInformer cache.SharedIndexInformer
-		epsInformer cache.SharedIndexInformer
-		podInformer cache.SharedIndexInformer
-	}
-
-	MultiClusterResourceInformer struct {
-		namespace   string
-		clusterName string
-		stopCh      chan struct{}
-		plcInformer cache.SharedIndexInformer
 	}
 )

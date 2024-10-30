@@ -2437,6 +2437,9 @@ func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) 
 	} else {
 		// For multiCluster services
 		for _, mcs := range pool.MultiClusterServices {
+			if mcs.SvcName != pool.ServiceName {
+				continue
+			}
 			clusterName := mcs.ClusterName
 			if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
 				clusterName = ""
@@ -3048,6 +3051,8 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.MetaData.baseResources = make(map[string]string)
+	rsCfg.IntDgMap = make(InternalDataGroupMap)
+	rsCfg.IRulesMap = make(IRulesMap)
 	if virtual.Spec.BigIPRouteDomain > 0 {
 		if ctlr.PoolMemberType == Cluster {
 			log.Warning("bigipRouteDomain is not supported in cluster mode")

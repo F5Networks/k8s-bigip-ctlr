@@ -697,6 +697,45 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
+func (ctlr *Controller) getABDeployIruleForTS(rsVSName string, partition string, tsType string) string {
+	dgPath := strings.Join([]string{partition, Shared}, "/")
+
+	return fmt.Sprintf(`when CLIENT_ACCEPTED {
+    	set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+		set ab_rule [class match -value "/" equals $ab_class]
+		if {$ab_rule != ""} then {
+	    	set weight_selection [expr {rand()}]
+			set service_rules [split $ab_rule ";"]
+        	set active_pool ""
+			foreach service_rule $service_rules {
+		    	set fields [split $service_rule ","]
+				set pool_name [lindex $fields 0]
+				if { [active_members $pool_name] >= 1 } {
+			    	set active_pool $pool_name
+				}
+				set weight [expr {double([lindex $fields 1])}]
+				if {$weight_selection <= $weight} then {
+			    	#check if active pool members are available
+					if { [active_members $pool_name] >= 1 } {
+				    	pool $pool_name
+						return
+					} else {
+                    	# select other pool with active members
+						if {$active_pool!= ""} then {
+					    	pool $active_pool
+							return
+						}
+					}
+				}
+			}
+		}
+		# If we had a match, but all weights were 0 then
+		# retrun a 503 (Service Unavailable)
+		%[3]s::respond 503
+		return
+	}`, dgPath, rsVSName, strings.ToUpper(tsType))
+}
+
 func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition string, multiPoolPersistence MultiPoolPersistence) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
@@ -1456,6 +1495,10 @@ func isVSABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0
 }
 
+func isTSABDeployment(pool *cisapiv1.TSPool) bool {
+	return (pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0) || (pool.MultiClusterServices != nil && len(pool.MultiClusterServices) > 0)
+}
+
 func isVsPathBasedABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
@@ -1698,6 +1741,61 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		rbcs[beIdx].SvcNamespace = svc.Namespace
 	}
 	return rbcs
+}
+
+func (ctlr *Controller) updateDataGroupForABTransportServer(
+	pool cisapiv1.TSPool,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port intstr.IntOrString,
+) {
+	if !isTSABDeployment(&pool) && ctlr.discoveryMode != Ratio {
+		/*
+				 AB		RATIO      Skip Updating DG
+			=========================================
+				True  	True    =       False
+				True  	False   =       False
+				False 	True    =       False
+				False  	False   =       True
+		*/
+		return
+	}
+
+	weightTotal := 0.0
+	backends := ctlr.GetPoolBackendsForTS(&pool)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+	}
+	key := "/"
+	if weightTotal == 0 {
+		// If all services have 0 weight, 503 will be returned
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "string")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0.0
+		for _, be := range backends {
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := runningWeightTotal / weightTotal
+			svcNamespace := namespace
+			if be.SvcNamespace != "" {
+				svcNamespace = be.SvcNamespace
+			}
+			poolName := ctlr.framePoolNameForTS(svcNamespace, pool, be)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
+	}
 }
 
 // updateDataGroupForABVirtualServer updates the data group map based on alternativeBackends of route.

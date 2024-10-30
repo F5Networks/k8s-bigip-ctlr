@@ -749,6 +749,7 @@ type (
 		Name         string
 		SvcNamespace string `json:"svcNamespace,omitempty"`
 		Cluster      string
+		SvcPort      intstr.IntOrString
 	}
 )
 

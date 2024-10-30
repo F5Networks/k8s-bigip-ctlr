@@ -65,6 +65,7 @@ func (rs *ResourceStore) Init() {
 	rs.gtmConfigCache = make(GTMConfig)
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
+	rs.svcLBStore = make(SvcLBStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
@@ -400,7 +401,7 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 	}
 
 	// Attach cluster name to pool name only in case of multi-cluster ratio mode
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == Ratio {
+	if (ctlr.multiClusterMode != "") && (ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode) {
 		if cluster == "" {
 			cluster = ctlr.multiClusterConfigs.LocalClusterName
 		}
@@ -2504,14 +2505,15 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	rsCfg *ResourceConfig,
 	svc *v1.Service,
 	svcPort v1.ServicePort,
+	clusterName string,
 ) error {
 	poolName := ctlr.formatPoolName(
 		svc.Namespace,
 		svc.Name,
 		svcPort.TargetPort,
-		"", "", "")
+		"", "", clusterName)
 
-	targetPort := ctlr.fetchTargetPort(svc.Namespace, svc.Name, intstr.IntOrString{IntVal: svcPort.Port}, "")
+	targetPort := ctlr.fetchTargetPort(svc.Namespace, svc.Name, intstr.IntOrString{IntVal: svcPort.Port}, clusterName)
 	if (intstr.IntOrString{}) == targetPort {
 		targetPort = intstr.IntOrString{IntVal: svcPort.Port}
 	}
@@ -2522,10 +2524,11 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		ServiceNamespace: svc.Namespace,
 		ServicePort:      targetPort,
 		NodeMemberLabel:  "",
+		Cluster:          clusterName,
 	}
 	svcKey := MultiClusterServiceKey{
 		serviceName: svc.Name,
-		clusterName: "",
+		clusterName: clusterName,
 		namespace:   svc.Namespace,
 	}
 	rsRef := resourceRef{
@@ -2572,8 +2575,8 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	if rsCfg.Virtual.SNAT == "" {
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	}
-	// update the multicluster resource serviceMap with local cluster services
-	ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, pool.ServicePort, "")
+	// update the multicluster resource serviceMap with cluster services
+	ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, pool.ServicePort, clusterName)
 
 	return nil
 }

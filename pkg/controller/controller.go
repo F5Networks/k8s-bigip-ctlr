@@ -176,6 +176,7 @@ func NewController(params Params, startController bool) *Controller {
 	ctlr.comInformers = make(map[string]*CommonInformer)
 	ctlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
 	ctlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
+	ctlr.multiClusterResourceInformers = make(map[string]map[string]*MultiClusterResourceInformer)
 	ctlr.nrInformers = make(map[string]*NRInformer)
 	ctlr.crInformers = make(map[string]*CRInformer)
 	ctlr.nsInformers = make(map[string]*NSInformer)

@@ -8,22 +8,22 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 )
 
 var _ = Describe("Validation Tests", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = newResourceHandler()
 	})
 
 	Describe("Validating ExtendedServiceReference", func() {
 		BeforeEach(func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
-			clusterConfigs := make(map[string]clustermanager.ClusterConfig)
-			clusterConfigs["cluster1"] = clustermanager.ClusterConfig{}
-			clusterConfigs["cluster2"] = clustermanager.ClusterConfig{}
-			mockCtlr.multiClusterConfigs = &clustermanager.MultiClusterConfig{
+			clusterConfigs := make(map[string]*ClusterConfig)
+			clusterConfigs["cluster1"] = &ClusterConfig{}
+			clusterConfigs["cluster2"] = &ClusterConfig{}
+			mockCtlr.multiClusterConfigs = &ResourceHandler{
 				ClusterConfigs:    clusterConfigs,
 				HAPairClusterName: "cluster2",
 				LocalClusterName:  "cluster1",
@@ -70,7 +70,7 @@ var _ = Describe("Validation Tests", func() {
 				ServicePort: intstr.IntOrString{IntVal: 80},
 			}, true)).Error().To(Equal(fmt.Errorf("cluster config for the cluster cluster3 is not provided in extended configmap")))
 			// Service running in non HA cluster
-			mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"] = clustermanager.ClusterConfig{}
+			mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"] = &ClusterConfig{}
 			Expect(mockCtlr.checkValidMultiClusterService(cisapiv1.MultiClusterServiceReference{
 				ClusterName: "cluster3",
 				Namespace:   "namespace1",

@@ -635,9 +635,9 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.plcInformer != nil {
 		comInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create, "") },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update, "") },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj, "") },
 			},
 		)
 		comInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, Local))
@@ -931,29 +931,31 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
+func (ctlr *Controller) enqueuePolicy(obj interface{}, event string, clusterName string) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
-		namespace: pol.ObjectMeta.Namespace,
-		kind:      CustomPolicy,
-		rscName:   pol.ObjectMeta.Name,
-		rsc:       obj,
-		event:     event,
+		namespace:   pol.ObjectMeta.Namespace,
+		kind:        CustomPolicy,
+		rscName:     pol.ObjectMeta.Name,
+		rsc:         obj,
+		event:       event,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}, clusterName string) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
-		namespace: pol.ObjectMeta.Namespace,
-		kind:      CustomPolicy,
-		rscName:   pol.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   pol.ObjectMeta.Namespace,
+		kind:        CustomPolicy,
+		rscName:     pol.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)

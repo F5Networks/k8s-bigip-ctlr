@@ -382,6 +382,7 @@ func as3FormattedString(str string, resourceType string) string {
 	switch resourceType {
 	case ResourceTypeIngress:
 		formattedString = strings.Replace(str, ".", "_", -1)
+		formattedString = strings.Replace(formattedString, "+", "_", -1)
 		formattedString = strings.Replace(formattedString, "-", "_", -1)
 	default:
 		formattedString = strings.Replace(str, "-", "_", -1)

@@ -157,7 +157,8 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("vs_exams_com_sample_pool"))
 			name = formatVirtualServerRuleName("test.com", "", "/foo", "sample_pool", false)
 			Expect(name).To(Equal("vs_test_com_foo_sample_pool"))
-
+			name = formatVirtualServerRuleName("test.com", "", "/++foo++", "sample_pool", false)
+			Expect(name).To(Equal("vs_test_com___foo___sample_pool"))
 		})
 		It("Monitor Name with MultiCluster mode", func() {
 			// Standalone, no ratio and monitor for local cluster pool

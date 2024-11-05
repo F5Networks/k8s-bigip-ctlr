@@ -4,6 +4,17 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 Next Release
 -------------
 
+Added Functionality
+```````````````````
+**What's new:**
+    * CRD
+
+
+Bug Fixes
+````````````
+* `Issue 3561 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Controller stops posting changes at runtime when some ingress path has the + character
+
+
 2.18.1
 -------------
 

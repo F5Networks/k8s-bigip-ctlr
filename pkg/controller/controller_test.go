@@ -16,8 +16,8 @@ var _ = Describe("OtherSDNType", func() {
 	var pod *v1.Pod
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
-		mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 		mockCtlr.TeemData = &teem.TeemsData{SDNType: "other"}
 		selectors = make(map[string]string)
 

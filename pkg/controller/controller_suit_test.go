@@ -373,21 +373,21 @@ func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
 }
 
 func (m *mockController) addNode(node *v1.Node) {
-	m.multiClusterConfigs.ClusterInformers[""].nodeInformer.nodeInformer.GetStore().Add(node)
+	m.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Add(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateNode(node *v1.Node, ns string) {
-	m.multiClusterConfigs.ClusterInformers[""].nodeInformer.nodeInformer.GetStore().Update(node)
+	m.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
-	m.multiClusterConfigs.ClusterInformers[""].nodeInformer.nodeInformer.GetStore().Update(node)
+	m.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}

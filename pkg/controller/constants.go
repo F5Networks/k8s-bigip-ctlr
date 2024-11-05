@@ -44,4 +44,5 @@ const (
 	CALICONodeIPAnnotation      = "projectcalico.org/IPv4Address"
 
 	CommonPartition = "Common"
+	LocalCluster    = ""
 )

@@ -25,7 +25,7 @@ var _ = Describe("Informers Tests", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 	})
 
 	Describe("Custom Resource Informers", func() {
@@ -36,7 +36,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		})
 		It("Resource Informers", func() {
@@ -64,7 +64,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -640,7 +640,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resources = NewResourceStore()
 		})
@@ -650,7 +650,7 @@ var _ = Describe("Informers Tests", func() {
 			comInf, found := mockCtlr.getNamespacedCommonInformer(namespace)
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
-			mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
 			comInf, found = mockCtlr.getNamespacedCommonInformer(namespace)
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
@@ -658,7 +658,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
 			ns := mockCtlr.getWatchingNamespaces()
 			Expect(ns).ToNot(BeNil())
-			mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")
 			nrInr, found := mockCtlr.getNamespacedNativeInformer(namespace)
 			Expect(nrInr).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
@@ -672,7 +672,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 			mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "native-resource-controller")

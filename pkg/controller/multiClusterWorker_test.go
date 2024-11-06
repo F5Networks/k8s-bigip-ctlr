@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -16,7 +15,7 @@ var _ = Describe("MultiClusterWorker", func() {
 	var clusterName2 string
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		clusterName = "cluster-1"
 		clusterName2 = "cluster-2"
 		mockCtlr.multiClusterConfigs.HAPairClusterName = "cluster-2"
@@ -32,14 +31,14 @@ var _ = Describe("MultiClusterWorker", func() {
 				},
 			},
 		)
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName] = clustermanager.ClusterConfig{KubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName2] = clustermanager.ClusterConfig{KubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
-		mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
+		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].InformerStore = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 	It("Get service from HA cluster", func() {
-		mockCtlr.haModeType = Active
+		mockCtlr.discoveryMode = Active
 		svcKey := MultiClusterServiceKey{
 			serviceName: "svc1",
 			namespace:   "ns",

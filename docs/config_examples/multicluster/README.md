@@ -35,7 +35,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 ### Standalone CIS
 
-In a Standalone deployment of CIS, CIS is only deployed in one cluster, then create a route resource with a Multi-Cluster annotation or CRD resource with extendedServiceReferences to expose the apps in different OpenShift/K8s clusters.
+In a Standalone deployment of CIS, CIS is only deployed in one cluster, then create a route resource with a Multi-Cluster annotation or CRD resource with multiClusterServices to expose the apps in different OpenShift/K8s clusters.
 
 ![architecture](images/standaloneMultiCluster.png)
 
@@ -365,7 +365,7 @@ Health probe parameters are provided in highAvailabilityCIS in extended configma
 
 
 ### Route Annotation for Multi-ClusterServices
-Services running in any other OpenShift clusters, apart from the HA cluster pair, can be referenced in the route annotations as mentioned below:
+Services running in any other OpenShift clusters, as mentioned below:
 ```
 virtual-server.f5.com/multiClusterServices: 
 '[
@@ -415,7 +415,7 @@ Following is the sample deployment for primary CIS deployment:
 1. Update the ```multi-cluster-mode``` to *secondary* for secondary CIS deployment in high availablility topology, See [High Availability CIS](#high-availability-cis).
 2. Update the ```multi-cluster-mode``` to *standalone* for standalone topology, See [Standalone CIS](#standalone-cis).
 
-**Note**: _weight_ needs to be specified onlyonly in A/B scenario
+**Note**: _weight_ needs to be specified only in [A/B](#ab-or-alternate-backends) scenario
 
 **Note**:
 * For HA mode [namely Active-Standby, Active-Active, Ratio], CIS monitored resource manifests(such as routes, CRDs, extendedConfigmaps) must be available in both the clusters.
@@ -426,31 +426,13 @@ Following is the sample deployment for primary CIS deployment:
 
 
 ### Virutal Server Pool with Multi-ClusterServices
-Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the VS Pool as mentioned below:
-```
-  pools:
-  - path: /tea
-    serviceNamespace: tea
-    service: svc-2
-    servicePort: 80
-    extendedServiceReferences:
-    - clusterName: cluster2
-      namespace: ns1
-      servicePort: 8080
-      service: svc-1
-    - clusterName: cluster3
-      namespace: ns2
-      servicePort: 80
-      service: svc-ext-1
-```
+This is not supported as of now. It will be supported soon.
 
 ### Transport Server Pool with Multi-ClusterServices
-Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the TS Pool as mentioned below:
+Services running in any other OpenShift/Kubernetes clusters those are monitored by CIS, can be referenced in the TS Pool as mentioned below:
 ```
   pool:
-    service: svc-1
-    servicePort: 8181
-    extendedServiceReferences:
+    multiClusterServices:
     - clusterName: cluster2
       service: svc-1
       namespace: ns1
@@ -519,7 +501,7 @@ Following is the sample deployment for primary CIS deployment:
 
 ### Cluster wise Ratio for traffic distribution
 CIS supports distribution of traffic across clusters as per the ratio configured for each cluster in the extended ConfigMap.<br>
-It works even along with A/B where different weights are defined for each service. In such a case the ratio of traffic 
+It works even along with [A/B](#ab-or-alternate-backends) where different weights are defined for each service. In such a case the ratio of traffic 
 distribution is computed taking into consideration both the service weights and cluster ratio.<br>
 However, the ratio of the clusters those haven't hosted any services linked to the concerned route are not taken into consideration 
 while computing the final ratio.<br>
@@ -530,6 +512,19 @@ while computing the final ratio.<br>
 * Setting cluster adminState in conjunction with cluster ratio will affect the overall traffic distribution across clusters.
   As the clusters marked as disable or offline will not receive traffic, so any ratio defined for these clusters will be rendered ineffective.
   Thus, in such a scenario it's recommended to set the cluster ratio to 0 for all the clusters marked with disable/offline.
+
+### A/B or Alternate Backends
+What it is?
+
+* A/B or Alternate Backends is a deployment strategy that allows you to release a new version of an application (version B) to a subset of users, while the majority still uses the old version (version A).
+* It helps in comparing two versions of a service or application (referred to as A and B) to determine which one performs better based on specific metrics, such as response time, error rates, or user engagement.
+* It allows you to gradually release changes to a subset of users and gather data to make informed decisions about whether to fully roll out the new version.
+* This services defined in Alternate Backends exist in either of the HA peer clusters or in both of the HA clusters. Since HA clusters usually hold similar configurations, ideally these services exist in both the HA clusters.
+
+What it isn't?
+
+* Services defined as Alternate Backends don't have to be created only in the other HA peer cluster(by other HA peer cluster it means if CIS is running in Primary cluster then Secondary cluster is the other HA peer cluster and vice versa).
+* Alternate Backends are not primarily used for failover scenarios, however BIGIP does forward the traffic to any of the available backend service if any service goes down or fails health check.
 
 ### Cluster adminState to enable/disable/offline a cluster
 adminState can be provided for a cluster to dictate the state of a particular cluster.
@@ -603,13 +598,13 @@ CIS requires read-only permission in Kubeconfig of external clusters to access r
 No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts as a single point of BIG-IP Orchestrator and supports Multi-Cluster.
 
 ### Is traffic splitting with cluster ratio supported?
-Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with A/B as well.
+Yes. CIS supports traffic splitting as per the ratio specified for each cluster and also works with [A/B](#ab-or-alternate-backends) as well.
 
 ### Is A/B supported in multiCluster mode?
-Yes. CIS supports A/B with multiCluster.
+Yes. CIS supports [A/B](#ab-or-alternate-backends) with multiCluster.
 
 ### Is A/B custom persistence supported in all the modes?
-No. A/B persistence is supported in ratio mode and pool member type as cluster.
+No. [A/B](#ab-or-alternate-backends) persistence is supported in ratio mode and pool member type as cluster.
 
 ### Does Secondary CIS require resource manifests existing in Primary Cluster?
 Yes. CIS on Secondary Cluster will not process the CIS monitored resource manifests[NextGen Routes, CRDs, extendedConfigmap] if they are not available in Primary Cluster.
@@ -663,14 +658,8 @@ Ok[root@cluster-1-worker0 ~]#
 where 10.244.1.213 is the CIS PodIP.
 
 
-### How extendedServiceReferences is different from multiClusterServices?
-extendedServiceReferences is applicable for Virtual Server CR or Transport Server CR and multiClusterServices is applicable for NextGen Routes.
-extendedServiceReferences is used to refer the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, in the VS Pool or TS Pool.
-multiClusterServices is used to refer the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, in the Route annotation.
-
-### How multiClusterServices and extendedServiceReferences are similar?
-multiClusterServices and extendedServiceReferences are similar in terms of referring the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair.
-Both are applicable to refer services running in external Clusters, apart from the HA cluster pair
+### Which services can be provided as multiClusterServices?
+Any service running in any OpenShift/Kubernetes clusters which are part of the multiCluster setup can be provided as multiClusterServices.
 
 ### How to configure multiClusterServices in Route annotation?
 multiClusterServices is a Route annotation. Below is the sample Route annotation with multiClusterServices:
@@ -690,15 +679,11 @@ where clusterName is the name of the cluster where the service is running, names
 where cluster2 is the external cluster apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS
 
-### How to configure extendedServiceReferences in Virtual Server CR or Transport Server CR?
-extendedServiceReferences is a field in Virtual Server CR or Transport Server CR. Below is the sample Virtual Server CR with extendedServiceReferences:
+### How to configure multiClusterServices in Virtual Server CR or Transport Server CR?
+multiClusterServices is not supported in VirutalServer CR yet. It's supported in Transport Server CR only when CIS is running in "default" mode. Below is the sample Transport Server CR with multiClusterServices:
 ```
   pools:
-  - path: /tea
-    serviceNamespace: tea
-    service: svc-2
-    servicePort: 80
-    extendedServiceReferences:
+    multiClusterServices:
     - clusterName: cluster3
       namespace: ns1
       servicePort: 8080
@@ -709,8 +694,7 @@ extendedServiceReferences is a field in Virtual Server CR or Transport Server CR
       service: svc-ext-1
 ```
 where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, servicePort is the port of the service and service is the name of the service.
-where cluster3 and cluster4 are the external clusters apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS
 
-### Can I specify the services running in CIS HA cluster in extendedServiceReferences/multiClusterServices?
-No. ExtendedServiceReferences/multiClusterServices is only applicable to refer the services running in K8S/Openshift clusters which are not part of the HA cluster(Primary/Secondary Cluster).
+### Can I specify the services running in CIS HA cluster in multiClusterServices?
+Yes. multiClusterServices is applicable to refer the services running in K8S/Openshift clusters which are part of the HA cluster(Primary/Secondary Cluster) as well.

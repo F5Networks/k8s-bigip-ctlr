@@ -260,7 +260,7 @@ func (m *mockController) addPolicy(plc *cisapiv1.Policy) {
 	cusInf.plcInformer.GetStore().Add(plc)
 
 	if m.resourceQueue != nil {
-		m.enqueuePolicy(plc, Create)
+		m.enqueuePolicy(plc, Create, "")
 	}
 }
 
@@ -269,7 +269,7 @@ func (m *mockController) deletePolicy(plc *cisapiv1.Policy) {
 	cusInf.plcInformer.GetStore().Delete(plc)
 
 	if m.resourceQueue != nil {
-		m.enqueueDeletedPolicy(plc)
+		m.enqueueDeletedPolicy(plc, "")
 	}
 }
 
@@ -373,21 +373,21 @@ func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
 }
 
 func (m *mockController) addNode(node *v1.Node) {
-	m.nodeInformer.nodeInformer.GetStore().Add(node)
+	m.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Add(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateNode(node *v1.Node, ns string) {
-	m.nodeInformer.nodeInformer.GetStore().Update(node)
+	m.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
-	m.nodeInformer.nodeInformer.GetStore().Update(node)
+	m.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}

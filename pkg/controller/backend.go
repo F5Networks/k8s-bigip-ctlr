@@ -470,8 +470,20 @@ func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
 		}
 	}
-
-	dnsConfig["Common"] = wideIPs
+	deletedTenants := []string{}
+	activeTenants := []string{}
+	for tenant, partitionConfig := range config.ltmConfig {
+		if len(partitionConfig.ResourceMap) == 0 {
+			deletedTenants = append(deletedTenants, tenant)
+		} else {
+			activeTenants = append(activeTenants, tenant)
+		}
+	}
+	dnsConfig["deletedTenants"] = deletedTenants
+	dnsConfig["activeTenants"] = activeTenants
+	wideIpConfig := make(map[string]interface{})
+	wideIpConfig["Common"] = wideIPs
+	dnsConfig["config"] = wideIpConfig
 	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
 
 	if nil != err {
@@ -1848,14 +1860,16 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 			svc.VirtualPort = port
 		}
 	}
-	var poolPointer as3ResourcePointer
-	ps := strings.Split(cfg.Virtual.PoolName, "/")
-	poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
-		tenant,
-		as3SharedApplication,
-		ps[len(ps)-1],
-	)
-	svc.Pool = &poolPointer
+	if cfg.Virtual.PoolName != "" {
+		var poolPointer as3ResourcePointer
+		ps := strings.Split(cfg.Virtual.PoolName, "/")
+		poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+			tenant,
+			as3SharedApplication,
+			ps[len(ps)-1],
+		)
+		svc.Pool = &poolPointer
+	}
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

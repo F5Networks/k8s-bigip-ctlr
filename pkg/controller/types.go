@@ -36,9 +36,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
 	v1 "k8s.io/api/core/v1"
@@ -55,15 +53,6 @@ type (
 	Controller struct {
 		mode                        ControllerMode
 		resources                   *ResourceStore
-		kubeCRClient                versioned.Interface
-		kubeClient                  kubernetes.Interface
-		kubeAPIClient               *extClient.Clientset
-		eventNotifier               *apm.EventNotifier
-		nativeResourceSelector      labels.Selector
-		customResourceSelector      labels.Selector
-		namespacesMutex             sync.Mutex
-		namespaces                  map[string]bool
-		nodeLabelSelector           string
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
@@ -71,8 +60,6 @@ type (
 		Partition                   string
 		Agent                       *Agent
 		PoolMemberType              string
-		nodePoller                  pollers.Poller
-		oldNodes                    []Node
 		UseNodeInternal             bool
 		initState                   bool
 		firstPostResponse           bool
@@ -84,36 +71,61 @@ type (
 		defaultRouteDomain          int
 		TeemData                    *teem.TeemsData
 		requestQueue                *requestQueue
-		namespaceLabel              string
 		ipamHostSpecEmpty           bool
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		multiClusterConfigs         *clustermanager.MultiClusterConfig
+		multiClusterConfigs         *ClusterHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
 		manageLoadBalancerClassOnly bool
-		haModeType                  HAModeType
+		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue             workqueue.RateLimitingInterface
-		routeClientV1             routeclient.RouteV1Interface
-		comInformers              map[string]*CommonInformer
-		nrInformers               map[string]*NRInformer
-		crInformers               map[string]*CRInformer
-		nsInformers               map[string]*NSInformer
-		nodeInformer              *NodeInformer
-		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
-		multiClusterNodeInformers map[string]*NodeInformer
-		globalExtendedCMKey       string
-		routeLabel                string
-		namespaceLabelMode        bool
-		processedHostPath         *ProcessedHostPath
+		resourceQueue       workqueue.RateLimitingInterface
+		globalExtendedCMKey string
+		namespaceLabelMode  bool
+		processedHostPath   *ProcessedHostPath
+	}
+
+	InformerStore struct {
+		comInformers map[string]*CommonInformer
+		nrInformers  map[string]*NRInformer
+		crInformers  map[string]*CRInformer
+		nsInformers  map[string]*NSInformer
+		nodeInformer *NodeInformer
+	}
+
+	ClusterHandler struct {
+		ClusterConfigs      map[string]*ClusterConfig
+		HAPairClusterName   string
+		LocalClusterName    string
+		uniqueAppIdentifier map[string]struct{}
+		eventQueue          workqueue.RateLimitingInterface
+		sync.RWMutex
+	}
+
+	//ClusterConfig holds configuration specific for cluster
+	ClusterConfig struct {
+		clusterDetails         ClusterDetails
+		kubeClient             kubernetes.Interface
+		kubeCRClient           versioned.Interface
+		kubeAPIClient          *extClient.Clientset
+		routeClientV1          routeclient.RouteV1Interface
+		routeLabel             string
+		nativeResourceSelector labels.Selector
+		customResourceSelector labels.Selector
+		namespaces             map[string]bool
+		namespaceLabel         string
+		nodeLabelSelector      string
+		oldNodes               []Node
+		eventNotifier          *EventNotifier
+		*InformerStore
 	}
 
 	// Params defines parameters
@@ -159,6 +171,7 @@ type (
 	CommonInformer struct {
 		namespace       string
 		stopCh          chan struct{}
+		clusterName     string
 		svcInformer     cache.SharedIndexInformer
 		epsInformer     cache.SharedIndexInformer
 		ednsInformer    cache.SharedIndexInformer
@@ -179,7 +192,6 @@ type (
 		stopCh       chan struct{}
 		nodeInformer cache.SharedIndexInformer
 		clusterName  string
-		oldNodes     []Node
 	}
 
 	NSInformer struct {
@@ -331,8 +343,12 @@ type (
 		gtmConfig      GTMConfig
 		gtmConfigCache GTMConfig
 		nplStore       NPLStore
+		svcLBStore     SvcLBStore
 		supplementContextCache
 	}
+
+	// svcLBStore contains TyoeLB service details.key is IP
+	SvcLBStore map[string]MultiClusterServiceKey
 
 	// LTMConfig contain partition based ResourceMap
 	LTMConfig map[string]*PartitionConfig
@@ -421,9 +437,10 @@ type (
 	}
 
 	resourceRef struct {
-		kind      string
-		name      string
-		namespace string
+		kind        string
+		name        string
+		namespace   string
+		clusterName string
 	}
 
 	VSSpecProperties struct {
@@ -509,8 +526,6 @@ type (
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
-		// stores valid externalClustersConfig from extendendCM
-		externalClustersConfig map[string]ExternalClusterConfig
 	}
 
 	// key is group identifier
@@ -744,6 +759,7 @@ type (
 		Name         string
 		SvcNamespace string `json:"svcNamespace,omitempty"`
 		Cluster      string
+		SvcPort      intstr.IntOrString
 	}
 )
 
@@ -1320,9 +1336,9 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
+		ExternalClustersConfig    []ClusterDetails          `yaml:"externalClustersConfig"`
 		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType                `yaml:"mode"`
+		HAMode                    discoveryMode             `yaml:"mode"`
 		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
 		LocalClusterAdminState    clustermanager.AdminState `yaml:"localClusterAdminState"`
 	}
@@ -1394,12 +1410,14 @@ const (
 	StatusError = "ERROR"
 )
 
+type discoveryMode string
 type AutoMonitorType string
 
 const (
-	Active          HAModeType      = "active-active"
-	StandBy         HAModeType      = "active-standby"
-	Ratio           HAModeType      = "ratio"
+	Active          discoveryMode   = "active-active"
+	StandBy         discoveryMode   = "active-standby"
+	Ratio           discoveryMode   = "ratio"
+	DefaultMode     discoveryMode   = "default"
 	None            AutoMonitorType = "none"
 	ReadinessProbe  AutoMonitorType = "readiness-probe"
 	ServiceEndpoint AutoMonitorType = "service-endpoint"
@@ -1419,13 +1437,6 @@ const (
 )
 
 type (
-	ExternalClusterConfig struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
-	}
-
 	HAClusterConfig struct {
 		//HAMode                 HAMode         `yaml:"mode"`
 		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`
@@ -1437,14 +1448,15 @@ type (
 
 	HAMode struct {
 		// type can be active-active, active-standby, ratio
-		Type HAModeType `yaml:"type"`
+		Type discoveryMode `yaml:"type"`
 	}
 
 	ClusterDetails struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
+		ClusterName            string                    `yaml:"clusterName"`
+		Secret                 string                    `yaml:"secret"`
+		Ratio                  *int                      `yaml:"ratio"`
+		AdminState             clustermanager.AdminState `yaml:"adminState"`
+		ServiceTypeLBDiscovery bool                      `yaml:"serviceTypeLBDiscovery"`
 	}
 
 	PoolIdentifier struct {
@@ -1467,14 +1479,5 @@ type (
 	}
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
-	}
-
-	MultiClusterPoolInformer struct {
-		namespace   string
-		clusterName string
-		stopCh      chan struct{}
-		svcInformer cache.SharedIndexInformer
-		epsInformer cache.SharedIndexInformer
-		podInformer cache.SharedIndexInformer
 	}
 )

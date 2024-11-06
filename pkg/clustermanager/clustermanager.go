@@ -1,25 +1,41 @@
 package clustermanager
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/rest"
 )
 
-// NewMultiClusterConfig creates a new instance of MultiClusterConfig
-func NewMultiClusterConfig() *MultiClusterConfig {
-	return &MultiClusterConfig{
-		ClusterConfigs: make(map[string]ClusterConfig),
-	}
-}
-
-func CreateKubeClientFromKubeConfig(kubeConfig *[]byte) (kubernetes.Interface, error) {
-	config, err := clientcmd.RESTConfigFromKubeConfig(*kubeConfig)
-	if err != nil {
-		return nil, err
-	}
+func CreateKubeClientFromKubeConfig(config *rest.Config) (kubernetes.Interface, error) {
 	kubeClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
 	return kubeClient, nil
+}
+
+func CreateKubeCRClientFromKubeConfig(config *rest.Config) (versioned.Interface, error) {
+	kubeCRClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return kubeCRClient, nil
+}
+
+func CreateKubeIPAMClientFromKubeConfig(config *rest.Config) (*extClient.Clientset, error) {
+	kubeIPAMClient, err := extClient.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return kubeIPAMClient, nil
+}
+
+func CreateRouteClientFromKubeconfig(config *rest.Config) (*routeclient.RouteV1Client, error) {
+	rclient, err := routeclient.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return rclient, nil
 }

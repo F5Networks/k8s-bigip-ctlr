@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,21 +18,20 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.namespaces = make(map[string]bool)
-		mockCtlr.namespaces["default"] = true
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.nrInformers = make(map[string]*NRInformer)
-		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = newClusterConfig()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 		var processedHostPath ProcessedHostPath
@@ -60,8 +58,8 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 		cmName := "ecm"
 		cmNamespace := "kube-system"
 		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-		mockCtlr.comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace)
-		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace, "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
 		mockCtlr.resources = NewResourceStore()
 		data := make(map[string]string)
 

@@ -13,15 +13,15 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
 		writer := &test.MockWriter{
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),
 		}
 		mockCtlr.Agent.ConfigWriter = writer
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.crInformers = make(map[string]*CRInformer)
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 
@@ -30,9 +30,7 @@ var _ = Describe("Node Poller Handler", func() {
 	})
 
 	It("Nodes", func() {
-		nodeInf := mockCtlr.getNodeInformer("")
-		mockCtlr.nodeInformer = &nodeInf
-		mockCtlr.addNodeEventUpdateHandler(mockCtlr.nodeInformer)
+		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
@@ -59,7 +57,7 @@ var _ = Describe("Node Poller Handler", func() {
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
-		Expect(len(mockCtlr.nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
+		Expect(len(mockCtlr.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
 		//verify node with NotReady state not added to node list
 		Expect(len(nodes)).To(Equal(2))
@@ -74,7 +72,7 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 
-		mockCtlr.oldNodes = nodes
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].oldNodes = nodes
 
 		// Negative case
 		nodes, err = mockCtlr.getNodes([]interface{}{nodeAddr1, nodeAddr2})
@@ -92,14 +90,12 @@ var _ = Describe("Node Poller Handler", func() {
 	})
 
 	It("Nodes Update processing", func() {
-		nodeInf := mockCtlr.getNodeInformer("")
-		mockCtlr.nodeInformer = &nodeInf
-		mockCtlr.addNodeEventUpdateHandler(mockCtlr.nodeInformer)
+		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		namespace := "default"
-		mockCtlr.namespaces = make(map[string]bool)
-		mockCtlr.namespaces[namespace] = true
-		mockCtlr.addNamespacedInformers(namespace, false)
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces = make(map[string]bool)
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces[namespace] = true
+		mockCtlr.addNamespacedInformers(namespace, false, "")
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 
@@ -504,8 +500,8 @@ var _ = Describe("Node Poller Handler", func() {
 	//		delete(mockCtlr.crInformers, "")
 	//		mockCtlr.namespaces = map[string]bool{"nginx-ingress": true, "default": true}
 	//
-	//		mockCtlr.crInformers["default"] = mockCtlr.newNamespacedCustomResourceInformer("default")
-	//		mockCtlr.crInformers["nginx-ingress"] = mockCtlr.newNamespacedCustomResourceInformer("nginx-ingress")
+	//		mockCtlr.crInformers["default"] = mockCtlr.newNamespacedCustomResourceInformerForCluster("default")
+	//		mockCtlr.crInformers["nginx-ingress"] = mockCtlr.newNamespacedCustomResourceInformerForCluster("nginx-ingress")
 	//		mockCtlr.crInformers["nginx-ingress"].ilInformer.GetStore().Add(ingressLink)
 	//		mockCtlr.ProcessNodeUpdate(nodeObjs, "")
 	//		Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),

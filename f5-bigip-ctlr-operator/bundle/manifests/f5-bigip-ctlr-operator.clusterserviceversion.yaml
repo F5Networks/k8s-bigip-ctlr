@@ -66,7 +66,7 @@ metadata:
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
     features.operators.openshift.io/csi: "false"
-  name: f5-bigip-ctlr-operator.v1.19.0
+  name: f5-bigip-ctlr-operator.v1.20.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -410,7 +410,7 @@ spec:
   minKubeVersion: 1.13.0
   provider:
     name: F5 Networks Inc.
-  version: 1.19.0
+  version: 1.20.0
   relatedImages:
     - name: cntr-ingress-svcs
       image: registry.connect.redhat.com/f5networks/cntr-ingress-svcs@sha256:7ee53dc08596d4078da5bdb8188f3eda337d44ca8a91976667f2612bf54f9948
@@ -418,4 +418,3 @@ spec:
       image: registry.connect.redhat.com/f5networks/cntr-ingress-svcs@sha256:7ee53dc08596d4078da5bdb8188f3eda337d44ca8a91976667f2612bf54f9948
     - name: cis-operator
       image: registry.connect.redhat.com/f5networks/cntr-ingress-svcs@sha256:7ee53dc08596d4078da5bdb8188f3eda337d44ca8a91976667f2612bf54f9948
-

@@ -13,7 +13,7 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
 		writer := &test.MockWriter{
 			FailStyle: test.Success,
@@ -21,7 +21,7 @@ var _ = Describe("Node Poller Handler", func() {
 		}
 		mockCtlr.Agent.ConfigWriter = writer
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
-		mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 
@@ -30,9 +30,7 @@ var _ = Describe("Node Poller Handler", func() {
 	})
 
 	It("Nodes", func() {
-		nodeInf := mockCtlr.getNodeInformer("")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nodeInformer = &nodeInf
-		mockCtlr.addNodeEventUpdateHandler(&nodeInf)
+		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
@@ -59,7 +57,7 @@ var _ = Describe("Node Poller Handler", func() {
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
-		Expect(len(mockCtlr.multiClusterConfigs.ClusterInformers[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
+		Expect(len(mockCtlr.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
 		//verify node with NotReady state not added to node list
 		Expect(len(nodes)).To(Equal(2))
@@ -92,9 +90,7 @@ var _ = Describe("Node Poller Handler", func() {
 	})
 
 	It("Nodes Update processing", func() {
-		nodeInf := mockCtlr.getNodeInformer("")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nodeInformer = &nodeInf
-		mockCtlr.addNodeEventUpdateHandler(&nodeInf)
+		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		namespace := "default"
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces = make(map[string]bool)

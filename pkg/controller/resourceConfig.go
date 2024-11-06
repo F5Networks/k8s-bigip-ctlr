@@ -482,11 +482,15 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	var svcIndexer cache.Indexer
 	var svc *v1.Service
 	svcKey := namespace + "/" + svcName
+	infStore := ctlr.multiClusterConfigs.getInformerStore(cluster)
+	if infStore == nil {
+		return targetPort
+	}
 	if cluster == "" {
-		if ctlr.watchingAllNamespaces() {
-			svcIndexer = ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[""].svcInformer.GetIndexer()
+		if ctlr.watchingAllNamespaces("") {
+			svcIndexer = infStore.comInformers[""].svcInformer.GetIndexer()
 		} else {
-			if informer, ok := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace]; ok {
+			if informer, ok := infStore.comInformers[namespace]; ok {
 				svcIndexer = informer.svcInformer.GetIndexer()
 			} else {
 				return targetPort
@@ -507,11 +511,11 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 		}
 		svc = item.(*v1.Service)
 	} else {
-		if infStore, ok := ctlr.multiClusterConfigs.ClusterInformers[cluster]; ok && infStore.comInformers != nil {
+		if infStore.comInformers != nil {
 			var poolInf *CommonInformer
 			var found bool
-			if poolInf, found = ctlr.multiClusterConfigs.ClusterInformers[cluster].comInformers[""]; !found {
-				poolInf, found = ctlr.multiClusterConfigs.ClusterInformers[cluster].comInformers[namespace]
+			if poolInf, found = infStore.comInformers[""]; !found {
+				poolInf, found = infStore.comInformers[namespace]
 			}
 			if !found {
 				// If informers not found for the namespace, return empty targetPort
@@ -1112,7 +1116,7 @@ func (ctlr *Controller) handleTLS(
 	rsCfg *ResourceConfig,
 	tlsContext TLSContext,
 ) bool {
-
+	infStore := ctlr.multiClusterConfigs.getInformerStore("")
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
 		if tlsContext.termination != TLSPassthrough {
 			clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
@@ -1143,7 +1147,7 @@ func (ctlr *Controller) handleTLS(
 			case Secret:
 				// Process ClientSSL stored as kubernetes secret
 				var namespace string
-				if ctlr.watchingAllNamespaces() {
+				if ctlr.watchingAllNamespaces("") {
 					namespace = ""
 				} else {
 					namespace = tlsContext.namespace
@@ -1152,10 +1156,10 @@ func (ctlr *Controller) handleTLS(
 					var secrets []*v1.Secret
 					for _, secretName := range clientSSL {
 						secretKey := tlsContext.namespace + "/" + secretName
-						if _, ok := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace]; !ok {
+						if _, ok := infStore.comInformers[namespace]; !ok {
 							return false
 						}
-						obj, found, err := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+						obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
 						if err != nil || !found {
 							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 								clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -1175,10 +1179,10 @@ func (ctlr *Controller) handleTLS(
 					var secrets []*v1.Secret
 					for _, secret := range serverSSL {
 						secretKey := tlsContext.namespace + "/" + secret
-						if _, ok := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace]; !ok {
+						if _, ok := infStore.comInformers[namespace]; !ok {
 							return false
 						}
-						obj, found, err := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+						obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
 						if err != nil || !found {
 							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 								serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -1196,7 +1200,7 @@ func (ctlr *Controller) handleTLS(
 			case Hybrid:
 				// Process sslProfiles stored as either secret or bigip refrence
 				var namespace string
-				if ctlr.watchingAllNamespaces() {
+				if ctlr.watchingAllNamespaces("") {
 					namespace = ""
 				} else {
 					namespace = tlsContext.namespace
@@ -1216,10 +1220,10 @@ func (ctlr *Controller) handleTLS(
 							var secrets []*v1.Secret
 							for _, secretName := range clientSSL {
 								secretKey := tlsContext.namespace + "/" + secretName
-								if _, ok := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace]; !ok {
+								if _, ok := infStore.comInformers[namespace]; !ok {
 									return false
 								}
-								obj, found, err := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+								obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
 								if err != nil || !found {
 									log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 										clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -1254,10 +1258,10 @@ func (ctlr *Controller) handleTLS(
 							var secrets []*v1.Secret
 							for _, secret := range serverSSL {
 								secretKey := tlsContext.namespace + "/" + secret
-								if _, ok := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace]; !ok {
+								if _, ok := infStore.comInformers[namespace]; !ok {
 									return false
 								}
-								obj, found, err := ctlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+								obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
 								if err != nil || !found {
 									log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 										serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)

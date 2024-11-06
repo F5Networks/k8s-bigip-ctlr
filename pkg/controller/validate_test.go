@@ -14,7 +14,7 @@ var _ = Describe("Validation Tests", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 	})
 
 	Describe("Validating ExtendedServiceReference", func() {
@@ -23,7 +23,7 @@ var _ = Describe("Validation Tests", func() {
 			clusterConfigs := make(map[string]*ClusterConfig)
 			clusterConfigs["cluster1"] = &ClusterConfig{}
 			clusterConfigs["cluster2"] = &ClusterConfig{}
-			mockCtlr.multiClusterConfigs = &ResourceHandler{
+			mockCtlr.multiClusterConfigs = &ClusterHandler{
 				ClusterConfigs:    clusterConfigs,
 				HAPairClusterName: "cluster2",
 				LocalClusterName:  "cluster1",

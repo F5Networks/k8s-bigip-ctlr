@@ -27,15 +27,17 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 		if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
 			svc.ClusterName = ""
 		}
-		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[svc.ClusterName]; ok {
+		if ctlr.multiClusterConfigs.getClusterConfig(svc.ClusterName) != nil {
 			svcKey := MultiClusterServiceKey{
 				serviceName: svc.SvcName,
 				namespace:   svc.Namespace,
 				clusterName: svc.ClusterName,
 			}
 			// init informer store for cluster
-			if _, ok := ctlr.multiClusterConfigs.ClusterInformers[svc.ClusterName]; !ok {
-				ctlr.multiClusterConfigs.ClusterInformers[svc.ClusterName] = initInformerStore()
+			informerStore := ctlr.multiClusterConfigs.getInformerStore(svc.ClusterName)
+			if informerStore == nil {
+				informerStore = initInformerStore()
+				ctlr.multiClusterConfigs.addInformerStore(svc.ClusterName, informerStore)
 			}
 			if ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] == nil {
 				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
@@ -54,10 +56,9 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 			}
 
 			// if informer not found for cluster, setup and start informer
-			infStore, _ := ctlr.multiClusterConfigs.ClusterInformers[svc.ClusterName]
-			if len(infStore.comInformers) == 0 {
+			if len(informerStore.comInformers) == 0 {
 				ctlr.setupAndStartMultiClusterInformers(svcKey, true)
-			} else if _, found := ctlr.multiClusterConfigs.ClusterInformers[svc.ClusterName].comInformers[svc.Namespace]; !found {
+			} else if _, found := informerStore.comInformers[svc.Namespace]; !found {
 				ctlr.setupAndStartMultiClusterInformers(svcKey, true)
 			}
 		} else {
@@ -161,25 +162,26 @@ func (ctlr *Controller) getSvcPortFromHACluster(svcNameSpace, svcName, portName,
 
 func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (interface{}, bool, error) {
 
-	if ctlr.discoveryMode != Active || ctlr.multiClusterConfigs.ClusterInformers == nil {
+	if ctlr.discoveryMode != Active || ctlr.multiClusterConfigs.ClusterConfigs == nil {
 		return nil, false, nil
 	}
 
 	key := svcNameSpace + "/" + svcName
-	if _, ok := ctlr.multiClusterConfigs.ClusterInformers[ctlr.multiClusterConfigs.HAPairClusterName]; !ok {
+	informerStore := ctlr.multiClusterConfigs.getInformerStore(ctlr.multiClusterConfigs.HAPairClusterName)
+	if informerStore == nil {
 		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster %s'",
 			ctlr.multiClusterConfigs.HAPairClusterName)
 	}
-	if ctlr.multiClusterConfigs.ClusterInformers[ctlr.multiClusterConfigs.HAPairClusterName].comInformers == nil {
+	if informerStore.comInformers == nil {
 		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster %s'",
 			ctlr.multiClusterConfigs.HAPairClusterName)
 	}
 	ns := svcNameSpace
-	if ctlr.watchingAllNamespaces() {
+	if ctlr.watchingAllNamespaces("") {
 		ns = ""
 	}
 
-	if poolInf, found := ctlr.multiClusterConfigs.ClusterInformers[ctlr.multiClusterConfigs.HAPairClusterName].comInformers[ns]; found {
+	if poolInf, found := informerStore.comInformers[ns]; found {
 		obj, exists, err := poolInf.svcInformer.GetIndexer().GetByKey(key)
 
 		if nil != err {

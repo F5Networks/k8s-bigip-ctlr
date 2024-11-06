@@ -17,7 +17,7 @@ import (
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	var nodesIntfc []interface{}
-	if infStore, ok := ctlr.multiClusterConfigs.ClusterInformers[clusterName]; ok {
+	if infStore, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
 		nodesIntfc = infStore.nodeInformer.nodeInformer.GetIndexer().List()
 	}
 

@@ -76,7 +76,7 @@ type (
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		multiClusterConfigs         *ResourceHandler
+		multiClusterConfigs         *ClusterHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
@@ -101,18 +101,18 @@ type (
 		nodeInformer *NodeInformer
 	}
 
-	ResourceHandler struct {
+	ClusterHandler struct {
 		ClusterConfigs      map[string]*ClusterConfig
-		ClusterInformers    map[string]*InformerStore
 		HAPairClusterName   string
 		LocalClusterName    string
 		uniqueAppIdentifier map[string]struct{}
 		eventQueue          workqueue.RateLimitingInterface
+		sync.RWMutex
 	}
 
 	//ClusterConfig holds configuration specific for cluster
 	ClusterConfig struct {
-		ExternalClusterConfig
+		clusterDetails         ClusterDetails
 		kubeClient             kubernetes.Interface
 		kubeCRClient           versioned.Interface
 		kubeAPIClient          *extClient.Clientset
@@ -120,12 +120,12 @@ type (
 		routeLabel             string
 		nativeResourceSelector labels.Selector
 		customResourceSelector labels.Selector
-		namespaceLabel         string
-		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
+		namespaceLabel         string
 		nodeLabelSelector      string
 		oldNodes               []Node
 		eventNotifier          *EventNotifier
+		*InformerStore
 	}
 
 	// Params defines parameters
@@ -1336,7 +1336,7 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
+		ExternalClustersConfig    []ClusterDetails          `yaml:"externalClustersConfig"`
 		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
 		HAMode                    discoveryMode             `yaml:"mode"`
 		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
@@ -1437,14 +1437,6 @@ const (
 )
 
 type (
-	ExternalClusterConfig struct {
-		ClusterName            string                    `yaml:"clusterName"`
-		Secret                 string                    `yaml:"secret"`
-		Ratio                  *int                      `yaml:"ratio"`
-		AdminState             clustermanager.AdminState `yaml:"adminState"`
-		ServiceTypeLBDiscovery bool                      `yaml:"serviceTypeLBDiscovery"`
-	}
-
 	HAClusterConfig struct {
 		//HAMode                 HAMode         `yaml:"mode"`
 		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`

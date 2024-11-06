@@ -24,7 +24,7 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
@@ -32,12 +32,12 @@ var _ = Describe("Routes", func() {
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
-		mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -1093,8 +1093,8 @@ extendedRouteSpec:
 				ObjectMeta: metav1.ObjectMeta{Name: "serverssl", Namespace: namespace},
 				Data:       data,
 			}
-			mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"].secretsInformer.GetStore().Add(clientssl)
-			mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"].secretsInformer.GetStore().Add(serverssl)
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clientssl)
+			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(serverssl)
 
 			annotation1 := make(map[string]string)
 			annotation1[resource.F5ServerSslProfileAnnotation] = "serverssl"
@@ -1610,14 +1610,14 @@ extendedRouteSpec:
       vserverName: latestserver
 `
 
-			_ = mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
-			_ = mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
-			_ = mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
+			_ = mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
+			_ = mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
+			_ = mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			_ = mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
+			_ = mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, true)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -1928,19 +1928,19 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1()}
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces = make(map[string]bool)
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
-		mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaceLabel = "environment=dev"
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -2014,7 +2014,7 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
@@ -2046,6 +2046,7 @@ extendedRouteSpec:
       vserverAddr: 10.8.3.12
       allowOverride: true
 `
+			mockCtlr.multiClusterConfigs.addInformerStore("", initInformerStore())
 			err := mockCtlr.setNamespaceLabelMode(cm)
 			Expect(err).To(MatchError("--namespace-label deployment parameter is required with namespace-label in extended configmap"))
 		})
@@ -2060,7 +2061,7 @@ var _ = Describe("Multi Cluster with Routes", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
@@ -2068,17 +2069,20 @@ var _ = Describe("Multi Cluster with Routes", func() {
 			kubeClient:    k8sfake.NewSimpleClientset(),
 			routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
 		}
+		mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"] = &ClusterConfig{}
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces = make(map[string]bool)
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
-		mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers["cluster3"] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"] = &ClusterConfig{
+			kubeClient:    k8sfake.NewSimpleClientset(),
+			InformerStore: initInformerStore()}
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
 		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
@@ -2226,13 +2230,13 @@ extendedRouteSpec:
 			// Setup informers with namespaces which are watched by CIS
 			for namespace := range mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName]; !found {
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName] = initInformerStore()
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].InformerStore = initInformerStore()
 				}
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 
@@ -2361,7 +2365,7 @@ var _ = Describe("Multi Cluster with CRD", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = newResourceHandler()
+		mockCtlr.multiClusterConfigs = NewClusterHandler()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
@@ -2371,15 +2375,16 @@ var _ = Describe("Multi Cluster with CRD", func() {
 		}
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces = make(map[string]bool)
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces["default"] = true
-		mockCtlr.multiClusterConfigs.ClusterInformers[""] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterConfigs.ClusterInformers["cluster3"] = initInformerStore()
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+			InformerStore: initInformerStore()}
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
 		var processedHostPath ProcessedHostPath
@@ -2528,13 +2533,13 @@ externalClustersConfig:
 			// Setup informers with namespaces which are watched by CIS
 			for namespace := range mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName]; !found {
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.discoveryMode = Ratio
@@ -2631,13 +2636,13 @@ externalClustersConfig:
 			// Setup informers with namespaces which are watched by CIS
 			for namespace := range mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName]; !found {
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
@@ -2741,13 +2746,13 @@ externalClustersConfig:
 			// Setup informers with namespaces which are watched by CIS
 			for namespace := range mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName]; !found {
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterConfigs.ClusterInformers[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)

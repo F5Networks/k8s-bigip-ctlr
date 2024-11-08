@@ -22,7 +22,7 @@ metadata:
               "openshift_sdn_name": "<BIGIP_PARTITION/SDN_NAME>",
               "pool_member_type": "<CLUSTER_OR_NODEPORT_OR_LOADBALANCER>",
               "route_vserver_addr": "<IP_ADDRESS>",
-              "route_label": "<F5TYPE>",
+              "route_label": "<F5TYPE>"
             },
             "bigip_login_secret": "<BIGIP_LOGIN_K8S_SECRET>",
             "image": {

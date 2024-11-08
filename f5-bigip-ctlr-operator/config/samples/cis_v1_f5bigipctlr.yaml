@@ -7,15 +7,15 @@ spec:
     log_as3_response: true
     manage_routes: true
     agent: as3
-    log_level: <DEBUG_OR_INFO>
-    route_vserver_addr: <IP_ADDRESS>
-    bigip_partition: <BIGIP_PARTITION>
-    openshift_sdn_name: </BIGIP_PARTITION/SDN_NAME>
-    bigip_url: <BIGIP_IP_ADDRESS>
+    log_level: "<DEBUG_OR_INFO>"
+    route_vserver_addr: "<IP_ADDRESS>"
+    bigip_partition: "<BIGIP_PARTITION>"
+    openshift_sdn_name: "</BIGIP_PARTITION/SDN_NAME>"
+    bigip_url: "<BIGIP_IP_ADDRESS>"
     insecure: true
-    pool_member_type: <CLUSTER_OR_NODEPORT_OR_LOADBALANCER>
-    route_label: <ROUTE_LABEL_F5TYPE>
-  bigip_login_secret: <BIGIP_LOGIN_K8S_SECRET>
+    pool_member_type: "<CLUSTER_OR_NODEPORT_OR_LOADBALANCER>"
+    route_label: "<ROUTE_LABEL_F5TYPE>"
+  bigip_login_secret: "<BIGIP_LOGIN_K8S_SECRET>"
   image:
     pullPolicy: Always
     repo: k8s-bigip-ctlr

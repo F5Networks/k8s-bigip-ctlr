@@ -63,6 +63,9 @@ spec:
                 persistenceProfile:
                   type: string
                   pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                httpCompressionProfile:
+                  type: string
+                  pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
                 hostPersistence:
                   type: object
                   properties:

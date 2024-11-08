@@ -1,4 +1,4 @@
-# Virtual Server with Persistence Profile
+# Virtual Server with HTML Profile
 
 This section demonstrates the option to configure HTML Profile in virtual server.
 

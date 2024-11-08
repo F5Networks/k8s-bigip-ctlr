@@ -53,6 +53,7 @@ type VirtualServerSpec struct {
 	ServiceIPAddress                 []ServiceAddress `json:"serviceAddress,omitempty"`
 	PolicyName                       string           `json:"policyName,omitempty"`
 	PersistenceProfile               string           `json:"persistenceProfile,omitempty"`
+	HTTPCompressionProfile           string           `json:"httpCompressionProfile,omitempty"`
 	ProfileMultiplex                 string           `json:"profileMultiplex,omitempty"`
 	DOS                              string           `json:"dos,omitempty"`
 	BotDefense                       string           `json:"botDefense,omitempty"`

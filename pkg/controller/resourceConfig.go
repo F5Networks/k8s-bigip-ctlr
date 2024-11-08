@@ -844,6 +844,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if vs.Spec.ProfileMultiplex != "" {
 		rsCfg.Virtual.ProfileMultiplex = vs.Spec.ProfileMultiplex
 	}
+
+	if vs.Spec.HTTPCompressionProfile != "" {
+		rsCfg.Virtual.HTTPCompressionProfile = vs.Spec.HTTPCompressionProfile
+	}
+
 	// check if custom http port set on virtual
 	if vs.Spec.VirtualServerHTTPPort != 0 {
 		httpPort = vs.Spec.VirtualServerHTTPPort

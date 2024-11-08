@@ -31,4 +31,3 @@ spec:
     ingressClassName: f5
     defaultController: false
   version: latest
-

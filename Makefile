@@ -81,7 +81,7 @@ prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
 	@echo "Quick build without running tests..."
-	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
+	docker build --platform linux/amd64 --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.ubi .
 
 dev-license: pre-build
 	@echo "Running with tests and licenses generated will be in all_attributions.txt..."

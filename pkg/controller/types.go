@@ -250,7 +250,7 @@ type (
 		LogProfiles                []string              `json:"logProfiles,omitempty"`
 		ProfileL4                  string                `json:"profileL4,omitempty"`
 		ProfileMultiplex           string                `json:"profileMultiplex,omitempty"`
-		HTTPCompressionProfile     string				 `json:"profileHTTPCompression,omitempty"`
+		HTTPCompressionProfile     string                `json:"profileHTTPCompression,omitempty"`
 		ProfileWebSocket           string                `json:"profileWebSocket,omitempty"`
 		ProfileDOS                 string                `json:"profileDOS,omitempty"`
 		ProfileBotDefense          string                `json:"profileBotDefense,omitempty"`
@@ -1109,7 +1109,7 @@ type (
 		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
 		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
 		ProfileHTML            as3MultiTypeParam    `json:"profileHTML,omitempty"`
-		HTTPCompressionProfile as3MultiTypeParam	`json:"profileHTTPCompression,omitempty"`
+		HTTPCompressionProfile as3MultiTypeParam    `json:"profileHTTPCompression,omitempty"`
 		ProfileAccess          as3MultiTypeParam    `json:"profileAccess,omitempty"`
 		PolicyPerRequestAccess as3MultiTypeParam    `json:"policyPerRequestAccess,omitempty"`
 		ProfileFTP             as3MultiTypeParam    `json:"profileFTP,omitempty"`

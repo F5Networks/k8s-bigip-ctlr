@@ -76,10 +76,11 @@ type (
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		multiClusterConfigs         *ClusterHandler
+		multiClusterHandler         *ClusterHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
+		namespaceLabel              string
 		manageLoadBalancerClassOnly bool
 		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
@@ -106,6 +107,7 @@ type (
 		HAPairClusterName   string
 		LocalClusterName    string
 		uniqueAppIdentifier map[string]struct{}
+		namespaceLabel      string
 		eventQueue          workqueue.RateLimitingInterface
 		sync.RWMutex
 	}
@@ -115,12 +117,12 @@ type (
 		clusterDetails         ClusterDetails
 		kubeClient             kubernetes.Interface
 		kubeCRClient           versioned.Interface
-		kubeAPIClient          *extClient.Clientset
+		kubeIPAMClient         *extClient.Clientset
 		routeClientV1          routeclient.RouteV1Interface
 		routeLabel             string
 		nativeResourceSelector labels.Selector
 		customResourceSelector labels.Selector
-		namespaces             map[string]bool
+		namespaces             map[string]struct{}
 		namespaceLabel         string
 		nodeLabelSelector      string
 		oldNodes               []Node
@@ -156,6 +158,7 @@ type (
 		LoadBalancerClass           string
 		ManageLoadBalancerClassOnly bool
 		IpamNamespace               string
+		LocalClusterName            string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -518,14 +521,14 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
-		baseRouteConfig           BaseRouteConfig
-		poolMemCache              PoolMemberCache
-		sslContext                map[string]*v1.Secret
-		extdSpecMap               extendedSpecMap
-		invertedNamespaceLabelMap map[string]string
+		baseRouteConfig BaseRouteConfig
+		poolMemCache    PoolMemberCache
+		sslContext      map[string]*v1.Secret
+		extdSpecMap     extendedSpecMap
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
+		routeGroupNamespaceMap   map[string]string
 	}
 
 	// key is group identifier
@@ -537,7 +540,7 @@ type (
 		local      *ExtendedRouteGroupSpec
 		global     *ExtendedRouteGroupSpec
 		defaultrg  *ExtendedRouteGroupSpec
-		namespaces []string
+		namespaces map[string]string
 		partition  string
 	}
 

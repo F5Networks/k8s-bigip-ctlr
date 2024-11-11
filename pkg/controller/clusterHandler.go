@@ -9,11 +9,12 @@ import (
 )
 
 // NewClusterHandler initializes the ClusterHandler with the required structures for each cluster.
-func NewClusterHandler() *ClusterHandler {
+func NewClusterHandler(LocalClusterName string) *ClusterHandler {
 	handler := &ClusterHandler{
 		ClusterConfigs:      make(map[string]*ClusterConfig),
 		uniqueAppIdentifier: make(map[string]struct{}),
 		eventQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		LocalClusterName:    LocalClusterName,
 	}
 	return handler
 }
@@ -39,6 +40,7 @@ func (ch *ClusterHandler) getClusterForSecret(name, namespace string) ClusterDet
 // addClusterConfig adds a new cluster configuration to the ClusterHandler.
 func (ch *ClusterHandler) addClusterConfig(clusterName string, config *ClusterConfig) {
 	ch.Lock()
+	config.namespaceLabel = ch.namespaceLabel
 	ch.ClusterConfigs[clusterName] = config
 	ch.Unlock()
 }
@@ -113,32 +115,40 @@ func (ch *ClusterHandler) processEvent(obj interface{}) {
 }
 
 // remove any cluster which is not provided in externalClustersConfig or not part of the HA cluster
-func (ch *ClusterHandler) cleanClusterCache(primaryClusterName, secondaryClusterName string, activeClusters map[string]struct{}) {
+func (ch *ClusterHandler) cleanClusterCache(primaryClusterName, secondaryClusterName string, activeClusters map[string]bool) {
 	ch.Lock()
 	defer ch.Unlock()
-	for clusterName := range ch.ClusterConfigs {
+	for clusterName, clusterConfig := range ch.ClusterConfigs {
 		// Avoid deleting HA cluster related configs
 		if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == "" {
 			continue
 		}
 		// Avoid deleting active clusters
-		if _, exists := activeClusters[clusterName]; exists {
+		if serviceLBStatus, exists := activeClusters[clusterName]; exists {
+			// remove the informers for service LB when service discovery is disabled for a cluster
+			if !serviceLBStatus && clusterConfig.InformerStore != nil && clusterConfig.InformerStore.comInformers != nil {
+				for ns, nsPoolInf := range clusterConfig.InformerStore.comInformers {
+					nsPoolInf.stop()
+					delete(clusterConfig.InformerStore.comInformers, ns)
+				}
+			}
 			continue
 		}
 		log.Infof("[MultiCluster] Removing the cluster config for cluster %s from CIS Cache", clusterName)
+		for ns, nsPoolInf := range clusterConfig.InformerStore.comInformers {
+			nsPoolInf.stop()
+			delete(clusterConfig.InformerStore.comInformers, ns)
+		}
 		delete(ch.ClusterConfigs, clusterName)
 	}
 }
 
 // function to get the count of edns resources from all the active clusters for a namespace
-func (ch *ClusterHandler) getEDNSCount(ns string) int {
+func (ch *ClusterHandler) getEDNSCount(clusterConfig *ClusterConfig, ns string) int {
 	rscCount := 0
-	for _, infSet := range ch.ClusterConfigs {
-		if comInf, ok := infSet.comInformers[ns]; ok {
-			edns, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
+	if comInf, ok := clusterConfig.comInformers[ns]; ok {
+		edns, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
+		if err == nil {
 			rscCount += len(edns)
 		}
 	}
@@ -190,10 +200,10 @@ func (ch *ClusterHandler) getClusterCount() int {
 }
 
 // function to return the list of monitored namespaces for ingress resources
-func (ch *ClusterHandler) getMonitoredNamespaces(clusterName string) map[string]bool {
+func (ch *ClusterHandler) getMonitoredNamespaces(clusterName string) map[string]struct{} {
 	ch.RLock()
 	defer ch.RUnlock()
-	ns := make(map[string]bool)
+	ns := make(map[string]struct{})
 	if config, ok := ch.ClusterConfigs[clusterName]; ok {
 		ns = config.namespaces
 	}

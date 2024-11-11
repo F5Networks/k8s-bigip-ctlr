@@ -24,7 +24,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
@@ -103,7 +103,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.mode = CustomResourceMode
 		})
 		It("Replace Unwanted Characters", func() {
@@ -164,7 +164,7 @@ var _ = Describe("Resource Config Tests", func() {
 			// Standalone, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = StandAloneCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			monitorName := "pytest_svc_1_default_foo_example_com_foo_http_80"
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Standalone, no ratio and monitor for external cluster pool
@@ -178,27 +178,27 @@ var _ = Describe("Resource Config Tests", func() {
 			// Primary, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = PrimaryCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
-			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			mockCtlr.multiClusterHandler.LocalClusterName = "cluster1"
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Primary, no ratio and monitor for external cluster pool
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Primary, ratio and monitor for local cluster pool
 			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
-			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterHandler.LocalClusterName), "Invalid Monitor Name")
 			// Primary, ratio and monitor for external cluster pool
 			mockCtlr.clusterRatio["cluster3"] = new(int) // external cluster ratio
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
 
 			// Secondary, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = SecondaryCIS
-			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			mockCtlr.multiClusterHandler.LocalClusterName = "cluster1"
 			mockCtlr.clusterRatio = make(map[string]*int)
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Secondary, no ratio and monitor for external cluster pool
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Secondary, ratio and monitor for local cluster pool
 			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
-			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterHandler.LocalClusterName), "Invalid Monitor Name")
 			// Secondary, ratio and monitor for external cluster pool
 			mockCtlr.clusterRatio["cluster3"] = new(int)
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
@@ -287,11 +287,11 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.mode = CustomResourceMode
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), kubeCRClient: crdfake.NewSimpleClientset()}
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), kubeCRClient: crdfake.NewSimpleClientset()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			_ = mockCtlr.addNamespacedInformers(namespace, false, "")
 
@@ -1066,11 +1066,11 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.mode = CustomResourceMode
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		})
 		It("Int target port is returned with integer targetPort", func() {
 			svcPort := v1.ServicePort{
@@ -1226,10 +1226,10 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
@@ -1370,7 +1370,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
 				InformerStore: initInformerStore()}
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
@@ -1381,7 +1381,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(clSecret),
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(clSecret),
 				InformerStore: initInformerStore()}
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
@@ -1475,7 +1475,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
 				InformerStore: initInformerStore()}
 
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
@@ -1487,16 +1487,16 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(clSecret),
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(clSecret),
 				InformerStore: initInformerStore()}
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
 
 		It("Verifies hybrid profile reference is set properly for tlsProfile", func() {
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
 				InformerStore: initInformerStore()}
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 			vs.Spec.TLSProfileName = "SampleTLS"
 			tlsProf.Spec.TLS.Termination = TLSReencrypt
 			tlsProf.Spec.TLS.Reference = Hybrid
@@ -1513,10 +1513,10 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
 				InformerStore: initInformerStore()}
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clSecret)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clSecret)
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
 			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientsecret"), "profile name is not set properly")
@@ -1666,11 +1666,11 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
-			mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(
@@ -1802,7 +1802,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
@@ -2015,7 +2015,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = NewClusterHandler()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			rsCfg = &ResourceConfig{}
 			rsCfg.Pools = Pools{
 				{

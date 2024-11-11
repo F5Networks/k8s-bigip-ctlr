@@ -1577,11 +1577,11 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// First we calculate the total service weights, total ratio and the total number of backends
 
 	// store the localClusterPool state and HA peer cluster pool state in advance for further processing
-	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName)
 	hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
 	// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+	if ctlr.multiClusterHandler.HAPairClusterName != "" {
+		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
 	// them have to be considered( this is based on multiCluster mode and cluster pool state)
@@ -1589,7 +1589,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	if !localClusterPoolRestricted {
 		factor++ // it ensures local cluster services associated with the route are considered
 	}
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		factor++ // it ensures HA peer cluster services associated with the route are considered
 	}
 	// Default service weight is 100 as per openshift route documentation
@@ -1613,11 +1613,11 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	validExtSvcCount := 0
 	// Include local cluster ratio in the totalClusterRatio calculation
 	if !localClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
 	}
 	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
 	}
 	// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
 	if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
@@ -1679,7 +1679,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		if route.Spec.To.Weight != nil {
 			// Route backend service in local cluster
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		} else {
 			// Older versions of openshift do not have a weight field
 			// so we will basically ignore it.
@@ -1687,19 +1687,19 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		}
 	}
 	// Route backend service in HA partner cluster
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		beIdx++
 		rbcs[beIdx].Name = route.Spec.To.Name
 		if route.Spec.To.Weight != nil {
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
+			rbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 
 		} else {
 			// Older versions of openshift do not have a weight field
 			// so we will basically ignore it.
 			rbcs[beIdx].Weight = 0.0
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+			rbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 		}
 	}
 
@@ -1710,15 +1710,15 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 			}
 			// HA partner cluster
-			if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
-				rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
+				rbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 			}
 		}
 	}

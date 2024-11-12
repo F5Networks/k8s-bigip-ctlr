@@ -513,19 +513,20 @@ func (ctlr *Controller) processResources() bool {
 		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 			if rKey.event != Create {
 				rsRef := resourceRef{
-					name:      svc.Name,
-					namespace: svc.Namespace,
-					kind:      Service,
+					name:        svc.Name,
+					namespace:   svc.Namespace,
+					kind:        Service,
+					clusterName: rKey.clusterName,
 				}
 				// clean the CIS cache
 				ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
 			} else {
 				//For creation of service check for duplicate ip on serviceTypeLB Resource
-				if ip, ok := svc.Annotations[LBServiceIPAnnotation]; ok {
-					//same service can be updated but event is create.
-					if val, ok := ctlr.resources.svcLBStore[ip]; ok {
-						if val != svcKey {
-							log.Errorf("IP %s already exists on service %s,Processing serviceType LB skipped for %s", ip, val, svcKey)
+				if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) {
+					//same service can be updated but event is created.
+					if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+						if val.timestamp.Before(&svc.CreationTimestamp) {
+							log.Warningf("l4 app already exists with given ip-address/ipam-label while processing service %s", appConfig, svcKey)
 							break
 						}
 					}
@@ -3033,7 +3034,7 @@ func (ctlr *Controller) processTransportServers(
 			virtual.Spec.VirtualServerPort,
 		)
 	}
-
+	appConfig := getL4AppConfig(virtual.Spec.VirtualServerAddress, key, virtual.Spec.VirtualServerPort, virtual.Spec.BigIPRouteDomain)
 	if isTSDeleted {
 		rsMap := ctlr.resources.getPartitionResourceMap(partition)
 		var hostnames []string
@@ -3045,7 +3046,10 @@ func (ctlr *Controller) processTransportServers(
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
-
+		// remove the entries from the processed L4 apps
+		if appConfig != (l4AppConfig{}) {
+			delete(ctlr.resources.processedL4Apps, appConfig)
+		}
 		return nil
 	}
 
@@ -3114,18 +3118,22 @@ func (ctlr *Controller) processTransportServers(
 		}
 	}
 	// Add TS resource key to processedNativeResources to mark it as processed
-	ctlr.resources.processedNativeResources[resourceRef{
+	rsRef := resourceRef{
 		kind:      TransportServer,
 		namespace: virtual.Namespace,
 		name:      virtual.Name,
-	}] = struct{}{}
-
+	}
+	ctlr.resources.processedNativeResources[rsRef] = struct{}{}
+	// update the processedL4App
+	if appConfig != (l4AppConfig{}) {
+		rsRef.timestamp = virtual.CreationTimestamp
+		ctlr.resources.processedL4Apps[appConfig] = rsRef
+	}
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
 	if len(rsCfg.MetaData.hosts) > 0 {
 		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 	}
-
 	return nil
 }
 
@@ -3307,6 +3315,10 @@ func (ctlr *Controller) processLBServices(
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
+			// deletet the entry from the L4 store
+			if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) {
+				delete(ctlr.resources.processedL4Apps, appConfig)
+			}
 			continue
 		}
 
@@ -3365,12 +3377,16 @@ func (ctlr *Controller) processLBServices(
 		if len(rsCfg.MetaData.hosts) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 		}
-		if _, ok := ctlr.resources.svcLBStore[ip]; !ok {
-			//Update svcLB store
-			ctlr.resources.svcLBStore[ip] = MultiClusterServiceKey{
-				serviceName: svc.Name,
-				namespace:   svc.Namespace,
-				clusterName: clusterName,
+		if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) {
+			if _, ok := ctlr.resources.processedL4Apps[appConfig]; !ok {
+				//Update svcLB store
+				ctlr.resources.processedL4Apps[appConfig] = resourceRef{
+					kind:        Service,
+					name:        svc.Name,
+					namespace:   svc.Namespace,
+					clusterName: clusterName,
+					timestamp:   svc.CreationTimestamp,
+				}
 			}
 		}
 	}
@@ -4000,7 +4016,7 @@ func (ctlr *Controller) processIngressLink(
 		// check if the virutal server matches all the requirements.
 		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
 		valid := ctlr.checkValidIngressLink(ingLink)
-		if false == valid {
+		if !valid {
 			log.Errorf("ingressLink %s, is not valid",
 				vkey)
 			return nil
@@ -4023,6 +4039,16 @@ func (ctlr *Controller) processIngressLink(
 	var altErr string
 	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
 	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
+	svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
+	if err != nil {
+		ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, err)
+		return err
+	}
+	if svc == nil {
+		ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New("ingress service not found"))
+		return nil
+	}
+
 	if ctlr.ipamCli != nil {
 		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
 			ip = ctlr.releaseIP(ingLink.Spec.IPAMLabel, "", key)
@@ -4049,39 +4075,24 @@ func (ctlr *Controller) processIngressLink(
 				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
 				return fmt.Errorf("%s", altErr)
 			case Requested:
-				altErr = fmt.Sprintf("[IPAM] IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
+				altErr = fmt.Sprintf("[IPAM] IP address requested for ingressLink: %s/%s", ingLink.Namespace, ingLink.Name)
 				log.Error(altErr)
 				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
 				return nil
 			}
-			log.Debugf("[IPAM] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
+			log.Debugf("[IPAM] requested IP for ingressLink %v is: %v", ingLink.ObjectMeta.Name, ip)
 			if ip == "" {
-				altErr = fmt.Sprintf("[IPAM] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
+				altErr = fmt.Sprintf("[IPAM] requested IP for ingressLink %v is empty.", ingLink.ObjectMeta.Name)
 				log.Error(altErr)
 				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
 				return nil
 			}
 			// ctlr.updateIngressLinkStatus(ingLink, ip)
-			svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
-			if err != nil {
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, err)
-				return err
-			}
-			if svc == nil {
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New("ingress service not found"))
-				return nil
-			}
 			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
 				ctlr.setLBServiceIngressStatus(svc, ip, "")
 			}
 		}
 	} else {
-		if ingLink.Spec.VirtualServerAddress == "" {
-			altErr = "no VirtualServer address in ingLink or IPAM found"
-			log.Error(altErr)
-			ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
-			return fmt.Errorf("%s", altErr)
-		}
 		ip = ingLink.Spec.VirtualServerAddress
 	}
 	if isILDeleted {
@@ -4103,6 +4114,12 @@ func (ctlr *Controller) processIngressLink(
 				if err == nil {
 					hostnames = rsCfg.MetaData.hosts
 				}
+				// delete the entry from the L4 app cache
+				_, port := extractVirtualAddressAndPort(rsCfg.Virtual.Destination)
+				appConfig := getL4AppConfig(ip, key, int32(port), ingLink.Spec.BigIPRouteDomain)
+				if appConfig != (l4AppConfig{}) {
+					delete(ctlr.resources.processedL4Apps, appConfig)
+				}
 			}
 			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
@@ -4117,16 +4134,6 @@ func (ctlr *Controller) processIngressLink(
 	ctlr.TeemData.Lock()
 	ctlr.TeemData.ResourceType.IngressLink[ingLink.Namespace] = len(ctlr.getAllIngressLinks(ingLink.Namespace))
 	ctlr.TeemData.Unlock()
-	svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
-	if err != nil {
-		ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, err)
-		return err
-	}
-
-	if svc == nil {
-		ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New("ingress service not found"))
-		return nil
-	}
 	targetPort := nginxMonitorPort
 	if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
 		targetPort = getNodeport(svc, nginxMonitorPort)
@@ -4145,6 +4152,14 @@ func (ctlr *Controller) processIngressLink(
 		//for nginx health monitor port skip vs creation
 		if port.Port == nginxMonitorPort {
 			continue
+		}
+		// check if the port is already processed
+		appConfig := getL4AppConfig(ip, key, port.Port, ingLink.Spec.BigIPRouteDomain)
+		if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok && appConfig != (l4AppConfig{}) {
+			if val.timestamp.Before(&ingLink.CreationTimestamp) {
+				log.Warningf("l4 app already exists with given ip-address/ipam-label and port %s, when processing ingressLink %s/%s", appConfig, ingLink.Namespace, ingLink.Name)
+				continue
+			}
 		}
 		rsName := "ingress_link_" + formatVirtualServerName(
 			ip,
@@ -4224,6 +4239,15 @@ func (ctlr *Controller) processIngressLink(
 		hostnames = rsCfg.MetaData.hosts
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
+		}
+		if appConfig != (l4AppConfig{}) {
+			ctlr.resources.processedL4Apps[appConfig] = resourceRef{
+				name:      ingLink.Name,
+				namespace: ingLink.Namespace,
+				kind:      IngressLink,
+				timestamp: ingLink.CreationTimestamp,
+			}
+
 		}
 	}
 	return nil

@@ -13,7 +13,7 @@ var _ = Describe("Profile", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.multiClusterConfigs = NewClusterHandler()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
 			"1.2",

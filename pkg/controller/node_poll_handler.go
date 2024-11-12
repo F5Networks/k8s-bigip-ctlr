@@ -17,7 +17,7 @@ import (
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	var nodesIntfc []interface{}
-	if infStore, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+	if infStore, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 		nodesIntfc = infStore.nodeInformer.nodeInformer.GetIndexer().List()
 	}
 
@@ -29,7 +29,7 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	sort.Sort(NodeList(nodesList))
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
 	// adding the bigip_monitored_nodes	metrics
-	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.multiClusterConfigs.ClusterConfigs[""].nodeLabelSelector).Set(float64(len(ctlr.multiClusterConfigs.ClusterConfigs[""].oldNodes)))
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.multiClusterHandler.ClusterConfigs[""].nodeLabelSelector).Set(float64(len(ctlr.multiClusterHandler.ClusterConfigs[""].oldNodes)))
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}
@@ -57,7 +57,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	}
 	// process the node and update the all pool members for the cluster
 	if !ctlr.initState {
-		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+		if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 			// Compare last set of nodes with new one
 			if !reflect.DeepEqual(newNodes, config.oldNodes) {
 				log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
@@ -69,7 +69,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	} else {
 		// Initialize controller nodes on our first pass through
 		log.Debugf("%v Initialising controller monitored kubernetes nodes %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
-		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+		if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 			// Update node cache
 			config.oldNodes = newNodes
 		}
@@ -88,7 +88,7 @@ func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 // Return a copy of the node cache
 func (ctlr *Controller) getNodesFromCache(clusterName string) []Node {
 	var nodes []Node
-	if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; ok {
+	if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 		nodes = make([]Node, len(config.oldNodes))
 		copy(nodes, config.oldNodes)
 	}
@@ -415,7 +415,7 @@ func (ctlr *Controller) GetNodePodCIDRMap() map[string]string {
 	var nodePodCIDRMap map[string]string
 	if ctlr.OrchestrationCNI == CALICO_K8S {
 		// Retrieve Calico Block Affinity
-		blockAffinitiesRaw, err := ctlr.multiClusterConfigs.ClusterConfigs[""].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
+		blockAffinitiesRaw, err := ctlr.multiClusterHandler.ClusterConfigs[""].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
 		if err != nil {
 			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
 			return nodePodCIDRMap

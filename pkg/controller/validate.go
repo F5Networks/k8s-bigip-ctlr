@@ -292,7 +292,7 @@ func (ctlr *Controller) checkValidMultiClusterService(mcs cisapiv1.MultiClusterS
 	}
 	if mcs.ClusterName != "" {
 		// Check if cluster config is provided for the cluster where the service is running
-		if _, ok := ctlr.multiClusterConfigs.ClusterConfigs[mcs.ClusterName]; !ok && mcs.ClusterName != ctlr.multiClusterConfigs.LocalClusterName {
+		if _, ok := ctlr.multiClusterHandler.ClusterConfigs[mcs.ClusterName]; !ok && mcs.ClusterName != ctlr.multiClusterHandler.LocalClusterName {
 			return fmt.Errorf("cluster config for the cluster %s is not provided in extended configmap", mcs.ClusterName)
 		}
 	}

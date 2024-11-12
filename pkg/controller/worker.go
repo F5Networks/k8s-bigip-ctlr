@@ -60,13 +60,12 @@ const (
 // nextGenResourceWorker starts the Custom Resource Worker.
 func (ctlr *Controller) nextGenResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
-	ctlr.setInitialResourceCount()
 	ctlr.migrateIPAM()
 	// process the extended configmap if present
 	if ctlr.globalExtendedCMKey != "" {
 		ctlr.processGlobalExtendedConfigMap()
 	}
-
+	ctlr.setInitialResourceCount()
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster
 	if ctlr.multiClusterMode == SecondaryCIS {
 		ctlr.firstPollPrimaryClusterHealthStatus()
@@ -113,65 +112,70 @@ func (ctlr *Controller) nextGenResourceWorker() {
 
 func (ctlr *Controller) setInitialResourceCount() {
 	var rscCount int
-	for _, ns := range ctlr.getWatchingNamespaces() {
-		switch ctlr.mode {
-		case OpenShiftMode:
-			nrInf, found := ctlr.getNamespacedNativeInformer(ns)
-			if !found {
-				continue
-			}
-			routes, err := nrInf.routeInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(routes)
-		default:
-			crInf, found := ctlr.getNamespacedCRInformer(ns)
-			if !found {
-				continue
-			}
-			vs, err := crInf.vsInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(vs)
-			ts, err := crInf.tsInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(ts)
-			il, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", ns)
-			if err != nil {
-				continue
-			}
-			rscCount += len(il)
-			//look in all clusters for EDNS
-			rscCount += ctlr.multiClusterConfigs.getEDNSCount(ns)
-		}
-		comInf, found := ctlr.getNamespacedCommonInformer(ns)
-		if !found {
-			continue
-		}
-		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
-		if err != nil {
-			continue
-		}
-		for _, obj := range services {
-			svc := obj.(*v1.Service)
-			if _, ok := K8SCoreServices[svc.Name]; ok {
-				continue
-			}
-			if ctlr.mode == OpenShiftMode {
-				if _, ok := OSCPCoreServices[svc.Name]; ok {
-					continue
+	ctlr.multiClusterHandler.RLock()
+	defer ctlr.multiClusterHandler.RUnlock()
+	for clusterName, clusterConfig := range ctlr.multiClusterHandler.ClusterConfigs {
+		for _, ns := range ctlr.getWatchingNamespaces(clusterName) {
+			if ctlr.multiClusterHandler.LocalClusterName == clusterName {
+				switch ctlr.mode {
+				case OpenShiftMode:
+					nrInf, found := ctlr.getNamespacedNativeInformer(ns)
+					if !found {
+						continue
+					}
+					routes, err := nrInf.routeInformer.GetIndexer().ByIndex("namespace", ns)
+					if err != nil {
+						continue
+					}
+					rscCount += len(routes)
+				default:
+					crInf, found := ctlr.getNamespacedCRInformer(ns)
+					if !found {
+						continue
+					}
+					vs, err := crInf.vsInformer.GetIndexer().ByIndex("namespace", ns)
+					if err != nil {
+						continue
+					}
+					rscCount += len(vs)
+					ts, err := crInf.tsInformer.GetIndexer().ByIndex("namespace", ns)
+					if err != nil {
+						continue
+					}
+					rscCount += len(ts)
+					il, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", ns)
+					if err != nil {
+						continue
+					}
+					rscCount += len(il)
 				}
 			}
-			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
-				rscCount++
+			//look in all clusters for EDNS
+			rscCount += ctlr.multiClusterHandler.getEDNSCount(clusterConfig, ns)
+			comInf, found := ctlr.getNamespacedCommonInformer(clusterName, ns)
+			if !found {
+				continue
+			}
+			services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
+			if err != nil {
+				continue
+			}
+			for _, obj := range services {
+				svc := obj.(*v1.Service)
+				if _, ok := K8SCoreServices[svc.Name]; ok {
+					continue
+				}
+				if ctlr.mode == OpenShiftMode {
+					if _, ok := OSCPCoreServices[svc.Name]; ok {
+						continue
+					}
+				}
+				if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+					rscCount++
+				}
 			}
 		}
 	}
-
 	ctlr.initialResourceCount = rscCount
 }
 
@@ -271,7 +275,7 @@ func (ctlr *Controller) processResources() bool {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 		}
-		if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[route.Namespace]; ok {
+		if routeGroup, ok := ctlr.resources.routeGroupNamespaceMap[route.Namespace]; ok {
 			err := ctlr.processRoutes(routeGroup, false)
 			if err != nil {
 				// TODO
@@ -347,7 +351,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 	case K8sSecret:
 		secret := rKey.rsc.(*v1.Secret)
-		mcc := ctlr.multiClusterConfigs.getClusterForSecret(secret.Name, secret.Namespace)
+		mcc := ctlr.multiClusterHandler.getClusterForSecret(secret.Name, secret.Namespace)
 		// TODO: Process all the resources again that refer to any resource running in the affected cluster?
 		if mcc != (ClusterDetails{}) {
 			err := ctlr.updateClusterConfigStore(secret, mcc, rscDelete)
@@ -358,7 +362,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			routeGroup := ctlr.getRouteGroupForSecret(secret)
+			routeGroup := ctlr.getRouteGroupForNamespace(secret.Namespace)
 			if routeGroup != "" {
 				_ = ctlr.processRoutes(routeGroup, false)
 			}
@@ -441,7 +445,7 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
-		ctlr.processExternalDNS(edns, rscDelete)
+		ctlr.processExternalDNS(edns, rscDelete, rKey.clusterName)
 	case IPAM:
 		ipam := rKey.rsc.(*ficV1.IPAM)
 		_ = ctlr.processIPAM(ipam)
@@ -475,17 +479,17 @@ func (ctlr *Controller) processResources() bool {
 					isRetryableError = true
 				}
 			}
-			//Sync Custompolicy for Services of type LB
-			lbServices := ctlr.getLBServicesForCustomPolicy(cp, rKey.clusterName)
+		}
+		//Sync Custompolicy for Services of type LB in all modes
+		lbServices := ctlr.getLBServicesForCustomPolicy(cp, rKey.clusterName)
 
-			for _, lbService := range lbServices {
-				//policy is always applied at active i.e local cluster?
-				err := ctlr.processLBServices(lbService, false, rKey.clusterName)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-					isRetryableError = true
-				}
+		for _, lbService := range lbServices {
+			//policy is always applied at active i.e local cluster?
+			err := ctlr.processLBServices(lbService, false, rKey.clusterName)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+				isRetryableError = true
 			}
 		}
 	case Service:
@@ -620,93 +624,97 @@ func (ctlr *Controller) processResources() bool {
 				}
 			}
 		}
-		informerStore := ctlr.multiClusterConfigs.getInformerStore("")
-		clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(rKey.clusterName)
 		switch ctlr.mode {
 		case OpenShiftMode:
 			var triggerDelete bool
 			if rscDelete {
 				// TODO: Delete all the resource configs from the store
-				if nrInf, ok := informerStore.nrInformers[nsName]; ok {
-					nrInf.stop()
-					delete(informerStore.nrInformers, nsName)
+				if clusterConfig.InformerStore.nrInformers != nil {
+					if nrInf, ok := clusterConfig.InformerStore.nrInformers[nsName]; ok {
+						nrInf.stop()
+						delete(clusterConfig.InformerStore.nrInformers, nsName)
+					}
 				}
-				if comInf, ok := informerStore.comInformers[nsName]; ok {
+				if comInf, ok := clusterConfig.InformerStore.comInformers[nsName]; ok {
 					comInf.stop()
-					delete(informerStore.comInformers, nsName)
+					delete(clusterConfig.InformerStore.comInformers, nsName)
 				}
 				delete(clusterConfig.namespaces, nsName)
+				delete(ctlr.resources.routeGroupNamespaceMap, nsName)
 				log.Infof("Removed Namespace: '%v' from CIS scope", nsName)
 				triggerDelete = true
 			} else {
-				clusterConfig.namespaces[nsName] = true
-				_ = ctlr.addNamespacedInformers(nsName, true, "")
+				clusterConfig.namespaces[nsName] = struct{}{}
+				_ = ctlr.addNamespacedInformers(nsName, true, rKey.clusterName)
 				log.Infof("Added Namespace: '%v' to CIS scope", nsName)
 			}
 			if ctlr.namespaceLabelMode {
 				ctlr.processGlobalExtendedConfigMap()
 			} else {
-				if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
+				if routeGroup, ok := ctlr.resources.routeGroupNamespaceMap[nsName]; ok {
 					_ = ctlr.processRoutes(routeGroup, triggerDelete)
 				}
 			}
 
 		default:
 			if rscDelete {
-				for _, vrt := range ctlr.getAllVirtualServers(nsName) {
-					// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
-					rscRefKey := resourceRef{
-						kind:      VirtualServer,
-						name:      vrt.Name,
-						namespace: vrt.Namespace,
+				if clusterConfig.InformerStore.crInformers != nil {
+					for _, vrt := range ctlr.getAllVirtualServers(nsName) {
+						// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
+						rscRefKey := resourceRef{
+							kind:      VirtualServer,
+							name:      vrt.Name,
+							namespace: vrt.Namespace,
+						}
+						if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
+							// Remove resource key from processedNativeResources on delete event
+							delete(ctlr.resources.processedNativeResources, rscRefKey)
+						}
+						// update the poolMem cache, clusterSvcResource & resource-svc maps
+						ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
+						err := ctlr.processVirtualServers(vrt, true)
+						if err != nil {
+							// TODO
+							utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+							isRetryableError = true
+						}
 					}
-					if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
-						// Remove resource key from processedNativeResources on delete event
-						delete(ctlr.resources.processedNativeResources, rscRefKey)
-					}
-					// update the poolMem cache, clusterSvcResource & resource-svc maps
-					ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
-					err := ctlr.processVirtualServers(vrt, true)
-					if err != nil {
-						// TODO
-						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-						isRetryableError = true
-					}
-				}
 
-				for _, ts := range ctlr.getAllTransportServers(nsName) {
-					// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
-					rscRefKey := resourceRef{
-						kind:      TransportServer,
-						name:      ts.Name,
-						namespace: ts.Namespace,
+					for _, ts := range ctlr.getAllTransportServers(nsName) {
+						// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
+						rscRefKey := resourceRef{
+							kind:      TransportServer,
+							name:      ts.Name,
+							namespace: ts.Namespace,
+						}
+						if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
+							// Remove resource key from processedNativeResources on delete event
+							delete(ctlr.resources.processedNativeResources, rscRefKey)
+						}
+						// update the poolMem cache, clusterSvcResource & resource-svc maps
+						ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
+						err := ctlr.processTransportServers(ts, true)
+						if err != nil {
+							// TODO
+							utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+							isRetryableError = true
+						}
 					}
-					if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
-						// Remove resource key from processedNativeResources on delete event
-						delete(ctlr.resources.processedNativeResources, rscRefKey)
-					}
-					// update the poolMem cache, clusterSvcResource & resource-svc maps
-					ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
-					err := ctlr.processTransportServers(ts, true)
-					if err != nil {
-						// TODO
-						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-						isRetryableError = true
+					if crInf, ok := clusterConfig.InformerStore.crInformers[nsName]; ok {
+						crInf.stop()
+						delete(clusterConfig.InformerStore.crInformers, nsName)
 					}
 				}
-				if crInf, ok := informerStore.crInformers[nsName]; ok {
-					crInf.stop()
-					delete(informerStore.crInformers, nsName)
-				}
-				if comInf, ok := informerStore.comInformers[nsName]; ok {
+				if comInf, ok := clusterConfig.InformerStore.comInformers[nsName]; ok {
 					comInf.stop()
-					delete(informerStore.comInformers, nsName)
+					delete(clusterConfig.InformerStore.comInformers, nsName)
 				}
 				delete(clusterConfig.namespaces, nsName)
 				log.Infof("Removed Namespace: '%v' from CIS scope", nsName)
 			} else {
-				clusterConfig.namespaces[nsName] = true
-				_ = ctlr.addNamespacedInformers(nsName, true, "")
+				clusterConfig.namespaces[nsName] = struct{}{}
+				_ = ctlr.addNamespacedInformers(nsName, true, rKey.clusterName)
 				log.Infof("Added Namespace: '%v' to CIS scope", nsName)
 			}
 		}
@@ -726,7 +734,7 @@ func (ctlr *Controller) processResources() bool {
 	}
 
 	if isRetryableError {
-		if rKey.clusterName == "" {
+		if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			log.Warningf("Request from cluster local resulted in retry for  %v in %v %v/%v", strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		} else {
 			log.Warningf("Request from cluster %v resulted in retry for %v in %v %v/%v", rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
@@ -755,7 +763,7 @@ func (ctlr *Controller) processResources() bool {
 			if ctlr.multiClusterMode != SecondaryCIS {
 				// using node informers to count the clusters as it will be available in all CNIs
 				// adding 1 for the current cluster
-				ctlr.TeemData.ClusterCount = ctlr.multiClusterConfigs.getClusterCount()
+				ctlr.TeemData.ClusterCount = ctlr.multiClusterHandler.getClusterCount()
 				go ctlr.TeemData.PostTeemsData()
 			}
 		} else {
@@ -766,7 +774,7 @@ func (ctlr *Controller) processResources() bool {
 		config.poolMemberType = ctlr.PoolMemberType
 		if rKey.kind == HACIS {
 			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqId, strings.ToTitle(Update))
-		} else if rKey.clusterName == "" {
+		} else if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqId, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		} else {
 			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqId, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
@@ -784,8 +792,8 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints, clusterName str
 	var exists bool
 	var err error
 	svcKey := fmt.Sprintf("%s/%s", ep.Namespace, ep.Name)
-	if clusterName == "" {
-		comInf, ok := ctlr.getNamespacedCommonInformer(ep.Namespace)
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, ep.Namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
 			return nil
@@ -882,8 +890,8 @@ func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy)
 func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy, clusterName string) []*v1.Service {
 	LBServices := ctlr.getAllLBServices(plc.Namespace, clusterName)
 	if nil == LBServices {
-		log.Debugf("No LB service found in namespace %s",
-			plc.Namespace)
+		log.Debugf("No LB service found in namespace %s from cluster %s",
+			plc.Namespace, clusterName)
 		return nil
 	}
 
@@ -941,7 +949,7 @@ func (ctlr *Controller) getAllVSFromMonitoredNamespaces() []*cisapiv1.VirtualSer
 	if ctlr.watchingAllNamespaces("") {
 		return ctlr.getAllVirtualServers("")
 	}
-	for ns := range ctlr.multiClusterConfigs.getMonitoredNamespaces("") {
+	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces("") {
 		allVirtuals = append(allVirtuals, ctlr.getAllVirtualServers(ns)...)
 	}
 	return allVirtuals
@@ -1024,7 +1032,7 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 	namespace := vs.Namespace
 	vsKey := fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
 	// Initialize CustomResource Informer for required namespace
-	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, namespace)
 	if !ok {
 		log.Errorf("Common Informer not found for namespace: %v", namespace)
 		return nil
@@ -1781,7 +1789,7 @@ func (ctlr *Controller) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 	if plcName == "" {
 		return nil, nil
 	}
-	crInf, ok := ctlr.getNamespacedCommonInformer(ns)
+	crInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ns)
 	if !ok {
 		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
 	}
@@ -1817,7 +1825,7 @@ func (ctlr *Controller) getPolicyFromTransportServer(virtual *cisapiv1.Transport
 
 // getPolicy fetches the policy CR
 func (ctlr *Controller) getPolicy(ns string, plcName string) (*cisapiv1.Policy, error) {
-	crInf, ok := ctlr.getNamespacedCommonInformer(ns)
+	crInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)
 		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
@@ -2211,7 +2219,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 								switch poolId.rsKey.kind {
 								case Route:
 									// this case happens when a route does not contain a target port and service is created after route creation
-									if routeGroup, found := ctlr.resources.invertedNamespaceLabelMap[poolId.rsKey.namespace]; found {
+									if routeGroup, ok := ctlr.resources.routeGroupNamespaceMap[poolId.rsKey.namespace]; ok {
 										// update the poolMem cache, clusterSvcResource & resource-svc maps
 										ctlr.deleteResourceExternalClusterSvcRouteReference(poolId.rsKey)
 										ctlr.processRoutes(routeGroup, false)
@@ -2275,8 +2283,8 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 
 func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.Service) {
 	var svc *v1.Service
-	if svcKey.clusterName == "" {
-		comInf, ok := ctlr.getNamespacedCommonInformer(svcKey.namespace)
+	if svcKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, ok := ctlr.getNamespacedCommonInformer(svcKey.clusterName, svcKey.namespace)
 		if !ok {
 			return fmt.Errorf("Informer not found for service: %v", svcKey), svc
 		}
@@ -2287,7 +2295,7 @@ func (ctlr *Controller) fetchService(svcKey MultiClusterServiceKey) (error, *v1.
 		}
 		svc, _ = item.(*v1.Service)
 	} else {
-		if infStore := ctlr.multiClusterConfigs.getInformerStore(svcKey.clusterName); infStore != nil && infStore.comInformers != nil {
+		if infStore := ctlr.multiClusterHandler.getInformerStore(svcKey.clusterName); infStore != nil && infStore.comInformers != nil {
 			for namespace, poolInf := range infStore.comInformers {
 				// namespace = "" for HA pair cluster if cis watches all namespaces
 				if svcKey.namespace == namespace || namespace == "" {
@@ -2336,15 +2344,15 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// for HA cluster pair service
 	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
 	// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
-	if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterConfigs.HAPairClusterName != "" &&
-		!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
+	if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterHandler.HAPairClusterName != "" &&
+		!ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+			pool.NodeMemberLabel, ctlr.multiClusterHandler.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
 
 		if pool.SinglePoolRatioEnabled {
 			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
-				clusterName: ctlr.multiClusterConfigs.HAPairClusterName}] = pms
+				clusterName: ctlr.multiClusterHandler.HAPairClusterName}] = pms
 		}
 	}
 
@@ -2361,7 +2369,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
 		clusterName := mcs.ClusterName
-		if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			clusterName = ""
 		}
 		// Skip invalid extended service or if adding pool member is restricted for the cluster
@@ -2372,7 +2380,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		// Ensure cluster services of the HA pair cluster (if specified as multi cluster service in route annotations)
 		// isn't considered for updating the pool members as it may lead to duplicate pool members as it may have been
 		// already populated while updating the HA cluster pair service pool members above
-		if infStore := ctlr.multiClusterConfigs.getInformerStore(mcs.ClusterName); infStore != nil && infStore.comInformers != nil && ctlr.multiClusterConfigs.HAPairClusterName != mcs.ClusterName {
+		if infStore := ctlr.multiClusterHandler.getInformerStore(mcs.ClusterName); infStore != nil && infStore.comInformers != nil && ctlr.multiClusterHandler.HAPairClusterName != mcs.ClusterName {
 			targetPort := ctlr.fetchTargetPort(mcs.Namespace, mcs.SvcName, mcs.ServicePort, clusterName)
 			pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, targetPort,
 				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
@@ -2398,15 +2406,15 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 
 			// for HA cluster pair service
 			// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
-			if ctlr.multiClusterConfigs.HAPairClusterName != "" &&
-				!ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName) {
+			if ctlr.multiClusterHandler.HAPairClusterName != "" &&
+				!ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName) {
 				pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
-					pool.NodeMemberLabel, ctlr.multiClusterConfigs.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+					pool.NodeMemberLabel, ctlr.multiClusterHandler.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 				poolMembers = append(poolMembers, pms...)
 
 				if pool.SinglePoolRatioEnabled {
 					clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: svc.Service, namespace: svc.ServiceNamespace,
-						clusterName: ctlr.multiClusterConfigs.HAPairClusterName}] = pms
+						clusterName: ctlr.multiClusterHandler.HAPairClusterName}] = pms
 				}
 			}
 		}
@@ -2433,7 +2441,7 @@ func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) 
 				continue
 			}
 			clusterName := mcs.ClusterName
-			if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+			if clusterName == ctlr.multiClusterHandler.LocalClusterName {
 				clusterName = ""
 			}
 			// Skip invalid extended service or if adding pool member is restricted for the cluster
@@ -2442,7 +2450,7 @@ func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) 
 			}
 
 			// Update pool members for all the multi cluster services specified in the pool
-			if infStore := ctlr.multiClusterConfigs.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil || clusterName == "" {
+			if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil || clusterName == ctlr.multiClusterHandler.LocalClusterName {
 				targetPort := ctlr.fetchTargetPort(mcs.Namespace, mcs.SvcName, mcs.ServicePort, clusterName)
 				pms := ctlr.fetchPoolMembersForService(mcs.SvcName, mcs.Namespace, targetPort,
 					pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
@@ -2474,7 +2482,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		for svcKey, plMem := range svcMemMap {
 			if ctlr.discoveryMode != DefaultMode {
 				// for local or ha cluster check config
-				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
+				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterHandler.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
 					svcKey.namespace == pool.ServiceNamespace {
 					if pool.Weight > 0 {
 						ratio = int(float32(pool.Weight) / float32(len(plMem)))
@@ -2491,7 +2499,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 
 				for _, svc := range pool.AlternateBackends {
 					// for local or ha cluster check config
-					if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == svc.Service &&
+					if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterHandler.HAPairClusterName) && svcKey.serviceName == svc.Service &&
 						svcKey.namespace == svc.ServiceNamespace {
 						if svc.Weight > 0 {
 							ratio = int(float32(svc.Weight) / float32(len(plMem)))
@@ -2533,11 +2541,11 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		// First we calculate the total service weights, total ratio and the total number of backends
 
 		// store the localClusterPool state and HA peer cluster pool state in advance for further processing
-		localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+		localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName)
 		hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
 		// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
-		if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-			hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+		if ctlr.multiClusterHandler.HAPairClusterName != "" {
+			hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName)
 		}
 		// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
 		// them have to be considered( this is based on multiCluster mode and cluster pool state)
@@ -2545,7 +2553,7 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		if !localClusterPoolRestricted {
 			factor++ // it ensures local cluster services associated with the VS are considered
 		}
-		if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 			factor++ // it ensures HA peer cluster services associated with the VS are considered
 		}
 		// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
@@ -2558,11 +2566,11 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		totalSvcWeights := 0.0
 		// Include local cluster ratio in the totalClusterRatio calculation
 		if !localClusterPoolRestricted {
-			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
 		}
 		// Include HA partner cluster ratio in the totalClusterRatio calculation
-		if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
-			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+		if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
 		}
 		// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
 		if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
@@ -2610,12 +2618,12 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 		// for each service -  pool members
 		for svcKey, plMem := range svcMemMap {
 			// for local or ha cluster check config
-			if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
+			if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterHandler.HAPairClusterName) && svcKey.serviceName == pool.ServiceName &&
 				svcKey.namespace == pool.ServiceNamespace {
 				if pool.Weight > 0 {
 					cluster := svcKey.clusterName
 					if cluster == "" {
-						cluster = ctlr.multiClusterConfigs.LocalClusterName
+						cluster = ctlr.multiClusterHandler.LocalClusterName
 					}
 					ratio = int((float64(pool.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[cluster]) / totalClusterRatio) * 100)
 				}
@@ -2631,12 +2639,12 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 
 			for _, svc := range pool.AlternateBackends {
 				// for local or ha cluster check config
-				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterConfigs.HAPairClusterName) && svcKey.serviceName == svc.Service &&
+				if (svcKey.clusterName == pool.Cluster || svcKey.clusterName == ctlr.multiClusterHandler.HAPairClusterName) && svcKey.serviceName == svc.Service &&
 					svcKey.namespace == svc.ServiceNamespace {
 					if svc.Weight > 0 {
 						cluster := svcKey.clusterName
 						if cluster == "" {
-							cluster = ctlr.multiClusterConfigs.LocalClusterName
+							cluster = ctlr.multiClusterHandler.LocalClusterName
 						}
 						ratio = int((float64(svc.Weight) / float64(totalWeight*len(plMem))) * (float64(*ctlr.clusterRatio[cluster]) / totalClusterRatio) * 100)
 					}
@@ -2683,7 +2691,7 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32, bigipRouteDomain int32) []PoolMember {
 
 	if ctlr.multiClusterMode != "" {
-		if clusterName == ctlr.multiClusterConfigs.LocalClusterName {
+		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			clusterName = ""
 		}
 	}
@@ -3121,7 +3129,7 @@ func (ctlr *Controller) getAllTSFromMonitoredNamespaces() []*cisapiv1.TransportS
 	if ctlr.watchingAllNamespaces("") {
 		return ctlr.getAllTransportServers("")
 	}
-	for ns := range ctlr.multiClusterConfigs.getMonitoredNamespaces("") {
+	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces("") {
 		allVirtuals = append(allVirtuals, ctlr.getAllTransportServers(ns)...)
 	}
 	return allVirtuals
@@ -3163,8 +3171,8 @@ func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) [
 	var allLBServices []*v1.Service
 	var orderedSVCs []interface{}
 	var err error
-	if clusterName == "" {
-		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", namespace)
 			return nil
@@ -3182,8 +3190,8 @@ func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) [
 		}
 	} else {
 		//For external cluster LB
-		if infStore := ctlr.multiClusterConfigs.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil {
-			if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces("") {
+		if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil {
+			if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces("") {
 				//In HA pair cluster pool informers created for cis watched namespaces
 				namespace = ""
 			}
@@ -3379,8 +3387,8 @@ func (ctlr *Controller) processService(
 	pmi.svcType = svc.Spec.Type
 	nodes := ctlr.getNodesFromCache(svcKey.clusterName)
 	var eps *v1.Endpoints
-	if clusterName == "" {
-		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v %v", namespace, getClusterLog(clusterName))
 			return fmt.Errorf("unable to process Service: %v %v", svcKey, getClusterLog(clusterName))
@@ -3393,7 +3401,7 @@ func (ctlr *Controller) processService(
 			eps, _ = item.(*v1.Endpoints)
 		}
 	} else {
-		if infStore := ctlr.multiClusterConfigs.getInformerStore(svcKey.clusterName); infStore != nil && infStore.comInformers != nil {
+		if infStore := ctlr.multiClusterHandler.getInformerStore(svcKey.clusterName); infStore != nil && infStore.comInformers != nil {
 			var poolInf *CommonInformer
 			var found bool
 			if poolInf, found = infStore.comInformers[""]; !found {
@@ -3452,7 +3460,7 @@ func (ctlr *Controller) processService(
 	return nil
 }
 
-func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
+func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool, clusterName string) {
 
 	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
 		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
@@ -3470,13 +3478,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 		delete(ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
-		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
+		ctlr.TeemData.ResourceType.ExternalDNS[clusterName+"/"+edns.Namespace]--
 		ctlr.TeemData.Unlock()
 		return
 	}
 
 	ctlr.TeemData.Lock()
-	ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace] = len(ctlr.getAllExternalDNS(edns.Namespace))
+	ctlr.TeemData.ResourceType.ExternalDNS[clusterName+"/"+edns.Namespace] = ctlr.multiClusterHandler.getEDNSCount(ctlr.multiClusterHandler.getClusterConfig(clusterName), edns.Namespace)
 	ctlr.TeemData.Unlock()
 
 	wip := WideIP{
@@ -3629,33 +3637,30 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	return
 }
 
-func (ctlr *Controller) getAllExternalDNS(namespace string) []*cisapiv1.ExternalDNS {
-	var allEDNS []*cisapiv1.ExternalDNS
-	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
-		return nil
-	}
+func (ctlr *Controller) processExternalDNSFromCluster(clusterName string, hostnames []string, clusterConfig *ClusterConfig) {
 	var orderedEDNSs []interface{}
-	var err error
-
-	if namespace == "" {
-		orderedEDNSs = comInf.ednsInformer.GetIndexer().List()
-	} else {
-		orderedEDNSs, err = comInf.ednsInformer.GetIndexer().ByIndex("namespace", namespace)
-		if err != nil {
-			log.Errorf("Unable to get list of ExternalDNSs for namespace '%v': %v",
-				namespace, err)
-			return allEDNS
+	for namespace, comInf := range clusterConfig.InformerStore.comInformers {
+		if namespace == "" {
+			orderedEDNSs = comInf.ednsInformer.GetIndexer().List()
+		} else {
+			eDNSs, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", namespace)
+			if err != nil {
+				log.Errorf("Unable to get list of ExternalDNSs for namespace '%v': %v",
+					namespace, err)
+				continue
+			}
+			orderedEDNSs = append(orderedEDNSs, eDNSs...)
+		}
+	}
+	for _, obj := range orderedEDNSs {
+		edns := obj.(*cisapiv1.ExternalDNS)
+		for _, hostname := range hostnames {
+			if edns.Spec.DomainName == hostname {
+				ctlr.processExternalDNS(edns, false, clusterName)
+			}
 		}
 	}
 
-	for _, obj := range orderedEDNSs {
-		edns := obj.(*cisapiv1.ExternalDNS)
-		allEDNS = append(allEDNS, edns)
-	}
-
-	return allEDNS
 }
 
 func (ctlr *Controller) ProcessRouteEDNS(hosts []string) {
@@ -3673,21 +3678,11 @@ func (ctlr *Controller) ProcessRouteEDNS(hosts []string) {
 }
 
 func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
-	var allEDNS []*cisapiv1.ExternalDNS
-	if ctlr.watchingAllNamespaces("") {
-		allEDNS = ctlr.getAllExternalDNS("")
-	} else {
-		for ns := range ctlr.multiClusterConfigs.getMonitoredNamespaces("") {
-			allEDNS = append(allEDNS, ctlr.getAllExternalDNS(ns)...)
-		}
+	ctlr.multiClusterHandler.RLock()
+	for clusterName, clusterConfig := range ctlr.multiClusterHandler.ClusterConfigs {
+		ctlr.processExternalDNSFromCluster(clusterName, hostnames, clusterConfig)
 	}
-	for _, edns := range allEDNS {
-		for _, hostname := range hostnames {
-			if edns.Spec.DomainName == hostname {
-				ctlr.processExternalDNS(edns, false)
-			}
-		}
-	}
+	ctlr.multiClusterHandler.RUnlock()
 }
 
 // Validate certificate hostname
@@ -3855,7 +3850,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 		if rscKind != "hg" {
 			var ok bool
 			crInf, ok = ctlr.getNamespacedCRInformer(ns)
-			comInf, ok = ctlr.getNamespacedCommonInformer(ns)
+			comInf, ok = ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ns)
 			if !ok {
 				log.Errorf("Informer not found for namespace: %v", ns)
 				return nil
@@ -4288,7 +4283,7 @@ func (ctlr *Controller) getAllIngLinkFromMonitoredNamespaces() []*cisapiv1.Ingre
 	if ctlr.watchingAllNamespaces("") {
 		return ctlr.getAllIngressLinks("")
 	}
-	for ns := range ctlr.multiClusterConfigs.getMonitoredNamespaces("") {
+	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces("") {
 		allInglink = append(allInglink, ctlr.getAllIngressLinks(ns)...)
 	}
 	return allInglink
@@ -4301,7 +4296,7 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	}
 	selector = selector[:len(selector)-1]
 
-	comInf, ok := ctlr.getNamespacedCommonInformer(ingLink.ObjectMeta.Namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ingLink.ObjectMeta.Namespace)
 	if !ok {
 		return nil, fmt.Errorf("informer not found for namepsace %v", ingLink.ObjectMeta.Namespace)
 	}
@@ -4342,7 +4337,7 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
 	var updateErr error
-	if config := ctlr.multiClusterConfigs.getClusterConfig(clusterName); config != nil {
+	if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 		_, updateErr = config.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 	}
 
@@ -4371,8 +4366,8 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 	var found bool
 	var err error
 	svcName := svc.Namespace + "/" + svc.Name
-	if clusterName == "" {
-		comInf, _ := ctlr.getNamespacedCommonInformer(svc.Namespace)
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, _ := ctlr.getNamespacedCommonInformer(clusterName, svc.Namespace)
 		service, found, err = comInf.svcInformer.GetIndexer().GetByKey(svcName)
 		if !found || err != nil {
 			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
@@ -4403,7 +4398,7 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 			svc.Status.LoadBalancer.Ingress[index+1:]...)
 		var updateErr error
-		if config := ctlr.multiClusterConfigs.getClusterConfig(clusterName); config != nil {
+		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 			_, updateErr = config.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 		}
 		if nil != updateErr {
@@ -4457,7 +4452,7 @@ func (ctlr *Controller) recordLBServiceIngressEvent(
 ) {
 	namespace := svc.ObjectMeta.Namespace
 	// Create the event
-	if config := ctlr.multiClusterConfigs.getClusterConfig(clusterName); config != nil {
+	if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 		evNotifier := config.eventNotifier.CreateNotifierForNamespace(
 			namespace, config.kubeClient.CoreV1())
 		evNotifier.RecordEvent(svc, eventType, reason, message)
@@ -4509,7 +4504,7 @@ func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 	vs.Status = vsStatus
 	vs.Status.VSAddress = ip
 	vs.Status.Status = statusOk
-	config := ctlr.multiClusterConfigs.getClusterConfig("")
+	config := ctlr.multiClusterHandler.getClusterConfig("")
 	_, updateErr := config.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
@@ -4525,7 +4520,7 @@ func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer
 	ts.Status = tsStatus
 	ts.Status.VSAddress = ip
 	ts.Status.Status = statusOk
-	config := ctlr.multiClusterConfigs.getClusterConfig("")
+	config := ctlr.multiClusterHandler.getClusterConfig("")
 	_, updateErr := config.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating Transport server status:%v", updateErr)
@@ -4538,7 +4533,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	// Set the vs status to include the virtual IP address
 	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
 	il.Status = ilStatus
-	config := ctlr.multiClusterConfigs.getClusterConfig("")
+	config := ctlr.multiClusterHandler.getClusterConfig("")
 	_, updateErr := config.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating ingresslink status:%v", updateErr)
@@ -4549,7 +4544,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 // returns service obj with servicename
 func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 	svcKey := namespace + "/" + serviceName
-	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -4577,8 +4572,8 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName, clusterName st
 	var comInf *CommonInformer
 	var podList []*v1.Pod
 	var ok bool
-	if clusterName == "" {
-		comInf, ok = ctlr.getNamespacedCommonInformer(namespace)
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, ok = ctlr.getNamespacedCommonInformer(clusterName, namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", namespace)
 			return nil
@@ -4618,7 +4613,7 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName, clusterName st
 		return nil
 	}
 	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
-	if clusterName == "" {
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
 		podList, err = listerscorev1.NewPodLister(comInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
 	} else {
 		podList, err = listerscorev1.NewPodLister(comInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
@@ -4633,8 +4628,8 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName, clusterName st
 func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.Service {
 	var services []interface{}
 	var err error
-	if clusterName == "" {
-		comInf, ok := ctlr.getNamespacedCommonInformer(pod.Namespace)
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, pod.Namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v ", pod.Namespace)
 			return nil
@@ -4643,7 +4638,7 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod, clusterName string) *v1.S
 		if err != nil {
 			log.Debugf("Unable to find services for namespace %v with error: %v", pod.Namespace, err)
 		}
-	} else if infStore := ctlr.multiClusterConfigs.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil {
+	} else if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil {
 		var poolInf *CommonInformer
 		var found bool
 		if poolInf, found = infStore.comInformers[""]; !found {
@@ -4806,10 +4801,11 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				ctlr.clusterAdminState[""] = clustermanager.Enable
 			}
 		}
+
 		// Read multi-cluster config from extended CM
 		err := ctlr.readMultiClusterConfigFromGlobalCM(es.HAClusterConfig, es.ExternalClustersConfig)
 		ctlr.checkSecondaryCISConfig()
-		ctlr.stopDeletedGlobalCMMultiClusterInformers()
+
 		if err != nil {
 			return err, false
 		}
@@ -4834,7 +4830,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		}
 		// Check if cluster Admin state has been updated for any cluster
 		// Check only if CIS is running in multiCluster mode
-		if ctlr.multiClusterConfigs != nil {
+		if ctlr.multiClusterHandler != nil {
 			for clusterName, _ := range ctlr.clusterAdminState {
 				// Check any cluster has been removed which means config has been updated
 				if adminState, ok := oldClusterAdminState[clusterName]; ok {
@@ -4864,7 +4860,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			var exists bool
 			var err error
 			var crInf *CRInformer
-			infStore := ctlr.multiClusterConfigs.getInformerStore("")
+			infStore := ctlr.multiClusterHandler.getInformerStore("")
 			crInf, _ = infStore.crInformers[""]
 			switch resRef.kind {
 			case VirtualServer:
@@ -4913,7 +4909,7 @@ func (ctlr *Controller) getPolicyFromLBService(svc *v1.Service, clustername stri
 		return nil, nil
 	}
 	ns := svc.Namespace
-	if clustername == "" {
+	if clustername == ctlr.multiClusterHandler.LocalClusterName {
 		return ctlr.getPolicy(ns, plcName)
 	} else {
 		return ctlr.getPolicyFromExternalCluster(ns, plcName, clustername)
@@ -5049,10 +5045,10 @@ func createLabel(label string) (labels.Selector, error) {
 func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 	var nodes []interface{}
 	//fetch nodes from other clusters
-	if ctlr.multiClusterConfigs.isClusterInformersReady() {
-		nodes = ctlr.multiClusterConfigs.getAllNodesUsingInformers()
+	if ctlr.multiClusterHandler.isClusterInformersReady() {
+		nodes = ctlr.multiClusterHandler.getAllNodesUsingInformers()
 	} else {
-		nodes = ctlr.multiClusterConfigs.getAllNodesUsingRestClient()
+		nodes = ctlr.multiClusterHandler.getAllNodesUsingRestClient()
 	}
 	return nodes
 }
@@ -5112,7 +5108,7 @@ func (ctlr *Controller) getResourceServicePortForRoute(
 			route.Name)
 		return port, err
 	}
-	infStore := ctlr.multiClusterConfigs.getInformerStore("")
+	infStore := ctlr.multiClusterHandler.getInformerStore("")
 	// 2. look for base service in the HA peer cluster
 	if ctlr.discoveryMode == Active && infStore.comInformers != nil {
 		port, err := ctlr.getSvcPortFromHACluster(route.Namespace, route.Spec.To.Name, portName, resource.ResourceTypeRoute)
@@ -5192,7 +5188,7 @@ func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
 }
 
 func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip string, status string, err error) {
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig("")
 	unmonitoredOptions := metav1.ListOptions{
 		LabelSelector: strings.ReplaceAll(clusterConfig.customResourceSelector.String(), " in ", " notin "),
 	}

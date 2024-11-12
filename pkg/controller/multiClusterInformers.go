@@ -39,10 +39,10 @@ func (ctlr *Controller) addMultiClusterNamespacedInformers(
 ) error {
 
 	// add common informers  in all modes
-	informerStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil {
 		informerStore = initInformerStore()
-		ctlr.multiClusterConfigs.addInformerStore(clusterName, informerStore)
+		ctlr.multiClusterHandler.addInformerStore(clusterName, informerStore)
 	}
 	// add informer for the namespace
 	if _, found := informerStore.comInformers[namespace]; !found {
@@ -110,7 +110,7 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
-	clusterConfigs := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	clusterConfigs := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfigs.customResourceSelector.String()
 	}
@@ -173,46 +173,10 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *CommonInformer
 
 }
 
-// whenever global configmap is modified check for removed cluster configs
-// if any of the cluster config is removed from global CM. stop the respective cluster informers
-func (ctlr *Controller) stopDeletedGlobalCMMultiClusterInformers() error {
-
-	if ctlr.multiClusterConfigs == nil {
-		return nil
-	}
-	ctlr.multiClusterConfigs.Lock()
-	// remove the  pool informers for clusters whose config has been removed
-	for clusterName, InfSet := range ctlr.multiClusterConfigs.ClusterConfigs {
-		// if cluster config not present in global CM remove the informer
-		if config, ok := ctlr.multiClusterConfigs.ClusterConfigs[clusterName]; !ok {
-			for ns, nsPoolInf := range InfSet.comInformers {
-				nsPoolInf.stop()
-				delete(ctlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers, ns)
-			}
-		} else {
-			// delete informers for cluster if serviceTypeLBDiscovery is disabled in default mode
-			if ctlr.discoveryMode == DefaultMode && !config.clusterDetails.ServiceTypeLBDiscovery {
-				//for HA pair dont remove pool informers.
-				if clusterName == ctlr.multiClusterConfigs.HAPairClusterName || clusterName == ctlr.multiClusterConfigs.LocalClusterName || clusterName == "" {
-					continue
-				} else {
-					for ns, nsPoolInf := range InfSet.comInformers {
-						nsPoolInf.stop()
-						delete(ctlr.multiClusterConfigs.ClusterConfigs[clusterName].comInformers, ns)
-					}
-				}
-			}
-		}
-	}
-	ctlr.multiClusterConfigs.Unlock()
-
-	return nil
-}
-
 func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInformer bool) error {
 
 	// remove the pool informers for clusters whose config has been removed
-	if infStore := ctlr.multiClusterConfigs.getInformerStore(clusterName); infStore != nil {
+	if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil {
 		for ns, nsPoolInf := range infStore.comInformers {
 			if stopInformer {
 				nsPoolInf.stop()
@@ -225,7 +189,7 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInform
 
 // setup multi cluster informer
 func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
-	if config := ctlr.multiClusterConfigs.getClusterConfig(svcKey.clusterName); config != nil {
+	if config := ctlr.multiClusterHandler.getClusterConfig(svcKey.clusterName); config != nil {
 		if svcKey.clusterName == "" {
 			return nil
 		}
@@ -246,7 +210,7 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 
 // setupAndStartExternalClusterInformers sets up and starts pool and node informers for the external cluster
 func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string) error {
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
 	// Setup informers with namespaces which are watched by CIS
 	for n := range clusterConfig.namespaces {
@@ -264,7 +228,7 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 
 // updateMultiClusterInformers starts/stops the informers for the given namespace for external clusters including HA peer cluster
 func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInformer bool) error {
-	for clusterName, config := range ctlr.multiClusterConfigs.ClusterConfigs {
+	for clusterName, config := range ctlr.multiClusterHandler.ClusterConfigs {
 		// For local cluster maintain some placeholder value, as the informers are already maintained in the controller object
 		if clusterName == "" {
 			return nil
@@ -281,7 +245,7 @@ func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInfor
 
 // setupMultiClusterNodeInformers sets up and starts node informers for cluster if it hasn't been started
 func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, startInformer bool) error {
-	informerStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if informerStore != nil && informerStore.nodeInformer == nil {
 		nodeInf := ctlr.setNodeInformer(clusterName)
 		if startInformer {
@@ -298,7 +262,7 @@ func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, start
 			if err != nil {
 				return err
 			}
-			clusterConfig := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+			clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 			clusterConfig.oldNodes = nodes
 		}
 	}
@@ -318,19 +282,19 @@ func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
 ) (*CommonInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters
-	if clusterName == ctlr.multiClusterConfigs.HAPairClusterName && ctlr.watchingAllNamespaces(clusterName) && ctlr.discoveryMode != DefaultMode {
+	if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces(clusterName) && ctlr.discoveryMode != DefaultMode {
 		namespace = ""
 	}
 	//check for default mode and serviceTypeLBEnabled will be watching all namespaces.
 	if ctlr.discoveryMode == DefaultMode && ctlr.watchingAllNamespaces(clusterName) {
-		if config := ctlr.multiClusterConfigs.getClusterConfig(clusterName); config != nil {
+		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 			if config.clusterDetails.ServiceTypeLBDiscovery {
 				namespace = ""
 			}
 		}
 
 	}
-	infStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
+	infStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if infStore == nil {
 		return nil, false
 	}

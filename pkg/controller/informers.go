@@ -193,34 +193,25 @@ func (comInfr *CommonInformer) start() {
 		go comInfr.cmInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.cmInformer.HasSynced)
 	}
-	//for local cluster
-	if comInfr.clusterName == "" {
-		cache.WaitForNamedCacheSync(
-			"F5 CIS Ingress",
-			comInfr.stopCh,
-			cacheSyncs...,
-		)
+	// Wait for the all informer caches for the cluster to be synced before proceeding further to ensure it has the latest data.
+	// Typically, informer cache synchronization is a fast process.However, if it takes longer than 30 seconds, it may
+	// indicate an issue with the API server of the cluster.
+	// To avoid CIS getting blocked indefinitely, we are setting a timeout of 30 seconds and then CIS will continue to
+	// proceed further after logging the error to indicate the admin which cluster is having issues.
+	// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
+	// will start processing the events as and when it receives those from the affected cluster.
+	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	log.Debugf("Waiting for 30 Seconds for informer caches to sync for Cluster: %s", comInfr.clusterName)
+	if cache.WaitForNamedCacheSync(
+		"F5 CIS Ingress Controller",
+		infSyncCtx.Done(),
+		cacheSyncs...,
+	) {
+		log.Debugf("Successfully synced informer caches for Cluster: %s", comInfr.clusterName)
 	} else {
-		// Wait for the all informer caches for the cluster to be synced before proceeding further to ensure it has the latest data.
-		// Typically, informer cache synchronization is a fast process.However, if it takes longer than 30 seconds, it may
-		// indicate an issue with the API server of the cluster.
-		// To avoid CIS getting blocked indefinitely, we are setting a timeout of 30 seconds and then CIS will continue to
-		// proceed further after logging the error to indicate the admin which cluster is having issues.
-		// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
-		// will start processing the events as and when it receives those from the affected cluster.
-		infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		log.Debugf("[MultiCluster] Waiting for 30 Seconds for informer caches to sync for Cluster: %s", comInfr.clusterName)
-		if cache.WaitForNamedCacheSync(
-			"F5 CIS Ingress Controller",
-			infSyncCtx.Done(),
-			cacheSyncs...,
-		) {
-			log.Debugf("[MultiCluster] Successfully synced informer caches for Cluster: %s", comInfr.clusterName)
-		} else {
-			log.Warningf("[MultiCluster] Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
-				"API server in Cluster: %s", comInfr.clusterName, comInfr.clusterName)
-		}
+		log.Warningf("Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
+			"API server in Cluster: %s", comInfr.clusterName, comInfr.clusterName)
 	}
 
 }
@@ -230,7 +221,10 @@ func (comInfr *CommonInformer) stop() {
 }
 
 func (ctlr *Controller) watchingAllNamespaces(clusterName string) bool {
-	informerStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	if informerStore == nil {
+		return false
+	}
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
 		if len(informerStore.comInformers) == 0 || len(informerStore.nrInformers) == 0 {
@@ -255,18 +249,21 @@ func (ctlr *Controller) getNamespacedCRInformer(
 	if ctlr.watchingAllNamespaces("") {
 		namespace = ""
 	}
-	informerStore := ctlr.multiClusterConfigs.getInformerStore("")
+	informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 	crInf, found := informerStore.crInformers[namespace]
 	return crInf, found
 }
 
 func (ctlr *Controller) getNamespacedCommonInformer(
-	namespace string,
+	clusterName, namespace string,
 ) (*CommonInformer, bool) {
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(clusterName) {
 		namespace = ""
 	}
-	informerStore := ctlr.multiClusterConfigs.getInformerStore("")
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	if informerStore == nil {
+		return nil, false
+	}
 	comInf, found := informerStore.comInformers[namespace]
 	return comInf, found
 }
@@ -274,18 +271,18 @@ func (ctlr *Controller) getNamespacedCommonInformer(
 func (ctlr *Controller) getNamespacedNativeInformer(
 	namespace string,
 ) (*NRInformer, bool) {
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		namespace = ""
 	}
-	informerStore := ctlr.multiClusterConfigs.getInformerStore("")
+	informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 	nrInf, found := informerStore.nrInformers[namespace]
 	return nrInf, found
 }
 
-func (ctlr *Controller) getWatchingNamespaces() []string {
+func (ctlr *Controller) getWatchingNamespaces(clusterName string) []string {
 	var namespaces []string
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
-	if ctlr.watchingAllNamespaces("") {
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	if ctlr.watchingAllNamespaces(clusterName) {
 		// get the kubeclient from the clusterconfigs
 		nss, err := clusterConfig.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -313,7 +310,7 @@ func (ctlr *Controller) addNamespacedInformers(
 		return fmt.Errorf(
 			"Cannot add additional namespaces when already watching all.")
 	}
-	informerStore := ctlr.multiClusterConfigs.getInformerStore("")
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if len(informerStore.comInformers) > 0 && "" == namespace {
 		return fmt.Errorf(
 			"Cannot watch all namespaces when already watching specific ones.")
@@ -332,27 +329,28 @@ func (ctlr *Controller) addNamespacedInformers(
 	if ctlr.multiClusterMode != "" {
 		ctlr.updateMultiClusterInformers(namespace, startInformer)
 	}
-
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		// Create native resource informers in openshift mode only
-		if _, found := informerStore.nrInformers[namespace]; !found {
-			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
-			ctlr.addNativeResourceEventHandlers(nrInf)
-			informerStore.nrInformers[namespace] = nrInf
-			if startInformer {
-				nrInf.start()
+	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		switch ctlr.mode {
+		case OpenShiftMode, KubernetesMode:
+			// Create native resource informers in openshift mode only
+			if _, found := informerStore.nrInformers[namespace]; !found {
+				nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
+				ctlr.addNativeResourceEventHandlers(nrInf)
+				informerStore.nrInformers[namespace] = nrInf
+				if startInformer {
+					nrInf.start()
+				}
 			}
-		}
-	default:
-		// create customer resource informers in custom resource mode
-		// Enabling CRInformers only for custom resource mode
-		if _, found := informerStore.crInformers[namespace]; !found {
-			crInf := ctlr.newNamespacedCustomResourceInformerForCluster(namespace, clusterName)
-			ctlr.addCustomResourceEventHandlers(crInf)
-			informerStore.crInformers[namespace] = crInf
-			if startInformer {
-				crInf.start()
+		default:
+			// create customer resource informers in custom resource mode
+			// Enabling CRInformers only for custom resource mode
+			if _, found := informerStore.crInformers[namespace]; !found {
+				crInf := ctlr.newNamespacedCustomResourceInformerForCluster(namespace, clusterName)
+				ctlr.addCustomResourceEventHandlers(crInf)
+				informerStore.crInformers[namespace] = crInf
+				if startInformer {
+					crInf.start()
+				}
 			}
 		}
 	}
@@ -364,7 +362,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformerForCluster(
 	clusterName string,
 ) *CRInformer {
 	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.customResourceSelector.String()
 	}
@@ -419,7 +417,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 	}
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig("")
 	switch ctlr.mode {
 	case OpenShiftMode:
 		// Ensure the default server cert is loaded
@@ -447,7 +445,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 func (ctlr *Controller) setNodeInformer(clusterName string) NodeInformer {
 	resyncPeriod := 0 * time.Second
 	var restClientv1 rest.Interface
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	nodeOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.nodeLabelSelector
 	}
@@ -469,8 +467,7 @@ func (ctlr *Controller) setNodeInformer(clusterName string) NodeInformer {
 		),
 		clusterName: clusterName,
 	}
-	informerStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
-	informerStore.nodeInformer = &nodeInf
+	clusterConfig.InformerStore.nodeInformer = &nodeInf
 	ctlr.addNodeEventUpdateHandler(&nodeInf)
 	return nodeInf
 }
@@ -497,7 +494,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	restClientv1 := clusterConfig.kubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.customResourceSelector.String()
@@ -645,77 +642,77 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 	if comInf.svcInformer != nil {
 		comInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, "") },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, "") },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, "") },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, comInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, comInf.clusterName) },
 			},
 		)
-		comInf.svcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Service, Local))
+		comInf.svcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Service, comInf.clusterName))
 	}
 
 	if comInf.epsInformer != nil {
 		comInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create, "") },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update, "") },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, "") },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create, comInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete, comInf.clusterName) },
 			},
 		)
-		comInf.epsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Endpoints, Local))
+		comInf.epsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Endpoints, comInf.clusterName))
 	}
 
 	if comInf.ednsInformer != nil {
 		comInf.ednsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueExternalDNS(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueExternalDNS(obj, comInf.clusterName) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj, comInf.clusterName) },
 			})
-		comInf.ednsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ExternalDNS, Local))
+		comInf.ednsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ExternalDNS, comInf.clusterName))
 	}
 
 	if comInf.plcInformer != nil {
 		comInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create, "") },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update, "") },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj, "") },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create, comInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj, comInf.clusterName) },
 			},
 		)
-		comInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, Local))
+		comInf.plcInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(CustomPolicy, comInf.clusterName))
 	}
 
 	if comInf.podInformer != nil {
 		comInf.podInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, "") },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, "") },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, "") },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj, comInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj, comInf.clusterName) },
 			},
 		)
-		comInf.podInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Pod, Local))
+		comInf.podInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Pod, comInf.clusterName))
 	}
 
 	if comInf.secretsInformer != nil {
 		comInf.secretsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueSecret(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueSecret(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueSecret(obj, Create, comInf.clusterName) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueSecret(cur, Update, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete, comInf.clusterName) },
 			},
 		)
-		comInf.secretsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Secret, Local))
+		comInf.secretsInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(Secret, comInf.clusterName))
 	}
 
 	if comInf.cmInformer != nil {
 		comInf.cmInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj, Create) },
-				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj, Create, comInf.clusterName) },
+				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj, Update, comInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj, comInf.clusterName) },
 			},
 		)
-		comInf.cmInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ConfigMap, Local))
+		comInf.cmInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ConfigMap, comInf.clusterName))
 	}
 
 }
@@ -1070,31 +1067,33 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
+func (ctlr *Controller) enqueueExternalDNS(obj interface{}, clusterName string) {
 	edns := obj.(*cisapiv1.ExternalDNS)
 	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
-		namespace: edns.ObjectMeta.Namespace,
-		kind:      ExternalDNS,
-		rscName:   edns.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Create,
+		namespace:   edns.ObjectMeta.Namespace,
+		kind:        ExternalDNS,
+		rscName:     edns.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Create,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
+func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}, clusterName string) {
 	oldEDNS := oldObj.(*cisapiv1.ExternalDNS)
 	edns := newObj.(*cisapiv1.ExternalDNS)
 
 	if oldEDNS.Spec.DomainName != edns.Spec.DomainName {
 		key := &rqKey{
-			namespace: oldEDNS.ObjectMeta.Namespace,
-			kind:      ExternalDNS,
-			rscName:   oldEDNS.ObjectMeta.Name,
-			rsc:       oldEDNS,
-			event:     Delete,
+			namespace:   oldEDNS.ObjectMeta.Namespace,
+			kind:        ExternalDNS,
+			rscName:     oldEDNS.ObjectMeta.Name,
+			rsc:         oldEDNS,
+			event:       Delete,
+			clusterName: clusterName,
 		}
 
 		ctlr.resourceQueue.Add(key)
@@ -1112,15 +1111,16 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}, clusterName string) {
 	edns := obj.(*cisapiv1.ExternalDNS)
 	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
-		namespace: edns.ObjectMeta.Namespace,
-		kind:      ExternalDNS,
-		rscName:   edns.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   edns.ObjectMeta.Namespace,
+		kind:        ExternalDNS,
+		rscName:     edns.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 
 	ctlr.resourceQueue.Add(key)
@@ -1250,15 +1250,16 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string, clusterN
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueSecret(obj interface{}, event string) {
+func (ctlr *Controller) enqueueSecret(obj interface{}, event, clusterName string) {
 	secret := obj.(*corev1.Secret)
 	log.Debugf("Enqueueing Secrets: %v/%v", secret.Namespace, secret.Name)
 	key := &rqKey{
-		namespace: secret.ObjectMeta.Namespace,
-		kind:      K8sSecret,
-		rscName:   secret.ObjectMeta.Name,
-		rsc:       obj,
-		event:     event,
+		namespace:   secret.ObjectMeta.Namespace,
+		kind:        K8sSecret,
+		rscName:     secret.ObjectMeta.Name,
+		rsc:         obj,
+		event:       event,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 
@@ -1295,7 +1296,7 @@ func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
+func (ctlr *Controller) enqueueConfigmap(obj interface{}, event, clusterName string) {
 	cm := obj.(*corev1.ConfigMap)
 
 	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
@@ -1307,25 +1308,27 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 
 	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 	key := &rqKey{
-		namespace: cm.ObjectMeta.Namespace,
-		kind:      ConfigMap,
-		rscName:   cm.ObjectMeta.Name,
-		rsc:       obj,
-		event:     event,
+		namespace:   cm.ObjectMeta.Namespace,
+		kind:        ConfigMap,
+		rscName:     cm.ObjectMeta.Name,
+		rsc:         obj,
+		event:       event,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}, clusterName string) {
 	cm := obj.(*corev1.ConfigMap)
 
 	log.Debugf("Enqueueing ConfigMap: %v/%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 	key := &rqKey{
-		namespace: cm.ObjectMeta.Namespace,
-		kind:      ConfigMap,
-		rscName:   cm.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   cm.ObjectMeta.Namespace,
+		kind:        ConfigMap,
+		rscName:     cm.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
@@ -1440,7 +1443,7 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 		options.LabelSelector = selector.String()
 	}
 
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	if clusterConfig == nil {
 		return fmt.Errorf("no cluster config found in cache")
 	}
@@ -1450,7 +1453,7 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 	}
 
 	resyncPeriod := 0 * time.Second
-	restClient := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	restClient := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	restClientv1 := restClient.kubeClient.CoreV1().RESTClient()
 	clusterConfig.InformerStore.nsInformers[label] = &NSInformer{
 		stopCh: make(chan struct{}),
@@ -1469,8 +1472,8 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 
 	clusterConfig.InformerStore.nsInformers[label].nsInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { ctlr.enqueueNamespace(obj) },
-			DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedNamespace(obj) },
+			AddFunc:    func(obj interface{}) { ctlr.enqueueNamespace(obj, clusterName) },
+			DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedNamespace(obj, clusterName) },
 		},
 		resyncPeriod,
 	)
@@ -1478,28 +1481,30 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 	return nil
 }
 
-func (ctlr *Controller) enqueueNamespace(obj interface{}) {
+func (ctlr *Controller) enqueueNamespace(obj interface{}, clusterName string) {
 	ns := obj.(*corev1.Namespace)
 	log.Debugf("Enqueueing Namespace: %v", ns)
 	key := &rqKey{
-		namespace: ns.ObjectMeta.Namespace,
-		kind:      Namespace,
-		rscName:   ns.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Create,
+		namespace:   ns.ObjectMeta.Namespace,
+		kind:        Namespace,
+		rscName:     ns.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Create,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}, clusterName string) {
 	ns := obj.(*corev1.Namespace)
 	log.Debugf("Enqueueing Namespace: %v on Delete", ns)
 	key := &rqKey{
-		namespace: ns.ObjectMeta.Namespace,
-		kind:      Namespace,
-		rscName:   ns.ObjectMeta.Name,
-		rsc:       obj,
-		event:     Delete,
+		namespace:   ns.ObjectMeta.Namespace,
+		kind:        Namespace,
+		rscName:     ns.ObjectMeta.Name,
+		rsc:         obj,
+		event:       Delete,
+		clusterName: clusterName,
 	}
 	ctlr.resourceQueue.Add(key)
 }

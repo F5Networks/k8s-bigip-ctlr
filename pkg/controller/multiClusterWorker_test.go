@@ -15,10 +15,10 @@ var _ = Describe("MultiClusterWorker", func() {
 	var clusterName2 string
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = NewClusterHandler()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		clusterName = "cluster-1"
 		clusterName2 = "cluster-2"
-		mockCtlr.multiClusterConfigs.HAPairClusterName = "cluster-2"
+		mockCtlr.multiClusterHandler.HAPairClusterName = "cluster-2"
 		svc = test.NewService(
 			"svc1",
 			"1",
@@ -31,10 +31,10 @@ var _ = Describe("MultiClusterWorker", func() {
 				},
 			},
 		)
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName].InformerStore = initInformerStore()
-		mockCtlr.multiClusterConfigs.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 	It("Get service from HA cluster", func() {

@@ -153,7 +153,7 @@ func NewController(params Params, startController bool) *Controller {
 		StaticRoutingMode:           params.StaticRoutingMode,
 		OrchestrationCNI:            params.OrchestrationCNI,
 		StaticRouteNodeCIDR:         params.StaticRouteNodeCIDR,
-		multiClusterConfigs:         NewClusterHandler(),
+		multiClusterHandler:         NewClusterHandler(params.LocalClusterName),
 		multiClusterResources:       newMultiClusterResourceStore(),
 		multiClusterMode:            params.MultiClusterMode,
 		loadBalancerClass:           params.LoadBalancerClass,
@@ -188,36 +188,38 @@ func NewController(params Params, startController bool) *Controller {
 		ctlr.shareNodes = true
 	}
 
-	if err := ctlr.setupClientsforCluster(params.Config, params.IPAM, "", clusterConfig); err != nil {
+	if err := ctlr.setupClientsforCluster(params.Config, params.IPAM, ctlr.mode == OpenShiftMode, ctlr.multiClusterHandler.LocalClusterName, clusterConfig); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
+	// set the namespace label so it can be assigned for all clusters
+	ctlr.multiClusterHandler.namespaceLabel = params.NamespaceLabel
 	// add the cluster config for local cluster
-	ctlr.multiClusterConfigs.addClusterConfig("", clusterConfig)
+	ctlr.multiClusterHandler.addClusterConfig(ctlr.multiClusterHandler.LocalClusterName, clusterConfig)
 
 	if params.NamespaceLabel == "" {
 		if len(params.Namespaces) == 0 {
-			clusterConfig.namespaces[""] = true
+			clusterConfig.namespaces[""] = struct{}{}
 			log.Debug("No namespaces provided. Watching all namespaces")
 		} else {
 			for _, ns := range params.Namespaces {
-				clusterConfig.namespaces[ns] = true
+				clusterConfig.namespaces[ns] = struct{}{}
 			}
 		}
 	} else {
-		err2 := ctlr.createNamespaceLabeledInformerForCluster(params.NamespaceLabel, "")
+		err2 := ctlr.createNamespaceLabeledInformerForCluster(params.NamespaceLabel, ctlr.multiClusterHandler.LocalClusterName)
 		if err2 != nil {
 			log.Errorf("%v", err2)
-			informerStore := ctlr.multiClusterConfigs.getInformerStore("")
+			informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 			for _, nsInf := range informerStore.nsInformers {
 				for _, v := range nsInf.nsInformer.GetIndexer().List() {
 					ns := v.(*v1.Namespace)
-					clusterConfig.namespaces[ns.ObjectMeta.Name] = true
+					clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
 				}
 			}
 		}
 	}
 
-	if err3 := ctlr.setupInformers(""); err3 != nil {
+	if err3 := ctlr.setupInformers(ctlr.multiClusterHandler.LocalClusterName); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
 
@@ -280,7 +282,7 @@ func (ctlr *Controller) setOtherSDNType() {
 	ctlr.TeemData.Lock()
 	defer ctlr.TeemData.Unlock()
 	if ctlr.OrchestrationCNI == "" && (ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel") {
-		clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 		kubePods, err := clusterConfig.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
 		if nil != err {
 			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
@@ -302,7 +304,7 @@ func (ctlr *Controller) setOtherSDNType() {
 // validate IPAM configuration
 func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 	// verify the ipam configuration
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	for ns, _ := range clusterConfig.namespaces {
 		if ns == "" {
 			return true
@@ -317,8 +319,8 @@ func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 
 // Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
-	err := ipammachinery.RegisterCRD(clusterConfig.kubeAPIClient)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+	err := ipammachinery.RegisterCRD(clusterConfig.kubeIPAMClient)
 	if err != nil {
 		log.Errorf("[IPAM] error while registering CRD %v", err)
 	}
@@ -398,7 +400,7 @@ func createLabelSelector(label string) (labels.Selector, error) {
 }
 
 // setupClientsforCluster sets Kubernetes Clients.
-func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient bool, clusterName string, clusterConfig *ClusterConfig) error {
+func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient, routeClient bool, clusterName string, clusterConfig *ClusterConfig) error {
 	kubeCRClient, err := clustermanager.CreateKubeCRClientFromKubeConfig(config)
 	if err != nil {
 		return fmt.Errorf("Failed to create Custom Resource kubeClient: %v", err)
@@ -418,7 +420,7 @@ func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient b
 	}
 
 	var rclient *routeclient.RouteV1Client
-	if ctlr.mode == OpenShiftMode {
+	if routeClient {
 		rclient, err = clustermanager.CreateRouteClientFromKubeconfig(config)
 		if nil != err {
 			return fmt.Errorf("Failed to create Route Client: %v", err)
@@ -429,13 +431,13 @@ func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient b
 	//Update the clusterConfig store
 	clusterConfig.kubeClient = kubeClient
 	clusterConfig.kubeCRClient = kubeCRClient
-	clusterConfig.kubeAPIClient = kubeIPAMClient
+	clusterConfig.kubeIPAMClient = kubeIPAMClient
 	clusterConfig.routeClientV1 = rclient
 	return nil
 }
 
 func (ctlr *Controller) setupInformers(clusterName string) error {
-	clusterConfig := ctlr.multiClusterConfigs.getClusterConfig(clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	for n := range clusterConfig.namespaces {
 		if err := ctlr.addNamespacedInformers(n, false, clusterName); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v in cluster %s, Error:%v", n, clusterName, err)
@@ -452,14 +454,14 @@ func (ctlr *Controller) Start() {
 	defer utilruntime.HandleCrash()
 	defer ctlr.resourceQueue.ShutDown()
 
-	ctlr.StartInformers("")
+	ctlr.StartInformers(ctlr.multiClusterHandler.LocalClusterName)
 
 	if ctlr.ipamCli != nil {
 		go ctlr.ipamCli.Start()
 	}
 
 	if ctlr.vxlanMgr != nil {
-		clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 		ctlr.vxlanMgr.ProcessAppmanagerEvents(clusterConfig.kubeClient)
 	}
 
@@ -473,7 +475,7 @@ func (ctlr *Controller) Start() {
 
 // Stop the Controller
 func (ctlr *Controller) Stop() {
-	ctlr.StopInformers("")
+	ctlr.StopInformers(ctlr.multiClusterHandler.LocalClusterName)
 	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
@@ -484,7 +486,7 @@ func (ctlr *Controller) Stop() {
 }
 
 func (ctlr *Controller) StartInformers(clusterName string) {
-	informerStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	// start nsinformer in all modes
 	for _, nsInf := range informerStore.nsInformers {
 		nsInf.start()
@@ -512,7 +514,7 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 }
 
 func (ctlr *Controller) StopInformers(clusterName string) {
-	informerStore := ctlr.multiClusterConfigs.getInformerStore(clusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
 		// stop native resource informers
@@ -544,7 +546,7 @@ func (ctlr *Controller) CISHealthCheck() {
 
 func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clusterConfig := ctlr.multiClusterConfigs.getClusterConfig("")
+		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 		if clusterConfig.kubeClient != nil {
 			var response string
 			// Check if kube-api server is reachable
@@ -579,7 +581,7 @@ func initInformerStore() *InformerStore {
 
 func newClusterConfig() *ClusterConfig {
 	return &ClusterConfig{
-		namespaces:    make(map[string]bool),
+		namespaces:    make(map[string]struct{}),
 		eventNotifier: NewEventNotifier(nil),
 	}
 }

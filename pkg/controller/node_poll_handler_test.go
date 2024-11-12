@@ -13,15 +13,15 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = NewClusterHandler()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
 		writer := &test.MockWriter{
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),
 		}
 		mockCtlr.Agent.ConfigWriter = writer
-		mockCtlr.multiClusterConfigs.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
-		mockCtlr.multiClusterConfigs.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 
@@ -57,7 +57,7 @@ var _ = Describe("Node Poller Handler", func() {
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
-		Expect(len(mockCtlr.multiClusterConfigs.ClusterConfigs[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
+		Expect(len(mockCtlr.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
 		//verify node with NotReady state not added to node list
 		Expect(len(nodes)).To(Equal(2))
@@ -72,7 +72,7 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 
-		mockCtlr.multiClusterConfigs.ClusterConfigs[""].oldNodes = nodes
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].oldNodes = nodes
 
 		// Negative case
 		nodes, err = mockCtlr.getNodes([]interface{}{nodeAddr1, nodeAddr2})
@@ -93,8 +93,8 @@ var _ = Describe("Node Poller Handler", func() {
 		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		namespace := "default"
-		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces = make(map[string]bool)
-		mockCtlr.multiClusterConfigs.ClusterConfigs[""].namespaces[namespace] = true
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces[namespace] = struct{}{}
 		mockCtlr.addNamespacedInformers(namespace, false, "")
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")

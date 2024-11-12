@@ -67,7 +67,7 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.svcLBStore = make(SvcLBStore)
 	rs.extdSpecMap = make(extendedSpecMap)
-	rs.invertedNamespaceLabelMap = make(map[string]string)
+	rs.routeGroupNamespaceMap = make(map[string]string)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
@@ -401,7 +401,7 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 	// Attach cluster name to pool name only in case of multi-cluster ratio mode
 	if (ctlr.multiClusterMode != "") && (ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode) {
 		if cluster == "" {
-			cluster = ctlr.multiClusterConfigs.LocalClusterName
+			cluster = ctlr.multiClusterHandler.LocalClusterName
 		}
 		if cluster != "" {
 			poolName = fmt.Sprintf("%s_%s", poolName, cluster)
@@ -482,7 +482,7 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	var svcIndexer cache.Indexer
 	var svc *v1.Service
 	svcKey := namespace + "/" + svcName
-	infStore := ctlr.multiClusterConfigs.getInformerStore(cluster)
+	infStore := ctlr.multiClusterHandler.getInformerStore(cluster)
 	if infStore == nil {
 		return targetPort
 	}
@@ -669,16 +669,16 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 					}
 					pool.MultiClusterServices = pl.MultiClusterServices
 					//for _, svc := range pl.MultiClusterServices {
-					//	if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
+					//	if svc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
 					//		svc.ClusterName = ""
 					//	}
 					//}
 					// update the multicluster resource serviceMap with local cluster services
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort, "")
 					// update the multicluster resource serviceMap with HA pair cluster services
-					if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+					if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
 						ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pl.Service, pl.Path, pool, pl.ServicePort,
-							ctlr.multiClusterConfigs.HAPairClusterName)
+							ctlr.multiClusterHandler.HAPairClusterName)
 					}
 				} else {
 					// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
@@ -1116,7 +1116,7 @@ func (ctlr *Controller) handleTLS(
 	rsCfg *ResourceConfig,
 	tlsContext TLSContext,
 ) bool {
-	infStore := ctlr.multiClusterConfigs.getInformerStore("")
+	infStore := ctlr.multiClusterHandler.getInformerStore("")
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
 		if tlsContext.termination != TLSPassthrough {
 			clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
@@ -2350,9 +2350,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 				// update the multicluster resource serviceMap with local cluster services
 				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, vs.Spec.Pool.Path, pool, vs.Spec.Pool.ServicePort, "")
 				// update the multicluster resource serviceMap with HA pair cluster services
-				if ctlr.discoveryMode == Active && ctlr.multiClusterConfigs.HAPairClusterName != "" {
+				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, vs.Spec.Pool.Service, "", pool, vs.Spec.Pool.ServicePort,
-						ctlr.multiClusterConfigs.HAPairClusterName)
+						ctlr.multiClusterHandler.HAPairClusterName)
 				}
 			}
 		} else {
@@ -2800,6 +2800,8 @@ func (ctlr *Controller) handleRouteTLS(
 	var tlsReferenceType string
 	bigIPSSLProfiles := BigIPSSLProfiles{}
 	sslProfileOption := ctlr.getSSLProfileOption(route, policySSLProfiles)
+	var routeGroup string
+	var ok bool
 	switch sslProfileOption {
 	case "":
 		log.Infof("Either TLS spec is not provided for route %v/%v or it's passthrough termination", route.Namespace, route.Name)
@@ -2848,18 +2850,21 @@ func (ctlr *Controller) handleRouteTLS(
 			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
 		}
 		log.Infof("Route spec certs are given third priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
+		if routeGroup, ok = ctlr.resources.routeGroupNamespaceMap[route.Namespace]; !ok {
+			return false
+		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) {
 			//set for default routegroup
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
 				//Flag to track the route groups which are using TLS profiles.
-				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
-					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+				if ctlr.resources.extdSpecMap[routeGroup].defaultrg != nil {
+					ctlr.resources.extdSpecMap[routeGroup].defaultrg.Meta = Meta{
 						DependsOnTLS: true,
 					}
 				}
 			} else {
-				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+				ctlr.resources.extdSpecMap[routeGroup].global.Meta = Meta{
 					DependsOnTLS: true,
 				}
 			}
@@ -2880,18 +2885,21 @@ func (ctlr *Controller) handleRouteTLS(
 			bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
 		}
 		log.Infof("Default SSL defined in extended configMap are given least priority, using %v with route %v/%v", sslProfileOption, route.Namespace, route.Name)
+		if routeGroup, ok = ctlr.resources.routeGroupNamespaceMap[route.Namespace]; !ok {
+			return false
+		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
-				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
-					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+				if ctlr.resources.extdSpecMap[routeGroup].defaultrg != nil {
+					ctlr.resources.extdSpecMap[routeGroup].defaultrg.Meta = Meta{
 						DependsOnTLS: true,
 					}
 				}
 			} else {
-				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global != nil {
-					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+				if ctlr.resources.extdSpecMap[routeGroup].global != nil {
+					ctlr.resources.extdSpecMap[routeGroup].global.Meta = Meta{
 						DependsOnTLS: true,
 					}
 				}
@@ -3089,11 +3097,11 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 	// First we calculate the total service weights, total ratio and the total number of backends
 
 	// store the localClusterPool state and HA peer cluster pool state in advance for further processing
-	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName)
 	hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
 	// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+	if ctlr.multiClusterHandler.HAPairClusterName != "" {
+		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
 	// them have to be considered( this is based on multiCluster mode and cluster pool state)
@@ -3101,7 +3109,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 	if !localClusterPoolRestricted {
 		factor++ // it ensures local cluster services associated with the VS are considered
 	}
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		factor++ // it ensures HA peer cluster services associated with the VS are considered
 	}
 	// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
@@ -3114,11 +3122,11 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 	totalSvcWeights := 0.0
 	// Include local cluster ratio in the totalClusterRatio calculation
 	if !localClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
 	}
 	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
 	}
 	// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
 	if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
@@ -3162,25 +3170,25 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 		}
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		} else {
 			sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		}
 	}
 	// VS backend service in HA partner cluster
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		beIdx++
 		sbcs[beIdx].Name = pool.Service
 		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 		} else {
 			sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 		}
-		sbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 	}
 	// Process Alternate backends
 	if pool.AlternateBackends != nil && (!localClusterPoolRestricted || !hAPeerClusterPoolRestricted) {
@@ -3191,25 +3199,25 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 				} else {
 					sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 				}
 			}
 			// HA partner cluster
-			if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 				beIdx = beIdx + 1
 				sbcs[beIdx].Name = svc.Service
 				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 				} else {
 					sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 				}
-				sbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				sbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 			}
 		}
 	}
@@ -3289,11 +3297,11 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	// First we calculate the total service weights, total ratio and the total number of backends
 
 	// store the localClusterPool state and HA peer cluster pool state in advance for further processing
-	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName)
 	hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
 	// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+	if ctlr.multiClusterHandler.HAPairClusterName != "" {
+		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
 	// them have to be considered( this is based on multiCluster mode and cluster pool state)
@@ -3301,7 +3309,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	if !localClusterPoolRestricted {
 		factor++ // it ensures local cluster services associated with the VS are considered
 	}
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		factor++ // it ensures HA peer cluster services associated with the VS are considered
 	}
 	// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
@@ -3314,11 +3322,11 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	totalSvcWeights := 0.0
 	// Include local cluster ratio in the totalClusterRatio calculation
 	if !localClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
 	}
 	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
 	}
 	// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
 	if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
@@ -3335,7 +3343,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
 		// cluster credentials must be specified in the extended configmap
-		//if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
+		//if svc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
 		//	svc.ClusterName = ""
 		//}
 		if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
@@ -3394,25 +3402,25 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 		}
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		} else {
 			sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		}
 	}
 	// VS backend service in HA partner cluster
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		beIdx++
 		sbcs[beIdx].Name = pool.Service
 		sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = (float64(*pool.Weight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 		} else {
 			sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 		}
-		sbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 	}
 	// Process Alternate backends
 	if pool.AlternateBackends != nil && (!localClusterPoolRestricted || !hAPeerClusterPoolRestricted) {
@@ -3423,31 +3431,31 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 				} else {
 					sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 				}
 			}
 			// HA partner cluster
-			if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 				beIdx = beIdx + 1
 				sbcs[beIdx].Name = svc.Service
 				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = (float64(*svc.Weight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 				} else {
 					sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
+						(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
 				}
-				sbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				sbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 			}
 		}
 	}
 	// External services
 	for _, svc := range pool.MultiClusterServices {
-		//if svc.ClusterName == ctlr.multiClusterConfigs.LocalClusterName {
+		//if svc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
 		//	svc.ClusterName = ""
 		//}
 		// Skip invalid extended service
@@ -3501,7 +3509,7 @@ func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, clu
 		// For all other modes the local cluster name is provided in the extended configmap as Primary/Secondary cluster
 		// details, which is stored in LocalClusterName based on whether the CIS is running in primary or secondary mode.
 		if ctlr.multiClusterMode != StandAloneCIS {
-			monitorName += "_" + ctlr.multiClusterConfigs.LocalClusterName
+			monitorName += "_" + ctlr.multiClusterHandler.LocalClusterName
 		} else {
 			monitorName += "_local_cluster"
 		}

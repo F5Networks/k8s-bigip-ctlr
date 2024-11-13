@@ -1829,6 +1829,20 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rsCfg.Virtual.HTMLProfile).To(Equal("/Common/htmlProfile1"), "FTP Profile should not be set for Virtual Server")
 		})
 
+		It("Verify HTTP Compression Profile for VirtualServer", func() {
+			plc.Spec.Profiles.HTTPCompressionProfile = "/Common/compression-profile"
+			err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.HTTPCompressionProfile).To(Equal("/Common/compression-profile"), "HTTP Compression Profile should be set for Virtual Server")
+		})
+
+		It("Verify HTTP Compression Profile for TransportServer", func() {
+			plc.Spec.Profiles.HTTPCompressionProfile = "/Common/compression-profile"
+			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.HTTPCompressionProfile).To(BeEmpty(), "FTP Profile should not be set for Transport Server")
+		})
+
 		It("Verify FTP Profile for TransportServer", func() {
 			plc.Spec.Profiles.FTPProfile = "/Common/ftpProfile1"
 			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)

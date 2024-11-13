@@ -2228,7 +2228,7 @@ func (ctlr *Controller) HandlePathBasedABIRuleTS(rsCfg *ResourceConfig) {
 	ruleName := getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName)
 	rsCfg.addIRule(
 		ruleName, rsCfg.Virtual.Partition,
-		ctlr.getABDeployIruleForTS(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+		ctlr.getABDeployIruleForTS(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.IpProtocol))
 	rsCfg.Virtual.AddIRule(ruleName)
 }
 

@@ -12,8 +12,6 @@ Added Functionality
         * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP Compression profile in VS CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/httpCompressionProfile/>`_
         * Support for empty node label selector
 
-        * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP compression profile in VS and Policy CR. See `VS Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-Multicluster-enhancements-stable/docs/config_examples/customResource/VirtualServer/httpCompressionProfile>`_ and `policy example https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-Multicluster-enhancements-stable/docs/config_examples/customResource/Policy/policy-with-http-compression-profile.yaml`
-
 Bug Fixes
 ````````````
 * `Issue 3561 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Controller stops posting changes at runtime when some ingress path has the + character

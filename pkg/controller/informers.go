@@ -193,7 +193,7 @@ func (comInfr *CommonInformer) start() {
 		go comInfr.cmInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.cmInformer.HasSynced)
 	}
-	//for local cluster
+	// for local cluster
 	if comInfr.clusterName == "" {
 		cache.WaitForNamedCacheSync(
 			"F5 CIS Ingress",
@@ -222,7 +222,6 @@ func (comInfr *CommonInformer) start() {
 				"API server in Cluster: %s", comInfr.clusterName, comInfr.clusterName)
 		}
 	}
-
 }
 
 func (comInfr *CommonInformer) stop() {
@@ -297,7 +296,7 @@ func (ctlr *Controller) getWatchingNamespaces() []string {
 		}
 		return namespaces
 	}
-	for ns, _ := range clusterConfig.namespaces {
+	for ns := range clusterConfig.namespaces {
 		namespaces = append(namespaces, ns)
 	}
 	return namespaces
@@ -308,7 +307,6 @@ func (ctlr *Controller) addNamespacedInformers(
 	startInformer bool,
 	clusterName string,
 ) error {
-
 	if ctlr.watchingAllNamespaces(clusterName) {
 		return fmt.Errorf(
 			"Cannot add additional namespaces when already watching all.")
@@ -423,7 +421,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 	switch ctlr.mode {
 	case OpenShiftMode:
 		// Ensure the default server cert is loaded
-		//appMgr.loadDefaultCert() why?
+		// appMgr.loadDefaultCert() why?
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -455,7 +453,8 @@ func (ctlr *Controller) setNodeInformer(clusterName string) NodeInformer {
 	if config := clusterConfig; config != nil {
 		restClientv1 = config.kubeClient.CoreV1().RESTClient()
 	}
-	nodeInf := NodeInformer{stopCh: make(chan struct{}),
+	nodeInf := NodeInformer{
+		stopCh: make(chan struct{}),
 		nodeInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -578,7 +577,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
-	//enable pod informer for nodeport local mode and openshift mode
+	// enable pod informer for nodeport local mode and openshift mode
 	if ctlr.PoolMemberType == NodePortLocal || ctlr.mode == OpenShiftMode {
 		comInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -717,7 +716,6 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 		)
 		comInf.cmInformer.SetWatchErrorHandler(ctlr.getErrorHandlerFunc(ConfigMap, Local))
 	}
-
 }
 
 func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
@@ -1158,6 +1156,7 @@ func getClusterLog(clusterName string) string {
 	}
 	return clusterNameLog
 }
+
 func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName string) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
@@ -1171,11 +1170,18 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		}
 	}
 
+	if reflect.DeepEqual(svc.Spec, curSvc.Spec) && reflect.DeepEqual(svc.Labels, curSvc.Labels) && reflect.DeepEqual(svc.Annotations, curSvc.Annotations) {
+		return
+	}
+
+	updateEvent := true
+	if !reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
+		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
+		updateEvent = true
+	}
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
-		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
-		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) ||
 		(svc.Annotations[LBServicePartitionAnnotation] != curSvc.Annotations[LBServicePartitionAnnotation]) {
 		log.Debugf("Enqueueing Old Service: %v %v", svc, getClusterLog(clusterName))
 		key := &rqKey{
@@ -1186,6 +1192,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 			event:       Delete,
 			clusterName: clusterName,
 		}
+		updateEvent = false
 		ctlr.resourceQueue.Add(key)
 	}
 
@@ -1195,11 +1202,15 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		kind:        Service,
 		rscName:     curSvc.ObjectMeta.Name,
 		rsc:         cur,
-		event:       Create,
+		event:       Update,
 		clusterName: clusterName,
 	}
+
 	if !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
 		key.svcPortUpdated = true
+	}
+	if updateEvent {
+		key.event = Update
 	}
 	ctlr.resourceQueue.Add(key)
 }
@@ -1261,7 +1272,6 @@ func (ctlr *Controller) enqueueSecret(obj interface{}, event string) {
 		event:     event,
 	}
 	ctlr.resourceQueue.Add(key)
-
 }
 
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
@@ -1346,7 +1356,7 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 
 func (ctlr *Controller) enqueuePod(obj interface{}, clusterName string) {
 	pod := obj.(*corev1.Pod)
-	//skip if pod belongs to coreService
+	// skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}
@@ -1380,7 +1390,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 		return
 	}
 
-	//skip if pod belongs to coreService
+	// skip if pod belongs to coreService
 	if ctlr.checkCoreserviceLabels(pod.Labels) {
 		return
 	}

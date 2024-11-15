@@ -134,7 +134,7 @@ func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
 		if len(svcs) == 0 && ((ctlr.discoveryMode == StandAloneCIS || ctlr.discoveryMode == StandBy) ||
 			ctlr.multiClusterHandler.HAPairClusterName != clusterName) {
 			delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
-			ctlr.stopMultiClusterInformers(clusterName, true)
+			ctlr.stopMultiClusterPoolInformers(clusterName, true)
 		}
 	}
 }
@@ -177,7 +177,7 @@ func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (inter
 			ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	ns := svcNameSpace
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		ns = ""
 	}
 
@@ -197,5 +197,16 @@ func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (inter
 	} else {
 		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster/namespace: %s/%s'",
 			ctlr.multiClusterHandler.HAPairClusterName, svcNameSpace)
+	}
+}
+
+func (ctlr *Controller) startInfomersForClusterReferencedSvcs(clusterName string) {
+	ctlr.multiClusterResources.Lock()
+	defer ctlr.multiClusterResources.Unlock()
+	if _, ok := ctlr.multiClusterResources.clusterSvcMap[clusterName]; ok {
+		svcMap := ctlr.multiClusterResources.clusterSvcMap[clusterName]
+		for svcKey, _ := range svcMap {
+			ctlr.setupAndStartMultiClusterInformers(svcKey, true)
+		}
 	}
 }

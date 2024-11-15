@@ -40,7 +40,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 	var err string
 
-	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		log.Errorf(err)
@@ -154,7 +154,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 	var err string
 
-	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		log.Errorf(err)
@@ -235,7 +235,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
 	var err string
 
-	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
 		log.Errorf(err)

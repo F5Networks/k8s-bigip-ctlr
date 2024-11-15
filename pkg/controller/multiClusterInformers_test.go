@@ -28,7 +28,7 @@ var _ = Describe("MultiClusterInformers", func() {
 		poolInf, found := mockCtlr.getNamespaceMultiClusterPoolInformer(svcKey.namespace, svcKey.clusterName)
 		Expect(found).To(BeTrue())
 		Expect(poolInf).ToNot(BeNil())
-		mockCtlr.stopMultiClusterInformers(svcKey.clusterName, false)
+		mockCtlr.stopMultiClusterPoolInformers(svcKey.clusterName, false)
 		Expect(len(mockCtlr.multiClusterHandler.ClusterConfigs["cluster-1"].comInformers)).To(Equal(0))
 	})
 	It("Setup and start multi-cluster informers Cluster", func() {

@@ -116,8 +116,8 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("crd_1_2_3_4_80"), "Invalid VirtualServer Name")
 		})
 		It("VirtualServer Custom Name", func() {
-			name := formatCustomVirtualServerName("My_VS", 80)
-			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
+			name := formatCustomVirtualServerName("My_VS-Custom.name", 80)
+			Expect(name).To(Equal("My_VS-Custom.name_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool name for TS", func() {
 			var name string

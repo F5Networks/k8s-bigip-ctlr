@@ -202,7 +202,7 @@ func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort
 }
 
 func (m *mockController) addVirtualServer(vs *cisapiv1.VirtualServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.vsInformer.GetStore().Add(vs)
 
 	if m.resourceQueue != nil {
@@ -211,7 +211,7 @@ func (m *mockController) addVirtualServer(vs *cisapiv1.VirtualServer) {
 }
 
 func (m *mockController) updateVirtualServer(oldVS *cisapiv1.VirtualServer, newVS *cisapiv1.VirtualServer) {
-	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace, "")
 	cusInf.vsInformer.GetStore().Update(newVS)
 
 	if m.resourceQueue != nil {
@@ -220,7 +220,7 @@ func (m *mockController) updateVirtualServer(oldVS *cisapiv1.VirtualServer, newV
 }
 
 func (m *mockController) deleteVirtualServer(vs *cisapiv1.VirtualServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.vsInformer.GetStore().Delete(vs)
 
 	if m.resourceQueue != nil {
@@ -229,7 +229,7 @@ func (m *mockController) deleteVirtualServer(vs *cisapiv1.VirtualServer) {
 }
 
 func (m *mockController) addTransportServer(vs *cisapiv1.TransportServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.tsInformer.GetStore().Add(vs)
 
 	if m.resourceQueue != nil {
@@ -238,7 +238,7 @@ func (m *mockController) addTransportServer(vs *cisapiv1.TransportServer) {
 }
 
 func (m *mockController) updateTransportServer(oldVS *cisapiv1.TransportServer, newVS *cisapiv1.TransportServer) {
-	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace, "")
 	cusInf.tsInformer.GetStore().Update(newVS)
 
 	if m.resourceQueue != nil {
@@ -247,7 +247,7 @@ func (m *mockController) updateTransportServer(oldVS *cisapiv1.TransportServer, 
 }
 
 func (m *mockController) deleteTransportServer(vs *cisapiv1.TransportServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.tsInformer.GetStore().Delete(vs)
 
 	if m.resourceQueue != nil {
@@ -274,7 +274,7 @@ func (m *mockController) deletePolicy(plc *cisapiv1.Policy) {
 }
 
 func (m *mockController) addTLSProfile(prof *cisapiv1.TLSProfile) {
-	cusInf, _ := m.getNamespacedCRInformer(prof.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(prof.ObjectMeta.Namespace, "")
 	cusInf.tlsInformer.GetStore().Add(prof)
 
 	if m.resourceQueue != nil {
@@ -292,7 +292,7 @@ func (m *mockController) addSecret(secret *v1.Secret) {
 }
 
 func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
-	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace, "")
 	cusInf.ilInformer.GetStore().Add(il)
 
 	if m.resourceQueue != nil {
@@ -301,7 +301,7 @@ func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
 }
 
 func (m *mockController) updateIngressLink(oldIL *cisapiv1.IngressLink, newIL *cisapiv1.IngressLink) {
-	cusInf, _ := m.getNamespacedCRInformer(oldIL.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(oldIL.ObjectMeta.Namespace, "")
 	cusInf.ilInformer.GetStore().Update(newIL)
 
 	if m.resourceQueue != nil {
@@ -310,7 +310,7 @@ func (m *mockController) updateIngressLink(oldIL *cisapiv1.IngressLink, newIL *c
 }
 
 func (m *mockController) deleteIngressLink(il *cisapiv1.IngressLink) {
-	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace, "")
 	cusInf.ilInformer.GetStore().Delete(il)
 
 	if m.resourceQueue != nil {

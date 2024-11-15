@@ -60,7 +60,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				switch kind {
 				case VirtualServer:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("VirtualServer Informer not found for namespace: %v", ns)
 						continue
@@ -102,7 +102,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 
 				case TransportServer:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("TransportServer Informer not found for namespace: %v", ns)
 						continue
@@ -147,7 +147,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 
 				case IngressLink:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("IngressLink Informer not found for namespace: %v", ns)
 						continue

@@ -173,7 +173,7 @@ func (ctlr *Controller) addMultiClusterPoolEventHandlers(poolInf *CommonInformer
 
 }
 
-func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInformer bool) error {
+func (ctlr *Controller) stopMultiClusterPoolInformers(clusterName string, stopInformer bool) error {
 
 	// remove the pool informers for clusters whose config has been removed
 	if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil {
@@ -182,6 +182,17 @@ func (ctlr *Controller) stopMultiClusterInformers(clusterName string, stopInform
 				nsPoolInf.stop()
 			}
 			delete(infStore.comInformers, ns)
+		}
+	}
+	return nil
+}
+
+func (ctlr *Controller) stopMultiClusterNodeInformer(clusterName string) error {
+	// remove the pool informers for clusters whose config has been removed
+	if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil {
+		if infStore.nodeInformer != nil {
+			infStore.nodeInformer.stop()
+			infStore.nodeInformer = nil
 		}
 	}
 	return nil
@@ -212,6 +223,8 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string) error {
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
+	//handle namespace informer creation
+	ctlr.handleNsInformersforCluster(clusterName)
 	// Setup informers with namespaces which are watched by CIS
 	for n := range clusterConfig.namespaces {
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {
@@ -230,7 +243,7 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInformer bool) error {
 	for clusterName, config := range ctlr.multiClusterHandler.ClusterConfigs {
 		// For local cluster maintain some placeholder value, as the informers are already maintained in the controller object
-		if clusterName == "" {
+		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			return nil
 		}
 		restClient := config.kubeClient.CoreV1().RESTClient()
@@ -282,11 +295,11 @@ func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
 ) (*CommonInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters
-	if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces(clusterName) && ctlr.discoveryMode != DefaultMode {
+	if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) && ctlr.discoveryMode != DefaultMode {
 		namespace = ""
 	}
 	//check for default mode and serviceTypeLBEnabled will be watching all namespaces.
-	if ctlr.discoveryMode == DefaultMode && ctlr.watchingAllNamespaces(clusterName) {
+	if ctlr.discoveryMode == DefaultMode && ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 			if config.clusterDetails.ServiceTypeLBDiscovery {
 				namespace = ""

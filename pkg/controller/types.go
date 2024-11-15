@@ -108,6 +108,9 @@ type (
 		LocalClusterName    string
 		uniqueAppIdentifier map[string]struct{}
 		namespaceLabel      string
+		namespaces          []string
+		nodeLabelSelector   string
+		routeLabel          string
 		eventQueue          workqueue.RateLimitingInterface
 		sync.RWMutex
 	}

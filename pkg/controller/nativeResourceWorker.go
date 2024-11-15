@@ -2210,10 +2210,11 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	if !deleted && (kubeConfigSecret == nil || mcc == (ClusterDetails{})) {
 		return fmt.Errorf("[MultiCluster] no secret or externalClustersConfig specified")
 	}
-	// if secret associated with a cluster kubeconfig is deleted then remove it from clusterKubeConfig store
+	// if secret associated with a cluster kubeconfig is deleted then stop all informers for the cluster
 	if deleted {
-		// Delete kubeclients from multicluster config store
-		ctlr.multiClusterHandler.deleteClusterConfig(mcc.ClusterName)
+		log.Debugf("kubeconfig deleted for cluster %s.Informers are stopped", mcc.ClusterName)
+		ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
+		ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
 		return nil
 	}
 	// Extract the kubeconfig from the secret
@@ -2232,8 +2233,8 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	}
 	// Create clientset using the provided kubeconfig for the respective cluster
 	err = ctlr.setupClientsforCluster(config, false, false, mcc.ClusterName, clusterConfig)
-	// update serviceTypeLBDiscovery in config
-	clusterConfig.clusterDetails.ServiceTypeLBDiscovery = mcc.ServiceTypeLBDiscovery
+	// update externalclusterconfig in clusterconfig
+	clusterConfig.clusterDetails = mcc
 	// Update the clusterConfig in the externalClustersConfig store
 	ctlr.multiClusterHandler.addClusterConfig(mcc.ClusterName, clusterConfig)
 	if err != nil {

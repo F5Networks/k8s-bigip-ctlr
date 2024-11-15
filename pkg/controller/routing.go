@@ -697,7 +697,7 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
-func (ctlr *Controller) getABDeployIruleForTS(rsVSName string, partition string) string {
+func (ctlr *Controller) getABDeployIruleForTS(rsVSName string, partition string, tsType string) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
 	return fmt.Sprintf(`when CLIENT_ACCEPTED {
@@ -731,19 +731,9 @@ func (ctlr *Controller) getABDeployIruleForTS(rsVSName string, partition string)
 		}
 		# If we had a match, but all weights were 0 then
 		# retrun a 503 (Service Unavailable)
-		set ::http_status_503 1
+		%[3]s::respond 503
 		return
-	}
-		
-	when HTTP_REQUEST {
-		if { [info exists ::http_status_503] && $::http_status_503 == 1 } {
-        	# Respond with 503
-       		HTTP::respond 503
-
-        	# Unset the variable
-        	unset ::http_status_503
-    	}
-	})`, dgPath, rsVSName)
+	}`, dgPath, rsVSName, strings.ToUpper(tsType))
 }
 
 func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition string, multiPoolPersistence MultiPoolPersistence) string {

@@ -41,6 +41,10 @@ func (ch *ClusterHandler) getClusterForSecret(name, namespace string) ClusterDet
 func (ch *ClusterHandler) addClusterConfig(clusterName string, config *ClusterConfig) {
 	ch.Lock()
 	config.namespaceLabel = ch.namespaceLabel
+	config.nodeLabelSelector = ch.nodeLabelSelector
+	config.routeLabel = ch.routeLabel
+	config.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+	config.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	ch.ClusterConfigs[clusterName] = config
 	ch.Unlock()
 }
@@ -65,7 +69,7 @@ func (ch *ClusterHandler) getClusterConfig(clusterName string) *ClusterConfig {
 // addInformerStore adds a new InformerStore to the ClusterHandler.
 func (ch *ClusterHandler) addInformerStore(clusterName string, store *InformerStore) {
 	ch.Lock()
-	if clusterConfig, ok := ch.ClusterConfigs[clusterName]; !ok {
+	if clusterConfig, ok := ch.ClusterConfigs[clusterName]; ok {
 		clusterConfig.InformerStore = store
 	}
 	ch.Unlock()
@@ -146,10 +150,12 @@ func (ch *ClusterHandler) cleanClusterCache(primaryClusterName, secondaryCluster
 // function to get the count of edns resources from all the active clusters for a namespace
 func (ch *ClusterHandler) getEDNSCount(clusterConfig *ClusterConfig, ns string) int {
 	rscCount := 0
-	if comInf, ok := clusterConfig.comInformers[ns]; ok {
-		edns, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
-		if err == nil {
-			rscCount += len(edns)
+	if clusterConfig != nil && clusterConfig.InformerStore != nil && clusterConfig.comInformers != nil {
+		if comInf, ok := clusterConfig.comInformers[ns]; ok && comInf.ednsInformer != nil {
+			edns, err := comInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
+			if err == nil {
+				rscCount += len(edns)
+			}
 		}
 	}
 	return rscCount

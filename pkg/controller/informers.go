@@ -165,31 +165,37 @@ func (nrInfr *NRInformer) stop() {
 func (comInfr *CommonInformer) start() {
 	var cacheSyncs []cache.InformerSynced
 	if comInfr.svcInformer != nil {
+		log.Debugf("Starting Service Informer for cluster %s", comInfr.clusterName)
 		go comInfr.svcInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.svcInformer.HasSynced)
 	}
 	if comInfr.epsInformer != nil {
+		log.Debugf("Starting Endpoints Informer for cluster %s", comInfr.clusterName)
 		go comInfr.epsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.epsInformer.HasSynced)
 	}
 	if comInfr.ednsInformer != nil {
-		log.Infof("Starting ExternalDNS Informer")
+		log.Infof("Starting ExternalDNS Informer for cluster %s", comInfr.clusterName)
 		go comInfr.ednsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.ednsInformer.HasSynced)
 	}
 	if comInfr.plcInformer != nil {
+		log.Debugf("Starting Policy Informer for cluster %s", comInfr.clusterName)
 		go comInfr.plcInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.plcInformer.HasSynced)
 	}
 	if comInfr.podInformer != nil {
+		log.Debugf("Starting Pod Informer for cluster %s", comInfr.clusterName)
 		go comInfr.podInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.podInformer.HasSynced)
 	}
 	if comInfr.secretsInformer != nil {
+		log.Debugf("Starting Secrets Informer for cluster %s", comInfr.clusterName)
 		go comInfr.secretsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.secretsInformer.HasSynced)
 	}
 	if comInfr.cmInformer != nil {
+		log.Debugf("Starting ConfigMap Informer for cluster %s", comInfr.clusterName)
 		go comInfr.cmInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.cmInformer.HasSynced)
 	}
@@ -245,11 +251,12 @@ func (ctlr *Controller) watchingAllNamespaces(clusterName string) bool {
 
 func (ctlr *Controller) getNamespacedCRInformer(
 	namespace string,
+	clusterName string,
 ) (*CRInformer, bool) {
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		namespace = ""
 	}
-	informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	crInf, found := informerStore.crInformers[namespace]
 	return crInf, found
 }
@@ -354,6 +361,8 @@ func (ctlr *Controller) addNamespacedInformers(
 			}
 		}
 	}
+	//add informer store
+	//ctlr.multiClusterHandler.addInformerStore(clusterName, informerStore)
 	return nil
 }
 

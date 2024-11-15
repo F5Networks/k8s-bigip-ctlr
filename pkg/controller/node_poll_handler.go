@@ -29,7 +29,9 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	sort.Sort(NodeList(nodesList))
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
 	// adding the bigip_monitored_nodes	metrics
-	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.multiClusterHandler.ClusterConfigs[""].nodeLabelSelector).Set(float64(len(ctlr.multiClusterHandler.ClusterConfigs[""].oldNodes)))
+	if nodesList != nil {
+		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.multiClusterHandler.ClusterConfigs[clusterName].nodeLabelSelector).Set(float64(len(ctlr.multiClusterHandler.ClusterConfigs[clusterName].oldNodes)))
+	}
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}

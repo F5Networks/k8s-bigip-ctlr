@@ -5,12 +5,12 @@ ENV HOME=/opt/helm
 
 ### Required OpenShift Labels
 LABEL name="F5 Container Ingress Services Operator" \
-      maintainer="f5_cis_operators@f5.com" \
-      vendor="F5 Networks Inc." \
-      version="v1.19.0" \
-      release="1" \
-      summary="Container Ingress Services Operator for F5 BIG-IP" \
-      description="F5 BIG-IP Controller Operator is a Service Operator which installs F5 BIG-IP Controller (Container Ingress Services) on Kubernetes and OpenShift platforms and respective supported versions."
+    maintainer="f5_cis_operators@f5.com" \
+    vendor="F5 Networks Inc." \
+    version="v1.20.0" \
+    release="1" \
+    summary="Container Ingress Services Operator for F5 BIG-IP" \
+    description="F5 BIG-IP Controller Operator is a Service Operator which installs F5 BIG-IP Controller (Container Ingress Services) on Kubernetes and OpenShift platforms and respective supported versions."
 
 # Required Licenses
 COPY f5-bigip-ctlr-operator/licenses /licenses

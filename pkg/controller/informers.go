@@ -1178,6 +1178,9 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 			return
 		}
 	}
+	if reflect.DeepEqual(svc.Spec, curSvc.Spec) && reflect.DeepEqual(svc.Labels, curSvc.Labels) && reflect.DeepEqual(svc.Annotations, curSvc.Annotations) {
+		return
+	}
 
 	updateEvent := true
 	if !reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||

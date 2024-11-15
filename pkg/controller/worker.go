@@ -129,7 +129,7 @@ func (ctlr *Controller) setInitialResourceCount() {
 					}
 					rscCount += len(routes)
 				default:
-					crInf, found := ctlr.getNamespacedCRInformer(ns)
+					crInf, found := ctlr.getNamespacedCRInformer(ns, clusterName)
 					if !found {
 						continue
 					}
@@ -357,6 +357,17 @@ func (ctlr *Controller) processResources() bool {
 			err := ctlr.updateClusterConfigStore(secret, mcc, rscDelete)
 			if err != nil {
 				log.Warningf(err.Error())
+			}
+			if !ctlr.initState && rKey.event == Create {
+				//for external clusters
+				if mcc.ServiceTypeLBDiscovery || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
+					//start all informers for the cluster
+					ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+				} else {
+					//check cluster svc map to start required  namespace informers for cluster
+					ctlr.startInfomersForClusterReferencedSvcs(mcc.ClusterName)
+				}
+
 			}
 			break
 		}
@@ -914,7 +925,7 @@ func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy, clust
 func (ctlr *Controller) getAllVirtualServers(namespace string) []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
 
-	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -946,7 +957,7 @@ func (ctlr *Controller) getAllVirtualServers(namespace string) []*cisapiv1.Virtu
 // getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
 func (ctlr *Controller) getAllVSFromMonitoredNamespaces() []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		return ctlr.getAllVirtualServers("")
 	}
 	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces("") {
@@ -1016,7 +1027,7 @@ func (ctlr *Controller) getTerminationFromTLSProfileForVirtualServer(vs *cisapiv
 func (ctlr *Controller) getTLSProfile(tlsName string, namespace string) (*cisapiv1.TLSProfile, error) {
 	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
 	// Initialize CustomResource Informer for required namespace
-	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		return nil, fmt.Errorf("Informer not found for namespace: %v", namespace)
 	}
@@ -2226,7 +2237,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case VirtualServer:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
 									item, _, _ = inf.vsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -2238,7 +2249,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case TransportServer:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
 									item, _, _ = inf.tsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -2250,7 +2261,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case IngressLink:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
 									item, _, _ = inf.ilInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -2690,11 +2701,6 @@ func (ctlr *Controller) updatePoolMemberWeights(svcMemMap map[MultiClusterServic
 func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNamespace string,
 	servicePort intstr.IntOrString, nodeMemberLabel string, clusterName string, podConnections int32, bigipRouteDomain int32) []PoolMember {
 
-	if ctlr.multiClusterMode != "" {
-		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
-			clusterName = ""
-		}
-	}
 	svcKey := MultiClusterServiceKey{
 		serviceName: serviceName,
 		namespace:   serviceNamespace,
@@ -3126,10 +3132,10 @@ func (ctlr *Controller) processTransportServers(
 // getAllTSFromMonitoredNamespaces returns list of all valid TransportServers in monitored namespaces.
 func (ctlr *Controller) getAllTSFromMonitoredNamespaces() []*cisapiv1.TransportServer {
 	var allVirtuals []*cisapiv1.TransportServer
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		return ctlr.getAllTransportServers("")
 	}
-	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces("") {
+	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		allVirtuals = append(allVirtuals, ctlr.getAllTransportServers(ns)...)
 	}
 	return allVirtuals
@@ -3139,7 +3145,7 @@ func (ctlr *Controller) getAllTSFromMonitoredNamespaces() []*cisapiv1.TransportS
 func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.TransportServer {
 	var allVirtuals []*cisapiv1.TransportServer
 
-	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -3191,7 +3197,7 @@ func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) [
 	} else {
 		//For external cluster LB
 		if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil && infStore.comInformers != nil {
-			if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces("") {
+			if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces(clusterName) {
 				//In HA pair cluster pool informers created for cis watched namespaces
 				namespace = ""
 			}
@@ -3849,7 +3855,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 		ns = ctlr.getNamespaceFromIPAMKey(pKey)
 		if rscKind != "hg" {
 			var ok bool
-			crInf, ok = ctlr.getNamespacedCRInformer(ns)
+			crInf, ok = ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 			comInf, ok = ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ns)
 			if !ok {
 				log.Errorf("Informer not found for namespace: %v", ns)
@@ -4226,7 +4232,7 @@ func (ctlr *Controller) processIngressLink(
 func (ctlr *Controller) getAllIngressLinks(namespace string) []*cisapiv1.IngressLink {
 	var allIngLinks []*cisapiv1.IngressLink
 
-	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -4280,10 +4286,10 @@ func filterIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,
 // get returns list of all ingressLink
 func (ctlr *Controller) getAllIngLinkFromMonitoredNamespaces() []*cisapiv1.IngressLink {
 	var allInglink []*cisapiv1.IngressLink
-	if ctlr.watchingAllNamespaces("") {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		return ctlr.getAllIngressLinks("")
 	}
-	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces("") {
+	for ns := range ctlr.multiClusterHandler.getMonitoredNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		allInglink = append(allInglink, ctlr.getAllIngressLinks(ns)...)
 	}
 	return allInglink
@@ -4996,7 +5002,7 @@ func fetchPortString(port intstr.IntOrString) string {
 func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.TLSProfile {
 	var allTLSProfiles []*cisapiv1.TLSProfile
 
-	crInf, ok := ctlr.getNamespacedCRInformer(secret.Namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(secret.Namespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", secret.Namespace)
 		return nil

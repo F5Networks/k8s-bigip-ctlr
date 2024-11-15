@@ -193,31 +193,14 @@ func NewController(params Params, startController bool) *Controller {
 	}
 	// set the namespace label so it can be assigned for all clusters
 	ctlr.multiClusterHandler.namespaceLabel = params.NamespaceLabel
+	ctlr.multiClusterHandler.namespaces = params.Namespaces
+	ctlr.multiClusterHandler.nodeLabelSelector = params.NodeLabelSelector
+	ctlr.multiClusterHandler.routeLabel = params.RouteLabel
 	// add the cluster config for local cluster
 	ctlr.multiClusterHandler.addClusterConfig(ctlr.multiClusterHandler.LocalClusterName, clusterConfig)
 
-	if params.NamespaceLabel == "" {
-		if len(params.Namespaces) == 0 {
-			clusterConfig.namespaces[""] = struct{}{}
-			log.Debug("No namespaces provided. Watching all namespaces")
-		} else {
-			for _, ns := range params.Namespaces {
-				clusterConfig.namespaces[ns] = struct{}{}
-			}
-		}
-	} else {
-		err2 := ctlr.createNamespaceLabeledInformerForCluster(params.NamespaceLabel, ctlr.multiClusterHandler.LocalClusterName)
-		if err2 != nil {
-			log.Errorf("%v", err2)
-			informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
-			for _, nsInf := range informerStore.nsInformers {
-				for _, v := range nsInf.nsInformer.GetIndexer().List() {
-					ns := v.(*v1.Namespace)
-					clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
-				}
-			}
-		}
-	}
+	// handle namespace informers for cluster
+	ctlr.handleNsInformersforCluster(ctlr.multiClusterHandler.LocalClusterName)
 
 	if err3 := ctlr.setupInformers(ctlr.multiClusterHandler.LocalClusterName); err3 != nil {
 		log.Error("Failed to Setup Informers")
@@ -583,5 +566,31 @@ func newClusterConfig() *ClusterConfig {
 	return &ClusterConfig{
 		namespaces:    make(map[string]struct{}),
 		eventNotifier: NewEventNotifier(nil),
+	}
+}
+
+func (ctlr *Controller) handleNsInformersforCluster(clusterName string) {
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	if clusterConfig.namespaceLabel == "" {
+		if len(ctlr.multiClusterHandler.namespaces) == 0 {
+			clusterConfig.namespaces[""] = struct{}{}
+			log.Debugf("No namespaces provided. Watching all namespaces for cluster %s", clusterName)
+		} else {
+			for _, ns := range ctlr.multiClusterHandler.namespaces {
+				clusterConfig.namespaces[ns] = struct{}{}
+			}
+		}
+	} else {
+		err2 := ctlr.createNamespaceLabeledInformerForCluster(clusterConfig.namespaceLabel, clusterName)
+		if err2 != nil {
+			log.Errorf("%v", err2)
+			informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+			for _, nsInf := range informerStore.nsInformers {
+				for _, v := range nsInf.nsInformer.GetIndexer().List() {
+					ns := v.(*v1.Namespace)
+					clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
+				}
+			}
+		}
 	}
 }

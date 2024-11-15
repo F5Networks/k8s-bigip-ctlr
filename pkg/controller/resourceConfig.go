@@ -484,7 +484,7 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 		return targetPort
 	}
 	if cluster == "" {
-		if ctlr.watchingAllNamespaces("") {
+		if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 			svcIndexer = infStore.comInformers[""].svcInformer.GetIndexer()
 		} else {
 			if informer, ok := infStore.comInformers[namespace]; ok {
@@ -1144,7 +1144,7 @@ func (ctlr *Controller) handleTLS(
 			case Secret:
 				// Process ClientSSL stored as kubernetes secret
 				var namespace string
-				if ctlr.watchingAllNamespaces("") {
+				if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 					namespace = ""
 				} else {
 					namespace = tlsContext.namespace
@@ -1197,7 +1197,7 @@ func (ctlr *Controller) handleTLS(
 			case Hybrid:
 				// Process sslProfiles stored as either secret or bigip refrence
 				var namespace string
-				if ctlr.watchingAllNamespaces("") {
+				if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 					namespace = ""
 				} else {
 					namespace = tlsContext.namespace

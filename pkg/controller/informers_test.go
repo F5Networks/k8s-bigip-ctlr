@@ -43,7 +43,7 @@ var _ = Describe("Informers Tests", func() {
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
-			crInf, found := mockCtlr.getNamespacedCRInformer(namespace)
+			crInf, found := mockCtlr.getNamespacedCRInformer(namespace, "")
 			Expect(crInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 		})

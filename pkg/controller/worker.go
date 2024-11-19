@@ -3111,7 +3111,7 @@ func (ctlr *Controller) processTransportServers(
 			ipAddress:        ip,
 			bigIPSSLProfiles: bigIPSSLProfiles,
 			tlsCipher:        TLSCipher{},
-			poolPathRefs: 	  []poolPathRef{},	
+			poolPathRefs:     []poolPathRef{},
 		})
 		if !processed {
 			// Processing failed

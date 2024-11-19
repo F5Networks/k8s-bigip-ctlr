@@ -1470,13 +1470,14 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 func processProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	for _, cfg := range rsMap {
 		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
-			processTLSProfilesForAS3(&cfg.Virtual, svc, cfg.Virtual.Name)
+			processTLSProfilesForAS3(cfg, svc, cfg.Virtual.Name)
 		}
 	}
 }
 
-func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName string) {
+func processTLSProfilesForAS3(cfg *ResourceConfig, svc *as3Service, profileName string) {
 	// lets discard BIGIP profile creation when there exists a custom profile.
+	virtual := cfg.Virtual
 	as3ClientSuffix := "_tls_client"
 	as3ServerSuffix := "_tls_server"
 	var clientProfiles []as3MultiTypeParam
@@ -1497,7 +1498,9 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
 				})
 			}
-			updateVirtualToHTTPS(svc)
+			if cfg.MetaData.ResourceType == VirtualServer {
+				updateVirtualToHTTPS(svc)
+			}
 		case CustomProfileServer:
 			// Profile is stored in a k8s secret
 			if !profile.BigIPProfile {
@@ -1511,7 +1514,9 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
 				})
 			}
-			updateVirtualToHTTPS(svc)
+			if cfg.MetaData.ResourceType == VirtualServer {
+				updateVirtualToHTTPS(svc)
+			}
 		}
 	}
 	if len(clientProfiles) > 0 {
@@ -1538,13 +1543,13 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as
 			if svcName == "" {
 				continue
 			}
-			if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
+			if ok := createUpdateTLSServer(rsCfg.MetaData.ResourceType, prof, svcName, sharedApp); ok {
 				// Create Certificate only if the corresponding TLSServer is created
 				createCertificateDecl(prof, sharedApp)
 				svcNameMap[svcName] = struct{}{}
 			} else {
 				createUpdateCABundle(prof, caBundleName, sharedApp)
-				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+				tlsClient = createTLSClient(rsCfg.MetaData.ResourceType, prof, svcName, caBundleName, sharedApp)
 
 				skey := SecretKey{
 					Name: prof.Name + "-ca",
@@ -1576,7 +1581,7 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as
 }
 
 // createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
-func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
+func createUpdateTLSServer(resourceType string, prof CustomProfile, svcName string, sharedApp as3Application) bool {
 	if len(prof.Certificates) > 0 {
 		if sharedApp[svcName] == nil {
 			return false
@@ -1609,7 +1614,9 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 			}
 			sharedApp[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
-			updateVirtualToHTTPS(svc)
+			if resourceType == VirtualServer {
+				updateVirtualToHTTPS(svc)
+			}
 		}
 		for index, certificate := range prof.Certificates {
 			certName := fmt.Sprintf("%s_%d", prof.Name, index)
@@ -1663,6 +1670,7 @@ func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3
 }
 
 func createTLSClient(
+	resourceType string,
 	prof CustomProfile,
 	svcName, caBundleName string,
 	sharedApp as3Application,
@@ -1704,8 +1712,9 @@ func createTLSClient(
 		}
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
-		updateVirtualToHTTPS(svc)
-
+		if resourceType == VirtualServer {
+			updateVirtualToHTTPS(svc)
+		}
 		return tlsClient
 	}
 	return nil

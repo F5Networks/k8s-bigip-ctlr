@@ -3063,6 +3063,7 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.MetaData.baseResources = make(map[string]string)
 	rsCfg.IntDgMap = make(InternalDataGroupMap)
 	rsCfg.IRulesMap = make(IRulesMap)
+	rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 	if virtual.Spec.BigIPRouteDomain > 0 {
 		if ctlr.PoolMemberType == Cluster {
 			log.Warning("bigipRouteDomain is not supported in cluster mode")
@@ -3092,6 +3093,31 @@ func (ctlr *Controller) processTransportServers(
 		log.Errorf("%v", err)
 		ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, err)
 		return nil
+	}
+
+	if !reflect.DeepEqual(virtual.Spec.TLS, cisapiv1.TLS{}) {
+		bigIPSSLProfiles := BigIPSSLProfiles{}
+		if len(virtual.Spec.TLS.ClientSSLs) > 0 {
+			bigIPSSLProfiles.clientSSLs = virtual.Spec.TLS.ClientSSLs
+		}
+		if len(virtual.Spec.TLS.ServerSSLs) > 0 {
+			bigIPSSLProfiles.serverSSLs = virtual.Spec.TLS.ServerSSLs
+		}
+		processed := ctlr.handleTransportServerTLS(rsCfg, TLSContext{
+			name:             virtual.ObjectMeta.Name,
+			namespace:        virtual.ObjectMeta.Namespace,
+			resourceType:     TransportServer,
+			referenceType:    virtual.Spec.TLS.Reference,
+			ipAddress:        ip,
+			bigIPSSLProfiles: bigIPSSLProfiles,
+			tlsCipher:        TLSCipher{},
+			poolPathRefs: 	  []poolPathRef{},	
+		})
+		if !processed {
+			// Processing failed
+			ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New("error while handling TLS Transport Server"))
+			return nil
+		}
 	}
 
 	log.Debugf("Processing Transport Server %s for port %v",

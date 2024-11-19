@@ -214,14 +214,14 @@ type TLSProfileCipher struct {
 
 // TLS contains required fields for TLS termination
 type TLS struct {
-	Termination     string          `json:"termination"`
-	ClientSSL       string          `json:"clientSSL"`
-	ClientSSLs      []string        `json:"clientSSLs"`
-	ServerSSL       string          `json:"serverSSL"`
-	ServerSSLs      []string        `json:"serverSSLs"`
-	Reference       string          `json:"reference"`
-	ClientSSLParams ClientSSLParams `json:"clientSSLParams"`
-	ServerSSLParams ServerSSLParams `json:"serverSSLParams"`
+	Termination     string          `json:"termination,omitempty"`
+	ClientSSL       string          `json:"clientSSL,omitempty"`
+	ClientSSLs      []string        `json:"clientSSLs,omitempty"`
+	ServerSSL       string          `json:"serverSSL,omitempty"`
+	ServerSSLs      []string        `json:"serverSSLs,omitempty"`
+	Reference       string          `json:"reference,omitempty"`
+	ClientSSLParams ClientSSLParams `json:"clientSSLParams,omitempty"`
+	ServerSSLParams ServerSSLParams `json:"serverSSLParams,omitempty"`
 }
 
 // ClientSSLParams contains required fields for Client SSL
@@ -333,6 +333,7 @@ type TransportServerSpec struct {
 	BotDefense           string           `json:"botDefense,omitempty"`
 	Profiles             ProfileTSSpec    `json:"profiles,omitempty"`
 	Partition            string           `json:"partition,omitempty"`
+	TLS                  TLS              `json:"tls,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -483,6 +484,11 @@ type ProfileTCP struct {
 }
 
 type ProfileHTTP2 struct {
+	Client string `json:"client,omitempty"`
+	Server string `json:"server,omitempty"`
+}
+
+type ProfileTLS struct {
 	Client string `json:"client,omitempty"`
 	Server string `json:"server,omitempty"`
 }

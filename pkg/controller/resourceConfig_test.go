@@ -1217,6 +1217,135 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 	})
 
+	Describe("Handle Transport Server TLS", func() {
+		var mockCtlr *mockController
+		var rsCfg *ResourceConfig
+		var ip string
+
+		BeforeEach(func() {
+			ip = "10.8.0.22"
+			mockCtlr = newMockController()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		})
+
+		It("Validate TLS", func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_TS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				80,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			ok := mockCtlr.handleTransportServerTLS(rsCfg, TLSContext{
+				name:          "SampleTS",
+				namespace:     "default",
+				resourceType:  TransportServer,
+				referenceType: Hybrid,
+				ipAddress:     ip,
+				bigIPSSLProfiles: BigIPSSLProfiles{
+					clientSSLs: []string{"/Common/clientssl"},
+					serverSSLs: []string{"/Common/serverssl"},
+				},
+				tlsCipher:    TLSCipher{},
+				poolPathRefs: []poolPathRef{},
+			})
+			Expect(ok).To(BeFalse(), "Failed to Validate TLS Reference")
+		})
+
+		It("TLS with BIGIP Reference", func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_TS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				80,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			ok := mockCtlr.handleTransportServerTLS(rsCfg, TLSContext{
+				name:          "SampleTS",
+				namespace:     "default",
+				resourceType:  TransportServer,
+				referenceType: BIGIP,
+				ipAddress:     ip,
+				bigIPSSLProfiles: BigIPSSLProfiles{
+					clientSSLs: []string{"/Common/clientssl"},
+					serverSSLs: []string{"/Common/serverssl"},
+				},
+				tlsCipher:    TLSCipher{},
+				poolPathRefs: []poolPathRef{},
+			})
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Expected profiles are not created")
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientssl"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[0].Context).To(Equal(CustomProfileClient), "Expected clientside profile")
+			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeTrue(), "Big IP Profile should be true")
+			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("serverssl"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[1].Context).To(Equal(CustomProfileServer), "Expected serverside profile")
+			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeTrue(), "Big IP Profile should be true")
+			Expect(ok).To(BeTrue(), "Failed to Validate TLS Reference")
+		})
+
+		It("TLS with Secret Reference", func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_TS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				80,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			clientSecret := test.NewSecret(
+				"foo-secret",
+				"default",
+				"### cert ###",
+				"#### key ####",
+			)
+
+			serverSecret := test.NewSecret(
+				"foo-back-secret",
+				"default",
+				"### cert ###",
+				"#### key ####",
+			)
+
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+				InformerStore: initInformerStore()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clientSecret)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(serverSecret)
+
+			ok := mockCtlr.handleTransportServerTLS(rsCfg, TLSContext{
+				name:          "SampleTS",
+				namespace:     "default",
+				resourceType:  TransportServer,
+				referenceType: Secret,
+				ipAddress:     ip,
+				bigIPSSLProfiles: BigIPSSLProfiles{
+					clientSSLs: []string{"foo-secret"},
+					serverSSLs: []string{"foo-back-secret"},
+				},
+				tlsCipher:    TLSCipher{},
+				poolPathRefs: []poolPathRef{},
+			})
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Expected profiles are not created")
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("foo-back-secret"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[0].Context).To(Equal(CustomProfileServer), "Expected serverside profile")
+			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeFalse(), "Big IP Profile should be false")
+			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("foo-secret"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[1].Context).To(Equal(CustomProfileClient), "Expected clientside profile")
+			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeFalse(), "Big IP Profile should be false")
+			Expect(ok).To(BeTrue(), "Failed to Validate TLS Reference")
+		})
+	})
+
 	Describe("Handle Virtual Server TLS", func() {
 		var mockCtlr *mockController
 		var vs *cisapiv1.VirtualServer

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -198,6 +199,20 @@ func (ctlr *Controller) checkValidTransportServer(
 			return false
 		}
 	}
+	key := ctlr.ipamClusterLabel + tsResource.ObjectMeta.Namespace + "/" + tsResource.ObjectMeta.Name + "_ts"
+	if tsResource.Spec.HostGroup != "" {
+		key = ctlr.ipamClusterLabel + tsResource.Spec.HostGroup + "_hg"
+	}
+	// check that app with duplicate ip and port is not created
+	if appConfig := getL4AppConfig(tsResource.Spec.VirtualServerAddress, key, tsResource.Spec.VirtualServerPort, tsResource.Spec.BigIPRouteDomain); appConfig != (l4AppConfig{}) {
+		if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+			if val.timestamp.Before(&tsResource.CreationTimestamp) {
+				err = fmt.Sprintf("l4 app already exists with given ip-address/ipam-label and port %v, while processing transport server %s/%s", appConfig, tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+				log.Errorf(err)
+				ctlr.updateResourceStatus(TransportServer, tsResource, "", StatusError, errors.New(err))
+			}
+		}
+	}
 
 	if tsResource.Spec.Type == "" {
 		tsResource.Spec.Type = "tcp"
@@ -297,4 +312,42 @@ func (ctlr *Controller) checkValidMultiClusterService(mcs cisapiv1.MultiClusterS
 		}
 	}
 	return nil
+}
+
+// function to fetch the l4appconfig
+func getL4AppConfig(ipaddress, ipamKey string, port, routeDomain int32) l4AppConfig {
+	if ipaddress != "" {
+		return l4AppConfig{
+			ipOrIPAMKey: ipaddress,
+			port:        port,
+			routeDomain: routeDomain,
+		}
+	}
+	if ipamKey != "" {
+		return l4AppConfig{
+			ipOrIPAMKey: ipamKey,
+			port:        port,
+			routeDomain: routeDomain,
+		}
+	}
+	return l4AppConfig{}
+}
+
+// function to fetch the l4appconfig
+func getL4AppConfigForService(svc *v1.Service, ipamClusterLabel string, routeDomain int32) l4AppConfig {
+	if ip, ok := svc.Annotations[LBServiceIPAnnotation]; ok {
+		return l4AppConfig{
+			ipOrIPAMKey: ip,
+			port:        svc.Spec.Ports[0].Port,
+			routeDomain: routeDomain,
+		}
+	}
+	if _, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]; ok {
+		return l4AppConfig{
+			ipOrIPAMKey: ipamClusterLabel + svc.Namespace + "/" + svc.Name + "_svc",
+			port:        svc.Spec.Ports[0].Port,
+			routeDomain: routeDomain,
+		}
+	}
+	return l4AppConfig{}
 }

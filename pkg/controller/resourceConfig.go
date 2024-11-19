@@ -375,6 +375,12 @@ func (ctlr *Controller) formatPoolNameForTS(namespace, svc string, port intstr.I
 		servicePort := fetchPortString(port)
 		poolName = fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
 		if nodeMemberLabel != "" {
+			if strings.HasSuffix(nodeMemberLabel, "=") {
+				nodeMemberLabel = strings.TrimSuffix(nodeMemberLabel, "=")
+			}
+			if strings.HasSuffix(nodeMemberLabel, "=\"\"") {
+				nodeMemberLabel = strings.TrimSuffix(nodeMemberLabel, "=\"\"")
+			}
 			nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
 			poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 		}
@@ -391,6 +397,12 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 
 	}
 	if nodeMemberLabel != "" {
+		if strings.HasSuffix(nodeMemberLabel, "=") {
+			nodeMemberLabel = strings.TrimSuffix(nodeMemberLabel, "=")
+		}
+		if strings.HasSuffix(nodeMemberLabel, "=\"\"") {
+			nodeMemberLabel = strings.TrimSuffix(nodeMemberLabel, "=\"\"")
+		}
 		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 	}

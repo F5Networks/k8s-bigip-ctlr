@@ -9,6 +9,7 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+        * Support for empty node label selector
 
 
 Bug Fixes

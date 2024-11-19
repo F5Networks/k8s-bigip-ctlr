@@ -1179,9 +1179,12 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 		}
 	}
 
+	if reflect.DeepEqual(svc.Spec, curSvc.Spec) && reflect.DeepEqual(svc.Annotations, curSvc.Annotations) {
+		return
+	}
+
 	updateEvent := true
-	if !reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) ||
-		!reflect.DeepEqual(svc.Spec.Selector, curSvc.Spec.Selector) {
+	if !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
 		updateEvent = true
 	}
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||

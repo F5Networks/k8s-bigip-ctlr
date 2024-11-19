@@ -159,11 +159,14 @@ func (ctlr *Controller) getNodesWithLabel(
 		log.Warningf("Invalid NodeMemberLabel: %v %v", nodeMemberLabel, getClusterLog(clusterName))
 		return nil
 	}
+	if label[1] == "\"\"" {
+		label[1] = ""
+	}
 	labelKey := label[0]
 	labelValue := label[1]
 	var nodes []Node
 	for _, node := range allNodes {
-		if node.Labels[labelKey] == labelValue {
+		if val, ok := node.Labels[labelKey]; ok && val == labelValue {
 			nodes = append(nodes, node)
 		}
 	}

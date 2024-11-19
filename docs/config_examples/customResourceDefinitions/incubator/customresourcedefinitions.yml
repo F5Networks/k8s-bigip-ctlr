@@ -210,7 +210,7 @@ spec:
                       pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                     nodeMemberLabel:
                       type: string
-                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=(\s?|""|[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9])$'
                     monitors:
                       type: array
                       items:
@@ -289,7 +289,7 @@ spec:
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                       nodeMemberLabel:
                         type: string
-                        pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                        pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=(\s?|""|[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9])$'
                       servicePort:
                         x-kubernetes-int-or-string: true
                         anyOf:
@@ -717,7 +717,7 @@ spec:
                       pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                     nodeMemberLabel:
                       type: string
-                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=(\s?|""|[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9])$'
                     monitor:
                       type: object
                       properties:
@@ -1176,7 +1176,7 @@ spec:
                       pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                     nodeMemberLabel:
                       type: string
-                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=(\s?|""|[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9])$'
                     monitors:
                       type: array
                       items:

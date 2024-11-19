@@ -298,9 +298,6 @@ func formatVirtualServerName(ip string, port int32) string {
 
 // format the virtual server name for an VirtualServer
 func formatCustomVirtualServerName(name string, port int32) string {
-	// Replace special characters ". : /"
-	// with "-" and "%" with ".", for naming purposes
-	name = AS3NameFormatter(name)
 	return fmt.Sprintf("%s_%d", name, port)
 }
 

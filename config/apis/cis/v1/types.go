@@ -488,11 +488,6 @@ type ProfileHTTP2 struct {
 	Server string `json:"server,omitempty"`
 }
 
-type ProfileTLS struct {
-	Client string `json:"client,omitempty"`
-	Server string `json:"server,omitempty"`
-}
-
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

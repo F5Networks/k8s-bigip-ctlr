@@ -298,9 +298,6 @@ func formatVirtualServerName(ip string, port int32) string {
 
 // format the virtual server name for an VirtualServer
 func formatCustomVirtualServerName(name string, port int32) string {
-	// Replace special characters ". : /"
-	// with "-" and "%" with ".", for naming purposes
-	name = AS3NameFormatter(name)
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
@@ -1126,6 +1123,94 @@ func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules
 	if plcy != nil {
 		rsCfg.SetPolicy(*plcy)
 	}
+}
+
+func (ctlr *Controller) handleTransportServerTLS(rsCfg *ResourceConfig, tlsContext TLSContext) bool {
+	infStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
+	clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
+	serverSSL := tlsContext.bigIPSSLProfiles.serverSSLs
+	// Process Profile
+	switch tlsContext.referenceType {
+	case BIGIP:
+		log.Debugf("Processing  BIGIP referenced profiles for '%s' '%s'/'%s'",
+			tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+		// Process referenced BIG-IP clientSSL
+		if len(clientSSL) > 0 {
+			for _, profile := range clientSSL {
+				clientProfRef := ConvertStringToProfileRef(
+					profile, CustomProfileClient, tlsContext.namespace)
+				rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+			}
+		}
+		// Process referenced BIG-IP serverSSL
+		if len(serverSSL) > 0 {
+			for _, profile := range serverSSL {
+				serverProfRef := ConvertStringToProfileRef(
+					profile, CustomProfileServer, tlsContext.namespace)
+				rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+			}
+		}
+		log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
+			tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+	case Secret:
+		// Process ClientSSL stored as kubernetes secret
+		var namespace string
+		if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
+			namespace = ""
+		} else {
+			namespace = tlsContext.namespace
+		}
+		if len(clientSSL) > 0 {
+			var secrets []*v1.Secret
+			for _, secretName := range clientSSL {
+				secretKey := tlsContext.namespace + "/" + secretName
+				if _, ok := infStore.comInformers[namespace]; !ok {
+					return false
+				}
+				obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+				if err != nil || !found {
+					log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+						clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					return false
+				}
+				secrets = append(secrets, obj.(*v1.Secret))
+			}
+			err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, tlsContext.tlsCipher, CustomProfileClient, tlsContext.bigIPSSLProfiles.clientSSlParams.RenegotiationEnabled)
+			if err != nil {
+				log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
+					err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+				return false
+			}
+		}
+		// Process ServerSSL stored as kubernetes secret
+		if len(serverSSL) > 0 {
+			var secrets []*v1.Secret
+			for _, secret := range serverSSL {
+				secretKey := tlsContext.namespace + "/" + secret
+				if _, ok := infStore.comInformers[namespace]; !ok {
+					return false
+				}
+				obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+				if err != nil || !found {
+					log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+						serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					return false
+				}
+				secrets = append(secrets, obj.(*v1.Secret))
+				err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, tlsContext.tlsCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
+				if err != nil {
+					log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+						err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					return false
+				}
+			}
+		}
+	default:
+		log.Errorf("Invalid reference type provided for  '%s' '%s'/'%s'",
+			tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+		return false
+	}
+	return true
 }
 
 // function updates the rscfg as per the passed parameter for routes as well as for virtual server

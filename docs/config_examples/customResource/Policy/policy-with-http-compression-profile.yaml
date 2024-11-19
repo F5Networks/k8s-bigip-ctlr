@@ -1,0 +1,14 @@
+# FTP Profile is supported only for Transport Server
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy1
+  namespace: test
+spec:
+  iRules: {}
+  l3Policies: {}
+  l7Policies: {}
+  profiles:
+    httpCompressionProfile: /Common/compressionProfile

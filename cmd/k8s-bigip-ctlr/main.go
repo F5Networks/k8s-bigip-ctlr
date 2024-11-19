@@ -960,7 +960,7 @@ func initController(
 			IPAMClusterLabel:            *ipamClusterLabel,
 			IpamNamespace:               *ipamNamespace,
 			ShareNodes:                  *shareNodes,
-			DefaultRouteDomain:          *defaultRouteDomain,
+			DefaultRouteDomain:          int32(*defaultRouteDomain),
 			Mode:                        controller.ControllerMode(*controllerMode),
 			GlobalExtendedSpecConfigmap: *globalSpecConfigMap,
 			RouteLabel:                  *routeLabel,

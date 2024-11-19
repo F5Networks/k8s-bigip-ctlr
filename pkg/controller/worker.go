@@ -170,7 +170,7 @@ func (ctlr *Controller) setInitialResourceCount() {
 						continue
 					}
 				}
-				if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+				if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, false); ok {
 					rscCount++
 				}
 			}
@@ -180,7 +180,7 @@ func (ctlr *Controller) setInitialResourceCount() {
 }
 
 // function to determine if CIS should process the service type LoadBalancer
-func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service) (error, bool) {
+func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName string, forPoolOrStatusUpdate bool) (error, bool) {
 	var err error
 	if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
 		return err, false
@@ -193,6 +193,28 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service) (error, bool
 	if svc.Spec.LoadBalancerClass == nil && ctlr.manageLoadBalancerClassOnly {
 		err = fmt.Errorf("Skipping loadBalancer service '%v/%v' as CIS is configured to monitor the loadBalancerClass '%v' only", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
 		return err, false
+	}
+	// check if the service is a multiClusterSvcLB and the cluster is not the local cluster
+	if _, ok := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; ok && ctlr.multiClusterMode != "" &&
+		clusterName != ctlr.multiClusterHandler.LocalClusterName && !forPoolOrStatusUpdate {
+		err = fmt.Errorf("skipping loadBalancer service '%s/%s' of cluster '%s' as CIS loadBalancer service with multiCluster "+
+			"annotation is only processed if it exists in the local cluster where CIS is active. However it will be processed for Pool if any local "+
+			"MultiCluster Loadbalancer service references it in the  multiClusterServices annotation", svc.Namespace, svc.Name, clusterName)
+		return err, false
+	}
+	// The following check handles any misconfiguration with multiCluster SvcLB and non-multiCluster SvcLB
+	// If cluster1 and cluster2 have MultiClusterSvcLB and both have Discovery set to true. Now if MultiClusterSvcLB in cluster2 is converted to
+	// Non-multiCluster svcLB then the existing L4 app should not be deleted.
+	if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) && !forPoolOrStatusUpdate {
+		// same service can be updated but event is rejected if another service with the same key .
+		if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+			if val.timestamp.Before(&svc.CreationTimestamp) {
+				err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label while processing service '%s/%s' of cluster %s. "+
+					"However it will be processed for Pool if any local MultiCluster Loadbalancer service references it in the multiClusterServices annotation.",
+					appConfig, svc.Namespace, svc.Name, clusterName)
+				return err, false
+			}
+		}
 	}
 	return err, true
 }
@@ -223,7 +245,7 @@ func (ctlr *Controller) processResources() bool {
 			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
 			if rKey.kind == Service {
 				if svc, ok := rKey.rsc.(*v1.Service); ok {
-					if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+					if _, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 						ctlr.initialResourceCount--
 					} else {
 						// return as we don't process other services at start up
@@ -510,7 +532,7 @@ func (ctlr *Controller) processResources() bool {
 			namespace:   svc.Namespace,
 			clusterName: rKey.clusterName,
 		}
-		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+		if err, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 			if rKey.event != Create {
 				rsRef := resourceRef{
 					name:        svc.Name,
@@ -532,7 +554,6 @@ func (ctlr *Controller) processResources() bool {
 					}
 				}
 			}
-
 			err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
 			if err != nil {
 				// TODO
@@ -573,7 +594,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		_ = ctlr.processService(svc, rKey.clusterName)
 
-		if err, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+		if err, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 			err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
 			if err != nil {
 				// TODO
@@ -604,7 +625,7 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		_ = ctlr.processService(svc, rKey.clusterName)
-		if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+		if _, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 			err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
 			if err != nil {
 				// TODO
@@ -626,7 +647,7 @@ func (ctlr *Controller) processResources() bool {
 		if rscDelete {
 			// Do the clean up for the serviceTypeLB resources
 			for _, svc := range ctlr.getAllLBServices(nsName, rKey.clusterName) {
-				if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+				if _, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 					err := ctlr.processLBServices(svc, true, rKey.clusterName)
 					if err != nil {
 						// TODO
@@ -2381,9 +2402,6 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	// For multiCluster services
 	for _, mcs := range pool.MultiClusterServices {
 		clusterName := mcs.ClusterName
-		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
-			clusterName = ""
-		}
 		// Skip invalid extended service or if adding pool member is restricted for the cluster
 		if ctlr.checkValidMultiClusterService(mcs, false) != nil || ctlr.isAddingPoolRestricted(mcs.ClusterName) {
 			continue
@@ -2453,9 +2471,6 @@ func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) 
 				continue
 			}
 			clusterName := mcs.ClusterName
-			if clusterName == ctlr.multiClusterHandler.LocalClusterName {
-				clusterName = ""
-			}
 			// Skip invalid extended service or if adding pool member is restricted for the cluster
 			if ctlr.checkValidMultiClusterService(mcs, false) != nil {
 				continue
@@ -2721,7 +2736,7 @@ func (ctlr *Controller) fetchPoolMembersForService(serviceName string, serviceNa
 	var svcOk bool
 	// check for load balancer class in service spec
 	if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-		err, svcOk = ctlr.shouldProcessServiceTypeLB(svc)
+		err, svcOk = ctlr.shouldProcessServiceTypeLB(svc, clusterName, true)
 		if err != nil {
 			log.Warningf("%v", err)
 		}
@@ -3257,7 +3272,7 @@ func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) [
 	}
 	for _, obj := range orderedSVCs {
 		svc := obj.(*v1.Service)
-		if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+		if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, false); ok {
 			allLBServices = append(allLBServices, svc)
 		}
 	}
@@ -3325,6 +3340,38 @@ func (ctlr *Controller) processLBServices(
 		ctlr.unSetLBServiceIngressStatus(svc, ip, clusterName)
 	}
 
+	var multiClusterServices []cisapiv1.MultiClusterServiceReference
+	rsRef := resourceRef{
+		name:        svc.Name,
+		namespace:   svc.Namespace,
+		kind:        Service,
+		clusterName: clusterName,
+	}
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		// check for multiClusterServicesAnnotation annotation
+		if annotation := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; annotation != "" {
+			// unmarshal the multiClusterServices annotation
+			err := json.Unmarshal([]byte(annotation), &multiClusterServices)
+			if err != nil {
+				log.Warningf("[MultiCluster] unable to read multiClusterService annotation for resource %v, error: %v",
+					rsRef, err)
+			} else {
+				// TODO svcLB: Make sure case with different target port and service port is handled
+				// make all the service name, namespace and servicePort same as the parent service
+				for i, _ := range multiClusterServices {
+					multiClusterServices[i].SvcName = svc.Name
+					multiClusterServices[i].Namespace = svc.Namespace
+					multiClusterServices[i].ServicePort = intstr.IntOrString{IntVal: svc.Spec.Ports[0].Port} // Currently supporting only one port
+				}
+			}
+			//if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+			//	if err == nil {
+			//		ctlr.processResourceExternalClusterServices(rsRef, multiClusterServices)
+			//	}
+			//}
+		}
+	}
+
 	for _, portSpec := range svc.Spec.Ports {
 
 		log.Debugf("Processing Service Type LB %s for port %v in cluster %v",
@@ -3359,6 +3406,8 @@ func (ctlr *Controller) processLBServices(
 			ip,
 			portSpec.Port,
 		)
+		rsCfg.IntDgMap = make(InternalDataGroupMap)
+		rsCfg.IRulesMap = make(IRulesMap)
 		//set host if annotation present on service
 		host, ok := svc.Annotations[LBServiceHostAnnotation]
 		if ok {
@@ -3384,7 +3433,7 @@ func (ctlr *Controller) processLBServices(
 			break
 		}
 
-		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName)
+		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName, multiClusterServices)
 
 		// handle pool settings from policy cr
 		if plc != nil {
@@ -4114,7 +4163,7 @@ func (ctlr *Controller) processIngressLink(
 				return nil
 			}
 			// ctlr.updateIngressLinkStatus(ingLink, ip)
-			if _, ok := ctlr.shouldProcessServiceTypeLB(svc); ok {
+			if _, ok := ctlr.shouldProcessServiceTypeLB(svc, "", true); ok {
 				ctlr.setLBServiceIngressStatus(svc, ip, "")
 			}
 		}
@@ -4382,7 +4431,7 @@ func (ctlr *Controller) setLBServiceIngressStatus(
 	ip string,
 	clusterName string,
 ) {
-	if _, ok := ctlr.shouldProcessServiceTypeLB(svc); !ok {
+	if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, true); !ok {
 		return
 	}
 	// Set the ingress status to include the virtual IP

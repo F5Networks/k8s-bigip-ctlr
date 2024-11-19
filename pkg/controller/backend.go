@@ -1020,6 +1020,16 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 	}
 
+	if len(cfg.Virtual.HTTPCompressionProfile) > 0 {
+		if cfg.Virtual.HTTPCompressionProfile == "basic" || cfg.Virtual.HTTPCompressionProfile == "wan" {
+			svc.HTTPCompressionProfile = cfg.Virtual.HTTPCompressionProfile
+		} else {
+			svc.HTTPCompressionProfile = &as3ResourcePointer{
+				BigIP: cfg.Virtual.HTTPCompressionProfile,
+			}
+		}
+	}
+
 	if cfg.MetaData.Protocol == "https" {
 		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
 			if cfg.Virtual.HTTP2.Client == "" {

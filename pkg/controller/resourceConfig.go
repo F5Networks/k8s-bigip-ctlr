@@ -298,6 +298,9 @@ func formatVirtualServerName(ip string, port int32) string {
 
 // format the virtual server name for an VirtualServer
 func formatCustomVirtualServerName(name string, port int32) string {
+	// Replace special characters ". : /"
+	// with "-" and "%" with ".", for naming purposes
+	name = AS3NameFormatter(name)
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
@@ -844,6 +847,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if vs.Spec.ProfileMultiplex != "" {
 		rsCfg.Virtual.ProfileMultiplex = vs.Spec.ProfileMultiplex
 	}
+
+	if vs.Spec.HTTPCompressionProfile != "" {
+		rsCfg.Virtual.HTTPCompressionProfile = vs.Spec.HTTPCompressionProfile
+	}
+
 	// check if custom http port set on virtual
 	if vs.Spec.VirtualServerHTTPPort != 0 {
 		httpPort = vs.Spec.VirtualServerHTTPPort
@@ -2591,6 +2599,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		rsCfg.Virtual.MultiPoolPersistence.TimeOut = plc.Spec.PoolSettings.MultiPoolPersistence.TimeOut
 	}
 	rsCfg.Virtual.ProfileMultiplex = plc.Spec.Profiles.ProfileMultiplex
+	rsCfg.Virtual.HTTPCompressionProfile = plc.Spec.Profiles.HTTPCompressionProfile
 	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
@@ -2694,7 +2703,9 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
-
+	if plc.Spec.Profiles.HTTPCompressionProfile != "" {
+		log.Warningf("HTTP Compression Profile is not supported for Transport Server")
+	}
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}

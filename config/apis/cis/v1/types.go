@@ -53,6 +53,7 @@ type VirtualServerSpec struct {
 	ServiceIPAddress                 []ServiceAddress `json:"serviceAddress,omitempty"`
 	PolicyName                       string           `json:"policyName,omitempty"`
 	PersistenceProfile               string           `json:"persistenceProfile,omitempty"`
+	HTTPCompressionProfile           string           `json:"httpCompressionProfile,omitempty"`
 	ProfileMultiplex                 string           `json:"profileMultiplex,omitempty"`
 	DOS                              string           `json:"dos,omitempty"`
 	BotDefense                       string           `json:"botDefense,omitempty"`
@@ -445,21 +446,22 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                   ProfileTCP        `json:"tcp,omitempty"`
-	UDP                   string            `json:"udp,omitempty"`
-	HTTP                  string            `json:"http,omitempty"`
-	HTTP2                 ProfileHTTP2      `json:"http2,omitempty"`
-	RewriteProfile        string            `json:"rewriteProfile,omitempty"`
-	PersistenceProfile    string            `json:"persistenceProfile,omitempty"`
-	LogProfiles           []string          `json:"logProfiles,omitempty"`
-	ProfileL4             string            `json:"profileL4,omitempty"`
-	ProfileMultiplex      string            `json:"profileMultiplex,omitempty"`
-	HttpMrfRoutingEnabled *bool             `json:"httpMrfRoutingEnabled,omitempty"`
-	SSLProfiles           SSLProfiles       `json:"sslProfiles,omitempty"`
-	AnalyticsProfiles     AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
-	ProfileWebSocket      string            `json:"profileWebSocket,omitempty"`
-	HTMLProfile           string            `json:"htmlProfile,omitempty"`
-	FTPProfile            string            `json:"ftpProfile,omitempty"`
+	TCP                    ProfileTCP        `json:"tcp,omitempty"`
+	UDP                    string            `json:"udp,omitempty"`
+	HTTP                   string            `json:"http,omitempty"`
+	HTTP2                  ProfileHTTP2      `json:"http2,omitempty"`
+	RewriteProfile         string            `json:"rewriteProfile,omitempty"`
+	PersistenceProfile     string            `json:"persistenceProfile,omitempty"`
+	LogProfiles            []string          `json:"logProfiles,omitempty"`
+	ProfileL4              string            `json:"profileL4,omitempty"`
+	ProfileMultiplex       string            `json:"profileMultiplex,omitempty"`
+	HttpMrfRoutingEnabled  *bool             `json:"httpMrfRoutingEnabled,omitempty"`
+	SSLProfiles            SSLProfiles       `json:"sslProfiles,omitempty"`
+	AnalyticsProfiles      AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
+	ProfileWebSocket       string            `json:"profileWebSocket,omitempty"`
+	HTMLProfile            string            `json:"htmlProfile,omitempty"`
+	FTPProfile             string            `json:"ftpProfile,omitempty"`
+	HTTPCompressionProfile string            `json:"httpCompressionProfile,omitempty"`
 }
 
 type ProfileVSSpec struct {

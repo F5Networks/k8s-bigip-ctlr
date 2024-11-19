@@ -65,7 +65,7 @@ func (rs *ResourceStore) Init() {
 	rs.gtmConfigCache = make(GTMConfig)
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
-	rs.svcLBStore = make(SvcLBStore)
+	rs.processedL4Apps = make(L4AppsStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.routeGroupNamespaceMap = make(map[string]string)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
@@ -2507,9 +2507,10 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		namespace:   svc.Namespace,
 	}
 	rsRef := resourceRef{
-		name:      svc.Name,
-		namespace: svc.Namespace,
-		kind:      Service,
+		name:        svc.Name,
+		namespace:   svc.Namespace,
+		kind:        Service,
+		clusterName: clusterName,
 	}
 	// update the pool identifier for service
 	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")

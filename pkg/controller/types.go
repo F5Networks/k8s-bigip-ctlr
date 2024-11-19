@@ -68,7 +68,7 @@ type (
 		ipamCli                     *ipammachinery.IPAMClient
 		ipamClusterLabel            string
 		ipamCR                      string
-		defaultRouteDomain          int
+		defaultRouteDomain          int32
 		TeemData                    *teem.TeemsData
 		requestQueue                *requestQueue
 		ipamHostSpecEmpty           bool
@@ -150,7 +150,7 @@ type (
 		ShareNodes                  bool
 		IPAM                        bool
 		IPAMClusterLabel            string
-		DefaultRouteDomain          int
+		DefaultRouteDomain          int32
 		Mode                        ControllerMode
 		GlobalExtendedSpecConfigmap string
 		RouteLabel                  string
@@ -349,12 +349,18 @@ type (
 		gtmConfig      GTMConfig
 		gtmConfigCache GTMConfig
 		nplStore       NPLStore
-		svcLBStore     SvcLBStore
 		supplementContextCache
 	}
 
-	// svcLBStore contains TyoeLB service details.key is IP
-	SvcLBStore map[string]MultiClusterServiceKey
+	// l4AppConfig contains IP and port to identify unique L4App
+	l4AppConfig struct {
+		ipOrIPAMKey string
+		port        int32
+		routeDomain int32
+	}
+
+	// L4AppsStore contains TypeLB service details.key is IP
+	L4AppsStore map[l4AppConfig]resourceRef
 
 	// LTMConfig contain partition based ResourceMap
 	LTMConfig map[string]*PartitionConfig
@@ -432,7 +438,7 @@ type (
 		ltmConfig          LTMConfig
 		shareNodes         bool
 		gtmConfig          GTMConfig
-		defaultRouteDomain int
+		defaultRouteDomain int32
 		reqId              int
 		poolMemberType     string
 	}
@@ -447,6 +453,7 @@ type (
 		name        string
 		namespace   string
 		clusterName string
+		timestamp   metav1.Time
 	}
 
 	VSSpecProperties struct {
@@ -526,6 +533,7 @@ type (
 	supplementContextCache struct {
 		baseRouteConfig BaseRouteConfig
 		poolMemCache    PoolMemberCache
+		processedL4Apps L4AppsStore
 		sslContext      map[string]*v1.Secret
 		extdSpecMap     extendedSpecMap
 		// key of the map is IPSpec.Key

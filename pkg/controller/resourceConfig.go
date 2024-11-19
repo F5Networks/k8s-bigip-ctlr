@@ -1129,7 +1129,7 @@ func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules
 }
 
 func (ctlr *Controller) handleTransportServerTLS(rsCfg *ResourceConfig, tlsContext TLSContext) bool {
-	infStore := ctlr.multiClusterHandler.getInformerStore("")
+	infStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 	clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
 	serverSSL := tlsContext.bigIPSSLProfiles.serverSSLs
 	// Process Profile

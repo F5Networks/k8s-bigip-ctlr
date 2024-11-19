@@ -1184,9 +1184,6 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, clusterName 
 	}
 
 	updateEvent := true
-	if !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
-		updateEvent = true
-	}
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Spec.Type == corev1.ServiceTypeLoadBalancer && (svc.Annotations[LBServiceIPAnnotation] != curSvc.Annotations[LBServiceIPAnnotation] || svc.Annotations[LBServiceHostAnnotation] != curSvc.Annotations[LBServiceHostAnnotation])) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||

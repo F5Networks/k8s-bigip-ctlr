@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cis.f5.com/ip: 10.8.3.1
+    cis.f5.com/multiClusterServices: |
+      [
+        {"clusterName": "cluster2", "weight": 50},
+        {"clusterName": "cluster3", "weight": 30},
+        {"clusterName": "cluster4", "weight": 20}
+      ]
+  labels:
+    app: pytest-svc-1
+  name: pytest-svc-1
+  namespace: default
+spec:
+  ports:
+    - name: pytest-svc-1-1344
+      port: 1344
+      protocol: TCP
+      targetPort: 1344
+  selector:
+    app: pytest-svc-1
+  sessionAffinity: None
+  type: LoadBalancer

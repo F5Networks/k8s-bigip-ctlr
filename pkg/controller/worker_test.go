@@ -929,11 +929,11 @@ var _ = Describe("Worker Tests", func() {
 			lbClass := "f5-bigip-ctlr"
 			svc1.Spec.LoadBalancerClass = &lbClass
 			mockCtlr.loadBalancerClass = lbClass
-			_, ok := mockCtlr.shouldProcessServiceTypeLB(svc1)
+			_, ok := mockCtlr.shouldProcessServiceTypeLB(svc1, "", false)
 			Expect(ok).To(BeTrue(), "Service should be processed")
 			// reset the loadBalancerClass
 			mockCtlr.loadBalancerClass = ""
-			_, ok = mockCtlr.shouldProcessServiceTypeLB(svc1)
+			_, ok = mockCtlr.shouldProcessServiceTypeLB(svc1, "", false)
 			Expect(ok).To(BeFalse(), "Service should not be processed")
 			svc1.Spec.LoadBalancerClass = nil
 		})

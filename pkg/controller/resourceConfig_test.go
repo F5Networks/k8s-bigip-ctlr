@@ -735,7 +735,7 @@ var _ = Describe("Resource Config Tests", func() {
 			svc.Annotations = make(map[string]string)
 			svc.Annotations[HealthMonitorAnnotation] = `{"interval": 5, "timeout": 10}`
 
-			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "")
+			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to Prepare Resource Config from Service")

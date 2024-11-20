@@ -2586,78 +2586,153 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	svc *v1.Service,
 	svcPort v1.ServicePort,
 	clusterName string,
+	multiClusterServices []cisapiv1.MultiClusterServiceReference,
 ) error {
-	poolName := ctlr.formatPoolName(
-		svc.Namespace,
-		svc.Name,
-		svcPort.TargetPort,
-		"", "", clusterName)
+	var pools Pools
+	var backendSvcs []SvcBackendCxt
 
-	targetPort := ctlr.fetchTargetPort(svc.Namespace, svc.Name, intstr.IntOrString{IntVal: svcPort.Port}, clusterName)
-	if (intstr.IntOrString{}) == targetPort {
-		targetPort = intstr.IntOrString{IntVal: svcPort.Port}
-	}
-	pool := Pool{
-		Name:             poolName,
-		Partition:        rsCfg.Virtual.Partition,
-		ServiceName:      svc.Name,
-		ServiceNamespace: svc.Namespace,
-		ServicePort:      targetPort,
-		NodeMemberLabel:  "",
-		Cluster:          clusterName,
-	}
-	svcKey := MultiClusterServiceKey{
-		serviceName: svc.Name,
-		clusterName: clusterName,
-		namespace:   svc.Namespace,
-	}
 	rsRef := resourceRef{
 		name:        svc.Name,
 		namespace:   svc.Namespace,
 		kind:        Service,
 		clusterName: clusterName,
 	}
-	// update the pool identifier for service
-	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
-	// Update the pool Members
-	ctlr.updatePoolMembersForResources(&pool)
-	if len(pool.Members) > 0 {
-		rsCfg.MetaData.Active = true
-	}
-	// Health Monitor Annotation
-	hmStr, found := svc.Annotations[HealthMonitorAnnotation]
-	var monitor Monitor
-	if found {
-		monitorType := strings.ToLower(string(svcPort.Protocol))
-		var mon ServiceTypeLBHealthMonitor
-		err := json.Unmarshal([]byte(hmStr), &mon)
-		if err != nil {
-			msg := fmt.Sprintf(
-				"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
-			log.Errorf("[CORE] %s", msg)
+	framedPools := make(map[string]struct{})
+	backendSvcs = ctlr.GetPoolBackendsForSvcTypeLB(svc, svcPort, clusterName, multiClusterServices)
+
+	for _, SvcBackend := range backendSvcs {
+		poolName := ctlr.formatPoolName(
+			SvcBackend.SvcNamespace,
+			SvcBackend.Name,
+			SvcBackend.SvcPort, // It's the target port of the service which GetPoolBackendsForSvcTypeLB populates
+			"", "", SvcBackend.Cluster)
+		if _, ok := framedPools[poolName]; ok {
+			// Pool with same name framed earlier, so skipping this pool
+			log.Debugf("Duplicate pool name: %v in ServiceTypeLB: %v/%v", poolName, svc.Namespace, svc.Name)
+			continue
 		}
-		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
-		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
-			Partition: rsCfg.Virtual.Partition,
-			Type:      monitorType,
-			Interval:  mon.Interval,
-			Send:      "",
-			Recv:      "",
-			Timeout:   mon.Timeout,
+		framedPools[poolName] = struct{}{}
+		svcNamespace := svc.Namespace
+		if SvcBackend.SvcNamespace != "" {
+			svcNamespace = SvcBackend.SvcNamespace
 		}
-		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+		pool := Pool{
+			Name:             poolName,
+			Partition:        rsCfg.Virtual.Partition,
+			ServiceName:      SvcBackend.Name,
+			ServiceNamespace: svcNamespace,
+			ServicePort:      SvcBackend.SvcPort,
+			NodeMemberLabel:  "",
+			Cluster:          SvcBackend.Cluster,
+		}
+
+		svcKey := MultiClusterServiceKey{
+			serviceName: SvcBackend.Name,
+			clusterName: SvcBackend.Cluster,
+			namespace:   SvcBackend.SvcNamespace,
+		}
+		if ctlr.multiClusterMode != "" {
+			//check for external service reference
+			if len(multiClusterServices) > 0 {
+				if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+					// only process if ts key is not present. else skip the processing
+					// on ts update we are clearing the resource service
+					// if event comes from ts then we will read and populate data, else we will skip processing
+					ctlr.processResourceExternalClusterServices(rsRef, multiClusterServices)
+				} else {
+					// prepare one of extended services key from pool
+					// to check if pool is processed before and svckey exists in rscSvcMap
+					// If not external cluster services for this pool will be added to rscSvcMap
+					externalSvcKey := MultiClusterServiceKey{
+						clusterName: multiClusterServices[0].ClusterName,
+						serviceName: multiClusterServices[0].SvcName,
+						namespace:   multiClusterServices[0].Namespace,
+					}
+					// for multiple pools scenario vs resource reference exists after first pool is processed
+					// we still need to process if svckey doesnt exist in multicluster cluster rsMap
+					if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef][externalSvcKey]; !ok {
+						ctlr.processResourceExternalClusterServices(rsRef, multiClusterServices)
+					}
+				}
+			}
+			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+				for svc, config := range svcs {
+					// update the clusterSvcMap
+					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+				}
+			}
+			pool.MultiClusterServices = multiClusterServices
+
+			if ctlr.discoveryMode != DefaultMode {
+				// update the pool identifier for service
+				ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+				// update the multicluster resource serviceMap with local cluster services
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, intstr.IntOrString{IntVal: svcPort.Port}, "")
+				// update the multicluster resource serviceMap with HA pair cluster services
+				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, intstr.IntOrString{IntVal: svcPort.Port},
+						ctlr.multiClusterHandler.HAPairClusterName)
+				}
+			}
+		} else {
+			// update the pool identifier for service
+			ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pool.ServiceName, "", pool, pool.ServicePort, "")
+		}
+
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
+		}
+		// Health Monitor Annotation
+		hmStr, found := svc.Annotations[HealthMonitorAnnotation]
+		var monitor Monitor
+		if found {
+			monitorType := strings.ToLower(string(svcPort.Protocol))
+			var mon ServiceTypeLBHealthMonitor
+			err := json.Unmarshal([]byte(hmStr), &mon)
+			if err != nil {
+				msg := fmt.Sprintf(
+					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+				log.Errorf("[CORE] %s", msg)
+			}
+			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
+				formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
+			monitor = Monitor{
+				Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
+				Partition: rsCfg.Virtual.Partition,
+				Type:      monitorType,
+				Interval:  mon.Interval,
+				Send:      "",
+				Recv:      "",
+				Timeout:   mon.Timeout,
+			}
+			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+		}
+		pools = append(pools, pool)
+		if multiClusterServices == nil {
+			rsCfg.Virtual.PoolName = pool.Name
+		} else {
+			// Handle AB datagroup for insecure virtualserver
+			ctlr.updateDataGroupForAdvancedSvcTypeLB(svc, multiClusterServices,
+				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+				rsCfg.Virtual.Partition,
+				svc.Namespace,
+				rsCfg.IntDgMap,
+				svcPort,
+				clusterName,
+			)
+			// Handle AB path based IRules for insecure virtualserver
+			ctlr.HandlePathBasedABIRuleTS(rsCfg)
+		}
 	}
-	rsCfg.Pools = Pools{pool}
-	rsCfg.Virtual.PoolName = poolName
+	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Virtual.Mode = "standard"
 	// Use default SNAT if not provided by user
 	if rsCfg.Virtual.SNAT == "" {
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	}
-	// update the multicluster resource serviceMap with cluster services
-	ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, pool.ServicePort, clusterName)
 
 	return nil
 }
@@ -3645,4 +3720,44 @@ func getUniqueHosts(host string, hostAliases []string) []string {
 		}
 	}
 	return uniqueHosts
+}
+
+// GetPoolBackendsForSvcTypeLB returns the services associated with the ServiceTypeLB (svc names + weight)
+func (ctlr *Controller) GetPoolBackendsForSvcTypeLB(svc *v1.Service, svcPort v1.ServicePort, clusterName string, multiClusterServices []cisapiv1.MultiClusterServiceReference) []SvcBackendCxt {
+	var sbcs []SvcBackendCxt
+	defaultWeight := 100
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode && multiClusterServices != nil {
+		for _, svc := range multiClusterServices {
+			sbc := SvcBackendCxt{}
+			if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+				continue
+			}
+			sbc.Cluster = svc.ClusterName
+			sbc.Name = svc.SvcName
+			sbc.SvcPort = svc.ServicePort
+			if svc.Weight != nil {
+				sbc.Weight = float64(*svc.Weight)
+			} else {
+				sbc.Weight = float64(defaultWeight)
+			}
+			sbc.SvcNamespace = svc.Namespace
+			sbcs = append(sbcs, sbc)
+		}
+		return sbcs
+	} else {
+		numOfBackends := 1
+		sbcs = make([]SvcBackendCxt, numOfBackends)
+		beIdx := 0
+		sbcs[beIdx].Name = svc.Name
+		sbcs[beIdx].Cluster = clusterName
+		// use default weight
+		sbcs[beIdx].Weight = float64(defaultWeight)
+		sbcs[beIdx].SvcNamespace = svc.Namespace
+		targetPort := ctlr.fetchTargetPort(svc.Namespace, svc.Name, intstr.IntOrString{IntVal: svcPort.Port}, clusterName)
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = intstr.IntOrString{IntVal: svcPort.Port}
+		}
+		sbcs[beIdx].SvcPort = targetPort
+	}
+	return sbcs
 }

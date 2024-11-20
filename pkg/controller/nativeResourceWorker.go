@@ -1979,7 +1979,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
 		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
-			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
+			primaryClusterName = ctlr.multiClusterHandler.LocalClusterName
 			if ctlr.discoveryMode == Ratio {
 				if haClusterConfig.PrimaryCluster.Ratio != nil {
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = haClusterConfig.PrimaryCluster.Ratio
@@ -1987,7 +1987,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					one := 1
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
 				}
-				ctlr.clusterRatio[""] = ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName]
+				ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName] = ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName]
 			}
 			ctlr.readAndUpdateClusterAdminState(haClusterConfig.PrimaryCluster, ctlr.multiClusterMode == PrimaryCIS)
 		}
@@ -2085,7 +2085,36 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 
 			ctlr.multiClusterHandler.HAPairClusterName = haClusterConfig.PrimaryCluster.ClusterName
-			ctlr.multiClusterHandler.LocalClusterName = secondaryClusterName
+			//ctlr.multiClusterHandler.LocalClusterName = secondaryClusterName
+		}
+		if ctlr.discoveryMode != DefaultMode {
+			// start the informers for external Cluster on the CIS start up
+			if len(externalClusterConfigs) > 0 {
+				for _, config := range externalClusterConfigs {
+					kubeConfigSecret, err := ctlr.fetchKubeConfigSecret(config.Secret,
+						config.ClusterName)
+					if err != nil {
+						log.Errorf("[MultiCluster]  %v", err.Error())
+						os.Exit(1)
+					}
+					err = ctlr.updateClusterConfigStore(kubeConfigSecret,
+						ClusterDetails{
+							ClusterName:            config.ClusterName,
+							Secret:                 config.Secret,
+							ServiceTypeLBDiscovery: config.ServiceTypeLBDiscovery,
+						},
+						false)
+					if err != nil {
+						log.Errorf("[MultiCluster]  %v", err.Error())
+						os.Exit(1)
+					}
+
+					err = ctlr.setupAndStartExternalClusterInformers(config.ClusterName)
+					if err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 
@@ -2200,8 +2229,10 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 		}
 	}
-	// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
-	ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
+	if ctlr.discoveryMode == DefaultMode {
+		// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
+		ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
+	}
 	return nil
 }
 
@@ -2475,4 +2506,14 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 			ctlr.clusterAdminState[clusterNameKey] = clustermanager.Enable
 		}
 	}
+}
+
+func (ch *ClusterHandler) fetchClusterNames() []string {
+	var clusterNames []string
+	ch.RWMutex.RLock()
+	defer ch.RWMutex.RUnlock()
+	for clusterName, _ := range ch.ClusterConfigs {
+		clusterNames = append(clusterNames, clusterName)
+	}
+	return clusterNames
 }

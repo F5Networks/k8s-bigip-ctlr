@@ -2271,7 +2271,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case TransportServer:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, ctlr.multiClusterHandler.LocalClusterName)
 									item, _, _ = inf.tsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -2357,41 +2357,55 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 	var poolMembers []PoolMember
 	var clsSvcPoolMemMap = make(map[MultiClusterServiceKey][]PoolMember)
+
+	clusterNames := ctlr.multiClusterHandler.fetchClusterNames()
 	// for local cluster
 	// Skip adding the pool members if adding pool member is restricted for local cluster in multi cluster mode
-	if pool.Cluster == "" && !ctlr.isAddingPoolRestricted(pool.Cluster) {
+	if pool.Cluster == ctlr.multiClusterHandler.LocalClusterName && !ctlr.isAddingPoolRestricted(pool.Cluster) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
-			pool.NodeMemberLabel, "", pool.ConnectionLimit, pool.BigIPRouteDomain)
+			pool.NodeMemberLabel, ctlr.multiClusterHandler.LocalClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
-		if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
+		if len(ctlr.clusterRatio) > 0 {
 			pool.Members = pms
 			return
 		}
 
-		if pool.SinglePoolRatioEnabled {
-			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
-				clusterName: ""}] = pms
-		}
 	}
 
 	// for HA cluster pair service
 	// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
 	// Process HA cluster in active / ratio mode only with - SinglePoolRatioEnabled(ts)
-	if (ctlr.discoveryMode == Active || (len(ctlr.clusterRatio) > 0 && pool.SinglePoolRatioEnabled)) && ctlr.multiClusterHandler.HAPairClusterName != "" &&
-		!ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName) {
+	if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" && !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 			pool.NodeMemberLabel, ctlr.multiClusterHandler.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
 
-		if pool.SinglePoolRatioEnabled {
-			clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
-				clusterName: ctlr.multiClusterHandler.HAPairClusterName}] = pms
+	}
+
+	// implicit multiCluster service discovery is supported for only TS
+	if (ctlr.discoveryMode == Active || ctlr.discoveryMode == StandBy) && pool.ImplicitSvcSearchEnabled {
+		if pool.Cluster == ctlr.multiClusterHandler.LocalClusterName {
+			for _, clusterName := range clusterNames {
+				if clusterName == "" || clusterName == ctlr.multiClusterHandler.LocalClusterName || clusterName == ctlr.multiClusterHandler.HAPairClusterName {
+					continue
+				}
+				if !ctlr.isAddingPoolRestricted(clusterName) {
+					pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
+						pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+					poolMembers = append(poolMembers, pms...)
+
+					if pool.ImplicitSvcSearchEnabled {
+						clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: pool.ServiceName, namespace: pool.ServiceNamespace,
+							clusterName: clusterName}] = pms
+					}
+				}
+			}
 		}
 	}
 
 	// In case of ratio mode unique pools are created for each service so only update the pool members for this backend
 	// pool associated with the HA peer cluster or external cluster and return
-	if len(ctlr.clusterRatio) > 0 && !pool.SinglePoolRatioEnabled {
+	if len(ctlr.clusterRatio) > 0 {
 		poolMembers = append(poolMembers,
 			ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)...)
@@ -2416,10 +2430,6 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 				pool.NodeMemberLabel, mcs.ClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 
-			if pool.SinglePoolRatioEnabled {
-				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: mcs.SvcName, namespace: mcs.Namespace,
-					clusterName: mcs.ClusterName}] = pms
-			}
 		}
 	}
 
@@ -2429,11 +2439,6 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
 
-			if pool.SinglePoolRatioEnabled {
-				clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: svc.Service, namespace: svc.ServiceNamespace,
-					clusterName: pool.Cluster}] = pms
-			}
-
 			// for HA cluster pair service
 			// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
 			if ctlr.multiClusterHandler.HAPairClusterName != "" &&
@@ -2442,23 +2447,31 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 					pool.NodeMemberLabel, ctlr.multiClusterHandler.HAPairClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 				poolMembers = append(poolMembers, pms...)
 
-				if pool.SinglePoolRatioEnabled {
-					clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: svc.Service, namespace: svc.ServiceNamespace,
-						clusterName: ctlr.multiClusterHandler.HAPairClusterName}] = pms
+			}
+
+			if (ctlr.discoveryMode == Active || ctlr.discoveryMode == StandBy) && pool.ImplicitSvcSearchEnabled {
+				if pool.Cluster == ctlr.multiClusterHandler.LocalClusterName {
+					for _, clusterName := range clusterNames {
+						if clusterName == "" || clusterName == ctlr.multiClusterHandler.LocalClusterName || clusterName == ctlr.multiClusterHandler.HAPairClusterName {
+							continue
+						}
+						if !ctlr.isAddingPoolRestricted(clusterName) {
+							pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
+								pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
+							poolMembers = append(poolMembers, pms...)
+
+						}
+					}
 				}
 			}
 		}
 	}
 
-	if pool.SinglePoolRatioEnabled {
-		poolMembers = ctlr.updatePoolMemberWeights(clsSvcPoolMemMap, pool)
-	}
 	pool.Members = poolMembers
 }
 
 func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) {
 	var poolMembers []PoolMember
-	var clsSvcPoolMemMap = make(map[MultiClusterServiceKey][]PoolMember)
 	if len(pool.MultiClusterServices) == 0 {
 		poolMembers = ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 			pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)
@@ -2483,15 +2496,8 @@ func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) 
 					pool.NodeMemberLabel, clusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 				poolMembers = append(poolMembers, pms...)
 
-				if pool.SinglePoolRatioEnabled {
-					clsSvcPoolMemMap[MultiClusterServiceKey{serviceName: mcs.SvcName, namespace: mcs.Namespace,
-						clusterName: clusterName}] = pms
-				}
 			}
 		}
-	}
-	if pool.SinglePoolRatioEnabled {
-		poolMembers = ctlr.updatePoolMemberWeights(clsSvcPoolMemMap, pool)
 	}
 	pool.Members = poolMembers
 }
@@ -3737,6 +3743,9 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 func (ctlr *Controller) processExternalDNSFromCluster(clusterName string, hostnames []string, clusterConfig *ClusterConfig) {
 	var orderedEDNSs []interface{}
 	for namespace, comInf := range clusterConfig.InformerStore.comInformers {
+		if comInf.ednsInformer == nil {
+			continue
+		}
 		if namespace == "" {
 			orderedEDNSs = comInf.ednsInformer.GetIndexer().List()
 		} else {
@@ -5293,7 +5302,7 @@ func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
 }
 
 func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip string, status string, err error) {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig("")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	unmonitoredOptions := metav1.ListOptions{
 		LabelSelector: strings.ReplaceAll(clusterConfig.customResourceSelector.String(), " in ", " notin "),
 	}

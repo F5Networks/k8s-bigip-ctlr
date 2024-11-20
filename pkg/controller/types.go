@@ -463,27 +463,27 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name                   string                                  `json:"name"`
-		Partition              string                                  `json:"-"`
-		ServiceName            string                                  `json:"-"`
-		ServiceNamespace       string                                  `json:"-"`
-		ServicePort            intstr.IntOrString                      `json:"-"`
-		ServicePortUsed        bool                                    `json:"-"`
-		Balance                string                                  `json:"loadBalancingMethod,omitempty"`
-		Members                []PoolMember                            `json:"members"`
-		NodeMemberLabel        string                                  `json:"-"`
-		MonitorNames           []MonitorName                           `json:"monitors,omitempty"`
-		MinimumMonitors        intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
-		ReselectTries          int32                                   `json:"reselectTries,omitempty"`
-		ServiceDownAction      string                                  `json:"serviceDownAction,omitempty"`
-		SlowRampTime           int32                                   `json:"slowRampTime,omitempty"`
-		Weight                 int32                                   `json:"weight,omitempty"`
-		AlternateBackends      []AlternateBackend                      `json:"alternateBackends"`
-		MultiClusterServices   []cisapiv1.MultiClusterServiceReference `json:"_"`
-		Cluster                string                                  `json:"-"`
-		ConnectionLimit        int32                                   `json:"-"`
-		SinglePoolRatioEnabled bool                                    `json:"-"`
-		BigIPRouteDomain       int32                                   `json:"bigipRouteDomain,omitempty"`
+		Name                     string                                  `json:"name"`
+		Partition                string                                  `json:"-"`
+		ServiceName              string                                  `json:"-"`
+		ServiceNamespace         string                                  `json:"-"`
+		ServicePort              intstr.IntOrString                      `json:"-"`
+		ServicePortUsed          bool                                    `json:"-"`
+		Balance                  string                                  `json:"loadBalancingMethod,omitempty"`
+		Members                  []PoolMember                            `json:"members"`
+		NodeMemberLabel          string                                  `json:"-"`
+		MonitorNames             []MonitorName                           `json:"monitors,omitempty"`
+		MinimumMonitors          intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
+		ReselectTries            int32                                   `json:"reselectTries,omitempty"`
+		ServiceDownAction        string                                  `json:"serviceDownAction,omitempty"`
+		SlowRampTime             int32                                   `json:"slowRampTime,omitempty"`
+		Weight                   int32                                   `json:"weight,omitempty"`
+		AlternateBackends        []AlternateBackend                      `json:"alternateBackends"`
+		MultiClusterServices     []cisapiv1.MultiClusterServiceReference `json:"_"`
+		Cluster                  string                                  `json:"-"`
+		ConnectionLimit          int32                                   `json:"-"`
+		ImplicitSvcSearchEnabled bool                                    `json:"-"`
+		BigIPRouteDomain         int32                                   `json:"bigipRouteDomain,omitempty"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM

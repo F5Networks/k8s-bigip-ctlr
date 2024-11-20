@@ -9,8 +9,9 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
-        * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP Compression profile in VS CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/httpCompressionProfile/>`_
+        * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP Compression profile in VS CR. See `Example <./config_examples/customResource/VirtualServer/httpCompressionProfile/>`_
         * `Issue 3637 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3637>`_: Support for TLS in transport server. See `Example <./config_examples/customResource/TransportServer/transport-server-with-tls>`_
+        * `Issue 3574 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3574>`_: OpenShift operator: needs to run oc adm policy add-cluster-role-to-user cluster-admin -z f5-bigip-ctlr-serviceaccount -n <spec.namespace>
         * Support for empty node label selector
 
 Bug Fixes

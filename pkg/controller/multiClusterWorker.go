@@ -24,9 +24,6 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 			// Skip processing invalid extended service
 			continue
 		}
-		if svc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
-			svc.ClusterName = ""
-		}
 		if ctlr.multiClusterHandler.getClusterConfig(svc.ClusterName) != nil {
 			svcKey := MultiClusterServiceKey{
 				serviceName: svc.SvcName,

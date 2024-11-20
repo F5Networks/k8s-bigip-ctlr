@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	routeapi "github.com/openshift/api/route/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"encoding/json"
@@ -1892,5 +1893,58 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			updateDataGroup(dgMap, dgName,
 				partition, namespace, key, value, "string")
 		}
+	}
+}
+
+func (ctlr *Controller) updateDataGroupForAdvancedSvcTypeLB(
+	svc *v1.Service,
+	multiClusterServices []cisapiv1.MultiClusterServiceReference,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port v1.ServicePort,
+	clusterName string,
+) {
+	if multiClusterServices == nil {
+		return
+	}
+
+	weightTotal := 0.0
+	backends := ctlr.GetPoolBackendsForSvcTypeLB(svc, port, clusterName, multiClusterServices)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+	}
+	key := "/"
+	if weightTotal == 0 {
+		// If all services have 0 weight, 503 will be returned
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "string")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0.0
+		for _, be := range backends {
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := runningWeightTotal / weightTotal
+			svcNamespace := namespace
+			if be.SvcNamespace != "" {
+				svcNamespace = be.SvcNamespace
+			}
+			poolName := ctlr.formatPoolName(
+				svcNamespace,
+				be.Name,
+				be.SvcPort,
+				"", "", be.Cluster)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
 	}
 }

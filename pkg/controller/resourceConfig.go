@@ -3232,7 +3232,6 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 		if pool.ServiceNamespace != "" {
 			sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
 		}
-		sbcs[beIdx].SvcPort = ctlr.fetchTargetPort(sbcs[beIdx].SvcNamespace, sbcs[beIdx].Name, pool.ServicePort, "")
 		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 		if pool.AlternateBackends != nil {
 			for _, svc := range pool.AlternateBackends {

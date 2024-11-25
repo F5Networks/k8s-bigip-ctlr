@@ -22,14 +22,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 
@@ -253,7 +252,6 @@ func (slice ProfileRefs) Swap(i, j int) {
 
 // Return the required ports for VS (depending on sslRedirect/allowHttp vals)
 func (ctlr *Controller) virtualPorts(input interface{}) []portStruct {
-
 	http := portStruct{
 		protocol: "http",
 		port:     DEFAULT_HTTP_PORT,
@@ -401,7 +399,6 @@ func (ctlr *Controller) formatPoolName(namespace, svc string, port intstr.IntOrS
 	poolName := fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
 	if len(host) > 0 {
 		poolName = fmt.Sprintf("%s_%s", poolName, host)
-
 	}
 	if nodeMemberLabel != "" {
 		if strings.HasSuffix(nodeMemberLabel, "=") {
@@ -591,7 +588,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	passthroughVS bool,
 	tlsTermination string,
 ) error {
-
 	var httpsPort int32
 	var httpPort int32
 	if vs.Spec.VirtualServerHTTPSPort == 0 {
@@ -616,7 +612,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-		//Fetch service backends with weights for pool
+		// Fetch service backends with weights for pool
 		backendSvcs := ctlr.GetPoolBackends(&pl)
 		for _, SvcBackend := range backendSvcs {
 			poolName := ctlr.framePoolNameForVS(vs.Namespace, pl, vs.Spec.Host, SvcBackend)
@@ -653,7 +649,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 
 			if ctlr.multiClusterMode != "" {
-				//check for external service reference
+				// check for external service reference
 				if len(pl.MultiClusterServices) > 0 {
 					if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
 						// only process if vs key is not present. else skip the processing
@@ -726,7 +722,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 			pools = append(pools, pool)
 			if tlsTermination != "" {
-				//Handle AB datagroup for secure virtualserver
+				// Handle AB datagroup for secure virtualserver
 				if rsCfg.Virtual.VirtualAddress.Port == httpsPort || (rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure) {
 					ctlr.updateDataGroupForABVirtualServer(&pl,
 						getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
@@ -738,7 +734,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						vs.Spec.HostAliases,
 						tlsTermination,
 					)
-					//path based AB deployment/Cluster ratio not supported for passthrough
+					// path based AB deployment/Cluster ratio not supported for passthrough
 					if (isVsPathBasedABDeployment(&pl) || isVsPathBasedRatioDeployment(&pl, ctlr.discoveryMode)) &&
 						(tlsTermination == TLSEdge ||
 							(tlsTermination == TLSReencrypt && strings.ToLower(vs.Spec.HTTPTraffic) != TLSAllowInsecure)) {
@@ -798,7 +794,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if vs.Spec.ConnectionMirroring != "" {
 		rsCfg.Virtual.ConnectionMirroring = vs.Spec.ConnectionMirroring
 	}
-	//Attach allowVlans.
+	// Attach allowVlans.
 	if len(vs.Spec.AllowVLANs) > 0 {
 		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 	}
@@ -894,7 +890,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 }
 
 func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, host, path, vsName string, cluster string) {
+	formatPort intstr.IntOrString, host, path, vsName string, cluster string,
+) {
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
@@ -936,7 +933,8 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 }
 
 func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, vsNamespace, vsName string, hash string) {
+	formatPort intstr.IntOrString, vsNamespace, vsName string, hash string,
+) {
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
@@ -1347,7 +1345,6 @@ func (ctlr *Controller) handleTLS(
 								return false
 							}
 						}
-
 					} else {
 						log.Errorf("profileRefrence in clientSSLParams is mandatory for hybrid mode '%s' '%s'/'%s'", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 					}
@@ -1385,7 +1382,6 @@ func (ctlr *Controller) handleTLS(
 								}
 							}
 						}
-
 					} else {
 						log.Errorf("profileRefrence in clientSSLParams is mandatory for hybrid mode '%s' '%s'/'%s'", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 					}
@@ -1447,21 +1443,19 @@ func (ctlr *Controller) handleTLS(
 									updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
 										rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
 								}
-
 							} else {
 								// for secrets all the ca certificates will be bundle within a single profile
 								profileName := AS3NameFormatter(rsCfg.Virtual.Name + "_tls_client")
 								updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
 									rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
 							}
-
 						}
 					}
 				}
 			}
 		}
 
-		//Create datagroups
+		// Create datagroups
 		switch tlsContext.termination {
 		case TLSReencrypt:
 			if tlsContext.httpTraffic == TLSAllowInsecure {
@@ -1649,8 +1643,8 @@ func (ctlr *Controller) handleVirtualServerTLS(
 				backend,
 			)
 			if len(tls.Spec.Hosts) > 1 && !hasWildcardHost(tls.Spec.Hosts) {
-				//For wildcard certificates, multiple hosts may be mapped to different subdomains
-				//of the same domain. In this case, we need to create a poolPathRef for vs host matched.
+				// For wildcard certificates, multiple hosts may be mapped to different subdomains
+				// of the same domain. In this case, we need to create a poolPathRef for vs host matched.
 				poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
 			} else {
 				hosts := getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)
@@ -1658,7 +1652,8 @@ func (ctlr *Controller) handleVirtualServerTLS(
 			}
 		}
 	}
-	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
+	return ctlr.handleTLS(rsCfg, TLSContext{
+		name:             vs.ObjectMeta.Name,
 		namespace:        vs.ObjectMeta.Namespace,
 		resourceType:     VirtualServer,
 		referenceType:    tls.Spec.TLS.Reference,
@@ -1678,7 +1673,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 // validate TLSProfile
 // validation includes valid parameters for the type of termination(edge, re-encrypt and Pass-through)
 func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
-	//validation for re-encrypt termination
+	// validation for re-encrypt termination
 	if tls.Spec.TLS.Termination == "reencrypt" {
 		// Should contain both client and server SSL profiles
 		if (tls.Spec.TLS.ClientSSL == "" || tls.Spec.TLS.ServerSSL == "") && (len(tls.Spec.TLS.ClientSSLs) == 0 || len(tls.Spec.TLS.ServerSSLs) == 0) {
@@ -1844,7 +1839,7 @@ func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 func (rs *ResourceStore) getLTMPartitions() []string {
 	var partitions []string
 
-	for partition, _ := range rs.ltmConfig {
+	for partition := range rs.ltmConfig {
 		partitions = append(partitions, partition)
 	}
 	return partitions
@@ -1852,7 +1847,6 @@ func (rs *ResourceStore) getLTMPartitions() []string {
 
 // getResourceConfig gets a specific Resource cfg
 func (rs *ResourceStore) getResourceConfig(partition, name string) (*ResourceConfig, error) {
-
 	rsMap, ok := rs.ltmConfig[partition]
 	if !ok {
 		return nil, fmt.Errorf("partition not available")
@@ -2015,13 +2009,13 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	// Policies ref
 	rc.Virtual.Policies = make([]nameRef, len(cfg.Virtual.Policies))
 	copy(rc.Virtual.Policies, cfg.Virtual.Policies)
-	//IRules
+	// IRules
 	rc.Virtual.IRules = make([]string, len(cfg.Virtual.IRules))
 	copy(rc.Virtual.IRules, cfg.Virtual.IRules)
-	//LogProfiles
+	// LogProfiles
 	rc.Virtual.LogProfiles = make([]string, len(cfg.Virtual.LogProfiles))
 	copy(rc.Virtual.LogProfiles, cfg.Virtual.LogProfiles)
-	//AllowVLANS
+	// AllowVLANS
 	rc.Virtual.AllowVLANs = make([]string, len(cfg.Virtual.AllowVLANs))
 	copy(rc.Virtual.AllowVLANs, cfg.Virtual.AllowVLANs)
 
@@ -2055,8 +2049,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 			rc.Policies[i].Rules[j].Conditions = make([]*condition, len(cfg.Policies[i].Rules[j].Conditions))
 			for k := range rc.Policies[i].Rules[j].Conditions {
 				rc.Policies[i].Rules[j].Conditions[k] = &condition{}
-				rc.Policies[i].Rules[j].Conditions[k].Values =
-					make([]string, len(cfg.Policies[i].Rules[j].Conditions[k].Values))
+				rc.Policies[i].Rules[j].Conditions[k].Values = make([]string, len(cfg.Policies[i].Rules[j].Conditions[k].Values))
 			}
 		}
 		copy(rc.Policies[i].Rules, cfg.Policies[i].Rules)
@@ -2077,7 +2070,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	rc.ServiceAddress = make([]ServiceAddress, len(cfg.ServiceAddress))
 	copy(rc.ServiceAddress, cfg.ServiceAddress)
 
-	//IRulesMap
+	// IRulesMap
 	rc.IRulesMap = make(IRulesMap, len(cfg.IRulesMap))
 	for ref, irl := range cfg.IRulesMap {
 		rc.IRulesMap[ref] = &IRule{
@@ -2087,7 +2080,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 		}
 	}
 
-	//IntDgMap
+	// IntDgMap
 	rc.IntDgMap = make(InternalDataGroupMap, len(cfg.IntDgMap))
 	for nameRef, dgnm := range cfg.IntDgMap {
 		rc.IntDgMap[nameRef] = make(DataGroupNamespaceMap, len(dgnm))
@@ -2107,7 +2100,6 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	for secKey, cusProf := range cfg.customProfiles {
 		rc.customProfiles[secKey] = cusProf
 	}
-
 }
 
 // split_ip_with_route_domain splits ip into ip and route domain
@@ -2117,7 +2109,7 @@ func split_ip_with_route_domain(address string) (ip string, rd string) {
 	match := strings.Split(address, "%")
 	if len(match) == 2 {
 		_, err := strconv.Atoi(match[1])
-		//Matches only when RD contains number, Not allowing RD has 80f
+		// Matches only when RD contains number, Not allowing RD has 80f
 		if err == nil {
 			ip = match[0]
 			rd = match[1]
@@ -2221,8 +2213,10 @@ const EdgeServerSslDgName = "ssl_edge_serverssl_dg"
 const DataGroupType = "string"
 
 // Allow Source Range
-const DataGroupAllowSourceRangeType = "ip"
-const AllowSourceRangeDgName = "allowSourceRange"
+const (
+	DataGroupAllowSourceRangeType = "ip"
+	AllowSourceRangeDgName        = "allowSourceRange"
+)
 
 // Internal data group for ab deployment routes.
 const AbDeploymentDgName = "ab_deployment_dg"
@@ -2397,7 +2391,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		if SvcBackend.SvcNamespace != "" {
 			svcNamespace = SvcBackend.SvcNamespace
 		}
-		targetPort := SvcBackend.SvcPort
+		targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, "")
 		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
 		if (intstr.IntOrString{}) == targetPort {
 			targetPort = pl.ServicePort
@@ -2427,7 +2421,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		}
 
 		if ctlr.multiClusterMode != "" {
-			//check for external service reference
+			// check for external service reference
 			if len(pl.MultiClusterServices) > 0 {
 				if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
 					// only process if ts key is not present. else skip the processing
@@ -2567,7 +2561,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		}
 	}
 
-	//set allowed VLAN's per TS config
+	// set allowed VLAN's per TS config
 	if len(vs.Spec.AllowVLANs) > 0 {
 		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 	}
@@ -2651,7 +2645,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			namespace:   SvcBackend.SvcNamespace,
 		}
 		if ctlr.multiClusterMode != "" {
-			//check for external service reference
+			// check for external service reference
 			if len(multiClusterServices) > 0 {
 				if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
 					// only process if ts key is not present. else skip the processing
@@ -2806,7 +2800,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		rsCfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile = plc.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile
 	}
 
-	//profileWebSocket is supported for service_HTTP and service_HTTPS
+	// profileWebSocket is supported for service_HTTP and service_HTTPS
 	if plc.Spec.Profiles.ProfileWebSocket != "" &&
 		(rsCfg.MetaData.Protocol == HTTP || rsCfg.MetaData.Protocol == HTTPS) {
 		rsCfg.Virtual.ProfileWebSocket = plc.Spec.Profiles.ProfileWebSocket
@@ -2936,11 +2930,12 @@ func (ctlr *Controller) handlePoolResourceConfigForPolicy(
 		if plc.Spec.PoolSettings.SlowRampTime != 0 {
 			pl.SlowRampTime = plc.Spec.PoolSettings.SlowRampTime
 		}
-		//update pool
+		// update pool
 		rsCfg.Pools[i] = pl
 	}
 	return nil
 }
+
 func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }
@@ -2991,8 +2986,8 @@ func (ctlr *Controller) handleRouteTLS(
 	vServerAddr string,
 	servicePort intstr.IntOrString,
 	policySSLProfiles rgPlcSSLProfiles,
-	passthroughVSGrp bool) bool {
-
+	passthroughVSGrp bool,
+) bool {
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS
 		return false
@@ -3055,9 +3050,9 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) {
-			//set for default routegroup
+			// set for default routegroup
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
-				//Flag to track the route groups which are using TLS profiles.
+				// Flag to track the route groups which are using TLS profiles.
 				if ctlr.resources.extdSpecMap[routeGroup].defaultrg != nil {
 					ctlr.resources.extdSpecMap[routeGroup].defaultrg.Meta = Meta{
 						DependsOnTLS: true,
@@ -3090,7 +3085,7 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if !reflect.DeepEqual(ctlr.resources.baseRouteConfig, BaseRouteConfig{}) {
-			//Flag to track the route groups which are using TLS Ciphers
+			// Flag to track the route groups which are using TLS Ciphers
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
 				if ctlr.resources.extdSpecMap[routeGroup].defaultrg != nil {
 					ctlr.resources.extdSpecMap[routeGroup].defaultrg.Meta = Meta{
@@ -3152,7 +3147,8 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 	}
 
-	return ctlr.handleTLS(rsCfg, TLSContext{route.ObjectMeta.Name,
+	return ctlr.handleTLS(rsCfg, TLSContext{
+		route.ObjectMeta.Name,
 		route.ObjectMeta.Namespace,
 		Route,
 		tlsReferenceType,
@@ -3236,11 +3232,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 		if pool.ServiceNamespace != "" {
 			sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
 		}
-		targetPort := ctlr.fetchTargetPort(sbcs[beIdx].SvcNamespace, sbcs[beIdx].Name, pool.ServicePort, "")
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = pool.ServicePort
-		}
-		sbcs[beIdx].SvcPort = targetPort
+		sbcs[beIdx].SvcPort = ctlr.fetchTargetPort(sbcs[beIdx].SvcNamespace, sbcs[beIdx].Name, pool.ServicePort, "")
 		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 		if pool.AlternateBackends != nil {
 			for _, svc := range pool.AlternateBackends {
@@ -3253,11 +3245,6 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool) []SvcBackend
 				}
 				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
-				targetPort := ctlr.fetchTargetPort(sbcs[beIdx].SvcNamespace, sbcs[beIdx].Name, pool.ServicePort, "")
-				if (intstr.IntOrString{}) == targetPort {
-					targetPort = pool.ServicePort
-				}
-				sbcs[beIdx].SvcPort = targetPort
 			}
 		}
 		return sbcs

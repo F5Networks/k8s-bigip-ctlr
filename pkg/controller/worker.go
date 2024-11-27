@@ -532,6 +532,7 @@ func (ctlr *Controller) processResources() bool {
 			namespace:   svc.Namespace,
 			clusterName: rKey.clusterName,
 		}
+
 		if err, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 			if rKey.event != Create {
 				rsRef := resourceRef{
@@ -541,6 +542,7 @@ func (ctlr *Controller) processResources() bool {
 					clusterName: rKey.clusterName,
 				}
 				// clean the CIS cache
+				ctlr.deleteStaleVirtualserverForService(svcKey, svc.Spec.Ports)
 				ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
 			} else {
 				//For creation of service check for duplicate ip on serviceTypeLB Resource
@@ -817,6 +819,35 @@ func (ctlr *Controller) processResources() bool {
 		ctlr.resources.updateCaches()
 	}
 	return true
+}
+
+// Delete the virtual-server rsname from the associated service
+func (ctlr *Controller) deleteStaleVirtualserverForService(svcKey MultiClusterServiceKey, curPorts []v1.ServicePort) string {
+	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
+		curPortsMap := make(map[int32]struct{}, len(curPorts))
+		for _, port := range curPorts {
+			curPortsMap[port.Port] = struct{}{}
+		}
+		if svcPorts, ok2 := serviceKey[svcKey]; ok2 {
+			for s, poolIds := range svcPorts {
+				if _, found := curPortsMap[int32(s.svcPort.IntValue())]; !found {
+					for poolId := range poolIds {
+						rsMap := ctlr.resources.getPartitionResourceMap(poolId.partition)
+						var hostnames []string
+						if _, ok := rsMap[poolId.rsName]; ok {
+							hostnames = rsMap[poolId.rsName].MetaData.hosts
+						}
+
+						ctlr.deleteVirtualServer(poolId.partition, poolId.rsName)
+						if len(hostnames) > 0 {
+							ctlr.ProcessAssociatedExternalDNS(hostnames)
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // getServiceForEndpoints returns the service associated with endpoints.

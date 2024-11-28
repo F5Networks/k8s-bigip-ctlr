@@ -25,7 +25,6 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) error {
@@ -1566,152 +1565,11 @@ func frameRouteVSName(vServerName string,
 	return rsName
 }
 
-// update route admit status
-func (ctlr *Controller) updateRouteAdmitStatus(
-	rscKey string,
-	reason string,
-	message string,
-	status v1.ConditionStatus,
-) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("CIS recovered from the panic caused by route status update: %v\n")
-		}
-	}()
-	for retryCount := 0; retryCount < 3; retryCount++ {
-		route := ctlr.fetchRoute(rscKey)
-		if route == nil {
-			return
-		}
-		Admitted := false
-		now := metaV1.Now().Rfc3339Copy()
-		var routeStatusIngress []routeapi.RouteIngress
-		for _, routeIngress := range route.Status.Ingress {
-			if routeIngress.RouterName == F5RouterName {
-				for _, condition := range routeIngress.Conditions {
-					if condition.Status == status {
-						Admitted = true
-					}
-				}
-			} else {
-				routeStatusIngress = append(routeStatusIngress, routeIngress)
-			}
-		}
-		if Admitted {
-			return
-		}
-		routeStatusIngress = append(routeStatusIngress, routeapi.RouteIngress{
-			RouterName: F5RouterName,
-			Host:       route.Spec.Host,
-			Conditions: []routeapi.RouteIngressCondition{{
-				Type:               routeapi.RouteAdmitted,
-				Status:             status,
-				Reason:             reason,
-				Message:            message,
-				LastTransitionTime: &now,
-			}},
-		})
-		// updating to the new status
-		route.Status.Ingress = routeStatusIngress
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-		_, err := clusterConfig.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
-		if err == nil {
-			log.Infof("Admitted Route -  %v", route.ObjectMeta.Name)
-			return
-		}
-		log.Errorf("Error while Updating Route Admit Status: %v\n", err)
-	}
-	// remove the route admit status for routes which are not monitored by CIS anymore
-	ctlr.eraseAllRouteAdmitStatus()
-}
-
-// remove the route admit status for routes which are not monitored by CIS anymore
-func (ctlr *Controller) eraseAllRouteAdmitStatus() {
-	// Get the list of all unwatched Routes from all NS.
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	unmonitoredOptions := metaV1.ListOptions{
-		LabelSelector: strings.ReplaceAll(clusterConfig.routeLabel, " in ", " notin "),
-	}
-	unmonitoredRoutes, err := clusterConfig.routeClientV1.Routes("").List(context.TODO(), unmonitoredOptions)
-	if err != nil {
-		log.Errorf("[CORE] Error listing all Routes: %v", err)
-		return
-	}
-	ctlr.processedHostPath.Lock()
-	defer ctlr.processedHostPath.Unlock()
-	for _, route := range unmonitoredRoutes.Items {
-		ctlr.eraseRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name))
-		// This removes the deleted route's entry from host-path map
-		// update the processedHostPathMap if the route is deleted
-		var key string
-		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
-			key = route.Spec.Host
-		} else {
-			key = route.Spec.Host + route.Spec.Path
-		}
-		//ctlr.processedHostPath.Lock()
-		if timestamp, ok := ctlr.processedHostPath.processedHostPathMap[key]; ok && timestamp == route.ObjectMeta.CreationTimestamp {
-			delete(ctlr.processedHostPath.processedHostPathMap, key)
-		}
-		//ctlr.processedHostPath.Unlock()
-	}
-}
-
 func (ctlr *Controller) GetHostFromHostPath(hostPath string) string {
 	if strings.Contains(hostPath, "/") {
 		return strings.Split(hostPath, "/")[0]
 	}
 	return hostPath
-}
-
-func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
-	// Fetching the latest copy of route
-	route := ctlr.fetchRoute(rscKey)
-	if route == nil {
-		return
-	}
-	for i := 0; i < len(route.Status.Ingress); i++ {
-		if route.Status.Ingress[i].RouterName == F5RouterName {
-			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
-			erased := false
-			retryCount := 0
-			clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-			for !erased && retryCount < 3 {
-				_, err := clusterConfig.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
-				if err != nil {
-					log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
-					retryCount++
-					route = ctlr.fetchRoute(rscKey)
-					if route == nil {
-						return
-					}
-				} else {
-					erased = true
-					log.Debugf("[CORE] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
-				}
-			}
-			i-- // Since we just deleted a[i], we must redo that index
-		}
-	}
-}
-
-func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
-	ns := strings.Split(rscKey, "/")[0]
-	nrInf, ok := ctlr.getNamespacedNativeInformer(ns)
-	if !ok {
-		return nil
-	}
-	obj, exist, err := nrInf.routeInformer.GetIndexer().GetByKey(rscKey)
-	if err != nil {
-		log.Debugf("Error while fetching Route: %v: %v",
-			rscKey, err)
-		return nil
-	}
-	if !exist {
-		log.Debugf("Route Not Found: %v", rscKey)
-		return nil
-	}
-	return obj.(*routeapi.Route)
 }
 
 func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rgPlcSSLProfiles) bool {
@@ -1741,13 +1599,13 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 	case PolicySSLOption:
 		if len(plcSSLProfiles.serverSSLs) == 0 && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile in the policy %v/%v", plcSSLProfiles.plcNamespace, plcSSLProfiles.plcName)
-			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 	case AnnotationSSLOption:
 		if _, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile in the annotation")
-			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 	case RouteCertificateSSLOption:
@@ -1756,23 +1614,23 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if !ok {
 			//Invalid certificate and key
 			message := fmt.Sprintf("Invalid certificate or key for %v in route: %v", route.Spec.Host, route.ObjectMeta.Name)
-			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 	case DefaultSSLOption:
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
 			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
-			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
 			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
-			go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 	default:
 		message := fmt.Sprintf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
-		go ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
+		ctlr.updateRouteAdmitStatus(routeKey, "ExtendedValidationFailed", message, v1.ConditionFalse)
 		return false
 	}
 
@@ -1781,13 +1639,13 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if appRootPath == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsAppRootAnnotation)
 			log.Errorf(message)
-			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
 		if route.Spec.Path != "" && route.Spec.Path != "/" {
 			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", resource.F5VsAppRootAnnotation, appRootPath, route.Name)
 			log.Errorf(message)
-			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
 	}
@@ -1797,7 +1655,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 		if wafPolicy == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsWAFPolicy)
 			log.Errorf(message)
-			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
 	}
@@ -1817,7 +1675,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name,
 				resource.F5VsAllowSourceRangeAnnotation)
 			log.Errorf(message)
-			go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 			return false
 		}
 	}
@@ -1840,7 +1698,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			} else {
 				message := fmt.Sprintf("unable to parse annotation %v for route %v/%v", resource.MultiClusterServicesAnnotation, route.Name, route.Namespace)
 				log.Errorf(message)
-				go ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
+				ctlr.updateRouteAdmitStatus(routeKey, "InvalidAnnotation", message, v1.ConditionFalse)
 				return false
 			}
 		}
@@ -1851,8 +1709,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, plcSSLProfiles rg
 			message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
 				route.Name)
 			log.Errorf(message)
-			go ctlr.updateRouteAdmitStatus(routeKey,
-				"ServiceNotFound", message, v1.ConditionFalse)
+			ctlr.updateRouteAdmitStatus(routeKey, "ServiceNotFound", message, v1.ConditionFalse)
 			return false
 		}
 	}
@@ -2516,4 +2373,23 @@ func (ch *ClusterHandler) fetchClusterNames() []string {
 		clusterNames = append(clusterNames, clusterName)
 	}
 	return clusterNames
+}
+
+func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
+	ns := strings.Split(rscKey, "/")[0]
+	nrInf, ok := ctlr.getNamespacedNativeInformer(ns)
+	if !ok {
+		return nil
+	}
+	obj, exist, err := nrInf.routeInformer.GetIndexer().GetByKey(rscKey)
+	if err != nil {
+		log.Debugf("Error while fetching Route: %v: %v",
+			rscKey, err)
+		return nil
+	}
+	if !exist {
+		log.Debugf("Route Not Found: %v", rscKey)
+		return nil
+	}
+	return obj.(*routeapi.Route)
 }

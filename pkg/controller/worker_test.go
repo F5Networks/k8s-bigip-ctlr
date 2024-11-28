@@ -44,6 +44,9 @@ var _ = Describe("Worker Tests", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		svc1 = test.NewService(
 			"svc1",
 			"1",
@@ -925,7 +928,7 @@ var _ = Describe("Worker Tests", func() {
 
 			_ = mockCtlr.processLBServices(svc1, true, "")
 			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
-			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
+			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(0), "LB Service status should be cleaned")
 			lbClass := "f5-bigip-ctlr"
 			svc1.Spec.LoadBalancerClass = &lbClass
 			mockCtlr.loadBalancerClass = lbClass
@@ -3910,6 +3913,9 @@ extendedRouteSpec:
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.Partition = "test"
 			mockCtlr.Agent = &Agent{
 				respChan: make(chan resourceStatusMeta, 1),
@@ -4108,6 +4114,9 @@ extendedRouteSpec:
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		})
 		It("Verify isAddingPoolRestricted is correctly checking whether to add pool or not", func() {
 			// Don't skip pool addition in non-multiCluster mode

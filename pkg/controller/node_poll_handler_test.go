@@ -14,6 +14,9 @@ var _ = Describe("Node Poller Handler", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
 		writer := &test.MockWriter{
 			FailStyle: test.Success,

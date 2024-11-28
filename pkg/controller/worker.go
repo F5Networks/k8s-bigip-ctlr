@@ -1246,22 +1246,22 @@ func (ctlr *Controller) processVirtualServers(
 			case NotEnabled:
 				altErr = "[IPAM] IPAM Custom Resource Not Available"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			case InvalidInput:
 				altErr = fmt.Sprintf("IPAM Invalid IPAM Label: %v for Virtual Server: %s/%s", ipamLabel, virtual.Namespace, virtual.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			case NotRequested:
 				altErr = "unable to make IPAM Request, will be re-requested soon"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return fmt.Errorf("%s", altErr)
 			case Requested:
 				altErr = fmt.Sprintf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			}
 		}
@@ -1270,7 +1270,7 @@ func (ctlr *Controller) processVirtualServers(
 			if virtual.Spec.VirtualServerAddress == "" {
 				altErr = "no VirtualServer address or IPAM found"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return fmt.Errorf("%s", altErr)
 			}
 			ip = virtual.Spec.VirtualServerAddress
@@ -1280,7 +1280,7 @@ func (ctlr *Controller) processVirtualServers(
 			if err != nil {
 				altErr = fmt.Sprintf("Error in virtualserver address: %s", err.Error())
 				log.Errorf(altErr)
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return err
 			}
 			if ip == "" {
@@ -1288,7 +1288,7 @@ func (ctlr *Controller) processVirtualServers(
 				if ip == "" {
 					altErr = fmt.Sprintf("No VirtualServer address found for: %s", virtual.Name)
 					log.Errorf(altErr)
-					ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(altErr))
+					ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 					return fmt.Errorf(altErr)
 				}
 			}
@@ -1387,14 +1387,14 @@ func (ctlr *Controller) processVirtualServers(
 			err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
 				processingError = true
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, err)
+				ctlr.updateVSStatus(virtual, "", StatusError, err)
 				break
 			}
 		}
 		if err != nil {
 			processingError = true
 			log.Errorf("%v", err)
-			ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, err)
+			ctlr.updateVSStatus(virtual, "", StatusError, err)
 			break
 		}
 
@@ -1428,7 +1428,7 @@ func (ctlr *Controller) processVirtualServers(
 					// Processing failed
 					// Stop processing further virtuals
 					processingError = true
-					ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New("TLS profile not found for the Virtual Server"))
+					ctlr.updateVSStatus(virtual, "", StatusError, errors.New("TLS profile not found for the Virtual Server"))
 					break
 				} else {
 					tlsTermination = tlsProf.Spec.TLS.Termination
@@ -1449,7 +1449,7 @@ func (ctlr *Controller) processVirtualServers(
 			)
 			if err != nil {
 				processingError = true
-				ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, err)
+				ctlr.updateVSStatus(virtual, "", StatusError, err)
 				break
 			}
 			// handle pool settings from policy cr
@@ -1458,7 +1458,7 @@ func (ctlr *Controller) processVirtualServers(
 					err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
 					if err != nil {
 						processingError = true
-						ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, err)
+						ctlr.updateVSStatus(virtual, "", StatusError, err)
 						break
 					}
 				}
@@ -1480,7 +1480,7 @@ func (ctlr *Controller) processVirtualServers(
 					// Processing failed
 					// Stop processing further virtuals
 					processingError = true
-					ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New("error while handling TLS Virtual Server"))
+					ctlr.updateVSStatus(virtual, "", StatusError, errors.New("error while handling TLS Virtual Server"))
 					break
 				}
 
@@ -1600,7 +1600,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			currentVSPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
 			err = fmt.Sprintf("Multiple Virtual Servers %v,%v are configured with same VirtualServerAddress : %v with different partitions", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
 			log.Error(err)
-			ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+			ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 			return nil
 		}
 
@@ -1609,7 +1609,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress {
 				err = fmt.Sprintf("Multiple Virtual Servers %v, %v are configured with same VirtualServerAddress: %v", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
 				log.Error(err)
-				ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+				ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 				return nil
 			}
 			continue
@@ -1619,13 +1619,13 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			if currentVS.Spec.VirtualServerAddress != "" && vrt.Spec.VirtualServerAddress != "" && currentVS.Spec.VirtualServerAddress != vrt.Spec.VirtualServerAddress {
 				err = fmt.Sprintf("Multiple Virtual Servers %v, %v are configured with different VirtualServerAddress: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.VirtualServerAddress, vrt.Spec.VirtualServerAddress)
 				log.Error(err)
-				ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+				ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 				return nil
 			}
 			if currentVS.Spec.IPAMLabel != "" && vrt.Spec.IPAMLabel != "" && currentVS.Spec.IPAMLabel != vrt.Spec.IPAMLabel {
 				err = fmt.Sprintf("Multiple Virtual Servers %v, %v are configured with different IPAM Labels: %v %v", currentVS.Name, vrt.Name, currentVS.Spec.IPAMLabel, vrt.Spec.IPAMLabel)
 				log.Error(err)
-				ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+				ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 				return nil
 			}
 		}
@@ -1633,7 +1633,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		if currentVS.Spec.HostGroup != "" && vrt.Spec.HostGroup == currentVS.Spec.HostGroup && vrt.Spec.HostGroupVirtualServerName != currentVS.Spec.HostGroupVirtualServerName {
 			err = fmt.Sprintf("Same host %v is configured with different HostGroupVirtualServerNames : %v ", vrt.Spec.HostGroup, vrt.Spec.HostGroupVirtualServerName)
 			log.Error(err)
-			ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+			ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 			return nil
 		}
 
@@ -1659,7 +1659,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				if vrt.Spec.Host != "" && vrt.Spec.Host == currentVS.Spec.Host {
 					err = fmt.Sprintf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
 					log.Error(err)
-					ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+					ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 					return nil
 				}
 				// In case of empty host name or host names not matching, skip the virtual with other VirtualServerAddress
@@ -1670,7 +1670,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				if vrt.Spec.Host != "" {
 					err = fmt.Sprintf("Same host %v is configured with different AdditionalVirtualServerAddress : %v ", vrt.Spec.Host, vrt.ObjectMeta.Name)
 					log.Error(err)
-					ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+					ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 					return nil
 				}
 				// In case of empty host name, skip the virtual with other AdditionalVirtualServerAddress
@@ -1682,14 +1682,14 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			if currentVS.Spec.HostGroup == "" && vrt.Spec.IPAMLabel != currentVS.Spec.IPAMLabel {
 				err = fmt.Sprintf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
 				log.Error(err)
-				ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+				ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 				return nil
 			}
 			// Empty host and hostGroup with IPAM label is invalid for a Virtual Server
 			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" && vrt.Spec.HostGroup == "" {
 				err = fmt.Sprintf("Hostless VS %v is configured with IPAM label: %v and missing HostGroup", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
 				log.Error(err)
-				ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+				ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 				return nil
 			}
 
@@ -1698,7 +1698,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				if vrt.Spec.IPAMLabel == "" && vrt.Spec.HostGroup != "" {
 					err = fmt.Sprintf("Hostless VS %v is configured with missing IPAM label", vrt.ObjectMeta.Name)
 					log.Error(err)
-					ctlr.updateResourceStatus(VirtualServer, currentVS, "", StatusError, errors.New(err))
+					ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
 					return nil
 				}
 				if vrt.Spec.IPAMLabel == "" {
@@ -1765,7 +1765,7 @@ func (ctlr *Controller) validateTSWithSameVSAddress(
 			err := fmt.Errorf("Multiple Transport Servers %v,%v are configured with same VirtualServerAddress : %v "+
 				"with different partitions", currentTS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
 			log.Errorf("%s", err)
-			ctlr.updateResourceStatus(TransportServer, currentTS, "", StatusError, err)
+			ctlr.updateTSStatus(currentTS, "", StatusError, err)
 			return false
 		}
 	}
@@ -1789,7 +1789,7 @@ func (ctlr *Controller) validateILsWithSameVSAddress(
 			err := fmt.Errorf("Multiple Ingress Links %v,%v are configured with same VirtualServerAddress : %v "+
 				"with different partitions", currentIL.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
 			log.Errorf("%s", err)
-			ctlr.updateResourceStatus(IngressLink, currentIL, "", StatusError, err)
+			ctlr.updateILStatus(currentIL, "", StatusError, err)
 			return false
 		}
 	}
@@ -3012,23 +3012,23 @@ func (ctlr *Controller) processTransportServers(
 			case NotEnabled:
 				altErr = "[IPAM] IPAM Custom Resource Not Available"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateTSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			case InvalidInput:
 				altErr = fmt.Sprintf("[IPAM] IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
 					virtual.Spec.IPAMLabel, virtual.Namespace, virtual.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateTSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			case NotRequested:
 				altErr = "[IPAM] unable to make IPAM Request, will be re-requested soon"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateTSStatus(virtual, "", StatusError, errors.New(altErr))
 				return fmt.Errorf("%s", altErr)
 			case Requested:
 				altErr = fmt.Sprintf("[IPAM] IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(altErr))
+				ctlr.updateTSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			}
 		}
@@ -3036,7 +3036,7 @@ func (ctlr *Controller) processTransportServers(
 		if virtual.Spec.VirtualServerAddress == "" {
 			altErr = "no VirtualServer address in TS or IPAM found"
 			log.Error(altErr)
-			ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(altErr))
+			ctlr.updateTSStatus(virtual, "", StatusError, errors.New(altErr))
 			return fmt.Errorf("%s", altErr)
 		}
 		ip = virtual.Spec.VirtualServerAddress
@@ -3106,13 +3106,13 @@ func (ctlr *Controller) processTransportServers(
 		err := ctlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 		if err != nil {
 			log.Errorf("%v", err)
-			ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, err)
+			ctlr.updateTSStatus(virtual, "", StatusError, err)
 			return nil
 		}
 	}
 	if err != nil {
 		log.Errorf("%v", err)
-		ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, err)
+		ctlr.updateTSStatus(virtual, "", StatusError, err)
 		return nil
 	}
 
@@ -3136,7 +3136,7 @@ func (ctlr *Controller) processTransportServers(
 		})
 		if !processed {
 			// Processing failed
-			ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New("error while handling TLS Transport Server"))
+			ctlr.updateTSStatus(virtual, "", StatusError, errors.New("error while handling TLS Transport Server"))
 			return nil
 		}
 	}
@@ -3150,7 +3150,7 @@ func (ctlr *Controller) processTransportServers(
 	)
 	if err != nil {
 		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
-		ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, err)
+		ctlr.updateTSStatus(virtual, "", StatusError, err)
 		return nil
 	}
 	// handle pool settings from policy cr
@@ -3159,7 +3159,7 @@ func (ctlr *Controller) processTransportServers(
 			err := ctlr.handlePoolResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
 				log.Errorf("%v", err)
-				ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, err)
+				ctlr.updateTSStatus(virtual, "", StatusError, err)
 				return nil
 			}
 		}
@@ -3341,9 +3341,9 @@ func (ctlr *Controller) processLBServices(
 	}
 
 	if !isSVCDeleted {
-		ctlr.setLBServiceIngressStatus(svc, ip, clusterName)
+		ctlr.updateLBServiceStatus(svc, ip, clusterName, true)
 	} else {
-		ctlr.unSetLBServiceIngressStatus(svc, ip, clusterName)
+		ctlr.updateLBServiceStatus(svc, ip, clusterName, false)
 	}
 
 	var multiClusterServices []cisapiv1.MultiClusterServiceReference
@@ -4130,11 +4130,11 @@ func (ctlr *Controller) processIngressLink(
 	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
 	svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
 	if err != nil {
-		ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, err)
+		ctlr.updateILStatus(ingLink, "", StatusError, err)
 		return err
 	}
 	if svc == nil {
-		ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New("ingress service not found"))
+		ctlr.updateILStatus(ingLink, "", StatusError, errors.New("ingress service not found"))
 		return nil
 	}
 
@@ -4150,35 +4150,35 @@ func (ctlr *Controller) processIngressLink(
 			case NotEnabled:
 				altErr = "[IPAM] IPAM Custom Resource Not Available"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
+				ctlr.updateILStatus(ingLink, "", StatusError, errors.New(altErr))
 				return nil
 			case InvalidInput:
 				altErr = fmt.Sprintf("[IPAM] IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
 					ingLink.Spec.IPAMLabel, ingLink.Namespace, ingLink.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
+				ctlr.updateILStatus(ingLink, "", StatusError, errors.New(altErr))
 				return nil
 			case NotRequested:
 				altErr = "[IPAM] unable to make IPAM Request, will be re-requested soon"
 				log.Error(altErr)
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
+				ctlr.updateILStatus(ingLink, "", StatusError, errors.New(altErr))
 				return fmt.Errorf("%s", altErr)
 			case Requested:
 				altErr = fmt.Sprintf("[IPAM] IP address requested for ingressLink: %s/%s", ingLink.Namespace, ingLink.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
+				ctlr.updateILStatus(ingLink, "", StatusError, errors.New(altErr))
 				return nil
 			}
 			log.Debugf("[IPAM] requested IP for ingressLink %v is: %v", ingLink.ObjectMeta.Name, ip)
 			if ip == "" {
 				altErr = fmt.Sprintf("[IPAM] requested IP for ingressLink %v is empty.", ingLink.ObjectMeta.Name)
 				log.Error(altErr)
-				ctlr.updateResourceStatus(IngressLink, ingLink, "", StatusError, errors.New(altErr))
+				ctlr.updateILStatus(ingLink, "", StatusError, errors.New(altErr))
 				return nil
 			}
 			// ctlr.updateIngressLinkStatus(ingLink, ip)
-			if _, ok := ctlr.shouldProcessServiceTypeLB(svc, "", true); ok {
-				ctlr.setLBServiceIngressStatus(svc, ip, "")
+			if _, ok := ctlr.shouldProcessServiceTypeLB(svc, ctlr.multiClusterHandler.LocalClusterName, true); ok {
+				ctlr.updateLBServiceStatus(svc, ip, ctlr.multiClusterHandler.LocalClusterName, true)
 			}
 		}
 	} else {
@@ -4440,103 +4440,103 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	return serviceList[0], nil
 }
 
-func (ctlr *Controller) setLBServiceIngressStatus(
-	svc *v1.Service,
-	ip string,
-	clusterName string,
-) {
-	if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, true); !ok {
-		return
-	}
-	// Set the ingress status to include the virtual IP
-	lbIngress := v1.LoadBalancerIngress{IP: ip}
-	if len(svc.Status.LoadBalancer.Ingress) == 0 {
-		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress, lbIngress)
-	} else if svc.Status.LoadBalancer.Ingress[0].IP != ip {
-		svc.Status.LoadBalancer.Ingress[0] = lbIngress
-	}
-	var updateErr error
-	if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
-		_, updateErr = config.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
-	}
-
-	if nil != updateErr {
-		// Multi-service causes the controller to try to update the status multiple times
-		// at once. Ignore this error.
-		if strings.Contains(updateErr.Error(), "object has been modified") {
-			return
-		}
-		warning := fmt.Sprintf(
-			"Error when setting Service LB Ingress status IP: %v", updateErr)
-		log.Warning(warning)
-		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning, clusterName)
-	} else {
-		message := fmt.Sprintf("F5 CIS assigned LoadBalancer IP: %v", ip)
-		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message, clusterName)
-	}
-}
-
-func (ctlr *Controller) unSetLBServiceIngressStatus(
-	svc *v1.Service,
-	ip string,
-	clusterName string,
-) {
-	var service interface{}
-	var found bool
-	var err error
-	svcName := svc.Namespace + "/" + svc.Name
-	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
-		comInf, _ := ctlr.getNamespacedCommonInformer(clusterName, svc.Namespace)
-		service, found, err = comInf.svcInformer.GetIndexer().GetByKey(svcName)
-		if !found || err != nil {
-			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
-			return
-		}
-	} else {
-		poolInf, ok := ctlr.getNamespaceMultiClusterPoolInformer(svc.Namespace, clusterName)
-		if !ok {
-			log.Debugf("Unable to find informer for namespace %s in cluster %s", svc.Namespace, clusterName)
-			return
-		}
-		service, found, err = poolInf.svcInformer.GetIndexer().GetByKey(svcName)
-		if !found || err != nil {
-			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
-			return
-		}
-	}
-	svc = service.(*v1.Service)
-	index := -1
-	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
-		if lbIng.IP == ip {
-			index = i
-			break
-		}
-	}
-
-	if index != -1 {
-		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
-			svc.Status.LoadBalancer.Ingress[index+1:]...)
-		var updateErr error
-		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
-			_, updateErr = config.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
-		}
-		if nil != updateErr {
-			// Multi-service causes the controller to try to update the status multiple times
-			// at once. Ignore this error.
-			if strings.Contains(updateErr.Error(), "object has been modified") {
-				log.Debugf("Error while updating service: %v %v", svcName, updateErr.Error())
-				return
-			}
-			warning := fmt.Sprintf(
-				"Error when unsetting Service LB Ingress status IP: %v", updateErr)
-			log.Warning(warning)
-			ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning, clusterName)
-		} else {
-			message := fmt.Sprintf("F5 CIS unassigned LoadBalancer IP: %v", ip)
-			ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message, clusterName)
-		}
-	}
-}
+//func (ctlr *Controller) setLBServiceIngressStatus(
+//	svc *v1.Service,
+//	ip string,
+//	clusterName string,
+//) {
+//	if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, true); !ok {
+//		return
+//	}
+//	// Set the ingress status to include the virtual IP
+//	lbIngress := v1.LoadBalancerIngress{IP: ip}
+//	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+//		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress, lbIngress)
+//	} else if svc.Status.LoadBalancer.Ingress[0].IP != ip {
+//		svc.Status.LoadBalancer.Ingress[0] = lbIngress
+//	}
+//	var updateErr error
+//	if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
+//		_, updateErr = config.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+//	}
+//
+//	if nil != updateErr {
+//		// Multi-service causes the controller to try to update the status multiple times
+//		// at once. Ignore this error.
+//		if strings.Contains(updateErr.Error(), "object has been modified") {
+//			return
+//		}
+//		warning := fmt.Sprintf(
+//			"Error when setting Service LB Ingress status IP: %v", updateErr)
+//		log.Warning(warning)
+//		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning, clusterName)
+//	} else {
+//		message := fmt.Sprintf("F5 CIS assigned LoadBalancer IP: %v", ip)
+//		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message, clusterName)
+//	}
+//}
+//
+//func (ctlr *Controller) unSetLBServiceIngressStatus(
+//	svc *v1.Service,
+//	ip string,
+//	clusterName string,
+//) {
+//	var service interface{}
+//	var found bool
+//	var err error
+//	svcName := svc.Namespace + "/" + svc.Name
+//	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+//		comInf, _ := ctlr.getNamespacedCommonInformer(clusterName, svc.Namespace)
+//		service, found, err = comInf.svcInformer.GetIndexer().GetByKey(svcName)
+//		if !found || err != nil {
+//			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
+//			return
+//		}
+//	} else {
+//		poolInf, ok := ctlr.getNamespaceMultiClusterPoolInformer(svc.Namespace, clusterName)
+//		if !ok {
+//			log.Debugf("Unable to find informer for namespace %s in cluster %s", svc.Namespace, clusterName)
+//			return
+//		}
+//		service, found, err = poolInf.svcInformer.GetIndexer().GetByKey(svcName)
+//		if !found || err != nil {
+//			log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
+//			return
+//		}
+//	}
+//	svc = service.(*v1.Service)
+//	index := -1
+//	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
+//		if lbIng.IP == ip {
+//			index = i
+//			break
+//		}
+//	}
+//
+//	if index != -1 {
+//		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
+//			svc.Status.LoadBalancer.Ingress[index+1:]...)
+//		var updateErr error
+//		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
+//			_, updateErr = config.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+//		}
+//		if nil != updateErr {
+//			// Multi-service causes the controller to try to update the status multiple times
+//			// at once. Ignore this error.
+//			if strings.Contains(updateErr.Error(), "object has been modified") {
+//				log.Debugf("Error while updating service: %v %v", svcName, updateErr.Error())
+//				return
+//			}
+//			warning := fmt.Sprintf(
+//				"Error when unsetting Service LB Ingress status IP: %v", updateErr)
+//			log.Warning(warning)
+//			ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning, clusterName)
+//		} else {
+//			message := fmt.Sprintf("F5 CIS unassigned LoadBalancer IP: %v", ip)
+//			ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message, clusterName)
+//		}
+//	}
+//}
 
 //func (ctlr *Controller) eraseLBServiceIngressStatus(
 //	svc *v1.Service,
@@ -4561,22 +4561,6 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 //		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
 //	}
 //}
-
-func (ctlr *Controller) recordLBServiceIngressEvent(
-	svc *v1.Service,
-	eventType string,
-	reason string,
-	message string,
-	clusterName string,
-) {
-	namespace := svc.ObjectMeta.Namespace
-	// Create the event
-	if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
-		evNotifier := config.eventNotifier.CreateNotifierForNamespace(
-			namespace, config.kubeClient.CoreV1())
-		evNotifier.RecordEvent(svc, eventType, reason, message)
-	}
-}
 
 // sort services by timestamp
 func (svcs Services) Len() int {
@@ -5304,123 +5288,4 @@ func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
 		return true
 	}
 	return false
-}
-
-func (ctlr *Controller) updateResourceStatus(rscType string, obj interface{}, ip string, status string, err error) {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	unmonitoredOptions := metav1.ListOptions{
-		LabelSelector: strings.ReplaceAll(clusterConfig.customResourceSelector.String(), " in ", " notin "),
-	}
-	switch rscType {
-	case VirtualServer:
-		vs := obj.(*cisapiv1.VirtualServer)
-		vsStatus := cisapiv1.VirtualServerStatus{
-			Status:      status,
-			LastUpdated: metav1.Now(),
-		}
-		if err != nil {
-			vsStatus.Error = err.Error()
-		} else if ip != "" {
-			vsStatus.VSAddress = ip
-		} else {
-			vsStatus.Error = fmt.Sprintf("Missing label f5cr on VS %v/%v", vs.Namespace, vs.Name)
-		}
-		vs.Status = vsStatus
-		_, updateErr := clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
-		if nil != updateErr {
-			log.Errorf("Error while updating VS status:%v", updateErr)
-		}
-		unmonitoredVS, err := clusterConfig.kubeCRClient.CisV1().VirtualServers("").List(context.TODO(), unmonitoredOptions)
-		if err != nil {
-			log.Errorf("Error while fetching unmonitored virtual servers: %v %v", err, unmonitoredVS)
-		}
-
-		for _, virtualServer := range unmonitoredVS.Items {
-			erased := false
-			for retryCount := 0; !erased && retryCount < 3; retryCount++ {
-				virtual, getErr := clusterConfig.kubeCRClient.CisV1().VirtualServers(virtualServer.ObjectMeta.Namespace).Get(context.TODO(), virtualServer.ObjectMeta.Name, metav1.GetOptions{})
-				if getErr != nil {
-					log.Errorf("Error while fetching virtual server %v/%v: %v", virtualServer.ObjectMeta.Namespace, virtualServer.ObjectMeta.Name, getErr)
-				}
-				if virtual == nil {
-					break
-				}
-				virtual.Status = cisapiv1.VirtualServerStatus{
-					Error: fmt.Sprintf("Missing label f5cr on VS %v/%v", virtual.Namespace, virtual.Name),
-				}
-				_, err := clusterConfig.kubeCRClient.CisV1().VirtualServers(virtualServer.ObjectMeta.Namespace).UpdateStatus(context.TODO(), virtual, metav1.UpdateOptions{})
-				if err != nil {
-					log.Errorf("Error while Erasing Virtual Server Status: %v\n", err)
-				} else {
-					erased = true
-					log.Debugf("Status Erased for Virtual Server - %v\n", virtual.ObjectMeta.Name)
-				}
-			}
-		}
-
-	case TransportServer:
-		ts := obj.(*cisapiv1.TransportServer)
-		tsStatus := cisapiv1.TransportServerStatus{
-			Status:      status,
-			LastUpdated: metav1.Now(),
-		}
-		if err != nil {
-			tsStatus.Error = err.Error()
-		} else if ip != "" {
-			tsStatus.VSAddress = ip
-		} else {
-			tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
-		}
-		ts.Status = tsStatus
-		_, updateErr := clusterConfig.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
-		if nil != updateErr {
-			log.Errorf("Error while updating TS status:%v", updateErr)
-		}
-
-		unmonitoredTS, err := clusterConfig.kubeCRClient.CisV1().TransportServers("").List(context.TODO(), unmonitoredOptions)
-		if err != nil {
-			log.Errorf("Error while fetching unmonitored transport servers: %v %v", err, unmonitoredTS)
-		}
-
-		for _, transportServer := range unmonitoredTS.Items {
-			erased := false
-			for retryCount := 0; !erased && retryCount < 3; retryCount++ {
-				virtual, getErr := clusterConfig.kubeCRClient.CisV1().TransportServers(transportServer.ObjectMeta.Namespace).Get(context.TODO(), transportServer.ObjectMeta.Name, metav1.GetOptions{})
-				if getErr != nil {
-					log.Errorf("Error while fetching transport server %v/%v: %v", transportServer.ObjectMeta.Namespace, transportServer.ObjectMeta.Name, getErr)
-				}
-				if virtual == nil {
-					break
-				}
-				virtual.Status = cisapiv1.TransportServerStatus{
-					Error: fmt.Sprintf("Missing label f5cr on TS %v/%v", virtual.Namespace, virtual.Name),
-				}
-				_, err := clusterConfig.kubeCRClient.CisV1().TransportServers(transportServer.ObjectMeta.Namespace).UpdateStatus(context.TODO(), virtual, metav1.UpdateOptions{})
-				if err != nil {
-					log.Errorf("Error while Erasing Transport Server Status: %v\n", err)
-				} else {
-					erased = true
-					log.Debugf("Status Erased for Transport Server - %v\n", virtual.ObjectMeta.Name)
-				}
-			}
-		}
-	case IngressLink:
-		il := obj.(*cisapiv1.IngressLink)
-		ilStatus := cisapiv1.IngressLinkStatus{
-			Status:      status,
-			LastUpdated: metav1.Now(),
-		}
-		if err != nil {
-			ilStatus.Error = err.Error()
-		} else if ip != "" {
-			ilStatus.VSAddress = ip
-		} else {
-			ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
-		}
-		il.Status = ilStatus
-		_, updateErr := clusterConfig.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
-		if nil != updateErr {
-			log.Errorf("Error while updating il status:%v", updateErr)
-		}
-	}
 }

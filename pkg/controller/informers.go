@@ -875,6 +875,10 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
 	log.Debugf("Enqueueing VirtualServer: %v", vs)
+	// Delete event comes if the resource is actually deleted or label has been unset/removed
+	// If label has been unset/removed then CIS needs to update the VS status properly as it's no more managed by CIS
+	ctlr.clearVirtualServerStatus(vs)
+
 	key := &rqKey{
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      VirtualServer,
@@ -966,6 +970,10 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 	vs := obj.(*cisapiv1.TransportServer)
 	log.Debugf("Enqueueing TransportServer: %v", vs)
+	// Delete event comes if the resource is actually deleted or label has been unset/removed
+	// If label has been unset/removed then CIS needs to update the TS status properly as it's no more managed by CIS
+	ctlr.clearTransportServerStatus(vs)
+
 	key := &rqKey{
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      TransportServer,
@@ -1024,6 +1032,10 @@ func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
 	log.Debugf("Enqueueing IngressLink: %v on Delete", ingLink)
+	// Delete event comes if the resource is actually deleted or label has been unset/removed
+	// If label has been unset/removed then CIS needs to update the IL status properly as it's no more managed by CIS
+	ctlr.clearIngressLinkStatus(ingLink)
+
 	key := &rqKey{
 		namespace: ingLink.ObjectMeta.Namespace,
 		kind:      IngressLink,
@@ -1284,6 +1296,11 @@ func (ctlr *Controller) enqueueSecret(obj interface{}, event, clusterName string
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 	rt := obj.(*routeapi.Route)
 	log.Debugf("Enqueueing Route: %v/%v", rt.ObjectMeta.Namespace, rt.ObjectMeta.Name)
+	// Delete event comes if the resource is actually deleted or label has been unset/removed
+	// If label has been unset/removed then CIS needs to update the Route status properly as it's no more managed by CIS
+	if event == Delete {
+		ctlr.eraseRouteAdmitStatus(rt)
+	}
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,
 		kind:      Route,
@@ -1351,7 +1368,6 @@ func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}, clusterName str
 
 func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 	rt := obj.(*routeapi.Route)
-
 	log.Debugf("Enqueueing Deleted Route: %v/%v", rt.ObjectMeta.Namespace, rt.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,

@@ -17,6 +17,9 @@ var _ = Describe("OtherSDNType", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 		mockCtlr.TeemData = &teem.TeemsData{SDNType: "other"}
 		selectors = make(map[string]string)

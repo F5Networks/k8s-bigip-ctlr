@@ -542,7 +542,9 @@ func (ctlr *Controller) processResources() bool {
 					clusterName: rKey.clusterName,
 				}
 				// clean the CIS cache
-				ctlr.deleteStaleVirtualserverForService(svcKey, svc.Spec.Ports)
+				if rKey.svcPortUpdated != false {
+					ctlr.deleteStaleVirtualserverForService(svcKey, svc.Spec.Ports)
+				}
 				ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
 			} else {
 				//For creation of service check for duplicate ip on serviceTypeLB Resource

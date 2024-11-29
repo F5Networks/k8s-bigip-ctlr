@@ -2380,6 +2380,12 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		if SvcBackend.Name == "" {
 			continue
 		}
+		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, pl.ServicePort, "")
+		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
+		if (intstr.IntOrString{}) == SvcBackend.SvcPort {
+			SvcBackend.SvcPort = pl.ServicePort
+			svcPortUsed = true
+		}
 		poolName := ctlr.framePoolNameForTS(vs.Namespace, pl, SvcBackend)
 		if _, ok := framedPools[poolName]; ok {
 			// Pool with same name framed earlier, so skipping this pool
@@ -2391,18 +2397,12 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		if SvcBackend.SvcNamespace != "" {
 			svcNamespace = SvcBackend.SvcNamespace
 		}
-		targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, "")
-		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = pl.ServicePort
-			svcPortUsed = true
-		}
 		pool := Pool{
 			Name:              poolName,
 			Partition:         rsCfg.Virtual.Partition,
 			ServiceName:       SvcBackend.Name,
 			ServiceNamespace:  svcNamespace,
-			ServicePort:       targetPort,
+			ServicePort:       SvcBackend.SvcPort,
 			ServicePortUsed:   svcPortUsed,
 			NodeMemberLabel:   pl.NodeMemberLabel,
 			Balance:           pl.Balance,

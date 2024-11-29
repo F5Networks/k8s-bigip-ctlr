@@ -972,12 +972,12 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 
 	httpRequest := "\n" + fmt.Sprintf(`
 		when HTTP_REQUEST {
-			if { [info exists ::http_status_503] && $::http_status_503 == 1 } {
+			if { [info exists static::http_status_503] && $static::http_status_503 == 1 } {
         		# Respond with 503
        			HTTP::respond 503
 
         		# Unset the variable
-        		unset ::http_status_503
+        		unset static::http_status_503
     		}
 		}
 	`)
@@ -1258,7 +1258,7 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string, mult
 				}
 				# If we had a match, but all weights were 0 then
 				# retrun a 503 (Service Unavailable)
-				set ::http_status_503 1
+				set static::http_status_503 1
 			}
 			return $default_pool
 		}`)
@@ -1306,7 +1306,7 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string, mult
 				}
 				# If we had a match, but all weights were 0 then
 				# retrun a 503 (Service Unavailable)
-				set ::http_status_503 1
+				set static::http_status_503 1
 			}
 			return $default_pool
 		}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut, persistenceType, multiPoolPersistence.TimeOut)

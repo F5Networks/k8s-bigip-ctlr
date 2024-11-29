@@ -3648,7 +3648,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 	// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
 	// with the VS running in that cluster
 	clusterSvcMap := make(map[string]struct{})
-	clusterSvcMap[""] = struct{}{} // "" is used as key for the local cluster where this CIS is running
+	clusterSvcMap[ctlr.multiClusterHandler.LocalClusterName] = struct{}{} // "" is used as key for the local cluster where this CIS is running
 	// totalClusterRatio stores the sum total of all the ratio of clusters contributing services to this VS
 	totalClusterRatio := 0.0
 	// totalSvcWeights stores the sum total of all the weights of services associated with this VS
@@ -3740,6 +3740,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool) []SvcBackendCxt {
 			sbcs[beIdx].Weight = (float64(defaultWeight) / totalSvcWeights) *
 				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		}
+		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 	}
 	// VS backend service in HA partner cluster
 	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {

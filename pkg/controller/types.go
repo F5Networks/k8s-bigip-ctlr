@@ -112,6 +112,7 @@ type (
 		nodeLabelSelector   string
 		routeLabel          string
 		eventQueue          workqueue.RateLimitingInterface
+		statusUpdate        *StatusUpdate
 		sync.RWMutex
 	}
 
@@ -131,6 +132,29 @@ type (
 		oldNodes               []Node
 		eventNotifier          *EventNotifier
 		*InformerStore
+	}
+
+	StatusUpdate struct {
+		ResourceStatusUpdateTracker sync.Map            // Tracks the last time a resource was updated, helps to ensure latest status update
+		ResourceStatusUpdateChan    chan ResourceStatus // Channel holds the resource status
+		eventNotifierChan           chan ResourceEvent  // Channel holds the resource events
+	}
+
+	ResourceStatus struct {
+		ResourceObj       interface{}
+		ClusterName       string
+		Timestamp         metav1.Time
+		UpdateAttempts    int
+		IPSet             bool // helps in event creation of LB service as it helps to know if the status update is for IP setting or unsetting
+		ClearKeyFromCache bool // helps clear the cache in case of delete events
+	}
+
+	ResourceEvent struct {
+		resourceObj interface{}
+		eventType   string
+		reason      string
+		message     string
+		clusterName string
 	}
 
 	// Params defines parameters

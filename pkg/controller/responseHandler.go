@@ -78,10 +78,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
-							ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateResourceStatus(VirtualServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateVSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							for _, pool := range virtual.Spec.Pools {
 								var svcNamespace string
@@ -93,7 +93,8 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
 									svc := ctlr.GetService(svcNamespace, pool.Service)
 									if svc != nil {
-										ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress, "")
+										ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress,
+											ctlr.multiClusterHandler.LocalClusterName, true)
 									}
 								}
 							}
@@ -120,10 +121,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
-							ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateTSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							var svcNamespace string
 							if virtual.Spec.Pool.ServiceNamespace != "" {
@@ -139,7 +140,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								}
 								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
 								if svc != nil {
-									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress, "")
+									ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress, ctlr.multiClusterHandler.LocalClusterName, true)
 								}
 							}
 						}
@@ -165,10 +166,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if il.Namespace+"/"+il.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
-							ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, StatusOk, nil)
+							ctlr.updateILStatus(il, il.Status.VSAddress, StatusOk, nil)
 						}
 					}
 

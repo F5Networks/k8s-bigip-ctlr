@@ -15,6 +15,9 @@ var _ = Describe("Validation Tests", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 	})
 
 	Describe("Validating ExtendedServiceReference", func() {

@@ -25,6 +25,9 @@ var _ = Describe("Routes", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
@@ -1259,7 +1262,7 @@ extendedRouteSpec:
 			mockCtlr.getServicePort(&secureRoute)
 
 			// Invalid Route Key
-			mockCtlr.eraseRouteAdmitStatus("test")
+			mockCtlr.eraseRouteAdmitStatus(nil)
 			// Invalid Route Key
 			mockCtlr.updateRouteAdmitStatus("test", "", "", v1.ConditionTrue)
 			Expect(getVirtualPortsForRoutes([]*routeapi.Route{rt})).To(Equal(ports))
@@ -1926,6 +1929,9 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1()}
@@ -2012,6 +2018,9 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
@@ -2059,6 +2068,9 @@ var _ = Describe("Multi Cluster with Routes", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
@@ -2359,6 +2371,9 @@ var _ = Describe("Multi Cluster with CRD", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"

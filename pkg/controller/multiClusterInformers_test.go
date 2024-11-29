@@ -11,6 +11,9 @@ var _ = Describe("MultiClusterInformers", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		clusterName := "cluster-1"
 		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
 		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()

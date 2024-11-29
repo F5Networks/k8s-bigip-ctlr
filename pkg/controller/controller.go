@@ -45,7 +45,8 @@ import (
 
 const (
 	// DefaultCustomResourceLabel is a label used for F5 Custom Resources.
-	DefaultCustomResourceLabel = "f5cr in (true)"
+	DefaultCustomResourceLabelKey = "f5cr"
+	DefaultCustomResourceLabel    = DefaultCustomResourceLabelKey + " in (true)"
 	// VirtualServer is a F5 Custom Resource Kind.
 	VirtualServer = "VirtualServer"
 	// TLSProfile is a F5 Custom Resource Kind
@@ -248,6 +249,7 @@ func NewController(params Params, startController bool) *Controller {
 		}
 		ctlr.vxlanMgr = vxlanMgr
 	}
+
 	if startController {
 		go ctlr.responseHandler(ctlr.Agent.respChan)
 
@@ -256,6 +258,13 @@ func NewController(params Params, startController bool) *Controller {
 		go ctlr.setOtherSDNType()
 		// Start the CIS health check
 		go ctlr.CISHealthCheck()
+		// Start the Resource Event Watcher
+		go ctlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go ctlr.multiClusterHandler.ResourceStatusUpdater()
+		// Initially cleanup all the unmonitored resource status, this will handle the edge cases when the resource label
+		//is changed during CIS restart
+		go ctlr.cleanupUnmonitoredResourceStatus()
 	}
 
 	return ctlr

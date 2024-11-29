@@ -26,6 +26,9 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.mode = CustomResourceMode
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
@@ -104,6 +107,9 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.mode = CustomResourceMode
 		})
 		It("Replace Unwanted Characters", func() {
@@ -165,6 +171,9 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterMode = StandAloneCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			monitorName := "pytest_svc_1_default_foo_example_com_foo_http_80"
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Standalone, no ratio and monitor for external cluster pool
@@ -288,6 +297,9 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), kubeCRClient: crdfake.NewSimpleClientset()}
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
@@ -1067,6 +1079,9 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
@@ -1226,6 +1241,9 @@ var _ = Describe("Resource Config Tests", func() {
 			ip = "10.8.0.22"
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		})
@@ -1356,6 +1374,9 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
@@ -1800,6 +1821,9 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
@@ -1936,6 +1960,9 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
@@ -2163,6 +2190,9 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			rsCfg = &ResourceConfig{}
 			rsCfg.Pools = Pools{
 				{

@@ -3742,6 +3742,9 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 func (ctlr *Controller) processExternalDNSFromCluster(clusterName string, hostnames []string, clusterConfig *ClusterConfig) {
 	var orderedEDNSs []interface{}
+	if clusterConfig.InformerStore == nil {
+		return
+	}
 	for namespace, comInf := range clusterConfig.InformerStore.comInformers {
 		if comInf.ednsInformer == nil {
 			continue
@@ -3786,7 +3789,9 @@ func (ctlr *Controller) ProcessRouteEDNS(hosts []string) {
 func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
 	ctlr.multiClusterHandler.RLock()
 	for clusterName, clusterConfig := range ctlr.multiClusterHandler.ClusterConfigs {
-		ctlr.processExternalDNSFromCluster(clusterName, hostnames, clusterConfig)
+		if clusterConfig != nil {
+			ctlr.processExternalDNSFromCluster(clusterName, hostnames, clusterConfig)
+		}
 	}
 	ctlr.multiClusterHandler.RUnlock()
 }
@@ -4883,10 +4888,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		// Update cluster ratio
 		if ctlr.discoveryMode == Ratio && ctlr.multiClusterMode == StandAloneCIS {
 			if es.LocalClusterRatio != nil {
-				ctlr.clusterRatio[""] = es.LocalClusterRatio
+				ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName] = es.LocalClusterRatio
 			} else {
 				one := 1
-				ctlr.clusterRatio[""] = &one
+				ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName] = &one
 			}
 		}
 		// Store old cluster ratio before processing multiClusterConfig
@@ -4904,15 +4909,15 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		// Update cluster admin state for local cluster in standalone mode
 		if ctlr.multiClusterMode == StandAloneCIS {
 			if es.LocalClusterAdminState == "" {
-				ctlr.clusterAdminState[""] = clustermanager.Enable
+				ctlr.clusterAdminState[ctlr.multiClusterHandler.LocalClusterName] = clustermanager.Enable
 			} else if es.LocalClusterAdminState == clustermanager.Enable ||
 				es.LocalClusterAdminState == clustermanager.Disable || es.LocalClusterAdminState == clustermanager.Offline ||
 				es.LocalClusterAdminState == clustermanager.NoPool {
-				ctlr.clusterAdminState[""] = es.LocalClusterAdminState
+				ctlr.clusterAdminState[ctlr.multiClusterHandler.LocalClusterName] = es.LocalClusterAdminState
 			} else {
 				log.Warningf("[MultiCluster] Invalid cluster adminState: %v specified for local cluster, supported "+
 					"values (enable, disable, offline, no-pool). Defaulting to enable", es.LocalClusterAdminState)
-				ctlr.clusterAdminState[""] = clustermanager.Enable
+				ctlr.clusterAdminState[ctlr.multiClusterHandler.LocalClusterName] = clustermanager.Enable
 			}
 		}
 
@@ -4974,7 +4979,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			var exists bool
 			var err error
 			var crInf *CRInformer
-			infStore := ctlr.multiClusterHandler.getInformerStore("")
+			infStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 			crInf, _ = infStore.crInformers[""]
 			switch resRef.kind {
 			case VirtualServer:

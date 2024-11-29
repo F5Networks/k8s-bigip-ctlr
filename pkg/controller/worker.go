@@ -824,7 +824,7 @@ func (ctlr *Controller) processResources() bool {
 }
 
 // Delete the virtual-server rsname from the associated service
-func (ctlr *Controller) deleteStaleVirtualserverForService(svcKey MultiClusterServiceKey, curPorts []v1.ServicePort) string {
+func (ctlr *Controller) deleteStaleVirtualserverForService(svcKey MultiClusterServiceKey, curPorts []v1.ServicePort) {
 	if serviceKey, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
 		curPortsMap := make(map[int32]struct{}, len(curPorts))
 		for _, port := range curPorts {
@@ -849,7 +849,6 @@ func (ctlr *Controller) deleteStaleVirtualserverForService(svcKey MultiClusterSe
 			}
 		}
 	}
-	return ""
 }
 
 // getServiceForEndpoints returns the service associated with endpoints.

@@ -28,13 +28,6 @@ import (
 func (ctlr *Controller) checkValidVirtualServer(
 	vsResource *cisapiv1.VirtualServer,
 ) bool {
-	// Validate VS for default mode
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		err := fmt.Sprintf("%v Default mode is currently not supported for VirtualServer CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
-		log.Errorf(err)
-		ctlr.updateVSStatus(vsResource, "", "", errors.New(err))
-		return false
-	}
 
 	vsNamespace := vsResource.ObjectMeta.Namespace
 	vsName := vsResource.ObjectMeta.Name
@@ -94,13 +87,39 @@ func (ctlr *Controller) checkValidVirtualServer(
 		}
 	}
 	for _, pool := range vsResource.Spec.Pools {
-		if pool.MultiClusterServices != nil {
-			err = fmt.Sprintf("%v MultiClusterServices is currently not supported for VS CR. Consider removing "+
-				"it from the virtual server %s", ctlr.getMultiClusterLog(), vsName)
-			log.Errorf(err)
-			ctlr.updateVSStatus(vsResource, "", "", errors.New(err))
-			return false
+		// Check if the required fields are set as per the recommendations
+		// Validation for multiCluster setup with default mode
+		if ctlr.discoveryMode == DefaultMode {
+			if pool.MultiClusterServices == nil {
+				err := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for VirtualServer %s/%s, pool %s but "+
+					"CIS is running with default mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
+				log.Errorf(err)
+				ctlr.updateVSStatus(vsResource, "", "", errors.New(err))
+				return false
+			}
+			if pool.Service != "" || pool.ServicePort != (intstr.IntOrString{}) ||
+				pool.Weight != nil || pool.AlternateBackends != nil {
+				log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+					"VirtualServer %s for pool %s as these are not supported in default mode", vsResource.ObjectMeta.Name, pool.Name)
+			}
+		} else {
+			// validation for non multiCluster case
+			if pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
+				err := fmt.Sprintf("MultiClusterServices is set for VirtualServer %s/%s for pool %s but CIS is not running in "+
+					"multiCluster mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
+				log.Errorf(err)
+				ctlr.updateVSStatus(vsResource, "", "", errors.New(err))
+				return false
+			}
+			if pool.Service == "" || pool.ServicePort == (intstr.IntOrString{}) {
+				err := fmt.Sprintf("Service/ServicePort is not provided in Pool %s for VirtualServer %s/%s",
+					pool.Name, vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name)
+				log.Errorf(err)
+				ctlr.updateVSStatus(vsResource, "", "", errors.New(err))
+				return false
+			}
 		}
+
 		for _, mcs := range pool.MultiClusterServices {
 			err := ctlr.checkValidMultiClusterService(mcs, true)
 			if err != nil {

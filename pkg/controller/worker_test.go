@@ -469,8 +469,9 @@ var _ = Describe("Worker Tests", func() {
 						VirtualServerAddress: "1.2.3.5",
 						Pools: []cisapiv1.VSPool{
 							cisapiv1.VSPool{
-								Path:    "/path",
-								Service: "svc",
+								Path:        "/path",
+								Service:     "svc",
+								ServicePort: intstr.IntOrString{IntVal: 80},
 							},
 						},
 					})
@@ -482,8 +483,9 @@ var _ = Describe("Worker Tests", func() {
 						VirtualServerAddress: "1.2.3.5",
 						Pools: []cisapiv1.VSPool{
 							cisapiv1.VSPool{
-								Path:    "/path3",
-								Service: "svc",
+								Path:        "/path3",
+								Service:     "svc",
+								ServicePort: intstr.IntOrString{IntVal: 80},
 							},
 						},
 					})
@@ -495,8 +497,9 @@ var _ = Describe("Worker Tests", func() {
 						VirtualServerAddress: "1.2.3.5",
 						Pools: []cisapiv1.VSPool{
 							cisapiv1.VSPool{
-								Path:    "/path4",
-								Service: "svc",
+								Path:        "/path4",
+								Service:     "svc",
+								ServicePort: intstr.IntOrString{IntVal: 80},
 							},
 						},
 					})
@@ -1221,15 +1224,15 @@ var _ = Describe("Worker Tests", func() {
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			svc := test.NewService("svc", "1", "default", "ClusterIP", fooPorts)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			svc.Annotations = map[string]string{"nodeportlocal.antrea.io/enabled": "enabled"}
-			mockCtlr.updateService(svc)
+			mockCtlr.updateService(svc, "")
 			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			labels := make(map[string]string)
 			labels["app"] = "UpdatePoolHealthMonitors"
 			svc.Spec.Selector = labels
-			mockCtlr.updateService(svc)
+			mockCtlr.updateService(svc, "")
 			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).To(BeNil())
 			pod1.Labels = labels
 			mockCtlr.addPod(pod1)
@@ -1790,7 +1793,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
@@ -1823,13 +1826,13 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				// Should process VS now
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not Processed")
-				mockCtlr.deleteService(svc)
+				mockCtlr.deleteService(svc, "")
 				mockCtlr.processResources()
 
 				// Update service
 				svc.Spec.Ports[0].NodePort = 30002
 				Expect(fetchPortString(intstr.IntOrString{StrVal: strconv.Itoa(int(vs.Spec.Pools[0].ServicePort.IntVal))})).To(BeEquivalentTo("80"))
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				tlsSecretProf.Spec.TLS.ClientSSLs = []string{"SampleSecret"}
@@ -2025,7 +2028,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addVirtualServer(vs)
@@ -2050,7 +2053,7 @@ var _ = Describe("Worker Tests", func() {
 				svc2 := svc.DeepCopy()
 				svc2.Name = "test1"
 				svc2.Spec.Type = v1.ServiceTypeLoadBalancer
-				mockCtlr.addService(svc2)
+				mockCtlr.addService(svc2, "")
 				mockCtlr.processResources()
 
 				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -2163,7 +2166,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addPolicy(policy)
@@ -2282,7 +2285,7 @@ var _ = Describe("Worker Tests", func() {
 					[]v1.ServicePort{svcPort},
 				)
 				svc.Spec.ClusterIP = "None"
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 				var fooEndpts *v1.Endpoints
 				fooPorts := []v1.ServicePort{{Port: 8080, NodePort: 30001, TargetPort: intstr.IntOrString{IntVal: 80}}}
@@ -2357,7 +2360,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				//check if virtual server exist
@@ -2422,7 +2425,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addTransportServer(ts)
@@ -2538,7 +2541,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				ts.Spec.Partition = "dev"
@@ -2706,7 +2709,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addEDNS(newEDNS)
@@ -2724,7 +2727,7 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addEDNS(newEDNS)
@@ -2790,7 +2793,7 @@ var _ = Describe("Worker Tests", func() {
 				)
 
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
-				mockCtlr.addService(foo)
+				mockCtlr.addService(foo, "")
 				mockCtlr.processResources()
 
 				var iRules []string
@@ -2894,7 +2897,7 @@ var _ = Describe("Worker Tests", func() {
 				)
 
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
-				mockCtlr.addService(foo)
+				mockCtlr.addService(foo, "")
 				mockCtlr.processResources()
 
 				var iRules []string
@@ -3398,7 +3401,7 @@ extendedRouteSpec:
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
@@ -3503,7 +3506,7 @@ extendedRouteSpec:
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
@@ -3654,7 +3657,7 @@ extendedRouteSpec:
 				}
 				pod.Spec.Containers = append(pod.Spec.Containers, cnt)
 
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addPod(pod)
@@ -3669,10 +3672,10 @@ extendedRouteSpec:
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				mockCtlr.deleteService(svc)
+				mockCtlr.deleteService(svc, "")
 				mockCtlr.processResources()
 
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
@@ -3797,7 +3800,7 @@ extendedRouteSpec:
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
 
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addEndpoints(fooEndpts)
@@ -3850,7 +3853,7 @@ extendedRouteSpec:
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
 
-				mockCtlr.addService(svc)
+				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
 				mockCtlr.addEndpoints(fooEndpts)
@@ -3992,7 +3995,7 @@ extendedRouteSpec:
 			svc := test.NewService(svc1, "1", namespace, "Cluster", fooPorts)
 			svc.Spec.Selector = labels
 			svc.Labels = labels
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			mockCtlr.processResources()
 
 			// Create pod
@@ -4079,7 +4082,7 @@ extendedRouteSpec:
 
 			// Create SvcLB
 			svc.Spec.Type = v1.ServiceTypeLoadBalancer
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			mockCtlr.processResources()
 
 			mockCtlr.updatePod(pod)
@@ -4089,7 +4092,7 @@ extendedRouteSpec:
 			// nlp annotations
 			svc.Annotations = make(map[string]string)
 			svc.Annotations[NPLSvcAnnotation] = "true"
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			mockCtlr.processResources()
 
 			// Update Endpoints
@@ -4099,7 +4102,7 @@ extendedRouteSpec:
 
 			// nodeport service
 			svc.Spec.Type = v1.ServiceTypeNodePort
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			mockCtlr.processResources()
 
 			// Update Endpoints

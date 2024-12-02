@@ -295,7 +295,7 @@ func (ctlr *Controller) getNamespaceMultiClusterPoolInformer(
 	namespace string, clusterName string,
 ) (*CommonInformer, bool) {
 	// CIS may be watching all namespaces in case of HA clusters
-	if clusterName == ctlr.multiClusterHandler.HAPairClusterName && ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) && ctlr.discoveryMode != DefaultMode {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) && ctlr.discoveryMode != DefaultMode {
 		namespace = ""
 	}
 	//check for default mode and serviceTypeLBEnabled will be watching all namespaces.

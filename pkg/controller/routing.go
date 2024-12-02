@@ -87,7 +87,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 				uri = host + vs.Spec.RewriteAppRoot
 				path = vs.Spec.RewriteAppRoot
 			}
-			poolBackends := ctlr.GetPoolBackends(&pl)
+			poolBackends := ctlr.GetPoolBackends(&pl, vs.ObjectMeta.Namespace)
 			skipPool := false
 			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.discoveryMode == Ratio {
 				skipPool = true
@@ -1779,7 +1779,7 @@ func (ctlr *Controller) updateDataGroupForABTransportServer(
 	}
 
 	weightTotal := 0.0
-	backends := ctlr.GetPoolBackendsForTS(&pool)
+	backends := ctlr.GetPoolBackendsForTS(&pool, namespace)
 	for _, svc := range backends {
 		weightTotal = weightTotal + svc.Weight
 	}
@@ -1838,7 +1838,7 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	}
 
 	weightTotal := 0.0
-	backends := ctlr.GetPoolBackends(pool)
+	backends := ctlr.GetPoolBackends(pool, namespace)
 	for _, svc := range backends {
 		weightTotal = weightTotal + svc.Weight
 	}

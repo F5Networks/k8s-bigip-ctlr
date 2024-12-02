@@ -181,6 +181,9 @@ func (ch *ClusterHandler) getAllNodesUsingInformers() []interface{} {
 	defer ch.RUnlock()
 	var nodes []interface{}
 	for _, infSet := range ch.ClusterConfigs {
+		if infSet.InformerStore == nil {
+			continue
+		}
 		nodes = append(nodes, infSet.nodeInformer.nodeInformer.GetIndexer().List()...)
 	}
 	return nodes

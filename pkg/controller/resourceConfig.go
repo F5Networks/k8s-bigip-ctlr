@@ -2380,6 +2380,12 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		if SvcBackend.Name == "" {
 			continue
 		}
+		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, pl.ServicePort, "")
+		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
+		if (intstr.IntOrString{}) == SvcBackend.SvcPort {
+			SvcBackend.SvcPort = pl.ServicePort
+			svcPortUsed = true
+		}
 		poolName := ctlr.framePoolNameForTS(vs.Namespace, pl, SvcBackend)
 		if _, ok := framedPools[poolName]; ok {
 			// Pool with same name framed earlier, so skipping this pool
@@ -2391,18 +2397,12 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		if SvcBackend.SvcNamespace != "" {
 			svcNamespace = SvcBackend.SvcNamespace
 		}
-		targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, "")
-		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = pl.ServicePort
-			svcPortUsed = true
-		}
 		pool := Pool{
 			Name:              poolName,
 			Partition:         rsCfg.Virtual.Partition,
 			ServiceName:       SvcBackend.Name,
 			ServiceNamespace:  svcNamespace,
-			ServicePort:       targetPort,
+			ServicePort:       SvcBackend.SvcPort,
 			ServicePortUsed:   svcPortUsed,
 			NodeMemberLabel:   pl.NodeMemberLabel,
 			Balance:           pl.Balance,
@@ -2614,6 +2614,12 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	backendSvcs = ctlr.GetPoolBackendsForSvcTypeLB(svc, svcPort, clusterName, multiClusterServices)
 
 	for _, SvcBackend := range backendSvcs {
+		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, intstr.IntOrString{IntVal: svcPort.Port}, "")
+		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
+		if (intstr.IntOrString{}) == SvcBackend.SvcPort {
+			SvcBackend.SvcPort = intstr.IntOrString{IntVal: svcPort.Port}
+			svcPortUsed = true
+		}
 		poolName := ctlr.formatPoolName(
 			SvcBackend.SvcNamespace,
 			SvcBackend.Name,
@@ -2635,6 +2641,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			ServiceName:      SvcBackend.Name,
 			ServiceNamespace: svcNamespace,
 			ServicePort:      SvcBackend.SvcPort,
+			ServicePortUsed:  svcPortUsed,
 			NodeMemberLabel:  "",
 			Cluster:          SvcBackend.Cluster,
 		}
@@ -3906,11 +3913,6 @@ func (ctlr *Controller) GetPoolBackendsForSvcTypeLB(svc *v1.Service, svcPort v1.
 		// use default weight
 		sbcs[beIdx].Weight = float64(defaultWeight)
 		sbcs[beIdx].SvcNamespace = svc.Namespace
-		targetPort := ctlr.fetchTargetPort(svc.Namespace, svc.Name, intstr.IntOrString{IntVal: svcPort.Port}, clusterName)
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = intstr.IntOrString{IntVal: svcPort.Port}
-		}
-		sbcs[beIdx].SvcPort = targetPort
 	}
 	return sbcs
 }

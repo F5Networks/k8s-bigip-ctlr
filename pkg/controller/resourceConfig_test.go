@@ -1107,7 +1107,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort, svcPort2},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"}, "")).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443}, "")).To(Equal(intstr.IntOrString{IntVal: 8443}), "Incorrect target port returned")
@@ -1133,7 +1133,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort, svcPort2},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"}, "")).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443}, "")).To(Equal(intstr.IntOrString{StrVal: "https-port"}), "Incorrect target port returned")
@@ -1152,7 +1152,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{}), "Incorrect target port returned")
 		})
 		It("int target port is returned without port name with int target port", func() {
@@ -1168,7 +1168,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
 		})
 	})

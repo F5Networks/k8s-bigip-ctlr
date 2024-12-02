@@ -148,22 +148,31 @@ func (m *mockController) updateRoute(route *routeapi.Route) {
 	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
 	appInf.routeInformer.GetStore().Update(route)
 }
-func (m *mockController) addService(svc *v1.Service) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, svc.ObjectMeta.Namespace)
+func (m *mockController) addService(svc *v1.Service, clusterName string) {
+	if clusterName == "" {
+		clusterName = m.multiClusterHandler.LocalClusterName
+	}
+	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Add(svc)
 
 	if m.resourceQueue != nil {
-		m.enqueueService(svc, "")
+		m.enqueueService(svc, clusterName)
 	}
 }
 
-func (m *mockController) updateService(svc *v1.Service) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, svc.ObjectMeta.Namespace)
+func (m *mockController) updateService(svc *v1.Service, clusterName string) {
+	if clusterName == "" {
+		clusterName = m.multiClusterHandler.LocalClusterName
+	}
+	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Update(svc)
 }
 
-func (m *mockController) deleteService(svc *v1.Service) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, svc.ObjectMeta.Namespace)
+func (m *mockController) deleteService(svc *v1.Service, clusterName string) {
+	if clusterName == "" {
+		clusterName = m.multiClusterHandler.LocalClusterName
+	}
+	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Delete(svc)
 	if m.resourceQueue != nil {
 		m.enqueueDeletedService(svc, "")

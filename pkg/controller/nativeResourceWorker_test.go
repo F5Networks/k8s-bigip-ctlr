@@ -127,7 +127,7 @@ var _ = Describe("Routes", func() {
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", ns, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", ns, fooIps, []string{},
@@ -447,7 +447,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", namespace1, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", namespace1, fooIps, []string{},
@@ -464,7 +464,7 @@ extendedRouteSpec:
 			err = mockCtlr.processRoutes(namespace1, false)
 
 			bar := test.NewService("bar", "1", namespace2, "NodePort", fooPorts)
-			mockCtlr.addService(bar)
+			mockCtlr.addService(bar, "")
 			barIPs := []string{"10.1.1.1"}
 			barEndpts := test.NewEndpoints(
 				"bar", "1", "node0", namespace2, barIPs, []string{},
@@ -816,7 +816,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
@@ -959,7 +959,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("bar", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
@@ -1320,7 +1320,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", ns, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", ns, fooIps, []string{},
@@ -1780,7 +1780,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
@@ -1867,7 +1867,7 @@ extendedRouteSpec:
 			}
 			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001}}
 			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
@@ -2509,7 +2509,7 @@ externalClustersConfig:
 						{
 							Path:             "/foo",
 							Service:          "svc1",
-							ServiceNamespace: "test",
+							ServiceNamespace: "default",
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -2537,32 +2537,48 @@ externalClustersConfig:
 				},
 			)
 			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
-			clusterName := "cluster3"
+			restClient2 := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].kubeClient.CoreV1().RESTClient()
 			// Setup informers with namespaces which are watched by CIS
 			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
-				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
-					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, "cluster2", restClient2)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace] = poolInfr
+				}
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers = make(map[string]*CommonInformer)
+				}
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, "cluster3", restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.discoveryMode = Ratio
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			svc_1 := test.NewService("svc1", "1", "default", "NodePort", fooPorts)
+			mockCtlr.addService(svc_1, "")
+			mockCtlr.addService(svc_1, "cluster3")
+			svc_1_b := test.NewService("svc1-b", "1", "default", "NodePort", fooPorts)
+			mockCtlr.addService(svc_1_b, "")
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
-			// Verify that distinct health monitors are created for all pools in ratio mode
+			//Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
 			expectedHealthMonitors = map[string]struct{}{
-				"svc1_test_test_com_foo_":            struct{}{},
-				"svc1_test_test_com_foo_cluster2":    struct{}{},
+				"svc1_default_test_com_foo_":         struct{}{},
+				"svc1_default_test_com_foo_cluster2": struct{}{},
 				"svc1_b_test2_test_com_foo_":         struct{}{},
 				"svc1_b_test2_test_com_foo_cluster2": struct{}{},
+				"svc1_default_test_com_foo_cluster3": struct{}{},
 				"test_default_test_com_foo_cluster3": struct{}{},
 			}
 			for _, hm := range rsCfg.Monitors {
@@ -2581,8 +2597,8 @@ externalClustersConfig:
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			// for local cluster service mapping must be present
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			vs.Spec.Pools[0].MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2596,7 +2612,7 @@ externalClustersConfig:
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 		})
 
 		It("Process TS with multi cluster config", func() {
@@ -2654,9 +2670,9 @@ externalClustersConfig:
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			resourceKey := resourceRef{
 				kind:      TransportServer,
@@ -2668,9 +2684,9 @@ externalClustersConfig:
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2682,9 +2698,9 @@ externalClustersConfig:
 			}
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 		})
 

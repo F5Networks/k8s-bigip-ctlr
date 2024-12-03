@@ -2602,6 +2602,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		namespace:   svc.Namespace,
 		kind:        Service,
 		clusterName: clusterName,
+		timestamp:   svc.CreationTimestamp,
 	}
 	framedPools := make(map[string]struct{})
 	backendSvcs = ctlr.GetPoolBackendsForSvcTypeLB(svc, svcPort, clusterName, multiClusterServices)
@@ -2640,11 +2641,6 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			ImplicitSvcSearchEnabled: true,
 		}
 
-		svcKey := MultiClusterServiceKey{
-			serviceName: SvcBackend.Name,
-			clusterName: SvcBackend.Cluster,
-			namespace:   SvcBackend.SvcNamespace,
-		}
 		if ctlr.multiClusterMode != "" {
 			// check for external service reference
 			if len(multiClusterServices) > 0 {
@@ -2678,21 +2674,17 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			pool.MultiClusterServices = multiClusterServices
 
 			if ctlr.discoveryMode != DefaultMode {
-				// update the pool identifier for service
-				ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
 				// update the multicluster resource serviceMap with local cluster services
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, intstr.IntOrString{IntVal: svcPort.Port}, "")
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, intstr.IntOrString{IntVal: svcPort.Port}, ctlr.multiClusterHandler.LocalClusterName)
 				// update the multicluster resource serviceMap with HA pair cluster services
 				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.Name, "", pool, intstr.IntOrString{IntVal: svcPort.Port},
 						ctlr.multiClusterHandler.HAPairClusterName)
 				}
 			}
-		} else {
-			// update the pool identifier for service
-			ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
-			ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pool.ServiceName, "", pool, pool.ServicePort, "")
 		}
+		// update the pool identifier for service
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pool.ServiceName, "", pool, pool.ServicePort, ctlr.multiClusterHandler.LocalClusterName)
 
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)

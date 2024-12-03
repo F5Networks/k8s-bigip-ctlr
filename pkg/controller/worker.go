@@ -554,6 +554,10 @@ func (ctlr *Controller) processResources() bool {
 						if val.timestamp.Before(&svc.CreationTimestamp) {
 							log.Warningf("l4 app already exists with given ip-address/ipam-label while processing service %s", appConfig, svcKey)
 							break
+						} else {
+							delete(ctlr.resources.processedL4Apps, appConfig)
+							ctlr.deleteVirtualsForResourceRef(val)
+							ctlr.deleteResourceExternalClusterSvcRouteReference(val)
 						}
 					}
 				}
@@ -669,13 +673,11 @@ func (ctlr *Controller) processResources() bool {
 		if rscDelete {
 			// Do the clean up for the serviceTypeLB resources
 			for _, svc := range ctlr.getAllLBServices(nsName, rKey.clusterName) {
-				if _, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
-					err := ctlr.processLBServices(svc, true, rKey.clusterName)
-					if err != nil {
-						// TODO
-						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-						isRetryableError = true
-					}
+				err := ctlr.processLBServices(svc, true, rKey.clusterName)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+					isRetryableError = true
 				}
 			}
 		}
@@ -4104,9 +4106,11 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			ctlr.TeemData.ResourceType.IPAMSvcLB[ns]++
 			ctlr.TeemData.Unlock()
 			svc := item.(*v1.Service)
-			err = ctlr.processLBServices(svc, false, "")
-			if err != nil {
-				log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
+			if _, ok := ctlr.shouldProcessServiceTypeLB(svc, ctlr.multiClusterHandler.LocalClusterName, false); ok {
+				err = ctlr.processLBServices(svc, false, ctlr.multiClusterHandler.LocalClusterName)
+				if err != nil {
+					log.Errorf("[IPAM] Unable to process IPAM entry: %v", pKey)
+				}
 			}
 		default:
 			log.Errorf("[IPAM] Found Invalid Key: %v while Processing IPAM", pKey)

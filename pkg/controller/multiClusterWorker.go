@@ -207,3 +207,21 @@ func (ctlr *Controller) startInfomersForClusterReferencedSvcs(clusterName string
 		}
 	}
 }
+
+func (ctlr *Controller) deleteVirtualsForResourceRef(rsKey resourceRef) {
+	ctlr.multiClusterResources.Lock()
+	defer ctlr.multiClusterResources.Unlock()
+	if mcsMap, ok := ctlr.multiClusterResources.rscSvcMap[rsKey]; ok {
+		for msvc, mcsConfig := range mcsMap {
+			if _, ok = ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName]; ok {
+				if _, ok = ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName][msvc]; ok {
+					if poolIds, ok := ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName][msvc][mcsConfig]; ok {
+						for poolId := range poolIds {
+							ctlr.deleteVirtualServer(poolId.partition, poolId.rsName)
+						}
+					}
+				}
+			}
+		}
+	}
+}

@@ -37,9 +37,6 @@ spec:
       interval: 20
       timeout: 10
       type: udp
-    service: pytest-svc-1
-    servicePort: 1344
-    weight: 20
   snat: auto
   type: udp
   virtualServerAddress: 10.8.0.72

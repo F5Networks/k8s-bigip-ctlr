@@ -3174,7 +3174,7 @@ func (ctlr *Controller) processTransportServers(
 		return nil
 	}
 
-	if !reflect.DeepEqual(virtual.Spec.TLS, cisapiv1.TLS{}) {
+	if !reflect.DeepEqual(virtual.Spec.TLS, cisapiv1.TLSTransportServer{}) {
 		bigIPSSLProfiles := BigIPSSLProfiles{}
 		if len(virtual.Spec.TLS.ClientSSLs) > 0 {
 			bigIPSSLProfiles.clientSSLs = virtual.Spec.TLS.ClientSSLs

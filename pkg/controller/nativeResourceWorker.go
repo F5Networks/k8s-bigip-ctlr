@@ -2078,17 +2078,29 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 		}
 		ctlr.readAndUpdateClusterAdminState(mcc, false)
-		//Setup and start pool informers for external cluster in case of default mode and serviceTypeLBDiscovery set to true
-		if ctlr.discoveryMode == DefaultMode && mcc.ServiceTypeLBDiscovery {
-			err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
-			if err != nil {
-				return err
+
+		switch ctlr.discoveryMode {
+		case DefaultMode:
+			//Setup and start pool informers for external cluster in case of default mode and serviceTypeLBDiscovery set to true
+			if mcc.ServiceTypeLBDiscovery {
+				err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+				if err != nil {
+					return err
+				}
+			}
+			// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
+			ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
+		default:
+			// Setup and start pool informers for external cluster in case of standalone and started in non-default mode.
+			// For all other modes except default mode implicit service discovery is required.
+			// So starting pool informers for external clusters on startup
+			if ctlr.multiClusterMode == StandAloneCIS {
+				err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+				if err != nil {
+					return err
+				}
 			}
 		}
-	}
-	if ctlr.discoveryMode == DefaultMode {
-		// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
-		ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
 	}
 	return nil
 }
@@ -2345,8 +2357,7 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 	}
 	if clusterData, ok := cluster.(ClusterDetails); ok {
 		// For HA cluster config
-		clusterNameKey := ""
-		// For local cluster use "" as the clusterNameKey
+		clusterNameKey := ctlr.multiClusterHandler.LocalClusterName
 		if !localCluster {
 			clusterNameKey = clusterData.ClusterName
 		}

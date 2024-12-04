@@ -1312,7 +1312,7 @@ func (ctlr *Controller) processVirtualServers(
 				return fmt.Errorf("%s", altErr)
 			case Requested:
 				altErr = fmt.Sprintf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
-				log.Error(altErr)
+				log.Debug(altErr)
 				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			}

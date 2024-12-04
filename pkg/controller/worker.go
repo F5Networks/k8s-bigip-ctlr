@@ -194,25 +194,29 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName 
 		err = fmt.Errorf("Skipping loadBalancer service '%v/%v' as CIS is configured to monitor the loadBalancerClass '%v' only", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
 		return err, false
 	}
-	// check if the service is a multiClusterSvcLB and the cluster is not the local cluster
-	if _, ok := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; ok && ctlr.multiClusterMode != "" &&
-		clusterName != ctlr.multiClusterHandler.LocalClusterName && !forPoolOrStatusUpdate {
-		err = fmt.Errorf("skipping loadBalancer service '%s/%s' of cluster '%s' as CIS loadBalancer service with multiCluster "+
-			"annotation is only processed if it exists in the local cluster where CIS is active. However it will be processed for Pool if any local "+
-			"MultiCluster Loadbalancer service references it in the  multiClusterServices annotation", svc.Namespace, svc.Name, clusterName)
-		return err, false
-	}
-	// The following check handles any misconfiguration with multiCluster SvcLB and non-multiCluster SvcLB
-	// If cluster1 and cluster2 have MultiClusterSvcLB and both have Discovery set to true. Now if MultiClusterSvcLB in cluster2 is converted to
-	// Non-multiCluster svcLB then the existing L4 app should not be deleted.
-	if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) && !forPoolOrStatusUpdate {
-		// same service can be updated but event is rejected if another service with the same key .
-		if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
-			if val.timestamp.Before(&svc.CreationTimestamp) {
-				err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label while processing service '%s/%s' of cluster %s. "+
-					"However it will be processed for Pool if any local MultiCluster Loadbalancer service references it in the multiClusterServices annotation.",
-					appConfig, svc.Namespace, svc.Name, clusterName)
-				return err, false
+	// Since serviceTypeLB in multiCluster environment is only supported in Default mode, the validations needs to be
+	// performed in case of default mode only
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		// check if the service is a multiClusterSvcLB and the cluster is not the local cluster
+		if _, ok := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; ok && ctlr.multiClusterMode != "" &&
+			clusterName != ctlr.multiClusterHandler.LocalClusterName && !forPoolOrStatusUpdate {
+			err = fmt.Errorf("skipping loadBalancer service '%s/%s' of cluster '%s' as CIS loadBalancer service with multiCluster "+
+				"annotation is only processed if it exists in the local cluster where CIS is active. However it will be processed for Pool if any local "+
+				"MultiCluster Loadbalancer service references it in the  multiClusterServices annotation", svc.Namespace, svc.Name, clusterName)
+			return err, false
+		}
+		// The following check handles any misconfiguration with multiCluster SvcLB and non-multiCluster SvcLB
+		// If cluster1 and cluster2 have MultiClusterSvcLB and both have Discovery set to true. Now if MultiClusterSvcLB in cluster2 is converted to
+		// Non-multiCluster svcLB then the existing L4 app should not be deleted.
+		if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) && !forPoolOrStatusUpdate {
+			// same service can be updated but event is rejected if another service with the same key .
+			if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+				if val.timestamp.Before(&svc.CreationTimestamp) {
+					err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label while processing service '%s/%s' of cluster %s. "+
+						"However it will be processed for Pool if any local MultiCluster Loadbalancer service references it in the multiClusterServices annotation.",
+						appConfig, svc.Namespace, svc.Name, clusterName)
+					return err, false
+				}
 			}
 		}
 	}
@@ -3400,36 +3404,11 @@ func (ctlr *Controller) processLBServices(
 		ctlr.updateLBServiceStatus(svc, ip, clusterName, false)
 	}
 
-	var multiClusterServices []cisapiv1.MultiClusterServiceReference
 	rsRef := resourceRef{
 		name:        svc.Name,
 		namespace:   svc.Namespace,
 		kind:        Service,
 		clusterName: clusterName,
-	}
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		// check for multiClusterServicesAnnotation annotation
-		if annotation := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; annotation != "" {
-			// unmarshal the multiClusterServices annotation
-			err := json.Unmarshal([]byte(annotation), &multiClusterServices)
-			if err != nil {
-				log.Warningf("[MultiCluster] unable to read multiClusterService annotation for resource %v, error: %v",
-					rsRef, err)
-			} else {
-				// TODO svcLB: Make sure case with different target port and service port is handled
-				// make all the service name, namespace and servicePort same as the parent service
-				for i, _ := range multiClusterServices {
-					multiClusterServices[i].SvcName = svc.Name
-					multiClusterServices[i].Namespace = svc.Namespace
-					multiClusterServices[i].ServicePort = intstr.IntOrString{IntVal: svc.Spec.Ports[0].Port} // Currently supporting only one port
-				}
-			}
-			//if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-			//	if err == nil {
-			//		ctlr.processResourceExternalClusterServices(rsRef, multiClusterServices)
-			//	}
-			//}
-		}
 	}
 
 	for _, portSpec := range svc.Spec.Ports {
@@ -3491,6 +3470,30 @@ func (ctlr *Controller) processLBServices(
 		if processingError {
 			log.Errorf("Cannot Publish LB Service %s in namespace %s belonging to cluster %s", svc.ObjectMeta.Name, svc.ObjectMeta.Namespace, clusterName)
 			break
+		}
+
+		// For default mode read the MultiClusterServiceReference annotations and populate the svcName, Namespace and
+		// ServicePort from the parent LB service
+		var multiClusterServices []cisapiv1.MultiClusterServiceReference
+		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+			// check for multiClusterServicesAnnotation annotation
+			if annotation := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; annotation != "" {
+				// unmarshal the multiClusterServices annotation
+				err := json.Unmarshal([]byte(annotation), &multiClusterServices)
+				if err != nil {
+					errLog := fmt.Errorf("[MultiCluster] unable to read multiClusterService annotation for resource %v, error: %v",
+						rsRef, err)
+					log.Errorf("%v", errLog)
+					return nil
+				} else {
+					// Populate the serviceName, Namespace from the parent service and use current port that is being processed here
+					for i, _ := range multiClusterServices {
+						multiClusterServices[i].SvcName = svc.Name
+						multiClusterServices[i].Namespace = svc.Namespace
+						multiClusterServices[i].ServicePort = intstr.IntOrString{IntVal: portSpec.Port}
+					}
+				}
+			}
 		}
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName, multiClusterServices)

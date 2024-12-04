@@ -110,13 +110,16 @@ func (ctlr *Controller) updateLBServiceStatus(svc *v1.Service, ip string, cluste
 		if index != -1 {
 			svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 				svc.Status.LoadBalancer.Ingress[index+1:]...)
-			//var updateErr error
+			// If status of LB needs to be cleaned then either the service LB's key fields have been updated for which
+			// CIS might have created delete and create events is  SvcLB resource for CIS, or it's been actually deleted
+			// In both the cases the case the status cache needs to be cleaned or else the stale entry will remain forever
 			if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 				ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-					ResourceObj: svc,
-					ClusterName: clusterName,
-					Timestamp:   metav1.Now(),
-					IPSet:       setStatus,
+					ResourceObj:       svc,
+					ClusterName:       clusterName,
+					Timestamp:         metav1.Now(),
+					IPSet:             setStatus,
+					ClearKeyFromCache: true,
 				}
 			}
 		}

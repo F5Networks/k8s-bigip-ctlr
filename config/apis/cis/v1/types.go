@@ -212,6 +212,12 @@ type TLSProfileCipher struct {
 	DisableTLSVersions []string `json:"disableTLSVersions"`
 }
 
+type TLSTransportServer struct {
+	ClientSSLs []string `json:"clientSSLs,omitempty"`
+	ServerSSLs []string `json:"serverSSLs,omitempty"`
+	Reference  string   `json:"reference,omitempty"`
+}
+
 // TLS contains required fields for TLS termination
 type TLS struct {
 	Termination     string          `json:"termination,omitempty"`
@@ -311,29 +317,29 @@ type TransportServerStatus struct {
 
 // TransportServerSpec is the spec of the VirtualServer resource.
 type TransportServerSpec struct {
-	VirtualServerAddress string           `json:"virtualServerAddress"`
-	VirtualServerPort    int32            `json:"virtualServerPort"`
-	VirtualServerName    string           `json:"virtualServerName"`
-	Host                 string           `json:"host,omitempty"`
-	HostGroup            string           `json:"hostGroup,omitempty"`
-	Mode                 string           `json:"mode"`
-	SNAT                 string           `json:"snat"`
-	ConnectionMirroring  string           `json:"connectionMirroring,omitempty"`
-	Pool                 TSPool           `json:"pool"`
-	AllowVLANs           []string         `json:"allowVlans,omitempty"`
-	Type                 string           `json:"type,omitempty"`
-	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
-	IPAMLabel            string           `json:"ipamLabel"`
-	BigIPRouteDomain     int32            `json:"bigipRouteDomain,omitempty"`
-	IRules               []string         `json:"iRules,omitempty"`
-	PolicyName           string           `json:"policyName,omitempty"`
-	PersistenceProfile   string           `json:"persistenceProfile,omitempty"`
-	ProfileL4            string           `json:"profileL4,omitempty"`
-	DOS                  string           `json:"dos,omitempty"`
-	BotDefense           string           `json:"botDefense,omitempty"`
-	Profiles             ProfileTSSpec    `json:"profiles,omitempty"`
-	Partition            string           `json:"partition,omitempty"`
-	TLS                  TLS              `json:"tls,omitempty"`
+	VirtualServerAddress string             `json:"virtualServerAddress"`
+	VirtualServerPort    int32              `json:"virtualServerPort"`
+	VirtualServerName    string             `json:"virtualServerName"`
+	Host                 string             `json:"host,omitempty"`
+	HostGroup            string             `json:"hostGroup,omitempty"`
+	Mode                 string             `json:"mode"`
+	SNAT                 string             `json:"snat"`
+	ConnectionMirroring  string             `json:"connectionMirroring,omitempty"`
+	Pool                 TSPool             `json:"pool"`
+	AllowVLANs           []string           `json:"allowVlans,omitempty"`
+	Type                 string             `json:"type,omitempty"`
+	ServiceIPAddress     []ServiceAddress   `json:"serviceAddress"`
+	IPAMLabel            string             `json:"ipamLabel"`
+	BigIPRouteDomain     int32              `json:"bigipRouteDomain,omitempty"`
+	IRules               []string           `json:"iRules,omitempty"`
+	PolicyName           string             `json:"policyName,omitempty"`
+	PersistenceProfile   string             `json:"persistenceProfile,omitempty"`
+	ProfileL4            string             `json:"profileL4,omitempty"`
+	DOS                  string             `json:"dos,omitempty"`
+	BotDefense           string             `json:"botDefense,omitempty"`
+	Profiles             ProfileTSSpec      `json:"profiles,omitempty"`
+	Partition            string             `json:"partition,omitempty"`
+	TLS                  TLSTransportServer `json:"tls,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

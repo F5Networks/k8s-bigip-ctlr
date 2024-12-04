@@ -2500,7 +2500,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			}
 		}
 		pools = append(pools, pool)
-		if !isTSABDeployment(&pl) {
+		if !isTSABDeployment(&pl) && ctlr.discoveryMode != Ratio {
 			rsCfg.Virtual.PoolName = pool.Name
 		} else if isTSABDeployment(&pl) || ctlr.discoveryMode == Ratio {
 			// Handle AB datagroup for insecure virtualserver
@@ -3446,7 +3446,6 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 			}
 		}
 	}
-
 	return sbcs
 }
 

@@ -506,31 +506,33 @@ func (ctlr *Controller) processResources() bool {
 
 	case CustomPolicy:
 		cp := rKey.rsc.(*cisapiv1.Policy)
-		switch ctlr.mode {
-		case OpenShiftMode:
-			routeGroups := ctlr.getRouteGroupForCustomPolicy(cp.Namespace + "/" + cp.Name)
-			for _, routeGroup := range routeGroups {
-				_ = ctlr.processRoutes(routeGroup, false)
-			}
-		default:
-			virtuals := ctlr.getVirtualsForCustomPolicy(cp)
-			//Sync Custompolicy for Virtual Servers
-			for _, virtual := range virtuals {
-				err := ctlr.processVirtualServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-					isRetryableError = true
+		if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
+			switch ctlr.mode {
+			case OpenShiftMode:
+				routeGroups := ctlr.getRouteGroupForCustomPolicy(cp.Namespace + "/" + cp.Name)
+				for _, routeGroup := range routeGroups {
+					_ = ctlr.processRoutes(routeGroup, false)
 				}
-			}
-			//Sync Custompolicy for Transport Servers
-			tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
-			for _, virtual := range tsVirtuals {
-				err := ctlr.processTransportServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-					isRetryableError = true
+			default:
+				virtuals := ctlr.getVirtualsForCustomPolicy(cp)
+				//Sync Custompolicy for Virtual Servers
+				for _, virtual := range virtuals {
+					err := ctlr.processVirtualServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+				//Sync Custompolicy for Transport Servers
+				tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
+				for _, virtual := range tsVirtuals {
+					err := ctlr.processTransportServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
 				}
 			}
 		}
@@ -737,7 +739,7 @@ func (ctlr *Controller) processResources() bool {
 
 		default:
 			if rscDelete {
-				if clusterConfig.InformerStore.crInformers != nil {
+				if clusterConfig.InformerStore.crInformers != nil && rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 					for _, vrt := range ctlr.getAllVirtualServers(nsName) {
 						// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
 						rscRefKey := resourceRef{

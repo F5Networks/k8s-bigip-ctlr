@@ -2044,15 +2044,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				//update serviceTypeLB discovery in externalConfig cache
 				clusterConfig.clusterDetails.ServiceTypeLBDiscovery = mcc.ServiceTypeLBDiscovery
 				if mcc.ServiceTypeLBDiscovery {
-					informerStore := ctlr.multiClusterHandler.getInformerStore(mcc.ClusterName)
-					//create pool and resource informers if not present
-					if informerStore == nil {
-						err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
-						if err != nil {
-							return err
-						}
-					} else if informerStore.comInformers == nil || len(informerStore.comInformers) == 0 {
-						err := ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+					if clusterConfig.InformerStore == nil || clusterConfig.InformerStore.comInformers == nil || len(clusterConfig.InformerStore.comInformers) == 0 {
+						err = ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
 						if err != nil {
 							return err
 						}

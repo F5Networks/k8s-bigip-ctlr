@@ -502,7 +502,7 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	if infStore == nil {
 		return targetPort
 	}
-	if cluster == "" {
+	if cluster == ctlr.multiClusterHandler.LocalClusterName {
 		if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 			svcIndexer = infStore.comInformers[""].svcInformer.GetIndexer()
 		} else {
@@ -629,7 +629,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			if SvcBackend.SvcNamespace != "" {
 				svcNamespace = SvcBackend.SvcNamespace
 			}
-			targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, pl.ServicePort, SvcBackend.Cluster)
+			targetPort := ctlr.fetchTargetPort(svcNamespace, SvcBackend.Name, SvcBackend.SvcPort, SvcBackend.Cluster)
 			svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
 			if (intstr.IntOrString{}) == targetPort {
 				targetPort = pl.ServicePort
@@ -2378,7 +2378,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	framedPools := make(map[string]struct{})
 	backendSvcs := ctlr.GetPoolBackendsForTS(&pl, vs.Namespace)
 	for _, SvcBackend := range backendSvcs {
-		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, pl.ServicePort, "")
+		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, SvcBackend.SvcPort, SvcBackend.Cluster)
 		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
 		if (intstr.IntOrString{}) == SvcBackend.SvcPort {
 			SvcBackend.SvcPort = pl.ServicePort
@@ -3217,6 +3217,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 
 		beIdx := 0
 		sbcs[beIdx].Name = pool.Service
+		sbcs[beIdx].SvcPort = pool.ServicePort
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = float64(*pool.Weight)
 		} else {
@@ -3237,6 +3238,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 				}
 				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
 				sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
+				sbcs[beIdx].SvcPort = pool.ServicePort
 			}
 		}
 		return sbcs
@@ -3380,6 +3382,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 			continue
 		}
 		svcBknd.Name = pool.Service
+		svcBknd.SvcPort = pool.ServicePort
 		svcBknd.SvcNamespace = pool.ServiceNamespace
 		localSvc = svcKey
 		localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
@@ -3417,6 +3420,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 				}
 				svcBknd.Name = svc.Service
 				svcBknd.SvcNamespace = svc.ServiceNamespace
+				svcBknd.SvcPort = pool.ServicePort
 				localSvc = svcKey
 				localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
 				if val, ok := validExtSvcCount[localSvc]; ok {
@@ -3477,6 +3481,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool, rscNamespace stri
 
 		beIdx := 0
 		sbcs[beIdx].Name = pool.Service
+		sbcs[beIdx].SvcPort = pool.ServicePort
 
 		if pool.Weight != nil {
 			sbcs[beIdx].Weight = float64(*pool.Weight)
@@ -3491,6 +3496,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool, rscNamespace stri
 			for _, svc := range pool.AlternateBackends {
 				beIdx = beIdx + 1
 				sbcs[beIdx].Name = svc.Service
+				sbcs[beIdx].SvcPort = pool.ServicePort
 				if svc.Weight != nil {
 					sbcs[beIdx].Weight = float64(*svc.Weight)
 				} else {
@@ -3670,6 +3676,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool, rscNamespace stri
 		}
 		svcBknd.Name = pool.Service
 		svcBknd.SvcNamespace = pool.ServiceNamespace
+		svcBknd.SvcPort = pool.ServicePort
 		localSvc = svcKey
 		localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
 		localSvcCount = 1
@@ -3705,6 +3712,7 @@ func (ctlr *Controller) GetPoolBackends(pool *cisapiv1.VSPool, rscNamespace stri
 				}
 				svcBknd.Name = svc.Service
 				svcBknd.SvcNamespace = svc.ServiceNamespace
+				svcBknd.SvcPort = pool.ServicePort
 				localSvc = svcKey
 				localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
 				localSvcCount = 1

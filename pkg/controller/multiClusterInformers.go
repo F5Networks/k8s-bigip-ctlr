@@ -201,7 +201,8 @@ func (ctlr *Controller) stopMultiClusterNodeInformer(clusterName string) error {
 // setup multi cluster informer
 func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
 	if config := ctlr.multiClusterHandler.getClusterConfig(svcKey.clusterName); config != nil {
-		if svcKey.clusterName == "" {
+
+		if svcKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			return nil
 		}
 		restClient := config.kubeClient.CoreV1().RESTClient()
@@ -222,6 +223,9 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 // setupAndStartExternalClusterInformers sets up and starts pool and node informers for the external cluster
 func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string) error {
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	if clusterConfig.InformerStore == nil {
+		clusterConfig.InformerStore = initInformerStore()
+	}
 	restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
 	//handle namespace informer creation
 	ctlr.handleNsInformersforCluster(clusterName)

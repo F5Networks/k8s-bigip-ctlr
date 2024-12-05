@@ -130,7 +130,7 @@ func (ch *ClusterHandler) cleanClusterCache(primaryClusterName, secondaryCluster
 	defer ch.Unlock()
 	for clusterName, clusterConfig := range ch.ClusterConfigs {
 		// Avoid deleting HA cluster related configs
-		if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == "" {
+		if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == ch.LocalClusterName {
 			continue
 		}
 		// Avoid deleting active clusters

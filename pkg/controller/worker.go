@@ -114,6 +114,13 @@ func (ctlr *Controller) setInitialResourceCount() {
 	var rscCount int
 	ctlr.multiClusterHandler.RLock()
 	defer ctlr.multiClusterHandler.RUnlock()
+	if ctlr.multiClusterMode != "" {
+		// this is added to process the kubeconfig secrets at init time for all the clusters,
+		//otherwise those events will create the duplicate informers for the clusters and we will receive duplicate events.
+		//There will be only valid clusters in the multiclusterhandler
+		// we are reducing the count by one to avoid the local cluster secret processing
+		rscCount += ctlr.multiClusterHandler.getClusterCount() - 1
+	}
 	for clusterName, clusterConfig := range ctlr.multiClusterHandler.ClusterConfigs {
 		for _, ns := range ctlr.getWatchingNamespaces(clusterName) {
 			if ctlr.multiClusterHandler.LocalClusterName == clusterName {
@@ -246,8 +253,9 @@ func (ctlr *Controller) processResources() bool {
 	// During Init time, just process all the resources
 	if ctlr.initState && rKey.kind != Namespace {
 		if rKey.kind == VirtualServer || rKey.kind == TransportServer || rKey.kind == Service ||
-			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS {
-			if rKey.kind == Service {
+			rKey.kind == IngressLink || rKey.kind == Route || rKey.kind == ExternalDNS || rKey.kind == K8sSecret {
+			switch rKey.kind {
+			case Service:
 				if svc, ok := rKey.rsc.(*v1.Service); ok {
 					if _, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
 						ctlr.initialResourceCount--
@@ -256,7 +264,16 @@ func (ctlr *Controller) processResources() bool {
 						return true
 					}
 				}
-			} else {
+			case K8sSecret:
+				if ctlr.multiClusterMode != "" {
+					secret := rKey.rsc.(*v1.Secret)
+					mcc := ctlr.multiClusterHandler.getClusterForSecret(secret.Name, secret.Namespace)
+					// TODO: Process all the resources again that refer to any resource running in the affected cluster?
+					if mcc != (ClusterDetails{}) && (mcc.Secret == fmt.Sprintf("%v/%v", secret.Namespace, secret.Name)) {
+						ctlr.initialResourceCount--
+					}
+				}
+			default: // for all other resources
 				ctlr.initialResourceCount--
 			}
 			if ctlr.initialResourceCount <= 0 {
@@ -489,31 +506,33 @@ func (ctlr *Controller) processResources() bool {
 
 	case CustomPolicy:
 		cp := rKey.rsc.(*cisapiv1.Policy)
-		switch ctlr.mode {
-		case OpenShiftMode:
-			routeGroups := ctlr.getRouteGroupForCustomPolicy(cp.Namespace + "/" + cp.Name)
-			for _, routeGroup := range routeGroups {
-				_ = ctlr.processRoutes(routeGroup, false)
-			}
-		default:
-			virtuals := ctlr.getVirtualsForCustomPolicy(cp)
-			//Sync Custompolicy for Virtual Servers
-			for _, virtual := range virtuals {
-				err := ctlr.processVirtualServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-					isRetryableError = true
+		if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
+			switch ctlr.mode {
+			case OpenShiftMode:
+				routeGroups := ctlr.getRouteGroupForCustomPolicy(cp.Namespace + "/" + cp.Name)
+				for _, routeGroup := range routeGroups {
+					_ = ctlr.processRoutes(routeGroup, false)
 				}
-			}
-			//Sync Custompolicy for Transport Servers
-			tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
-			for _, virtual := range tsVirtuals {
-				err := ctlr.processTransportServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-					isRetryableError = true
+			default:
+				virtuals := ctlr.getVirtualsForCustomPolicy(cp)
+				//Sync Custompolicy for Virtual Servers
+				for _, virtual := range virtuals {
+					err := ctlr.processVirtualServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+				//Sync Custompolicy for Transport Servers
+				tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
+				for _, virtual := range tsVirtuals {
+					err := ctlr.processTransportServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
 				}
 			}
 		}
@@ -720,7 +739,7 @@ func (ctlr *Controller) processResources() bool {
 
 		default:
 			if rscDelete {
-				if clusterConfig.InformerStore.crInformers != nil {
+				if clusterConfig.InformerStore.crInformers != nil && rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 					for _, vrt := range ctlr.getAllVirtualServers(nsName) {
 						// Cleanup processedNativeResources cache this will ensure this resource can be process again on create event
 						rscRefKey := resourceRef{

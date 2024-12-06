@@ -225,9 +225,9 @@ type (
 	}
 
 	NSInformer struct {
-		stopCh     chan struct{}
-		cluster    string
-		nsInformer cache.SharedIndexInformer
+		stopCh      chan struct{}
+		clusterName string
+		nsInformer  cache.SharedIndexInformer
 	}
 	rqKey struct {
 		namespace      string

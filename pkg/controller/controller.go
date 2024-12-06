@@ -202,7 +202,7 @@ func NewController(params Params, startController bool) *Controller {
 	ctlr.multiClusterHandler.addClusterConfig(ctlr.multiClusterHandler.LocalClusterName, clusterConfig)
 
 	// handle namespace informers for cluster
-	ctlr.handleNsInformersforCluster(ctlr.multiClusterHandler.LocalClusterName)
+	ctlr.handleNsInformersforCluster(ctlr.multiClusterHandler.LocalClusterName, false)
 
 	if err3 := ctlr.setupInformers(ctlr.multiClusterHandler.LocalClusterName); err3 != nil {
 		log.Error("Failed to Setup Informers")
@@ -490,7 +490,7 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 
 	// start comInformers for all modes
 	for _, inf := range informerStore.comInformers {
-		inf.start()
+		inf.start(ctlr.multiClusterHandler.LocalClusterName)
 	}
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
@@ -579,7 +579,7 @@ func newClusterConfig() *ClusterConfig {
 	}
 }
 
-func (ctlr *Controller) handleNsInformersforCluster(clusterName string) {
+func (ctlr *Controller) handleNsInformersforCluster(clusterName string, startInf bool) {
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	if clusterConfig.namespaceLabel == "" {
 		if len(ctlr.multiClusterHandler.namespaces) == 0 {
@@ -593,12 +593,26 @@ func (ctlr *Controller) handleNsInformersforCluster(clusterName string) {
 	} else {
 		err2 := ctlr.createNamespaceLabeledInformerForCluster(clusterConfig.namespaceLabel, clusterName)
 		if err2 != nil {
-			log.Errorf("%v", err2)
-			informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
-			for _, nsInf := range informerStore.nsInformers {
-				for _, v := range nsInf.nsInformer.GetIndexer().List() {
-					ns := v.(*v1.Namespace)
-					clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
+			log.Errorf("Unable to create the namespace-label informer for cluster %v: %v", clusterName, err2)
+		} else {
+			for _, nsInf := range clusterConfig.InformerStore.nsInformers {
+				if startInf {
+					nsInf.start()
+				}
+				namspaces := nsInf.nsInformer.GetIndexer().List()
+				if len(namspaces) == 0 {
+					nsList, err := clusterConfig.kubeClient.CoreV1().Namespaces().List(context.TODO(), metaV1.ListOptions{LabelSelector: clusterConfig.namespaceLabel})
+					if err != nil {
+						return
+					}
+					for _, ns := range nsList.Items {
+						clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
+					}
+				} else {
+					for _, v := range namspaces {
+						ns := v.(*v1.Namespace)
+						clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
+					}
 				}
 			}
 		}

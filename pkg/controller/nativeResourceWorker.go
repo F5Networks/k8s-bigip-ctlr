@@ -1836,7 +1836,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 		// Get the primary and secondary cluster names and store the ratio if operating in ratio mode
 		if haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
-			primaryClusterName = ctlr.multiClusterHandler.LocalClusterName
+			primaryClusterName = haClusterConfig.PrimaryCluster.ClusterName
 			if ctlr.discoveryMode == Ratio {
 				if haClusterConfig.PrimaryCluster.Ratio != nil {
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = haClusterConfig.PrimaryCluster.Ratio
@@ -1985,7 +1985,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
 		for clusterName := range ctlr.clusterRatio {
 			// Avoid deleting HA cluster related configs
-			if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == "" {
+			if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == ctlr.multiClusterHandler.LocalClusterName {
 				continue
 			}
 			// Delete cluster ratio
@@ -2008,8 +2008,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 
 		// Check and discard multiCluster config if an HA cluster is used as external cluster
-		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName {
-			log.Warningf("[MultiCluster] Discarding usage of cluster %s as external cluster, as HA cluster can't be used as external cluster in externalClustersConfig section.", mcc.ClusterName)
+		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
+			log.Warningf("[MultiCluster] Discarding usage of cluster %s as external cluster, as HA/Local cluster can't be used as external cluster in externalClustersConfig section.", mcc.ClusterName)
 			continue
 		}
 

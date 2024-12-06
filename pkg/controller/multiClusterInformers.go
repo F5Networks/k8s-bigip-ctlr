@@ -50,7 +50,7 @@ func (ctlr *Controller) addMultiClusterNamespacedInformers(
 		ctlr.addMultiClusterPoolEventHandlers(poolInfr)
 		informerStore.comInformers[namespace] = poolInfr
 		if startInformer {
-			poolInfr.start()
+			poolInfr.start(ctlr.multiClusterHandler.LocalClusterName)
 		}
 	}
 	return nil
@@ -228,7 +228,7 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 	}
 	restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
 	//handle namespace informer creation
-	ctlr.handleNsInformersforCluster(clusterName)
+	ctlr.handleNsInformersforCluster(clusterName, true)
 	// Setup informers with namespaces which are watched by CIS
 	for n := range clusterConfig.namespaces {
 		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {

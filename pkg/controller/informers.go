@@ -162,7 +162,7 @@ func (nrInfr *NRInformer) stop() {
 	close(nrInfr.stopCh)
 }
 
-func (comInfr *CommonInformer) start() {
+func (comInfr *CommonInformer) start(localClusterName string) {
 	var cacheSyncs []cache.InformerSynced
 	if comInfr.svcInformer != nil {
 		log.Debugf("Starting Service Informer for cluster %s", comInfr.clusterName)
@@ -206,14 +206,24 @@ func (comInfr *CommonInformer) start() {
 	// proceed further after logging the error to indicate the admin which cluster is having issues.
 	// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
 	// will start processing the events as and when it receives those from the affected cluster.
-	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	log.Debugf("Waiting for 30 Seconds for informer caches to sync for Cluster: %s", comInfr.clusterName)
-	if cache.WaitForNamedCacheSync(
-		"F5 CIS Ingress Controller",
-		infSyncCtx.Done(),
-		cacheSyncs...,
-	) {
+	var cacheSynced bool
+	if localClusterName == comInfr.clusterName {
+		cacheSynced = cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			comInfr.stopCh,
+			cacheSyncs...,
+		)
+	} else {
+		infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		log.Debugf("Waiting for 30 Seconds for informer caches to sync for Cluster: %s", comInfr.clusterName)
+		cacheSynced = cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			infSyncCtx.Done(),
+			cacheSyncs...,
+		)
+	}
+	if cacheSynced {
 		log.Debugf("Successfully synced informer caches for Cluster: %s", comInfr.clusterName)
 	} else {
 		log.Warningf("Failed to sync informer caches for Cluster: %s, possibly due to an unavailable "+
@@ -327,7 +337,7 @@ func (ctlr *Controller) addNamespacedInformers(
 		ctlr.addCommonResourceEventHandlers(comInf)
 		informerStore.comInformers[namespace] = comInf
 		if startInformer {
-			comInf.start()
+			comInf.start(ctlr.multiClusterHandler.LocalClusterName)
 		}
 	}
 	// add multiCluster informers for the new namespace to watch resources from other clusters
@@ -1433,8 +1443,11 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}, clusterName string) {
 
 func (nsInfr *NSInformer) start() {
 	if nsInfr.nsInformer != nil {
-		log.Infof("Starting Namespace Informer")
+		log.Infof("Starting Namespace Informer for cluster %v", nsInfr.clusterName)
 		go nsInfr.nsInformer.Run(nsInfr.stopCh)
+		if nsInfr.nsInformer.HasSynced() {
+			log.Debugf("Successfully synced namespace informer caches for Cluster: %s", nsInfr.clusterName)
+		}
 	}
 }
 
@@ -1488,7 +1501,8 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 	restClient := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	restClientv1 := restClient.kubeClient.CoreV1().RESTClient()
 	clusterConfig.InformerStore.nsInformers[label] = &NSInformer{
-		stopCh: make(chan struct{}),
+		clusterName: clusterName,
+		stopCh:      make(chan struct{}),
 		nsInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,

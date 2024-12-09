@@ -91,10 +91,15 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 									svcNamespace = virtual.Namespace
 								}
 								if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
-									svc := ctlr.GetService(svcNamespace, pool.Service)
-									if svc != nil {
-										ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress,
-											ctlr.multiClusterHandler.LocalClusterName, true)
+									if ctlr.discoveryMode == DefaultMode && len(pool.MultiClusterServices) != 0 {
+										// set status of all the LB services associated with this VS
+										go ctlr.updateLBServiceStatusForVSorTS(pool.MultiClusterServices, virtual.Status.VSAddress, true)
+									} else {
+										svc := ctlr.GetService(svcNamespace, pool.Service, ctlr.multiClusterHandler.LocalClusterName)
+										if svc != nil {
+											ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress,
+												ctlr.multiClusterHandler.LocalClusterName, true)
+										}
 									}
 								}
 							}
@@ -136,11 +141,13 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 								// Don't update the service status if CIS running in default mode with
 								// multiClusterServices provided in the resource
 								if ctlr.discoveryMode == DefaultMode && len(virtual.Spec.Pool.MultiClusterServices) != 0 {
-									break
-								}
-								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
-								if svc != nil {
-									ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress, ctlr.multiClusterHandler.LocalClusterName, true)
+									// set status of all the LB services associated with this TS
+									go ctlr.updateLBServiceStatusForVSorTS(virtual.Spec.Pool.MultiClusterServices, virtual.Status.VSAddress, true)
+								} else {
+									svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service, ctlr.multiClusterHandler.LocalClusterName)
+									if svc != nil {
+										ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress, ctlr.multiClusterHandler.LocalClusterName, true)
+									}
 								}
 							}
 						}

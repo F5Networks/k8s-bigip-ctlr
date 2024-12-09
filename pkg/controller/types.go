@@ -142,6 +142,8 @@ type (
 
 	ResourceStatus struct {
 		ResourceObj       interface{}
+		ResourceName      string
+		Namespace         string
 		ClusterName       string
 		Timestamp         metav1.Time
 		UpdateAttempts    int

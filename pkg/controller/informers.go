@@ -273,14 +273,19 @@ func (ctlr *Controller) getNamespacedCRInformer(
 func (ctlr *Controller) getNamespacedCommonInformer(
 	clusterName, namespace string,
 ) (*CommonInformer, bool) {
+	namespaceKey := namespace
 	if ctlr.watchingAllNamespaces(clusterName) {
-		namespace = ""
+		namespaceKey = ""
 	}
 	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil {
 		return nil, false
 	}
-	comInf, found := informerStore.comInformers[namespace]
+	comInf, found := informerStore.comInformers[namespaceKey]
+	// If not found then search using the specific namespace, this will happen for external clusters
+	if namespaceKey == "" && !found {
+		comInf, found = informerStore.comInformers[namespace]
+	}
 	return comInf, found
 }
 

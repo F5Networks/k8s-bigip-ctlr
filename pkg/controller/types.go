@@ -142,8 +142,7 @@ type (
 
 	ResourceStatus struct {
 		ResourceObj       interface{}
-		ClusterName       string
-		Timestamp         metav1.Time
+		ResourceKey       resourceRef
 		UpdateAttempts    int
 		IPSet             bool // helps in event creation of LB service as it helps to know if the status update is for IP setting or unsetting
 		ClearKeyFromCache bool // helps clear the cache in case of delete events

@@ -248,11 +248,21 @@ func (ctlr *Controller) watchingAllNamespaces(clusterName string) bool {
 		_, watchingAll := informerStore.comInformers[""]
 		return watchingAll
 	case CustomResourceMode:
-		if len(informerStore.crInformers) == 0 {
-			// Not watching any namespaces.
-			return false
+		// Check for CRInformer only in local cluster
+		watchingAll := false
+		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+			if len(informerStore.crInformers) == 0 {
+				// Not watching any namespaces.
+				return false
+			}
+			_, watchingAll = informerStore.crInformers[""]
+		} else {
+			// In multiCluster mode, CIS watches for common informers for discovering services
+			if len(informerStore.comInformers) == 0 {
+				return false
+			}
+			_, watchingAll = informerStore.comInformers[""]
 		}
-		_, watchingAll := informerStore.crInformers[""]
 		return watchingAll
 	}
 	return false
@@ -273,14 +283,19 @@ func (ctlr *Controller) getNamespacedCRInformer(
 func (ctlr *Controller) getNamespacedCommonInformer(
 	clusterName, namespace string,
 ) (*CommonInformer, bool) {
+	namespaceKey := namespace
 	if ctlr.watchingAllNamespaces(clusterName) {
-		namespace = ""
+		namespaceKey = ""
 	}
 	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil {
 		return nil, false
 	}
-	comInf, found := informerStore.comInformers[namespace]
+	comInf, found := informerStore.comInformers[namespaceKey]
+	// If not found then search using the specific namespace, this will happen for external clusters
+	if namespaceKey == "" && !found {
+		comInf, found = informerStore.comInformers[namespace]
+	}
 	return comInf, found
 }
 

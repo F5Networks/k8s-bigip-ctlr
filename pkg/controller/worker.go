@@ -581,6 +581,16 @@ func (ctlr *Controller) processResources() bool {
 							delete(ctlr.resources.processedL4Apps, appConfig)
 							ctlr.deleteVirtualsForResourceRef(val)
 							ctlr.deleteResourceExternalClusterSvcRouteReference(val)
+							mcsKey := MultiClusterServiceKey{
+								serviceName: val.name,
+								namespace:   val.namespace,
+								clusterName: val.clusterName,
+							}
+							// Remove the status of the Service Type LB that got processed earlier
+							if err, prevSvc := ctlr.fetchService(mcsKey); err == nil {
+								// It needs to be checked for IPAM key
+								ctlr.updateLBServiceStatus(prevSvc, appConfig.ipOrIPAMKey, val.clusterName, false)
+							}
 						}
 					}
 				}
@@ -591,8 +601,8 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
-		} else {
-			log.Debugf("%v", err)
+		} else if err != nil {
+			log.Warningf("%v", err)
 		}
 
 		newPool := false
@@ -1375,6 +1385,7 @@ func (ctlr *Controller) processVirtualServers(
 	// vsMap holds Resource Configs of current virtuals temporarily
 	vsMap := make(ResourceMap)
 	processingError := false
+	statusUpdated := false
 	for _, portS := range portStructs {
 		// TODO: Add Route Domain
 		var rsName string
@@ -1418,6 +1429,12 @@ func (ctlr *Controller) processVirtualServers(
 			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
+			}
+			// Clear the status of LB services
+			// Status need to be updated only once even if VS is processed for multiple ports
+			if !statusUpdated {
+				go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, false)
+				statusUpdated = true
 			}
 			continue
 		}
@@ -3148,6 +3165,8 @@ func (ctlr *Controller) processTransportServers(
 		if appConfig != (l4AppConfig{}) {
 			delete(ctlr.resources.processedL4Apps, appConfig)
 		}
+		// Update LB Service status if TS has any LB service in it's pool
+		go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, false)
 		return nil
 	}
 
@@ -4723,11 +4742,14 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 }
 
 // returns service obj with servicename
-func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
+func (ctlr *Controller) GetService(namespace, serviceName, clusterName string) *v1.Service {
 	svcKey := namespace + "/" + serviceName
-	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, namespace)
+	// Check if informers are found
+	// Checking additionally for svcInformer to avoid nil pointer access errors as this method may run concurrently with
+	// other go routines and the svcInformers can get cleaned up by other go routines.
+	if !ok || comInf.svcInformer == nil {
+		log.Errorf("Informer not found for namespace: %v %v", namespace, getClusterLog(clusterName))
 		return nil
 	}
 	svc, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcKey)
@@ -4736,7 +4758,7 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 		return nil
 	}
 	if !found {
-		log.Errorf("Error: Service %v not found %v", svcKey, getClusterLog(""))
+		log.Errorf("Error: Service %v not found %v", svcKey, getClusterLog(clusterName))
 		return nil
 	}
 	return svc.(*v1.Service)

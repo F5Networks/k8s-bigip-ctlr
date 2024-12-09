@@ -581,6 +581,17 @@ func (ctlr *Controller) processResources() bool {
 							delete(ctlr.resources.processedL4Apps, appConfig)
 							ctlr.deleteVirtualsForResourceRef(val)
 							ctlr.deleteResourceExternalClusterSvcRouteReference(val)
+							mcsKey := MultiClusterServiceKey{
+								serviceName: val.name,
+								namespace:   val.namespace,
+								clusterName: val.clusterName,
+							}
+							// Remove the status of the Service Type LB that got processed earlier
+							err, prevSvc := ctlr.fetchService(mcsKey)
+							if err != nil {
+								// It needs to be checked for IPAM key
+								ctlr.updateLBServiceStatus(prevSvc, appConfig.ipOrIPAMKey, val.clusterName, false)
+							}
 						}
 					}
 				}
@@ -1418,6 +1429,16 @@ func (ctlr *Controller) processVirtualServers(
 			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
+			}
+			// Clear the status of LB services
+			if ctlr.discoveryMode == DefaultMode {
+				for _, pool := range virtual.Spec.Pools {
+					if len(pool.MultiClusterServices) != 0 {
+						go ctlr.updateLBServiceStatusForVSorTS(pool.MultiClusterServices, virtual.Status.VSAddress, false)
+					}
+				}
+			} else {
+
 			}
 			continue
 		}
@@ -3148,6 +3169,10 @@ func (ctlr *Controller) processTransportServers(
 		if appConfig != (l4AppConfig{}) {
 			delete(ctlr.resources.processedL4Apps, appConfig)
 		}
+		if ctlr.discoveryMode == DefaultMode && len(virtual.Spec.Pool.MultiClusterServices) != 0 {
+			// This may get called twice if VS is exposed on two ports, as it will get processed twice in that case
+			go ctlr.updateLBServiceStatusForVSorTS(virtual.Spec.Pool.MultiClusterServices, virtual.Status.VSAddress, false)
+		}
 		return nil
 	}
 
@@ -4723,10 +4748,13 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 }
 
 // returns service obj with servicename
-func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
+func (ctlr *Controller) GetService(namespace, serviceName, clusterName string) *v1.Service {
 	svcKey := namespace + "/" + serviceName
-	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, namespace)
-	if !ok {
+	comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, namespace)
+	// Check if informers are found
+	// Checking additionally for svcInformer to avoid nil pointer access errors as this method may run concurrently with
+	// other go routines and the svcInformers can get cleaned up by other go routines.
+	if !ok || comInf.svcInformer == nil {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
@@ -4736,7 +4764,7 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 		return nil
 	}
 	if !found {
-		log.Errorf("Error: Service %v not found %v", svcKey, getClusterLog(""))
+		log.Errorf("Error: Service %v not found %v", svcKey, getClusterLog(clusterName))
 		return nil
 	}
 	return svc.(*v1.Service)

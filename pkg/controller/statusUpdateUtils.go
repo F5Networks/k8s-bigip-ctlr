@@ -24,11 +24,12 @@ func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, st
 	} else {
 		vsStatus.Error = fmt.Sprintf("Missing label f5cr on VS %v/%v", vs.Namespace, vs.Name)
 	}
-	vs.Status = vsStatus
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj: vs,
-		ClusterName: ctlr.multiClusterHandler.LocalClusterName,
-		Timestamp:   metav1.Now(),
+		ResourceObj:  vsStatus,
+		ResourceName: vs.Name,
+		Namespace:    vs.Namespace,
+		ClusterName:  ctlr.multiClusterHandler.LocalClusterName,
+		Timestamp:    metav1.Now(),
 	}
 }
 
@@ -45,11 +46,12 @@ func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, 
 	} else {
 		tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
 	}
-	ts.Status = tsStatus
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj: ts,
-		ClusterName: ctlr.multiClusterHandler.LocalClusterName,
-		Timestamp:   metav1.Now(),
+		ResourceObj:  tsStatus,
+		ResourceName: ts.Name,
+		Namespace:    ts.Namespace,
+		ClusterName:  ctlr.multiClusterHandler.LocalClusterName,
+		Timestamp:    metav1.Now(),
 	}
 }
 
@@ -66,11 +68,12 @@ func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, stat
 	} else {
 		ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
 	}
-	il.Status = ilStatus
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj: il,
-		ClusterName: ctlr.multiClusterHandler.LocalClusterName,
-		Timestamp:   metav1.Now(),
+		ResourceObj:  ilStatus,
+		ResourceName: il.Name,
+		Namespace:    il.Namespace,
+		ClusterName:  ctlr.multiClusterHandler.LocalClusterName,
+		Timestamp:    metav1.Now(),
 	}
 }
 
@@ -90,10 +93,12 @@ func (ctlr *Controller) updateLBServiceStatus(svc *v1.Service, ip string, cluste
 		}
 		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 			ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-				ResourceObj: svc,
-				ClusterName: clusterName,
-				Timestamp:   metav1.Now(),
-				IPSet:       setStatus,
+				ResourceObj:  svc.Status,
+				ResourceName: svc.Name,
+				Namespace:    svc.Namespace,
+				ClusterName:  clusterName,
+				Timestamp:    metav1.Now(),
+				IPSet:        setStatus,
 			}
 		}
 	} else {
@@ -115,13 +120,27 @@ func (ctlr *Controller) updateLBServiceStatus(svc *v1.Service, ip string, cluste
 			// In both the cases the case the status cache needs to be cleaned or else the stale entry will remain forever
 			if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
 				ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-					ResourceObj:       svc,
+					ResourceObj:       svc.Status,
+					ResourceName:      svc.Name,
+					Namespace:         svc.Namespace,
 					ClusterName:       clusterName,
 					Timestamp:         metav1.Now(),
 					IPSet:             setStatus,
 					ClearKeyFromCache: true,
 				}
 			}
+		}
+	}
+}
+
+// updateLBServiceStatusForVSorTS updates the status of all the LB services associated with a VS or TS MultiClusterServices pool
+// TODO: currently it only handles for default mode, it needs to handle other multicluster discovery modes as well
+func (ctlr *Controller) updateLBServiceStatusForVSorTS(mcs []cisapiv1.MultiClusterServiceReference, vsAddress string, setStatus bool) {
+	for _, svcReference := range mcs {
+		svc := ctlr.GetService(svcReference.Namespace, svcReference.SvcName, svcReference.ClusterName)
+		// No need to check if this LB service should be processed for status update as this is already done by updateLBServiceStatus
+		if svc != nil {
+			ctlr.updateLBServiceStatus(svc, vsAddress, svcReference.ClusterName, setStatus)
 		}
 	}
 }
@@ -173,9 +192,11 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 	// updating to the new status
 	route.Status.Ingress = routeStatusIngress
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj: route,
-		ClusterName: ctlr.multiClusterHandler.LocalClusterName,
-		Timestamp:   metav1.Now(),
+		ResourceObj:  route.Status,
+		ResourceName: route.Name,
+		Namespace:    route.Namespace,
+		ClusterName:  ctlr.multiClusterHandler.LocalClusterName,
+		Timestamp:    metav1.Now(),
 	}
 }
 
@@ -234,7 +255,9 @@ func (ctlr *Controller) eraseRouteAdmitStatus(route *routeapi.Route) {
 		if route.Status.Ingress[i].RouterName == F5RouterName {
 			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
 			ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-				ResourceObj:       route,
+				ResourceObj:       route.Status,
+				ResourceName:      route.Name,
+				Namespace:         route.Namespace,
 				ClusterName:       ctlr.multiClusterHandler.LocalClusterName,
 				Timestamp:         metav1.Now(),
 				ClearKeyFromCache: true,
@@ -271,7 +294,9 @@ func (ctlr *Controller) clearVirtualServerStatus(virtualServer *cisapiv1.Virtual
 		Error: fmt.Sprintf("Missing label f5cr on VS %v/%v", virtualServer.Namespace, virtualServer.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj:       virtualServer,
+		ResourceObj:       virtualServer.Status,
+		ResourceName:      virtualServer.Name,
+		Namespace:         virtualServer.Namespace,
 		ClusterName:       ctlr.multiClusterHandler.LocalClusterName,
 		Timestamp:         metav1.Now(),
 		ClearKeyFromCache: true,
@@ -305,7 +330,9 @@ func (ctlr *Controller) clearTransportServerStatus(transportServer *cisapiv1.Tra
 		Error: fmt.Sprintf("Missing label f5cr on TS %v/%v", transportServer.Namespace, transportServer.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj:       transportServer,
+		ResourceObj:       transportServer.Status,
+		ResourceName:      transportServer.Name,
+		Namespace:         transportServer.Namespace,
 		ClusterName:       ctlr.multiClusterHandler.LocalClusterName,
 		Timestamp:         metav1.Now(),
 		ClearKeyFromCache: true,
@@ -339,7 +366,9 @@ func (ctlr *Controller) clearIngressLinkStatus(ingressLink *cisapiv1.IngressLink
 		Error: fmt.Sprintf("Missing label f5cr on IngressLink %v/%v", ingressLink.Namespace, ingressLink.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
-		ResourceObj:       ingressLink,
+		ResourceObj:       ingressLink.Status,
+		ResourceName:      ingressLink.Name,
+		Namespace:         ingressLink.Namespace,
 		ClusterName:       ctlr.multiClusterHandler.LocalClusterName,
 		Timestamp:         metav1.Now(),
 		ClearKeyFromCache: true,

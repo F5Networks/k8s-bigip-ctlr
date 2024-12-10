@@ -512,6 +512,8 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 				# Assign respective SSL profile based on ssl_reencrypt_serverssl_dg
 				if { not ($sslprofile equals "false") } {
 						SSL::profile $reen
+				} else {
+						SSL::disable serverside
 				}
 			}
         }`, dgPath)

@@ -127,30 +127,21 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 		It("Pool name for TS", func() {
 			var name string
-			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
 			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = PrimaryCIS
 			mockCtlr.discoveryMode = ""
-			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
-			Expect(name).To(Equal("ts_7bb616e6f5_multicluster"), "Invalid Pool Name for TS")
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
 			mockCtlr.discoveryMode = DefaultMode
-			name = mockCtlr.formatPoolNameForTS(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "cluster1")
-			Expect(name).To(Equal("ts_5bd74b770d_cluster1"), "Invalid Pool Name for TS")
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			Expect(name).To(Equal("svc1_80_default_app_test_cluster1"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = ""
 			mockCtlr.discoveryMode = ""
 		})
 		It("Pool Name", func() {
 			name := mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
-		})
-		It("Monitor Name for TS", func() {
-			name := mockCtlr.formatMonitorNameForTS(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path", "hash123")
-			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
-			mockCtlr.multiClusterMode = PrimaryCIS
-			name = mockCtlr.formatMonitorNameForTS(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path", "hash123")
-			Expect(name).To(Equal("ts_hash123_80_http"), "Invalid Pool Name for TS")
-			mockCtlr.multiClusterMode = ""
-			mockCtlr.discoveryMode = ""
 		})
 		It("Monitor Name", func() {
 			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")

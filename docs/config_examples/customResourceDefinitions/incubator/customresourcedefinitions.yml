@@ -421,8 +421,10 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
-                - rule: "!(!has(oldSelf.serviceAddress) && self.serviceAddress != oldSelf.serviceAddress)"
-                  message: "The serviceAddress cannot be modified. To make changes, delete and recreate the VS resource."
+                - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
+                  message: "'serviceAddress' cannot be added when it is not already present."
+                - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
+                  message: "'serviceAddress' cannot be deleted when it is present."
             status:
               type: object
               properties:

@@ -128,10 +128,13 @@ func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
 	for clusterName, svcs := range ctlr.multiClusterResources.clusterSvcMap {
 		// If no services are referenced from this cluster and this isn't HA peer cluster in case of active-active/ratio
 		// then remove the clusterName key from the clusterSvcMap and stop the informers for this cluster
-		if len(svcs) == 0 && ((ctlr.discoveryMode == StandAloneCIS || ctlr.discoveryMode == StandBy) ||
-			ctlr.multiClusterHandler.HAPairClusterName != clusterName) {
-			delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
-			ctlr.stopMultiClusterPoolInformers(clusterName, true)
+		// Don't remove clusterSvcMap or stop the informers for local cluster as well
+		if len(svcs) == 0 && ctlr.discoveryMode == DefaultMode && clusterName != ctlr.multiClusterHandler.LocalClusterName {
+			clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+			if clusterConfig != nil && !clusterConfig.clusterDetails.ServiceTypeLBDiscovery {
+				delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
+				ctlr.stopMultiClusterPoolInformers(clusterName, true)
+			}
 		}
 	}
 }

@@ -2738,7 +2738,7 @@ externalClustersConfig:
 								Type:       "tcp",
 								Timeout:    30,
 								Interval:   20,
-								TargetPort: DEFAULT_HTTP_PORT,
+								TargetPort: 8080,
 							},
 						},
 						MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
@@ -2783,10 +2783,10 @@ externalClustersConfig:
 			Expect(len(rsCfg.Monitors)).To(Equal(4))
 			Expect(len(rsCfg.Pools)).To(Equal(2))
 			Expect(len(rsCfg.IRulesMap)).To(Equal(1))
-			Expect(rsCfg.Monitors[0].Name).To(Equal("ts_a230b9e98d_tcp"))
-			Expect(rsCfg.Monitors[1].Name).To(Equal("ts_a230b9e98d_80_tcp"))
-			Expect(rsCfg.Monitors[2].Name).To(Equal("ts_1f024ae9e6_tcp"))
-			Expect(rsCfg.Monitors[3].Name).To(Equal("ts_1f024ae9e6_80_tcp"))
+			Expect(rsCfg.Monitors[0].Name).To(Equal("svc_default_tcp_80_cluster3"))
+			Expect(rsCfg.Monitors[1].Name).To(Equal("svc_default_tcp_8080_cluster3"))
+			Expect(rsCfg.Monitors[2].Name).To(Equal("svc_1_default_tcp_80_cluster3"))
+			Expect(rsCfg.Monitors[3].Name).To(Equal("svc_1_default_tcp_8080_cluster3"))
 			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))

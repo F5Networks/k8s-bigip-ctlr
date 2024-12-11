@@ -1238,9 +1238,9 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.addPod(pod1)
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
 			Expect(mockCtlr.GetPodsForService("default", "svc", "", true)).ToNot(BeNil())
-			Expect(mockCtlr.GetService("test", "svc")).To(BeNil())
-			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
-			Expect(mockCtlr.GetService("default", "svc")).ToNot(BeNil())
+			Expect(mockCtlr.GetService("test", "svc", mockCtlr.multiClusterHandler.LocalClusterName)).To(BeNil())
+			Expect(mockCtlr.GetService("default", "svc1", mockCtlr.multiClusterHandler.LocalClusterName)).To(BeNil())
+			Expect(mockCtlr.GetService("default", "svc", mockCtlr.multiClusterHandler.LocalClusterName)).ToNot(BeNil())
 			Expect(getNodeport(svc, 81)).To(BeEquivalentTo(0))
 			Expect(mockCtlr.getNodeportForNPL(81, "default", "svc")).To(BeEquivalentTo(0))
 		})
@@ -3860,10 +3860,10 @@ extendedRouteSpec:
 				mockCtlr.processResources()
 
 				// Invalid Service
-				svcObj := mockCtlr.GetService(svc.Namespace, "sv3")
+				svcObj := mockCtlr.GetService(svc.Namespace, "sv3", mockCtlr.multiClusterHandler.LocalClusterName)
 				Expect(svcObj).To(BeNil())
 				//Val
-				svcObj = mockCtlr.GetService(svc.Namespace, svc.Name)
+				svcObj = mockCtlr.GetService(svc.Namespace, svc.Name, mockCtlr.multiClusterHandler.LocalClusterName)
 				Expect(svcObj).NotTo(BeNil())
 
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)

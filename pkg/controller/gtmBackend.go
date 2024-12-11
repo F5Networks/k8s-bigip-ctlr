@@ -90,7 +90,7 @@ func (agent *Agent) gtmWorker() {
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		agent.GTMPostManager.pollTenantStatus()
+		agent.GTMPostManager.pollTenantStatus(true)
 
 		// release the lock
 		agent.declUpdate.Unlock()
@@ -142,7 +142,7 @@ func (agent *Agent) retryGTMWorker() {
 			}
 
 			//If there are any 201 tenants, poll for its statusma
-			agent.GTMPostManager.pollTenantStatus()
+			agent.GTMPostManager.pollTenantStatus(false)
 
 			//If there are any failed tenants, retry posting them
 			agent.GTMPostManager.retryFailedTenant(agent.userAgent)

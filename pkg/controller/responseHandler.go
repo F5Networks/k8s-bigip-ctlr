@@ -83,20 +83,9 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							// update the status for virtual server as tenant posting is success
 							ctlr.updateVSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
-							for _, pool := range virtual.Spec.Pools {
-								var svcNamespace string
-								if pool.ServiceNamespace != "" {
-									svcNamespace = pool.ServiceNamespace
-								} else {
-									svcNamespace = virtual.Namespace
-								}
-								if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
-									svc := ctlr.GetService(svcNamespace, pool.Service)
-									if svc != nil {
-										ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress,
-											ctlr.multiClusterHandler.LocalClusterName, true)
-									}
-								}
+							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
+								// set status of all the LB services associated with this VS
+								go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 							}
 						}
 					}
@@ -125,24 +114,8 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						} else {
 							// update the status for transport server as tenant posting is success
 							ctlr.updateTSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
-							// Update Corresponding Service Status of Type LB
-							var svcNamespace string
-							if virtual.Spec.Pool.ServiceNamespace != "" {
-								svcNamespace = virtual.Spec.Pool.ServiceNamespace
-							} else {
-								svcNamespace = virtual.Namespace
-							}
-							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
-								// Don't update the service status if CIS running in default mode with
-								// multiClusterServices provided in the resource
-								if ctlr.discoveryMode == DefaultMode && len(virtual.Spec.Pool.MultiClusterServices) != 0 {
-									break
-								}
-								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
-								if svc != nil {
-									ctlr.updateLBServiceStatus(svc, virtual.Status.VSAddress, ctlr.multiClusterHandler.LocalClusterName, true)
-								}
-							}
+							// set status of all the LB services associated with this TS
+							go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 						}
 					}
 

@@ -421,6 +421,10 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
+                  message: "'serviceAddress' cannot be added when it is not already present."
+                - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
+                  message: "'serviceAddress' cannot be deleted when it is present."
             status:
               type: object
               properties:
@@ -825,6 +829,10 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
+                  message: "'serviceAddress' cannot be added when it is not already present."
+                - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
+                  message: "'serviceAddress' cannot be deleted when it is present."
             status:
               type: object
               properties:

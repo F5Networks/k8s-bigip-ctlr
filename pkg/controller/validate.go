@@ -233,14 +233,6 @@ func (ctlr *Controller) checkValidTransportServer(
 		}
 	}
 
-	if tsResource.Spec.Type == "" {
-		tsResource.Spec.Type = "tcp"
-	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
-		err = fmt.Sprintf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
-		log.Errorf(err)
-		ctlr.updateTSStatus(tsResource, "", StatusError, errors.New(err))
-		return false
-	}
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
 			err := ctlr.checkValidMultiClusterService(mcs, true)

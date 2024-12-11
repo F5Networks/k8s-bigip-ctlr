@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
-	"strings"
 	"sync"
 )
 
@@ -244,8 +243,7 @@ func (ch *ClusterHandler) ResourceStatusUpdater() {
 			log.Errorf("Resource %v status update attempts exceeded 3 times.", rscStatus.ResourceObj)
 			continue
 		}
-		rscKey := ch.GetResourceKeyForStatusUpdate(rscStatus.ResourceObj, rscStatus.ClusterName)
-		if timestamp, ok := ch.statusUpdate.ResourceStatusUpdateTracker.Load(rscKey); ok {
+		if timestamp, ok := ch.statusUpdate.ResourceStatusUpdateTracker.Load(rscStatus.ResourceKey); ok {
 			if timestamp.(metav1.Time).After(rscStatus.Timestamp.Time) {
 				log.Debugf("Resource %v status already updated after time: %v. Skipping status update.",
 					rscStatus.ResourceObj, rscStatus.Timestamp)
@@ -254,36 +252,12 @@ func (ch *ClusterHandler) ResourceStatusUpdater() {
 		}
 		// Update the timestamp
 		if !rscStatus.ClearKeyFromCache {
-			ch.statusUpdate.ResourceStatusUpdateTracker.Store(rscKey, rscStatus.Timestamp)
+			ch.statusUpdate.ResourceStatusUpdateTracker.Store(rscStatus.ResourceKey, rscStatus.Timestamp)
 		} else {
 			// If ClearKeyFromCache is true, it means the resource has been deleted so the associated key has to be removed
-			ch.statusUpdate.ResourceStatusUpdateTracker.Delete(rscKey)
+			ch.statusUpdate.ResourceStatusUpdateTracker.Delete(rscStatus.ResourceKey)
 		}
 		go ch.UpdateResourceStatus(rscStatus)
-	}
-}
-
-// GetResourceKeyForStatusUpdate returns the key for resource for ResourceStatusUpdateTracker
-func (ch *ClusterHandler) GetResourceKeyForStatusUpdate(rsc interface{}, clusterName string) string {
-	switch rsc.(type) {
-	case *cisv1.VirtualServer:
-		vs := rsc.(*cisv1.VirtualServer)
-		return fmt.Sprintf("%s/%s/%s", clusterName, vs.ObjectMeta.Namespace, vs.ObjectMeta.Name)
-	case *cisv1.TransportServer:
-		ts := rsc.(*cisv1.TransportServer)
-		return fmt.Sprintf("%s/%s/%s", clusterName, ts.ObjectMeta.Namespace, ts.ObjectMeta.Name)
-	case *cisv1.IngressLink:
-		il := rsc.(*cisv1.IngressLink)
-		return fmt.Sprintf("%s/%s/%s", clusterName, il.ObjectMeta.Namespace, il.ObjectMeta.Name)
-	case *v1.Service:
-		svc := rsc.(*v1.Service)
-		return fmt.Sprintf("%s/%s/%s", clusterName, svc.ObjectMeta.Namespace, svc.ObjectMeta.Name)
-	case *routeapi.Route:
-		route := rsc.(*routeapi.Route)
-		return fmt.Sprintf("%s/%s/%s", clusterName, route.ObjectMeta.Namespace, route.ObjectMeta.Name)
-	default:
-		log.Errorf("unknown resource type %T received for Status Update", rsc)
-		return ""
 	}
 }
 
@@ -291,60 +265,189 @@ func (ch *ClusterHandler) GetResourceKeyForStatusUpdate(rsc interface{}, cluster
 func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("recovered from panic while updating status for resource %v from cluster %v with err %v", rscStatus.ResourceObj,
-				rscStatus.ClusterName, r)
+			log.Errorf("recovered from panic while updating status for resource %s/%s in cluster %s with err %v",
+				rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName, r)
 		}
 	}()
-	clusterConfig := ch.getClusterConfig(rscStatus.ClusterName)
+	clusterConfig := ch.getClusterConfig(rscStatus.ResourceKey.clusterName)
 	if clusterConfig == nil {
-		log.Errorf("Error while updating %T status. Error: Unable to get cluster config for cluster:%v",
-			rscStatus.ResourceObj, rscStatus.ClusterName)
+		log.Errorf("Failed while updating status of %s/%s. Error: Unable to get cluster config for cluster:%s",
+			rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName)
 		return
 	}
+
 	var updateErr error
+	var resourceType string
 	switch rscStatus.ResourceObj.(type) {
-	case *cisv1.VirtualServer:
-		vs := rscStatus.ResourceObj.(*cisv1.VirtualServer)
-		_, updateErr = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
-	case *cisv1.TransportServer:
-		ts := rscStatus.ResourceObj.(*cisv1.TransportServer)
-		_, updateErr = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
-	case *cisv1.IngressLink:
-		il := rscStatus.ResourceObj.(*cisv1.IngressLink)
-		_, updateErr = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
-	case *v1.Service:
-		svc := rscStatus.ResourceObj.(*v1.Service)
-		_, updateErr = clusterConfig.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
-		if nil != updateErr {
-			// 1. Observed that service create event is followed by endpoint create event. Since CIS processes the service
-			// on endpoint create event as well the service status update is attempted multiple times.
-			// 2. On LB service update events which lead to delete and create events by CIS, the old service is used for
-			// the delete event, thus causing the error object has been modified.
-			// In such cases it's better to update the status in the latest version of the service.
-			// 3. StorageError: invalid object is observed when resource is deleted before status update, in this case log and return
-			if strings.Contains(updateErr.Error(), "object has been modified") {
-				log.Debugf("failed to udpate update service: %s in namespace:%s from cluster:%s : Warning:%v",
-					svc.Name, svc.Namespace, rscStatus.ClusterName, updateErr.Error())
-				latestSvc, err := clusterConfig.kubeClient.CoreV1().Services(svc.Namespace).Get(context.TODO(), svc.Name, metav1.GetOptions{})
-				if err == nil {
-					latestSvc.Status = svc.Status
-					rscStatus.ResourceObj = latestSvc
-					rscStatus.UpdateAttempts++
-					ch.statusUpdate.ResourceStatusUpdateChan <- rscStatus
-					return
-				} else {
-					// Skip status update in case of service is not found
-					if !errors.IsNotFound(err) {
-						log.Debugf("failed to fetch service %s/%s from cluster:%s for status update: Warning: %v. "+
-							"The resource might have been deleted.", svc.Namespace, svc.Name, rscStatus.ClusterName, err)
-						return
-					}
-				}
-			} else if strings.Contains(updateErr.Error(), "StorageError: invalid object") {
-				log.Debugf("Failed while updating service: %s in namespace:%s from cluster:%s. Service might have "+
-					"been deleted before status update: Error: %v", svc.Name, svc.Namespace, rscStatus.ClusterName, updateErr.Error())
+	case cisv1.VirtualServerStatus:
+		resourceType = VirtualServer
+		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var vs *cisv1.VirtualServer
+		var found bool
+		// Get the latest version of the resource.
+		// If status update is for delete event which is indicated by clearKeyFromCache flag, then use kubeclient as it
+		// helps in identifying whether resource is actually deleted or it's label has been removed, otherwise use informers,
+		// which is usually faster.
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.vsInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" + rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch VS. %v", err)
+				break
+			} else if !exists {
+				// Object is deleted
 				return
 			}
+			vs, found = item.(*cisv1.VirtualServer)
+		} else {
+			var err error
+			vs, err = clusterConfig.kubeCRClient.CisV1().VirtualServers(rscStatus.ResourceKey.namespace).Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					// Resource is not found indicates it's actually deleted, so it eliminates the case of watch label
+					// removal from the resource. So, no need to go for status update.
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch VS. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			vs.Status = rscStatus.ResourceObj.(cisv1.VirtualServerStatus)
+		}
+		_, updateErr = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
+	case cisv1.TransportServerStatus:
+		resourceType = TransportServer
+		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var ts *cisv1.TransportServer
+		var found bool
+		// Get the latest version of the resource.
+		// If status update is for delete event which is indicated by clearKeyFromCache flag, then use kubeclient as it
+		// helps in identifying whether resource is actually deleted or it's label has been removed, otherwise use informers,
+		// which is usually faster.
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.tsInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" + rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch TS. %v", err)
+				break
+			} else if !exists {
+				// Object is deleted
+				return
+			}
+			ts, found = item.(*cisv1.TransportServer)
+		} else {
+			var err error
+			ts, err = clusterConfig.kubeCRClient.CisV1().TransportServers(rscStatus.ResourceKey.namespace).Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					// Resource is not found indicates it's actually deleted, so it eliminates the case of watch label
+					// removal from the resource. So, no need to go for status update.
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch TS. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			ts.Status = rscStatus.ResourceObj.(cisv1.TransportServerStatus)
+		}
+		_, updateErr = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+	case cisv1.IngressLinkStatus:
+		resourceType = IngressLink
+		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var il *cisv1.IngressLink
+		var found bool
+		// Get the latest version of the resource.
+		// If status update is for delete event which is indicated by clearKeyFromCache flag, then use kubeclient as it
+		// helps in identifying whether resource is actually deleted or it's label has been removed, otherwise use informers,
+		// which is usually faster.
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.ilInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" + rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch IL. %v", err)
+				break
+			} else if !exists {
+				// Object is deleted
+				return
+			}
+			il, found = item.(*cisv1.IngressLink)
+		} else {
+			var err error
+			il, err = clusterConfig.kubeCRClient.CisV1().IngressLinks(rscStatus.ResourceKey.namespace).Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					// Resource is not found indicates it's actually deleted, so it eliminates the case of watch label
+					// removal from the resource. So, no need to go for status update.
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch IL. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			il.Status = rscStatus.ResourceObj.(cisv1.IngressLinkStatus)
+		}
+		_, updateErr = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+	case v1.ServiceStatus:
+		resourceType = Service
+		informer := ch.getCommonInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var svc *v1.Service
+		var found bool
+		// Get the latest version of the resource.
+		// If status update is for delete event which is indicated by clearKeyFromCache flag, then use kubeclient as it
+		// helps in identifying whether resource is actually deleted or it's label has been removed, otherwise use informers,
+		// which is usually faster.
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.svcInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" + rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch LB Service. %v", err)
+				break
+			} else if !exists {
+				// Object is deleted
+				return
+			}
+			svc, found = item.(*v1.Service)
+		} else {
+			var err error
+			svc, err = clusterConfig.kubeClient.CoreV1().Services(rscStatus.ResourceKey.namespace).Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					// Resource is not found indicates it's actually deleted, so it eliminates the case of IP annotation
+					// removal from the resource. So, no need to go for status update.
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch LB service. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			svc.Status = rscStatus.ResourceObj.(v1.ServiceStatus)
+		}
+		_, updateErr = clusterConfig.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+		if nil != updateErr {
 			var warning string
 			if rscStatus.IPSet {
 				warning = fmt.Sprintf("Error when assigning Service LB Ingress status IP: %v", updateErr)
@@ -357,7 +460,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 				v1.EventTypeWarning,
 				"StatusIPError",
 				warning,
-				rscStatus.ClusterName,
+				rscStatus.ResourceKey.clusterName,
 			}
 		} else {
 			var message string
@@ -373,28 +476,66 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 				v1.EventTypeNormal,
 				"ExternalIP",
 				message,
-				rscStatus.ClusterName,
+				rscStatus.ResourceKey.clusterName,
 			}
 		}
-	case *routeapi.Route:
-		route := rscStatus.ResourceObj.(*routeapi.Route)
-		_, updateErr := clusterConfig.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(),
-			route, metav1.UpdateOptions{})
-		if updateErr == nil {
-			log.Infof("Admitted Route -  %v/%v", route.ObjectMeta.Namespace, route.ObjectMeta.Name)
-			return
+	case routeapi.RouteStatus:
+		resourceType = Route
+		informer := ch.getNRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
 		}
+		var route *routeapi.Route
+		var found bool
+		// Get the latest version of the resource.
+		// If status update is for delete event which is indicated by clearKeyFromCache flag, then use kubeclient as it
+		// helps in identifying whether resource is actually deleted or it's label has been removed, otherwise use informers,
+		// which is usually faster.
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.routeInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" + rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch Route. %v", err)
+				break
+			} else if !exists {
+				// Object is deleted
+				return
+			}
+			route, found = item.(*routeapi.Route)
+		} else {
+			var err error
+			route, err = clusterConfig.routeClientV1.Routes(rscStatus.ResourceKey.namespace).Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					// Resource is not found indicates it's actually deleted, so it eliminates the case of watch label
+					// removal from the resource. So, no need to go for status update.
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch Route. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			route.Status = rscStatus.ResourceObj.(routeapi.RouteStatus)
+		}
+		_, updateErr = clusterConfig.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(),
+			route, metav1.UpdateOptions{})
 	default:
-		updateErr = fmt.Errorf("unknown resource type %T received for Status Update", rscStatus.ResourceObj)
+		log.Errorf("unknown resource %s/%s of Cluster:%s received for Status Update", rscStatus.ResourceKey.namespace,
+			rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName)
+		return
 	}
 	// Retry the update if it fails
 	if nil != updateErr {
-		log.Errorf("Error while updating %T status from cluster %s: Error: %v", rscStatus.ResourceObj,
-			rscStatus.ClusterName, updateErr)
+		log.Errorf("Failed to update the status of %s:%s/%s in Cluster %s. Error: %v. Retry will be attempted.", resourceType,
+			rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName, updateErr)
 		rscStatus.UpdateAttempts++
 		ch.statusUpdate.ResourceStatusUpdateChan <- rscStatus
 	} else {
-		log.Infof("Successfully updated status of %T from cluster: %s", rscStatus.ResourceObj, rscStatus.ClusterName)
+		log.Infof("Successfully updated status of %s:%s/%s in Cluster %s", resourceType,
+			rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName)
 	}
 }
 
@@ -446,4 +587,46 @@ func (ch *ClusterHandler) recordLBServiceIngressEvent(
 			namespace, config.kubeClient.CoreV1())
 		evNotifier.RecordEvent(svc, eventType, reason, message)
 	}
+}
+
+// getCRInformerForCluster returns the custom resource informers for cluster
+func (ch *ClusterHandler) getCRInformerForCluster(clusterName string, namespace string) *CRInformer {
+	var infStore *InformerStore
+	if infStore = ch.getInformerStore(clusterName); infStore == nil {
+		return nil
+	}
+	if informer, ok := infStore.crInformers[namespace]; ok {
+		return informer
+	} else if informer, ok = infStore.crInformers[""]; ok {
+		return informer
+	}
+	return nil
+}
+
+// getCommonInformerForCluster returns the commonInformers for a cluster
+func (ch *ClusterHandler) getCommonInformerForCluster(clusterName string, namespace string) *CommonInformer {
+	var infStore *InformerStore
+	if infStore = ch.getInformerStore(clusterName); infStore == nil {
+		return nil
+	}
+	if informer, ok := infStore.comInformers[namespace]; ok {
+		return informer
+	} else if informer, ok = infStore.comInformers[""]; ok {
+		return informer
+	}
+	return nil
+}
+
+// getNRInformerForCluster returns the native resource informers for cluster
+func (ch *ClusterHandler) getNRInformerForCluster(clusterName string, namespace string) *NRInformer {
+	var infStore *InformerStore
+	if infStore = ch.getInformerStore(clusterName); infStore == nil {
+		return nil
+	}
+	if informer, ok := infStore.nrInformers[namespace]; ok {
+		return informer
+	} else if informer, ok = infStore.nrInformers[""]; ok {
+		return informer
+	}
+	return nil
 }

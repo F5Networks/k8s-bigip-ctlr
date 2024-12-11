@@ -615,6 +615,7 @@ spec:
                 type:
                   type: string
                   enum: [tcp, udp, sctp]
+                  default: tcp
                 tls:
                   type: object
                   properties:

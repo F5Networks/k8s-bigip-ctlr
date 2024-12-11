@@ -349,7 +349,7 @@ func (agent *Agent) postTenantsDeclaration(decl as3Declaration, rsConfig Resourc
 		If there are any tenants with 201 response code,
 		poll for its status continuously and block incoming requests
 	*/
-	agent.pollTenantStatus()
+	agent.pollTenantStatus(true)
 
 	// notify resourceStatusUpdate response handler on successful tenant update
 	agent.notifyRscStatusHandler(cfg.id, true)
@@ -448,7 +448,7 @@ func (agent *Agent) retryWorker() {
 			}
 
 			//If there are any 201 tenants, poll for its status
-			agent.pollTenantStatus()
+			agent.pollTenantStatus(false)
 
 			//If there are any failed tenants, retry posting them
 			agent.retryFailedTenant(agent.userAgent)

@@ -787,7 +787,7 @@ func (postMgr *PostManager) updateRetryMap(tenant string, resp tenantResponse, t
 	}
 }
 
-func (postMgr *PostManager) pollTenantStatus() {
+func (postMgr *PostManager) pollTenantStatus(agentWorkerUpdate bool) {
 
 	var acceptedTenants []string
 	// Create a set to hold unique polling ids
@@ -823,7 +823,7 @@ func (postMgr *PostManager) pollTenantStatus() {
 	}
 
 	if len(acceptedTenants) > 0 {
-		postMgr.updateTenantResponseMap(false)
+		postMgr.updateTenantResponseMap(agentWorkerUpdate)
 	}
 }
 

@@ -8,6 +8,15 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
+        * *local-cluster-name* parameter is a new and mandatory parameter for multi-cluster mode,
+        * Introducing the new *default* mode for MultiCluster topologies which supports the ServiceType LoadBalancer, VirtualServer CR and Transport Server CR. See `Documentation <./config_examples/multicluster/default-mode>`_
+        * CIS now supports the serviceType Load balancer discovery in remote clusters as well using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
+        * Support for the MultiCluster serviceType load balancer in the default mode. See `Example <./config_examples/multicluster/default-mode/ServiceTypeLB/sample-multi-cluster-svc-lb.yaml>`_
+        * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute
+            * CIS now does the service discovery for VS/TS CR in all the clusters when Active-Active or Ratio mode is configured.
+            * extendedServiceReferences have been deprecated for VS/TS CR in the Active-Active and Ratio mode.
+            * Active-standby mode is not supported any more.
+
     * CRD
         * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP Compression profile in VS CR. See `Example <./config_examples/customResource/VirtualServer/httpCompressionProfile/>`_
         * `Issue 3637 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3637>`_: Support for TLS in transport server. See `Example <./config_examples/customResource/TransportServer/transport-server-with-tls>`_
@@ -20,6 +29,9 @@ Bug Fixes
 * `Issue 3570 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3570>`_: tls irule fails if pool has no active members
 * `Issue 3654 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3654>`_: Persistent connection issue with SSL and HTTP pools in a VirtualServer Hostgroup
 * Support dots and dashes in object names aligned to AS3
+
+
+
 
 2.18.1
 -------------

@@ -1,0 +1,35 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: tea-virtual-server-edge
+  namespace: default
+spec:
+  host: tea.example.com
+  virtualServerAddress: 10.8.0.71
+  pools:
+    - path: /neam
+      multiClusterServices:
+        # CIS supports to refer svs from local cluster and ha cluster
+        - clusterName: cluster1
+          namespace: default
+          service: svc-12-external-service
+          servicePort: 80
+        - clusterName: cluster2
+          namespace: default
+          service: svc-21-external-service
+          servicePort: 80
+        - clusterName: cluster3
+          namespace: default
+          service: svc-1-external-service
+          servicePort: 80
+        - clusterName: cluster4
+          namespace: default
+          service: svc-1-external-service
+          servicePort: 80
+      monitor:
+        interval: 20
+        timeout: 10
+        type: http
+        send: GET /health HTTP/1.0

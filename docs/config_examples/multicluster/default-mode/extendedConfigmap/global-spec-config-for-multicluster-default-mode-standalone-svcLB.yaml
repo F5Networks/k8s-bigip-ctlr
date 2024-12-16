@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    f5nr: "true"
+  name: extended-spec-config
+  namespace: kube-system
+data:
+  extendedSpec: |
+    mode: default
+    externalClustersConfig:
+    - clusterName: cluster1
+      secret: default/kubeconfig1
+      serviceTypeLBDiscovery: true # If set to true then CIS will watch for serviceTypeLB in this cluster.default is false
+    - clusterName: cluster2
+      secret: default/kubeconfig2
+      serviceTypeLBDiscovery: true # If set to true then CIS will watch for serviceTypeLB in this cluster.default is false
+    - clusterName: cluster3
+      secret: default/kubeconfig3

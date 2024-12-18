@@ -2316,22 +2316,19 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			continue
 		}
 		framedPools[poolName] = struct{}{}
-		svcNamespace := vs.Namespace
-		if SvcBackend.SvcNamespace != "" {
-			svcNamespace = SvcBackend.SvcNamespace
-		}
+
 		pool := Pool{
 			Name:              poolName,
 			Partition:         rsCfg.Virtual.Partition,
 			ServiceName:       SvcBackend.Name,
-			ServiceNamespace:  svcNamespace,
+			ServiceNamespace:  SvcBackend.SvcNamespace,
 			ServicePort:       SvcBackend.SvcPort,
 			ServicePortUsed:   svcPortUsed,
 			NodeMemberLabel:   pl.NodeMemberLabel,
 			Balance:           pl.Balance,
 			ReselectTries:     pl.ReselectTries,
 			ServiceDownAction: pl.ServiceDownAction,
-			Cluster:           SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
+			Cluster:           SvcBackend.Cluster,
 			BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 			// this is a temporary config. Should be removed later after implicit service search for virtual server
 			ImplicitSvcSearchEnabled: true,
@@ -3109,7 +3106,8 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace string) []SvcBackendCxt {
 	var sbcs []SvcBackendCxt
 	defaultWeight := 100
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+	switch ctlr.discoveryMode {
+	case DefaultMode:
 		if pool.MultiClusterServices != nil {
 			for _, svc := range pool.MultiClusterServices {
 				sbc := SvcBackendCxt{}
@@ -3128,9 +3126,7 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 				sbcs = append(sbcs, sbc)
 			}
 		}
-		return sbcs
-	}
-	if ctlr.discoveryMode != Ratio {
+	case "", Active, StandBy:
 		numOfBackends := 1
 		if pool.AlternateBackends != nil {
 			numOfBackends += len(pool.AlternateBackends)
@@ -3145,9 +3141,11 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 		} else {
 			sbcs[beIdx].Weight = float64(defaultWeight)
 		}
+		svcNamespace := rscNamespace
 		if pool.ServiceNamespace != "" {
-			sbcs[beIdx].SvcNamespace = pool.ServiceNamespace
+			svcNamespace = pool.ServiceNamespace
 		}
+		sbcs[beIdx].SvcNamespace = svcNamespace
 		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 		if pool.AlternateBackends != nil {
 			for _, svc := range pool.AlternateBackends {
@@ -3158,209 +3156,230 @@ func (ctlr *Controller) GetPoolBackendsForTS(pool *cisapiv1.TSPool, rscNamespace
 				} else {
 					sbcs[beIdx].Weight = float64(defaultWeight)
 				}
-				sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
+				if svc.ServiceNamespace != "" {
+					sbcs[beIdx].SvcNamespace = svc.ServiceNamespace
+				} else {
+					sbcs[beIdx].SvcNamespace = svcNamespace
+				}
 				sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 				sbcs[beIdx].SvcPort = pool.ServicePort
 			}
 		}
-		return sbcs
-	}
-	// Prepare backends for Ratio mode
-	/*
-				Effective weight for a service(S) = Ws/Wt * Rc/Rt
-				Ws => Weight specified for the service S
-				Wt => Sum of weights of all services (VS service + Alternate backends + External services)
-				Rc => Ratio specified for the cluster on which the service is running
-				Rt => Sum of all the ratios of the clusters excluding those cluster ratios which don't contribute to this VS services
+	case Ratio:
+		// Prepare backends for Ratio mode
+		/*
+					Effective weight for a service(S) = Ws/Wt * Rc/Rt
+					Ws => Weight specified for the service S
+					Wt => Sum of weights of all services (VS service + Alternate backends + External services)
+					Rc => Ratio specified for the cluster on which the service is running
+					Rt => Sum of all the ratios of the clusters excluding those cluster ratios which don't contribute to this VS services
 
-				For example:
-					Route(P) (Route in primary cluster)=> Associated services are (Rs(P), ABs1(P), ABs2(P), Svc1 and Svc2)
-					Route(S) (Route in secondary cluster)=> Associated services are (Rs(S), ABs1(S), ABs2(S), Svc1 and Svc2)
-					* Where (P) and (S) stand for primary and secondary cluster
+					For example:
+						Route(P) (Route in primary cluster)=> Associated services are (Rs(P), ABs1(P), ABs2(P), Svc1 and Svc2)
+						Route(S) (Route in secondary cluster)=> Associated services are (Rs(S), ABs1(S), ABs2(S), Svc1 and Svc2)
+						* Where (P) and (S) stand for primary and secondary cluster
 
-					If there are 4 clusters CL1, CL2, CL3, CL4 and ratios defined for these clusters along with the services' weights are
-					CL1(Primary)   => Ratio: 4 ([VS service Rs(P) => weight 30 ] + Alternate backend services [ ABs1(P) => weight:10, ABs2(P) => weight:20 ])
-					CL2(Secondary) => Ratio: 3 ([VS service Rs(S) => weight 30 ] + Alternate backend services [ ABs1(S) => weight:10, ABs2(S) => weight:20 ])
-					CL3 		   => Ratio: 2 ([Svc1 => weight 20], [svc2 => weight 10])
-					CL4 		   => Ratio: 1 (No services )
+						If there are 4 clusters CL1, CL2, CL3, CL4 and ratios defined for these clusters along with the services' weights are
+						CL1(Primary)   => Ratio: 4 ([VS service Rs(P) => weight 30 ] + Alternate backend services [ ABs1(P) => weight:10, ABs2(P) => weight:20 ])
+						CL2(Secondary) => Ratio: 3 ([VS service Rs(S) => weight 30 ] + Alternate backend services [ ABs1(S) => weight:10, ABs2(S) => weight:20 ])
+						CL3 		   => Ratio: 2 ([Svc1 => weight 20], [svc2 => weight 10])
+						CL4 		   => Ratio: 1 (No services )
 
-					Effective weight calculation considering the service weights as well as the cluster ratio:
-					Total Weight(Wt) = 30[Rs(P)] + 30[Rs(S)]  + 10[ABs1(P)] + 10[ABs1(S)] + 20[ABs2(P)] + 20[ABs2(S)] + 20(Svc1) + 10(Svc2) = 150
-					Total Ratio(Rt) = 4(CL1) + 3(CL2) + 2(CL3) = 9 [Excluded CL4 ratio as it doesn't contribute to the VS's services]
-					-------------------------------------------------------------------------------------------
-					Effective weight for service Rs(P)  : 30(Ws)/150(Wt) * 4(Rc)/9(Rt) = 3/15 * 4/9 = 0.088
-					Effective weight for service Rs(S)  : 30(Ws)/150(Wt) * 3(Rc)/9(Rt) = 3/15 * 3/9 = 0.066
-					Effective weight for service ABs1(P): 10(Ws)/150(Wt) * 4(Rc)/9(Rt) = 1/15 * 4/9 = 0.029
-					Effective weight for service ABs1(S): 10(Ws)/150(Wt) * 3(Rc)/9(Rt) = 1/15 * 3/9 = 0.022
-					Effective weight for service ABs2(P): 20(Ws)/150(Wt) * 4(Rc)/9(Rt) = 2/15 * 4/9 = 0.059
-			 		Effective weight for service ABs2(S): 20(Ws)/150(Wt) * 3(Rc)/9(Rt) = 2/15 * 3/9 = 0.044
-					Effective weight for service Svc1   : 20(Ws)/150(Wt) * 2(Rc)/9(Rt) = 2/15 * 2/9 = 0.029
-					Effective weight for service Svc2   : 10(Ws)/150(Wt) * 2(Rc)/9(Rt) = 1/15 * 2/9 = 0.014
-		            -------------------------------------------------------------------------------------------
-	*/
+						Effective weight calculation considering the service weights as well as the cluster ratio:
+						Total Weight(Wt) = 30[Rs(P)] + 30[Rs(S)]  + 10[ABs1(P)] + 10[ABs1(S)] + 20[ABs2(P)] + 20[ABs2(S)] + 20(Svc1) + 10(Svc2) = 150
+						Total Ratio(Rt) = 4(CL1) + 3(CL2) + 2(CL3) = 9 [Excluded CL4 ratio as it doesn't contribute to the VS's services]
+						-------------------------------------------------------------------------------------------
+						Effective weight for service Rs(P)  : 30(Ws)/150(Wt) * 4(Rc)/9(Rt) = 3/15 * 4/9 = 0.088
+						Effective weight for service Rs(S)  : 30(Ws)/150(Wt) * 3(Rc)/9(Rt) = 3/15 * 3/9 = 0.066
+						Effective weight for service ABs1(P): 10(Ws)/150(Wt) * 4(Rc)/9(Rt) = 1/15 * 4/9 = 0.029
+						Effective weight for service ABs1(S): 10(Ws)/150(Wt) * 3(Rc)/9(Rt) = 1/15 * 3/9 = 0.022
+						Effective weight for service ABs2(P): 20(Ws)/150(Wt) * 4(Rc)/9(Rt) = 2/15 * 4/9 = 0.059
+				 		Effective weight for service ABs2(S): 20(Ws)/150(Wt) * 3(Rc)/9(Rt) = 2/15 * 3/9 = 0.044
+						Effective weight for service Svc1   : 20(Ws)/150(Wt) * 2(Rc)/9(Rt) = 2/15 * 2/9 = 0.029
+						Effective weight for service Svc2   : 10(Ws)/150(Wt) * 2(Rc)/9(Rt) = 1/15 * 2/9 = 0.014
+			            -------------------------------------------------------------------------------------------
+		*/
 
-	// First we calculate the total service weights, total ratio and the total number of backends
+		// First we calculate the total service weights, total ratio and the total number of backends
 
-	clusterNames := ctlr.multiClusterHandler.fetchClusterNames()
-	// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
-	// with the VS running in that cluster
-	clusterSvcMap := make(map[MultiClusterServiceKey]struct{})
-	var svcKey MultiClusterServiceKey
-	validExtSvcCount := make(map[MultiClusterServiceKey]int)
-	// totalClusterRatio stores the sum total of all the ratio of clusters contributing services to this VS
-	totalClusterRatio := 0.0
-	// totalSvcWeights stores the sum total of all the weights of services associated with this VS
-	totalSvcWeights := 0.0
-	// Include local cluster ratio in the totalClusterRatio calculation
-	//if !localClusterPoolRestricted {
-	//	totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
-	//}
-	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	//if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
-	//	totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
-	//}
-	// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
-	if pool.Weight != nil {
-		totalSvcWeights += float64(*pool.Weight)
-	} else {
-		totalSvcWeights += float64(defaultWeight)
-	}
-	// count of valid external multiCluster services
-	// Process multiCluster services
-
-	poolNamespace := pool.ServiceNamespace
-	if poolNamespace == "" {
-		poolNamespace = rscNamespace
-	}
-	for _, clusterName := range clusterNames {
-		if ctlr.isAddingPoolRestricted(clusterName) {
-			continue
-		}
-		totalClusterRatio += float64(*ctlr.clusterRatio[clusterName])
-		svcKey = MultiClusterServiceKey{
-			clusterName: clusterName,
-			namespace:   poolNamespace,
-			serviceName: pool.Service,
-		}
-		err, _ := ctlr.fetchService(svcKey)
-		if err != nil && clusterName != ctlr.multiClusterHandler.LocalClusterName {
-			continue
-		}
-		clusterSvcMap[svcKey] = struct{}{}
-		svcKey.clusterName = ctlr.multiClusterHandler.LocalClusterName
-		validExtSvcCount[svcKey] += 1
-	}
-
-	if pool.AlternateBackends != nil {
-		for _, svc := range pool.AlternateBackends {
-			if svc.Weight != nil {
-				totalSvcWeights += float64(*svc.Weight)
-			} else {
-				totalSvcWeights += float64(defaultWeight)
-			}
-			for _, clusterName := range clusterNames {
-				if ctlr.isAddingPoolRestricted(clusterName) {
-					continue
-				}
-				svcKey = MultiClusterServiceKey{
-					clusterName: clusterName,
-					namespace:   svc.ServiceNamespace,
-					serviceName: svc.Service,
-				}
-				err, _ := ctlr.fetchService(svcKey)
-				if err != nil && clusterName != ctlr.multiClusterHandler.LocalClusterName {
-					continue
-				}
-				clusterSvcMap[svcKey] = struct{}{}
-				svcKey.clusterName = ctlr.multiClusterHandler.LocalClusterName
-				validExtSvcCount[svcKey] += 1
-			}
-		}
-	}
-
-	// Now start creating the list of all the backends
-
-	// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0 to avoid division by zero
-	if totalSvcWeights == 0 {
-		totalSvcWeights = 1
-	}
-	if totalClusterRatio == 0 {
-		totalClusterRatio = 1
-	}
-	// Process VS spec primary service
-	var svcBknd SvcBackendCxt
-	var localSvc MultiClusterServiceKey
-	localSvcCount := 1
-	for _, clusterName := range clusterNames {
-		if ctlr.isAddingPoolRestricted(clusterName) {
-			continue
-		}
-		svcKey = MultiClusterServiceKey{
-			serviceName: pool.Service,
-			namespace:   poolNamespace,
-			clusterName: clusterName,
-		}
-		if _, ok := clusterSvcMap[svcKey]; !ok && clusterName != ctlr.multiClusterHandler.LocalClusterName {
-			continue
-		}
-		svcBknd.Name = pool.Service
-		svcBknd.SvcPort = pool.ServicePort
-		svcBknd.SvcNamespace = pool.ServiceNamespace
-		localSvc = svcKey
-		localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
-		if val, ok := validExtSvcCount[localSvc]; ok {
-			localSvcCount = val
-		} else {
-			localSvcCount = 1
-		}
+		clusterNames := ctlr.multiClusterHandler.fetchClusterNames()
+		// clusterSvcMap helps in ensuring the cluster ratio is considered only if there is at least one service associated
+		// with the VS running in that cluster
+		clusterSvcMap := make(map[MultiClusterServiceKey]struct{})
+		var svcKey MultiClusterServiceKey
+		validExtSvcCount := make(map[MultiClusterServiceKey]int)
+		// totalClusterRatio stores the sum total of all the ratio of clusters contributing services to this VS
+		totalClusterRatio := 0.0
+		// totalSvcWeights stores the sum total of all the weights of services associated with this VS
+		totalSvcWeights := 0.0
+		// Include local cluster ratio in the totalClusterRatio calculation
+		//if !localClusterPoolRestricted {
+		//	totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
+		//}
+		// Include HA partner cluster ratio in the totalClusterRatio calculation
+		//if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		//	totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
+		//}
+		// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
 		if pool.Weight != nil {
-			svcBknd.Weight = (float64(*pool.Weight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) *
-				(1 / float64(localSvcCount))
+			totalSvcWeights += float64(*pool.Weight)
 		} else {
-			svcBknd.Weight = (float64(defaultWeight) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) * (1 / float64(localSvcCount))
+			totalSvcWeights += float64(defaultWeight)
 		}
-		svcBknd.Cluster = clusterName
-		sbcs = append(sbcs, svcBknd)
-	}
+		// count of valid external multiCluster services
+		// Process multiCluster services
 
-	// Process Alternate backends
-	if pool.AlternateBackends != nil {
-		for _, svc := range pool.AlternateBackends {
-			for _, clusterName := range clusterNames {
-				if ctlr.isAddingPoolRestricted(clusterName) {
-					continue
-				}
-				svcKey = MultiClusterServiceKey{
-					serviceName: svc.Service,
-					namespace:   svc.ServiceNamespace,
-					clusterName: clusterName,
-				}
-				if _, ok := clusterSvcMap[svcKey]; !ok && clusterName != ctlr.multiClusterHandler.LocalClusterName {
-					continue
-				}
-				svcBknd.Name = svc.Service
-				svcBknd.SvcNamespace = svc.ServiceNamespace
-				svcBknd.SvcPort = pool.ServicePort
-				localSvc = svcKey
-				localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
-				if val, ok := validExtSvcCount[localSvc]; ok {
-					localSvcCount = val
-				} else {
-					localSvcCount = 1
-				}
+		poolNamespace := pool.ServiceNamespace
+		if poolNamespace == "" {
+			poolNamespace = rscNamespace
+		}
+		for _, clusterName := range clusterNames {
+			if ctlr.isAddingPoolRestricted(clusterName) {
+				continue
+			}
+			totalClusterRatio += float64(*ctlr.clusterRatio[clusterName])
+			svcKey = MultiClusterServiceKey{
+				clusterName: clusterName,
+				namespace:   poolNamespace,
+				serviceName: pool.Service,
+			}
+			err, _ := ctlr.fetchService(svcKey)
+			if err != nil && clusterName != ctlr.multiClusterHandler.LocalClusterName {
+				continue
+			}
+			clusterSvcMap[svcKey] = struct{}{}
+			svcKey.clusterName = ctlr.multiClusterHandler.LocalClusterName
+			validExtSvcCount[svcKey] += 1
+		}
+
+		if pool.AlternateBackends != nil {
+			for _, svc := range pool.AlternateBackends {
 				if svc.Weight != nil {
-					svcBknd.Weight = (float64(*svc.Weight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) *
-						(1 / float64(localSvcCount))
+					totalSvcWeights += float64(*svc.Weight)
 				} else {
-					svcBknd.Weight = (float64(defaultWeight) / totalSvcWeights) *
-						(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) *
-						(1 / float64(localSvcCount))
+					totalSvcWeights += float64(defaultWeight)
 				}
-				svcBknd.Cluster = clusterName
-				sbcs = append(sbcs, svcBknd)
+				for _, clusterName := range clusterNames {
+					if ctlr.isAddingPoolRestricted(clusterName) {
+						continue
+					}
+					if svc.ServiceNamespace == "" {
+						svcKey = MultiClusterServiceKey{
+							clusterName: clusterName,
+							namespace:   poolNamespace,
+							serviceName: svc.Service,
+						}
+					} else {
+						svcKey = MultiClusterServiceKey{
+							clusterName: clusterName,
+							namespace:   svc.ServiceNamespace,
+							serviceName: svc.Service,
+						}
+					}
+
+					err, _ := ctlr.fetchService(svcKey)
+					if err != nil && clusterName != ctlr.multiClusterHandler.LocalClusterName {
+						continue
+					}
+					clusterSvcMap[svcKey] = struct{}{}
+					svcKey.clusterName = ctlr.multiClusterHandler.LocalClusterName
+					validExtSvcCount[svcKey] += 1
+				}
+			}
+		}
+
+		// Now start creating the list of all the backends
+
+		// Calibrate totalSvcWeights and totalClusterRatio if any of these is 0 to avoid division by zero
+		if totalSvcWeights == 0 {
+			totalSvcWeights = 1
+		}
+		if totalClusterRatio == 0 {
+			totalClusterRatio = 1
+		}
+		// Process VS spec primary service
+		var svcBknd SvcBackendCxt
+		var localSvc MultiClusterServiceKey
+		localSvcCount := 1
+		for _, clusterName := range clusterNames {
+			if ctlr.isAddingPoolRestricted(clusterName) {
+				continue
+			}
+			svcKey = MultiClusterServiceKey{
+				serviceName: pool.Service,
+				namespace:   poolNamespace,
+				clusterName: clusterName,
+			}
+			if _, ok := clusterSvcMap[svcKey]; !ok && clusterName != ctlr.multiClusterHandler.LocalClusterName {
+				continue
+			}
+			svcBknd.Name = pool.Service
+			svcBknd.SvcPort = pool.ServicePort
+			svcBknd.SvcNamespace = poolNamespace
+			localSvc = svcKey
+			localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
+			if val, ok := validExtSvcCount[localSvc]; ok {
+				localSvcCount = val
+			} else {
+				localSvcCount = 1
+			}
+			if pool.Weight != nil {
+				svcBknd.Weight = (float64(*pool.Weight) / totalSvcWeights) *
+					(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) *
+					(1 / float64(localSvcCount))
+			} else {
+				svcBknd.Weight = (float64(defaultWeight) / totalSvcWeights) *
+					(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) * (1 / float64(localSvcCount))
+			}
+			svcBknd.Cluster = clusterName
+			sbcs = append(sbcs, svcBknd)
+		}
+
+		// Process Alternate backends
+		if pool.AlternateBackends != nil {
+			for _, svc := range pool.AlternateBackends {
+				for _, clusterName := range clusterNames {
+					if ctlr.isAddingPoolRestricted(clusterName) {
+						continue
+					}
+					if svc.ServiceNamespace == "" {
+						svcKey = MultiClusterServiceKey{
+							clusterName: clusterName,
+							namespace:   poolNamespace,
+							serviceName: svc.Service,
+						}
+					} else {
+						svcKey = MultiClusterServiceKey{
+							clusterName: clusterName,
+							namespace:   svc.ServiceNamespace,
+							serviceName: svc.Service,
+						}
+					}
+					if _, ok := clusterSvcMap[svcKey]; !ok && clusterName != ctlr.multiClusterHandler.LocalClusterName {
+						continue
+					}
+					svcBknd.Name = svc.Service
+					svcBknd.SvcNamespace = svcKey.namespace
+					svcBknd.SvcPort = pool.ServicePort
+					localSvc = svcKey
+					localSvc.clusterName = ctlr.multiClusterHandler.LocalClusterName
+					if val, ok := validExtSvcCount[localSvc]; ok {
+						localSvcCount = val
+					} else {
+						localSvcCount = 1
+					}
+					if svc.Weight != nil {
+						svcBknd.Weight = (float64(*svc.Weight) / totalSvcWeights) *
+							(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) *
+							(1 / float64(localSvcCount))
+					} else {
+						svcBknd.Weight = (float64(defaultWeight) / totalSvcWeights) *
+							(float64(*ctlr.clusterRatio[clusterName]) / totalClusterRatio) *
+							(1 / float64(localSvcCount))
+					}
+					svcBknd.Cluster = clusterName
+					sbcs = append(sbcs, svcBknd)
+				}
 			}
 		}
 	}

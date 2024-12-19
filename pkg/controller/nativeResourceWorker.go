@@ -35,7 +35,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			routeGroup, endTime.Sub(startTime))
 	}()
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		return fmt.Errorf("%v default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+		log.Errorf("%v default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+		return nil
 	}
 	var extdSpec *ExtendedRouteGroupSpec
 	var partition string
@@ -46,7 +47,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	} else {
 		extdSpec, partition = ctlr.resources.getExtendedRouteSpec(routeGroup)
 		if extdSpec == nil {
-			return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+			log.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+			return nil
 		}
 	}
 	annotationsUsed := &AnnotationsUsed{}
@@ -1829,6 +1831,7 @@ func (ctlr *Controller) getRouteGroupForNamespace(ns string) string {
 func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClusterConfig, externalClusterConfigs []ClusterDetails) error {
 	primaryClusterName := ""
 	secondaryClusterName := ""
+	// Handle cluster configs for HA CIS
 	if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && haClusterConfig != (HAClusterConfig{}) {
 		// If HA mode not set use default mode
 		if ctlr.discoveryMode == "" {
@@ -1900,7 +1903,9 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 
 			// Setup and start informers for secondary cluster in case of active-active/ratio/default mode HA cluster
-			if ctlr.discoveryMode != StandBy {
+			// Note: in case of default mode check if the serviceTypeLBDiscovery is set to true
+			if ctlr.discoveryMode != StandBy && (ctlr.discoveryMode != DefaultMode ||
+				haClusterConfig.SecondaryCluster.ServiceTypeLBDiscovery) {
 				err := ctlr.setupAndStartExternalClusterInformers(haClusterConfig.SecondaryCluster.ClusterName)
 				if err != nil {
 					return err
@@ -1934,7 +1939,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			}
 
 			// Setup and start informers for primary cluster in case of active-active/ratio/default mode HA cluster
-			if ctlr.discoveryMode != StandBy {
+			// Note: in case of default mode check if the serviceTypeLBDiscovery is set to true
+			if ctlr.discoveryMode != StandBy && (ctlr.discoveryMode != DefaultMode || haClusterConfig.PrimaryCluster.ServiceTypeLBDiscovery) {
 				err := ctlr.setupAndStartExternalClusterInformers(haClusterConfig.PrimaryCluster.ClusterName)
 				if err != nil {
 					return err

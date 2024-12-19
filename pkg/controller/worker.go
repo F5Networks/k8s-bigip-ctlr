@@ -203,11 +203,23 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName 
 	}
 	// Since serviceTypeLB in multiCluster environment is only supported in Default mode, the validations needs to be
 	// performed in case of default mode only
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+	if ctlr.multiClusterMode != "" {
+		// Allow LB service to be processed for pool or status updates
+		if forPoolOrStatusUpdate {
+			return nil, true
+		}
+		// Don't allow the service to be processed as LB service in case of non-default mode
+		if ctlr.discoveryMode != DefaultMode {
+			err = fmt.Errorf("Skipping loadBalancer service '%s/%s' of cluster '%s' as it's only supported in "+
+				"default mode when CIS is running in multiCluster environment. However it will be processed for Pool if "+
+				"any VS/TS CR is referencing it", svc.Namespace, svc.Name, clusterName)
+			return err, false
+		}
+		// Follows checks are only done in default mode
 		// check if the service is a multiClusterSvcLB and the cluster is not the local cluster
 		if _, ok := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; ok && ctlr.multiClusterMode != "" &&
 			clusterName != ctlr.multiClusterHandler.LocalClusterName && !forPoolOrStatusUpdate {
-			err = fmt.Errorf("skipping loadBalancer service '%s/%s' of cluster '%s' as CIS loadBalancer service with multiCluster "+
+			err = fmt.Errorf("Skipping loadBalancer service '%s/%s' of cluster '%s' as CIS loadBalancer service with multiCluster "+
 				"annotation is only processed if it exists in the local cluster where CIS is active. However it will be processed for Pool if any local "+
 				"MultiCluster Loadbalancer service references it in the  multiClusterServices annotation", svc.Namespace, svc.Name, clusterName)
 			return err, false
@@ -2351,7 +2363,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case VirtualServer:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, ctlr.multiClusterHandler.LocalClusterName)
 									item, _, _ = inf.vsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -2375,7 +2387,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case IngressLink:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, ctlr.multiClusterHandler.LocalClusterName)
 									item, _, _ = inf.ilInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -3398,7 +3410,7 @@ func (ctlr *Controller) processLBServices(
 	ip, ok1 := svc.Annotations[LBServiceIPAnnotation]
 	ipamLabel, ok2 := svc.Annotations[LBServiceIPAMLabelAnnotation]
 	if !ok1 && !ok2 {
-		log.Debugf("Service %v/%v does not have either of annotation: %v, annotation:%v, continuing.",
+		log.Warningf("Service %v/%v does not have either of annotation: %v, annotation:%v, continuing.",
 			svc.Namespace,
 			svc.Name,
 			LBServiceIPAMLabelAnnotation,

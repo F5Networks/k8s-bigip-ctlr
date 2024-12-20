@@ -1794,6 +1794,11 @@ func (ctlr *Controller) updateDataGroupForABTransportServer(
 		var entries []string
 		runningWeightTotal := 0.0
 		for _, be := range backends {
+			// fetch target port for backend, if not found use serviceport
+			targetPort := ctlr.fetchTargetPort(be.SvcNamespace, be.Name, be.SvcPort, be.Cluster)
+			if targetPort != (intstr.IntOrString{}) {
+				be.SvcPort = targetPort
+			}
 			if be.Weight == 0 {
 				continue
 			}

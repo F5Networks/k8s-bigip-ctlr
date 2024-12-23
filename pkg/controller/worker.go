@@ -1749,10 +1749,25 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			// Same host with different VirtualServerAddress is invalid
 			if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
 				if vrt.Spec.Host != "" && vrt.Spec.Host == currentVS.Spec.Host {
-					err = fmt.Sprintf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
-					log.Error(err)
-					ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
-					return nil
+					if !isVSDeleted {
+						err = fmt.Sprintf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
+						log.Error(err)
+						ctlr.updateVSStatus(currentVS, "", StatusError, errors.New(err))
+						return nil
+					} else {
+						// If vs created with same host is deleted, need to reprocess vs sharing same hostname.
+						log.Debugf("ReEnqueueing VirtualServer: %v", vrt)
+						key := &rqKey{
+							namespace: vrt.ObjectMeta.Namespace,
+							kind:      VirtualServer,
+							rscName:   vrt.ObjectMeta.Name,
+							rsc:       vrt,
+							event:     Create,
+						}
+
+						ctlr.resourceQueue.AddRateLimited(key)
+						return nil
+					}
 				}
 				// In case of empty host name or host names not matching, skip the virtual with other VirtualServerAddress
 				continue

@@ -814,7 +814,13 @@ func (ctlr *Controller) processResources() bool {
 					log.Infof("Added Namespace: '%v' of cluster %v to CIS scope", nsName, rKey.clusterName)
 				} else {
 					restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
-					if err := ctlr.addMultiClusterNamespacedInformers(rKey.clusterName, nsName, restClient, true); err != nil {
+					var apiServerUnreachable bool
+					_, err := clusterConfig.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+					if err != nil {
+						log.Warningf("[MultiCluster] kube-api server is not reachable for cluster %v due to error: %v", rKey.clusterName, err)
+						apiServerUnreachable = true
+					}
+					if err = ctlr.addMultiClusterNamespacedInformers(rKey.clusterName, nsName, restClient, true, apiServerUnreachable); err != nil {
 						log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", rKey.clusterName, nsName, err)
 					}
 				}
@@ -3080,7 +3086,7 @@ func (ctlr *Controller) processTransportServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := ctlr.checkValidTransportServer(virtual)
 		if false == valid {
-			log.Errorf("TransportServer %s, is not valid",
+			log.Warningf("TransportServer %s is not valid",
 				vkey)
 			return nil
 		}

@@ -15,7 +15,7 @@ var _ = Describe("MultiClusterWorker", func() {
 	var clusterName2 string
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		mockCtlr.multiClusterHandler = NewClusterHandler("cluster-1")
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

@@ -704,13 +704,18 @@ func (ctlr *Controller) processResources() bool {
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
 		if rscDelete {
-			// Do the clean up for the serviceTypeLB resources
-			for _, svc := range ctlr.getAllLBServices(nsName, rKey.clusterName) {
-				err := ctlr.processLBServices(svc, true, rKey.clusterName)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
-					isRetryableError = true
+			// Do the cleanup for the serviceTypeLB resources
+			orderedSVCs := ctlr.getAllServices(nsName, rKey.clusterName)
+			for _, obj := range orderedSVCs {
+				svc := obj.(*v1.Service)
+				if err, ok := ctlr.shouldProcessServiceTypeLB(svc, rKey.clusterName, false); ok {
+					err := ctlr.processLBServices(svc, rscDelete, rKey.clusterName)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+					}
+				} else {
+					log.Debugf("%v", err)
 				}
 			}
 		}
@@ -801,11 +806,18 @@ func (ctlr *Controller) processResources() bool {
 					delete(clusterConfig.InformerStore.comInformers, nsName)
 				}
 				delete(clusterConfig.namespaces, nsName)
-				log.Infof("Removed Namespace: '%v' from CIS scope", nsName)
+				log.Infof("Removed Namespace: '%v' of cluster %v from CIS scope", nsName, rKey.clusterName)
 			} else {
 				clusterConfig.namespaces[nsName] = struct{}{}
-				_ = ctlr.addNamespacedInformers(nsName, true, rKey.clusterName)
-				log.Infof("Added Namespace: '%v' to CIS scope", nsName)
+				if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
+					_ = ctlr.addNamespacedInformers(nsName, true, rKey.clusterName)
+					log.Infof("Added Namespace: '%v' of cluster %v to CIS scope", nsName, rKey.clusterName)
+				} else {
+					restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
+					if err := ctlr.addMultiClusterNamespacedInformers(rKey.clusterName, nsName, restClient, true); err != nil {
+						log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", rKey.clusterName, nsName, err)
+					}
+				}
 			}
 		}
 	case HACIS:
@@ -1006,25 +1018,20 @@ func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy)
 
 // getLBServicesForCustomPolicy gets all services of type LB affected by the policy
 func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy, clusterName string) []*v1.Service {
-	LBServices := ctlr.getAllLBServices(plc.Namespace, clusterName)
-	if nil == LBServices {
-		log.Debugf("No LB service found in namespace %s from cluster %s",
-			plc.Namespace, clusterName)
-		return nil
-	}
-
 	var plcSvcs []*v1.Service
 	var plcSvcNames []string
-	for _, svc := range LBServices {
-		if plcName, found := svc.Annotations[LBServicePolicyNameAnnotation]; found && plcName == plc.Name {
-			plcSvcs = append(plcSvcs, svc)
-			plcSvcNames = append(plcSvcNames, svc.Name)
+	orderedSVCs := ctlr.getAllServices(plc.Namespace, clusterName)
+	for _, obj := range orderedSVCs {
+		svc := obj.(*v1.Service)
+		if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, false); ok {
+			if plcName, found := svc.Annotations[LBServicePolicyNameAnnotation]; found && plcName == plc.Name {
+				plcSvcs = append(plcSvcs, svc)
+				plcSvcNames = append(plcSvcNames, svc.Name)
+			}
 		}
 	}
-
 	log.Debugf("LB Services %v are affected with Custom Policy %s: in cluster %s",
 		plcSvcNames, plc.Name, clusterName)
-
 	return plcSvcs
 }
 
@@ -3338,9 +3345,8 @@ func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.Tra
 	return allVirtuals
 }
 
-// getAllLBServices returns list of all valid LB Services in rkey namespace.
-func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) []*v1.Service {
-	var allLBServices []*v1.Service
+// getAllServices returns list of all valid LB Services in rkey namespace.
+func (ctlr *Controller) getAllServices(namespace string, clusterName string) []interface{} {
 	var orderedSVCs []interface{}
 	var err error
 	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
@@ -3387,14 +3393,7 @@ func (ctlr *Controller) getAllLBServices(namespace string, clusterName string) [
 			return nil
 		}
 	}
-	for _, obj := range orderedSVCs {
-		svc := obj.(*v1.Service)
-		if _, ok := ctlr.shouldProcessServiceTypeLB(svc, clusterName, false); ok {
-			allLBServices = append(allLBServices, svc)
-		}
-	}
-
-	return allLBServices
+	return orderedSVCs
 }
 
 func (ctlr *Controller) processLBServices(

@@ -663,12 +663,12 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
 					}
 					// handle AB traffic for edge termination with allow
-					if (isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
+					if (isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode) && rsCfg.Virtual.VirtualAddress.Port == httpPort && strings.ToLower(vs.Spec.HTTPTraffic) == TLSAllowInsecure {
 						ctlr.HandlePathBasedABIRule(rsCfg, vs.Spec.Host, tlsTermination)
 					}
 				}
 			} else {
-				if isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio {
+				if isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode {
 					// Handle AB datagroup for insecure virtualserver
 					ctlr.updateDataGroupForABVirtualServer(&pl,
 						getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
@@ -2417,7 +2417,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		pools = append(pools, pool)
 		if !isTSABDeployment(&pl) && ctlr.discoveryMode != Ratio {
 			rsCfg.Virtual.PoolName = pool.Name
-		} else if isTSABDeployment(&pl) || ctlr.discoveryMode == Ratio {
+		} else if isTSABDeployment(&pl) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode {
 			// Handle AB datagroup for insecure virtualserver
 			ctlr.updateDataGroupForABTransportServer(pl,
 				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
@@ -3712,7 +3712,7 @@ func (ctlr *Controller) updatePoolMembersConfig(poolMembers *[]PoolMember, clust
 func (ctlr *Controller) formatMonitorNameForMultiCluster(monitorName string, cluster string) string {
 	// Update monitor name only in case of multiCluster ratio mode as in this mode only CIS creates distinct pools for
 	// services in different clusters,thus we need to update the monitor name to make them distinguishable
-	if ctlr.multiClusterMode == "" || len(ctlr.clusterRatio) == 0 {
+	if ctlr.multiClusterMode == "" || (len(ctlr.clusterRatio) == 0 && ctlr.discoveryMode != DefaultMode) {
 		return monitorName
 	}
 	if cluster != "" {

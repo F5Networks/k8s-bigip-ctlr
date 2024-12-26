@@ -141,9 +141,9 @@ func (ctlr *Controller) checkValidTransportServer(
 	// Validation for multiCluster setup with default mode
 	if ctlr.discoveryMode == DefaultMode {
 		if tsResource.Spec.Pool.MultiClusterServices == nil {
-			err := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s but "+
-				"CIS is running with default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-			log.Errorf(err)
+			err := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s when "+
+				"CIS is running in default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+			log.Warningf(err)
 			ctlr.updateTSStatus(tsResource, "", "", errors.New(err))
 			return false
 		}

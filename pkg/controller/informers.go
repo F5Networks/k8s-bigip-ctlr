@@ -162,7 +162,7 @@ func (nrInfr *NRInformer) stop() {
 	close(nrInfr.stopCh)
 }
 
-func (comInfr *CommonInformer) start(localClusterName string) {
+func (comInfr *CommonInformer) start(localClusterName string, apiServerUnreachable bool) {
 	var cacheSyncs []cache.InformerSynced
 	if comInfr.svcInformer != nil {
 		log.Debugf("Starting Service Informer for cluster %s", comInfr.clusterName)
@@ -207,7 +207,7 @@ func (comInfr *CommonInformer) start(localClusterName string) {
 	// However, since we haven't stopped the informers, if the affected API server starts responding later on then CIS
 	// will start processing the events as and when it receives those from the affected cluster.
 	var cacheSynced bool
-	if localClusterName == comInfr.clusterName {
+	if localClusterName == comInfr.clusterName || !apiServerUnreachable {
 		cacheSynced = cache.WaitForNamedCacheSync(
 			"F5 CIS Ingress Controller",
 			comInfr.stopCh,
@@ -352,7 +352,7 @@ func (ctlr *Controller) addNamespacedInformers(
 		ctlr.addCommonResourceEventHandlers(comInf)
 		informerStore.comInformers[namespace] = comInf
 		if startInformer {
-			comInf.start(ctlr.multiClusterHandler.LocalClusterName)
+			comInf.start(ctlr.multiClusterHandler.LocalClusterName, false)
 		}
 	}
 	// add multiCluster informers for the new namespace to watch resources from other clusters
@@ -477,6 +477,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 func (ctlr *Controller) setNodeInformer(clusterName string) NodeInformer {
 	resyncPeriod := 0 * time.Second
 	var restClientv1 rest.Interface
+	log.Debugf("Creating node informers for cluster: %v", clusterName)
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	nodeOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.nodeLabelSelector
@@ -1470,23 +1471,32 @@ func (nsInfr *NSInformer) stop() {
 	close(nsInfr.stopCh)
 }
 
-func (nodeInfr *NodeInformer) start() {
+func (nodeInfr *NodeInformer) start(apiServerUnreachable bool) {
 	var cacheSyncs []cache.InformerSynced
-	infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	if nodeInfr.nodeInformer != nil {
 		log.Infof("Starting %v Node Informer", nodeInfr.clusterName)
 		go nodeInfr.nodeInformer.Run(nodeInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, nodeInfr.nodeInformer.HasSynced)
 	}
-	if cache.WaitForNamedCacheSync(
-		"F5 CIS Ingress Controller",
-		infSyncCtx.Done(),
-		cacheSyncs...,
-	) {
-		log.Debug("Successfully synced node informer cache")
+	if apiServerUnreachable {
+		infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			infSyncCtx.Done(),
+			cacheSyncs...,
+		) {
+			log.Debugf("Successfully synced node informer cache for cluster %v", nodeInfr.clusterName)
+		} else {
+			log.Warningf("Could not sync node informer cache for cluster %v", nodeInfr.clusterName)
+		}
 	} else {
-		log.Warningf("Failed to sync node informer cache")
+		cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			nodeInfr.stopCh,
+			cacheSyncs...,
+		)
+		log.Debugf("Successfully synced node informer cache for cluster %v", nodeInfr.clusterName)
 	}
 }
 

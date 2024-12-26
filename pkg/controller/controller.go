@@ -486,11 +486,11 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 	}
 
 	// start nodeinformer in all modes
-	informerStore.nodeInformer.start()
+	informerStore.nodeInformer.start(false)
 
 	// start comInformers for all modes
 	for _, inf := range informerStore.comInformers {
-		inf.start(ctlr.multiClusterHandler.LocalClusterName)
+		inf.start(ctlr.multiClusterHandler.LocalClusterName, false)
 	}
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:

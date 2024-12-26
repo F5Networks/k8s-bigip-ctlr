@@ -2379,7 +2379,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case VirtualServer:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, ctlr.multiClusterHandler.LocalClusterName)
 									item, _, _ = inf.vsInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -2403,7 +2403,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 									}
 								case IngressLink:
 									var item interface{}
-									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, svcKey.clusterName)
+									inf, _ := ctlr.getNamespacedCRInformer(poolId.rsKey.namespace, ctlr.multiClusterHandler.LocalClusterName)
 									item, _, _ = inf.ilInformer.GetIndexer().GetByKey(poolId.rsKey.namespace + "/" + poolId.rsKey.name)
 									if item == nil {
 										// This case won't arise
@@ -5331,7 +5331,7 @@ func (ctlr *Controller) getResourceServicePortForRoute(
 			route.Name)
 		return port, err
 	}
-	infStore := ctlr.multiClusterHandler.getInformerStore("")
+	infStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 	// 2. look for base service in the HA peer cluster
 	if ctlr.discoveryMode == Active && infStore.comInformers != nil {
 		port, err := ctlr.getSvcPortFromHACluster(route.Namespace, route.Spec.To.Name, portName, resource.ResourceTypeRoute)

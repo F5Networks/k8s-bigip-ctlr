@@ -1365,12 +1365,7 @@ func (ctlr *Controller) processVirtualServers(
 		}
 	} else {
 		if virtual.Spec.HostGroup == "" {
-			if virtual.Spec.VirtualServerAddress == "" {
-				altErr = "no VirtualServer address or IPAM found"
-				log.Error(altErr)
-				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
-				return fmt.Errorf("%s", altErr)
-			}
+			// No need to check if vs address is specified or not as it's already validated in VS CRD, so directly use the IP
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			var err error
@@ -1379,16 +1374,7 @@ func (ctlr *Controller) processVirtualServers(
 				altErr = fmt.Sprintf("Error in virtualserver address: %s", err.Error())
 				log.Errorf(altErr)
 				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
-				return err
-			}
-			if ip == "" {
-				ip = virtual.Spec.VirtualServerAddress
-				if ip == "" {
-					altErr = fmt.Sprintf("No VirtualServer address found for: %s", virtual.Name)
-					log.Errorf(altErr)
-					ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
-					return fmt.Errorf(altErr)
-				}
+				return nil
 			}
 		}
 	}
@@ -2045,6 +2031,9 @@ func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error)
 			}
 		}
 	}
+	// with the validation for vs address and IPAM label set in CRD level, the following scenario can only occur if
+	// ipam is not set to true in CIS deployment args and ipamLabel is used in VS, which is a misconfiguration.
+	// In this case the VS should not be processed further
 	if len(virtuals) != 0 && vsa == "" {
 		return "", fmt.Errorf("no Virtual Server Address Found")
 	}
@@ -3155,12 +3144,6 @@ func (ctlr *Controller) processTransportServers(
 			}
 		}
 	} else {
-		if virtual.Spec.VirtualServerAddress == "" {
-			altErr = "no VirtualServer address in TS or IPAM found"
-			log.Error(altErr)
-			ctlr.updateTSStatus(virtual, "", StatusError, errors.New(altErr))
-			return fmt.Errorf("%s", altErr)
-		}
 		ip = virtual.Spec.VirtualServerAddress
 	}
 	// Updating the virtual server IP Address status

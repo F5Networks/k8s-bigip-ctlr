@@ -2436,6 +2436,7 @@ highAvailabilityCIS:
       secondaryCluster:
         clusterName: cluster2
         secret: default/kubeconfig2
+        serviceTypeLBDiscovery: true
 externalClustersConfig:
     - clusterName: cluster3
       secret: default/kubeconfig3

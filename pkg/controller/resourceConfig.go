@@ -1145,7 +1145,7 @@ func (ctlr *Controller) handleTLS(
 	rsCfg *ResourceConfig,
 	tlsContext TLSContext,
 ) bool {
-	infStore := ctlr.multiClusterHandler.getInformerStore("")
+	infStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
 		if tlsContext.termination != TLSPassthrough {
 			clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs

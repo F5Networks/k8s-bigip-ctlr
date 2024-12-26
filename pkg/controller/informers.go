@@ -276,6 +276,9 @@ func (ctlr *Controller) getNamespacedCRInformer(
 		namespace = ""
 	}
 	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	if informerStore == nil || informerStore.crInformers == nil {
+		return nil, false
+	}
 	crInf, found := informerStore.crInformers[namespace]
 	return crInf, found
 }
@@ -288,7 +291,7 @@ func (ctlr *Controller) getNamespacedCommonInformer(
 		namespaceKey = ""
 	}
 	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
-	if informerStore == nil {
+	if informerStore == nil || informerStore.comInformers == nil {
 		return nil, false
 	}
 	comInf, found := informerStore.comInformers[namespaceKey]
@@ -306,6 +309,9 @@ func (ctlr *Controller) getNamespacedNativeInformer(
 		namespace = ""
 	}
 	informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
+	if informerStore == nil || informerStore.nrInformers == nil {
+		return nil, false
+	}
 	nrInf, found := informerStore.nrInformers[namespace]
 	return nrInf, found
 }
@@ -341,6 +347,9 @@ func (ctlr *Controller) addNamespacedInformers(
 			"Cannot add additional namespaces when already watching all.")
 	}
 	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	if informerStore == nil {
+		return fmt.Errorf("informerStore not found for cluster: %s , while creating namespaced informers", clusterName)
+	}
 	if len(informerStore.comInformers) > 0 && "" == namespace {
 		return fmt.Errorf(
 			"Cannot watch all namespaces when already watching specific ones.")

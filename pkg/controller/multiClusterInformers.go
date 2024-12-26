@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
 	"os"
@@ -35,11 +36,12 @@ func (ctlr *Controller) addMultiClusterNamespacedInformers(
 	clusterName string,
 	namespace string,
 	restClientV1 rest.Interface,
-	startInformer bool,
+	startInformer, apiServerUnreachable bool,
 ) error {
 
 	// add common informers  in all modes
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	informerStore := clusterConfig.InformerStore
 	if informerStore == nil {
 		informerStore = initInformerStore()
 		ctlr.multiClusterHandler.addInformerStore(clusterName, informerStore)
@@ -50,7 +52,7 @@ func (ctlr *Controller) addMultiClusterNamespacedInformers(
 		ctlr.addMultiClusterPoolEventHandlers(poolInfr)
 		informerStore.comInformers[namespace] = poolInfr
 		if startInformer {
-			poolInfr.start(ctlr.multiClusterHandler.LocalClusterName)
+			poolInfr.start(ctlr.multiClusterHandler.LocalClusterName, apiServerUnreachable)
 		}
 	}
 	return nil
@@ -205,16 +207,27 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 		if svcKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			return nil
 		}
+		var apiServerUnreachable bool
+		var err error
+		if startInformer {
+			_, err = config.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+			if err != nil {
+				log.Warningf("[MultiCluster] kube-api server is not reachable for cluster %v due to error: %v", svcKey.clusterName, err)
+				apiServerUnreachable = true
+			}
+		}
 		restClient := config.kubeClient.CoreV1().RESTClient()
-		if err := ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, startInformer); err != nil {
+		if err = ctlr.addMultiClusterNamespacedInformers(svcKey.clusterName, svcKey.namespace, restClient, startInformer, apiServerUnreachable); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", svcKey.clusterName, svcKey.namespace, err)
 			return err
 		}
-		err := ctlr.setupMultiClusterNodeInformers(svcKey.clusterName, startInformer)
+		err = ctlr.setupMultiClusterNodeInformers(svcKey.clusterName, startInformer, apiServerUnreachable)
 		if err != nil {
+			log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", svcKey.clusterName, err)
 			return err
 		}
 	} else {
+		log.Debugf("[MultiCluster] cluster config not found for cluster: %v", svcKey.clusterName)
 		return fmt.Errorf("[MultiCluster] cluster config not found for cluster: %v", svcKey.clusterName)
 	}
 	return nil
@@ -229,15 +242,22 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 	restClient := clusterConfig.kubeClient.CoreV1().RESTClient()
 	//handle namespace informer creation
 	ctlr.handleNsInformersforCluster(clusterName, true)
+	var apiServerUnreachable bool
+	_, err := clusterConfig.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+	if err != nil {
+		log.Warningf("[MultiCluster] kube-api server is not reachable for cluster %v due to error: %v", clusterName, err)
+		apiServerUnreachable = true
+	}
 	// Setup informers with namespaces which are watched by CIS
 	for n := range clusterConfig.namespaces {
-		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true); err != nil {
+		if err = ctlr.addMultiClusterNamespacedInformers(clusterName, n, restClient, true, apiServerUnreachable); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, n, err)
 			return err
 		}
 	}
-	err := ctlr.setupMultiClusterNodeInformers(clusterName, true)
+	err = ctlr.setupMultiClusterNodeInformers(clusterName, true, apiServerUnreachable)
 	if err != nil {
+		log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", clusterName, err)
 		return err
 	}
 	return nil
@@ -246,27 +266,44 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 // updateMultiClusterInformers starts/stops the informers for the given namespace for external clusters including HA peer cluster
 func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInformer bool) error {
 	for clusterName, config := range ctlr.multiClusterHandler.ClusterConfigs {
+		var apiServerUnreachable bool
+		var err error
 		// For local cluster maintain some placeholder value, as the informers are already maintained in the controller object
 		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			return nil
 		}
 		restClient := config.kubeClient.CoreV1().RESTClient()
+		if startInformer {
+			_, err = config.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
+			if err != nil {
+				log.Warningf("[MultiCluster] kube-api server is not reachable for cluster %v due to error: %v", clusterName, err)
+				apiServerUnreachable = true
+			}
+		}
 		// Setup informer with the namespace
-		if err := ctlr.addMultiClusterNamespacedInformers(clusterName, namespace, restClient, startInformer); err != nil {
+		if err = ctlr.addMultiClusterNamespacedInformers(clusterName, namespace, restClient, startInformer, apiServerUnreachable); err != nil {
 			log.Errorf("[MultiCluster] unable to setup informer for cluster: %v, namespace: %v, Error: %v", clusterName, namespace, err)
 			return err
+		}
+		// setup the node informer if nil
+		if config.InformerStore.nodeInformer == nil {
+			err = ctlr.setupMultiClusterNodeInformers(clusterName, startInformer, apiServerUnreachable)
+			if err != nil {
+				log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", clusterName, err)
+				return err
+			}
 		}
 	}
 	return nil
 }
 
 // setupMultiClusterNodeInformers sets up and starts node informers for cluster if it hasn't been started
-func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, startInformer bool) error {
+func (ctlr *Controller) setupMultiClusterNodeInformers(clusterName string, startInformer, apiServerUnreachable bool) error {
 	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
 	if informerStore != nil && informerStore.nodeInformer == nil {
 		nodeInf := ctlr.setNodeInformer(clusterName)
 		if startInformer {
-			nodeInf.start()
+			nodeInf.start(apiServerUnreachable)
 			time.Sleep(100 * time.Millisecond)
 			nodesIntfc := nodeInf.nodeInformer.GetIndexer().List()
 			var nodesList []corev1.Node

@@ -193,17 +193,29 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName 
 		return err, false
 	}
 	if svc.Spec.LoadBalancerClass != nil && *svc.Spec.LoadBalancerClass != ctlr.loadBalancerClass {
-		err = fmt.Errorf("Skipping loadBalancer service '%v/%v' as it's not using the loadBalancerClass '%v'", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
+		err = fmt.Errorf("skipping loadBalancer service '%v/%v' as it's not using the loadBalancerClass '%v'", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
 		return err, false
 	}
 	// check if manage load balancer class only is enabled
 	if svc.Spec.LoadBalancerClass == nil && ctlr.manageLoadBalancerClassOnly {
-		err = fmt.Errorf("Skipping loadBalancer service '%v/%v' as CIS is configured to monitor the loadBalancerClass '%v' only", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
+		err = fmt.Errorf("skipping loadBalancer service '%v/%v' as CIS is configured to monitor the loadBalancerClass '%v' only", svc.Namespace, svc.Name, ctlr.loadBalancerClass)
 		return err, false
 	}
 	// Since serviceTypeLB in multiCluster environment is only supported in Default mode, the validations needs to be
 	// performed in case of default mode only
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+	if ctlr.multiClusterMode != "" {
+		// Allow LB service to be processed for pool or status updates
+		if forPoolOrStatusUpdate {
+			return nil, true
+		}
+		// Don't allow the service to be processed as LB service in case of non-default mode
+		if ctlr.discoveryMode != DefaultMode {
+			err = fmt.Errorf("skipping loadBalancer service '%s/%s' of cluster '%s' as it's only supported in "+
+				"default mode when CIS is running in multiCluster environment. However it will be processed for Pool if "+
+				"any VS/TS CR is referencing it", svc.Namespace, svc.Name, clusterName)
+			return err, false
+		}
+		// Following checks are only done in default mode
 		// check if the service is a multiClusterSvcLB and the cluster is not the local cluster
 		if _, ok := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; ok && ctlr.multiClusterMode != "" &&
 			clusterName != ctlr.multiClusterHandler.LocalClusterName && !forPoolOrStatusUpdate {
@@ -3401,7 +3413,7 @@ func (ctlr *Controller) processLBServices(
 	ip, ok1 := svc.Annotations[LBServiceIPAnnotation]
 	ipamLabel, ok2 := svc.Annotations[LBServiceIPAMLabelAnnotation]
 	if !ok1 && !ok2 {
-		log.Debugf("Service %v/%v does not have either of annotation: %v, annotation:%v, continuing.",
+		log.Warningf("Service %v/%v does not have either of annotation: %v, annotation:%v, continuing.",
 			svc.Namespace,
 			svc.Name,
 			LBServiceIPAMLabelAnnotation,

@@ -35,7 +35,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			routeGroup, endTime.Sub(startTime))
 	}()
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		return fmt.Errorf("%v default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+		log.Errorf("%v default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
+		return nil
 	}
 	var extdSpec *ExtendedRouteGroupSpec
 	var partition string
@@ -46,7 +47,9 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	} else {
 		extdSpec, partition = ctlr.resources.getExtendedRouteSpec(routeGroup)
 		if extdSpec == nil {
-			return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+			// Log error and return, if user adds the extended route spec then routes will be processed again
+			log.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+			return nil
 		}
 	}
 	annotationsUsed := &AnnotationsUsed{}

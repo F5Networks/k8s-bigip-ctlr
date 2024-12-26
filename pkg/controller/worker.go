@@ -2368,7 +2368,7 @@ func (ctlr *Controller) updatePoolMembersForService(svcKey MultiClusterServiceKe
 							// 2. ServicePort.IntVal is 0 or ServicePortUsed is true which happens when endpoints have not been created at the time of resource processing,
 							// cis needs to process the Resource again to make sure that servicePort in pool is updated with the target port,
 							// which handled the scenario where VS/TS is process first then service(with different servicePort and target port) and app are created.
-							if pool.ServicePort.IntVal == 0 || svcPortUpdated || pool.ServicePortUsed {
+							if pool.ServicePort.IntVal == 0 || svcPortUpdated || pool.ServicePortUsed || newPool {
 								switch poolId.rsKey.kind {
 								case Route:
 									// this case happens when a route does not contain a target port and service is created after route creation

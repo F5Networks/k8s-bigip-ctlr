@@ -89,7 +89,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			}
 			poolBackends := ctlr.GetPoolBackendsForVS(&pl, vs.ObjectMeta.Namespace)
 			skipPool := false
-			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.discoveryMode == Ratio {
+			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode {
 				skipPool = true
 			}
 			for _, backend := range poolBackends {
@@ -1519,7 +1519,7 @@ func isVsPathBasedABDeployment(pool *cisapiv1.VSPool) bool {
 }
 
 func isVsPathBasedRatioDeployment(pool *cisapiv1.VSPool, mode discoveryMode) bool {
-	return mode == Ratio && (pool.Path != "" && pool.Path != "/")
+	return (mode == Ratio || mode == DefaultMode) && (pool.Path != "" && pool.Path != "/")
 }
 
 func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode discoveryMode) bool {
@@ -1766,7 +1766,7 @@ func (ctlr *Controller) updateDataGroupForABTransportServer(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 ) {
-	if !isTSABDeployment(&pool) && ctlr.discoveryMode != Ratio {
+	if !isTSABDeployment(&pool) && ctlr.discoveryMode != Ratio && ctlr.discoveryMode != DefaultMode {
 		/*
 				 AB		RATIO      Skip Updating DG
 			=========================================
@@ -1830,7 +1830,7 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	hostAliases []string,
 	termination string,
 ) {
-	if !isVSABDeployment(pool) && ctlr.discoveryMode != Ratio {
+	if !isVSABDeployment(pool) && ctlr.discoveryMode != Ratio && ctlr.discoveryMode != DefaultMode {
 		/*
 				 AB		RATIO      Skip Updating DG
 			=========================================

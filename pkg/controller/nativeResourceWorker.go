@@ -276,7 +276,7 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string,
 	annotationsUsed *AnnotationsUsed, policySSLProfiles rgPlcSSLProfiles) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
-	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
+	for namespace, _ := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
 		orderedRoutes := ctlr.getOrderedRoutes(namespace)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.NativeRoutes[namespace] = len(orderedRoutes)

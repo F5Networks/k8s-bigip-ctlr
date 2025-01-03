@@ -129,8 +129,8 @@ func NewAgent(params AgentParams) *Agent {
 	}
 
 	bs := bigIPSection{
-		BigIPUsername:   params.PostParams.BIGIPUsername,
-		BigIPPassword:   params.PostParams.BIGIPPassword,
+		//	BigIPUsername:   params.PostParams.BIGIPUsername,
+		//	BigIPPassword:   params.PostParams.BIGIPPassword,
 		BigIPURL:        params.PostParams.BIGIPURL,
 		BigIPPartitions: []string{params.Partition},
 	}

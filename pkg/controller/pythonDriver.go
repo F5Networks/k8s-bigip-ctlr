@@ -18,7 +18,14 @@ package controller
 
 import (
 	"bufio"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -75,21 +82,18 @@ func initializeDriverConfig(
 }
 
 func createDriverCmd(
-	configFilename string,
 	pyCmd string,
 ) *exec.Cmd {
 	var cmd *exec.Cmd
 
 	if pyCmd == "bigipconfigdriver.py" {
 		cmdArgs := []string{
-			"--config-file", configFilename,
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(pyCmd, cmdArgs...)
 	} else {
 		cmdName := "python"
 		cmdArgs := []string{
 			pyCmd,
-			"--config-file", configFilename,
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(cmdName, cmdArgs...)
 	}
@@ -154,6 +158,28 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 	}
 }
 
+// can you write a func for opening a unix socket which is used by python driver to request the credentials
+func openUnixSocket(socketPath string) (*net.UnixListener, error) {
+	// Create the Unix socket
+	addr, err := net.ResolveUnixAddr("unix", socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve Unix address: %v", err)
+	}
+
+	listener, err := net.ListenUnix("unix", addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on Unix socket: %v", err)
+	}
+
+	// Set permissions on the socket file
+	if err := os.Chmod(socketPath, 0600); err != nil {
+		listener.Close()
+		return nil, fmt.Errorf("failed to set permissions on socket file: %v", err)
+	}
+
+	return listener, nil
+}
+
 // Start called to run the python driver
 func (agent *Agent) startPythonDriver(
 	global globalSection,
@@ -176,10 +202,11 @@ func (agent *Agent) startPythonDriver(
 	} else {
 		pyCmd = "bigipconfigdriver.py"
 	}
-	cmd := createDriverCmd(
-		agent.ConfigWriter.GetOutputFilename(),
-		pyCmd,
-	)
+	cmd := createDriverCmd(pyCmd)
+
+	// Start a goroutine to handle credential requests from the Python driver
+	go agent.handleCredentialsRequest()
+
 	go runBigIPDriver(subPidCh, cmd)
 
 	subPid := <-subPidCh
@@ -188,6 +215,113 @@ func (agent *Agent) startPythonDriver(
 	go agent.healthCheckPythonDriver()
 
 	return
+}
+
+// handleCredentialsRequest listens on a Unix socket for incoming connections,
+// processes credential requests, and sends encrypted responses back to the Python driver.
+// It uses AES-GCM encryption to securely transmit sensitive information.
+func (agent *Agent) handleCredentialsRequest() {
+	listener, err := openUnixSocket("/tmp/cis_socket")
+	if err != nil {
+		log.Fatalf("Failed to open Unix socket: %v", err)
+	}
+	defer listener.Close()
+
+	for {
+		conn, err := listener.AcceptUnix()
+		if err != nil {
+			log.Errorf("Failed to accept connection: %v", err)
+			continue
+		}
+		handleConnection(conn)
+	}
+}
+
+// handleConnection processes incoming connections on the Unix socket.
+// It generates a dynamic key, encrypts credentials using AES-GCM,
+// and sends the encrypted data along with the key back to the pythonDriver.
+// This function ensures secure transmission of sensitive information
+// between the CIS controller and the Python driver.
+func handleConnection(conn *net.UnixConn) {
+	defer conn.Close()
+
+	key := generateDynamicKey()
+	encryptedData, err := encryptCredentials(key)
+	if err != nil {
+		log.Errorf("Failed to encrypt credentials: %v", err)
+		return
+	}
+
+	response := map[string]string{
+		"key":            base64.StdEncoding.EncodeToString(key),
+		"encrypted_data": base64.StdEncoding.EncodeToString(encryptedData),
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Failed to marshal response: %v", err)
+		return
+	}
+
+	_, err = conn.Write(jsonResponse)
+	if err != nil {
+		log.Errorf("Failed to send response: %v", err)
+		return
+	}
+
+	log.Debug("Successfully sent encrypted credentials")
+}
+
+// generateDynamicKey creates a random 32-byte key for AES encryption
+// It returns the generated key or nil if there's an error
+func generateDynamicKey() []byte {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		log.Errorf("Failed to generate dynamic key: %v", err)
+		return nil
+	}
+	return key
+}
+
+// encryptCredentials encrypts the credentials using AES-GCM
+// and returns the encrypted data as a byte slice
+func encryptCredentials(key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %v", err)
+	}
+
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %v", err)
+	}
+
+	nonce := make([]byte, aesgcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("failed to create nonce: %v", err)
+	}
+
+	credentials := getCredentials()
+	plaintext, err := json.Marshal(credentials)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal credentials: %v", err)
+	}
+
+	ciphertext := aesgcm.Seal(nonce, nonce, plaintext, nil)
+	return ciphertext, nil
+}
+
+func getCredentials() struct {
+	Username string
+	Password string
+} {
+	return struct {
+		Username string
+		Password string
+	}{
+		Username: "your_username",
+		Password: "*************",
+	}
 }
 
 func (agent *Agent) stopPythonDriver() {

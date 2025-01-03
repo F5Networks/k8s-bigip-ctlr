@@ -575,9 +575,9 @@ func verifyArgs() error {
 		}
 	}
 
-	if (len(*bigIPURL) == 0 || len(*bigIPUsername) == 0 ||
-		len(*bigIPPassword) == 0) && len(*credsDir) == 0 {
-		return fmt.Errorf("Missing BIG-IP credentials info")
+	// just check the url  and creds dir
+	if len(*bigIPURL) == 0 && len(*credsDir) == 0 {
+		return fmt.Errorf("Missing BIG-IP URL")
 	}
 
 	if len(*namespaces) != 0 && len(*namespaceLabel) != 0 {
@@ -702,7 +702,17 @@ func verifyArgs() error {
 }
 
 func getCredentials() error {
-	if len(*credsDir) > 0 {
+	if os.Getenv("BIGIP_USERNAME") != "" {
+		*bigIPUsername = os.Getenv("BIGIP_USERNAME")
+	}
+	if os.Getenv("BIGIP_PASSWORD") != "" {
+		*bigIPPassword = os.Getenv("BIGIP_PASSWORD")
+	}
+
+	// If credentials are still not set via ENV's, check the credsDir
+	if (*bigIPUsername == "" || *bigIPPassword == "") && len(*credsDir) > 0 {
+		log.Warning("BIG-IP credentials are not set. Checking back to Creds Directory.")
+
 		var usr, pass, bigipURL string
 		var err error
 		if strings.HasSuffix(*credsDir, "/") {
@@ -742,6 +752,14 @@ func getCredentials() error {
 			return err
 		}
 	}
+
+	// If credentials are not set via environment variables,
+	// check the credentials directory for username and password files.
+	// If credentials are still not found, return an error.
+	if *bigIPUsername == "" || *bigIPPassword == "" || *bigIPURL == "" {
+		return fmt.Errorf("BIG-IP username, password and URL must be provided")
+	}
+
 	// Verify URL is valid
 	if !strings.HasPrefix(*bigIPURL, "https://") {
 		*bigIPURL = "https://" + *bigIPURL

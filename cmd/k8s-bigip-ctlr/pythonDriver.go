@@ -58,21 +58,18 @@ func initializeDriverConfig(
 }
 
 func createDriverCmd(
-	configFilename string,
 	pyCmd string,
 ) *exec.Cmd {
 	var cmd *exec.Cmd
 
 	if pyCmd == "bigipconfigdriver.py" {
 		cmdArgs := []string{
-			"--config-file", configFilename,
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(pyCmd, cmdArgs...)
 	} else {
 		cmdName := "python3"
 		cmdArgs := []string{
 			pyCmd,
-			"--config-file", configFilename,
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(cmdName, cmdArgs...)
 	}
@@ -162,10 +159,7 @@ func startPythonDriver(
 	} else {
 		pyCmd = "bigipconfigdriver.py"
 	}
-	cmd := createDriverCmd(
-		configWriter.GetOutputFilename(),
-		pyCmd,
-	)
+	cmd := createDriverCmd(pyCmd)
 	go runBigIPDriver(subPidCh, cmd)
 
 	return subPidCh, nil

@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	routeapi "github.com/openshift/api/route/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"encoding/json"
@@ -86,9 +87,9 @@ func (ctlr *Controller) prepareVirtualServerRules(
 				uri = host + vs.Spec.RewriteAppRoot
 				path = vs.Spec.RewriteAppRoot
 			}
-			poolBackends := ctlr.GetPoolBackends(&pl)
+			poolBackends := ctlr.GetPoolBackendsForVS(&pl, vs.ObjectMeta.Namespace)
 			skipPool := false
-			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.haModeType == Ratio {
+			if (pl.AlternateBackends != nil && len(pl.AlternateBackends) > 0) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode {
 				skipPool = true
 			}
 			for _, backend := range poolBackends {
@@ -697,6 +698,45 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
+func (ctlr *Controller) getABDeployIruleForTS(rsVSName string, partition string, tsType string) string {
+	dgPath := strings.Join([]string{partition, Shared}, "/")
+
+	return fmt.Sprintf(`when CLIENT_ACCEPTED {
+    	set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+		set ab_rule [class match -value "/" equals $ab_class]
+		if {$ab_rule != ""} then {
+	    	set weight_selection [expr {rand()}]
+			set service_rules [split $ab_rule ";"]
+        	set active_pool ""
+			foreach service_rule $service_rules {
+		    	set fields [split $service_rule ","]
+				set pool_name [lindex $fields 0]
+				if { [active_members $pool_name] >= 1 } {
+			    	set active_pool $pool_name
+				}
+				set weight [expr {double([lindex $fields 1])}]
+				if {$weight_selection <= $weight} then {
+			    	#check if active pool members are available
+					if { [active_members $pool_name] >= 1 } {
+				    	pool $pool_name
+						return
+					} else {
+                    	# select other pool with active members
+						if {$active_pool!= ""} then {
+					    	pool $active_pool
+							return
+						}
+					}
+				}
+			}
+		}
+		# If we had a match, but all weights were 0 then
+		# retrun a 503 (Service Unavailable)
+		%[3]s::respond 503
+		return
+	}`, dgPath, rsVSName, strings.ToUpper(tsType))
+}
+
 func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition string, multiPoolPersistence MultiPoolPersistence) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
@@ -930,6 +970,18 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 
 	sslDisable := "SSL::disable"
 
+	httpRequest := "\n" + fmt.Sprintf(`
+		when HTTP_REQUEST {
+			if { [info exists static::http_status_503] && $static::http_status_503 == 1 } {
+        		# Respond with 503
+       			HTTP::respond 503
+
+        		# Unset the variable
+        		unset static::http_status_503
+    		}
+		}
+	`)
+
 	if ctlr.Agent.bigIPAS3Version >= 3.52 && passthroughVSGrp {
 		clientSSL = ""
 		sslDisable = ""
@@ -1140,9 +1192,13 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 				# Assign respective SSL profile based on ssl_reencrypt_serverssl_dg
 				if { not ($sslprofile equals "false") } {
 						SSL::profile $reen
+				} else {
+						SSL::disable serverside
 				}
 			}
-        }`, dgPath, rsVSName, clientSSL, sslDisable)
+        }
+			
+		%[5]s`, dgPath, rsVSName, clientSSL, sslDisable, httpRequest)
 
 	iRuleCode := fmt.Sprintf("%s\n\n%s\n\n%s", ctlr.selectClientAcceptediRule(rsVSName, dgPath, allowSourceRange), ctlr.selectPoolIRuleFunc(rsVSName, dgPath, multiPoolPersistence), iRule)
 
@@ -1204,7 +1260,7 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string, mult
 				}
 				# If we had a match, but all weights were 0 then
 				# retrun a 503 (Service Unavailable)
-				HTTP::respond 503
+				set static::http_status_503 1
 			}
 			return $default_pool
 		}`)
@@ -1252,7 +1308,7 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string, mult
 				}
 				# If we had a match, but all weights were 0 then
 				# retrun a 503 (Service Unavailable)
-				HTTP::respond 503
+				set static::http_status_503 1
 			}
 			return $default_pool
 		}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut, persistenceType, multiPoolPersistence.TimeOut)
@@ -1375,7 +1431,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 ) {
-	if !isRouteABDeployment(route) && ctlr.haModeType != Ratio {
+	if !isRouteABDeployment(route) && ctlr.discoveryMode != Ratio {
 		return
 	}
 	var clusterSvcs []cisapiv1.MultiClusterServiceReference
@@ -1456,22 +1512,26 @@ func isVSABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0
 }
 
+func isTSABDeployment(pool *cisapiv1.TSPool) bool {
+	return (pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0) || (pool.MultiClusterServices != nil && len(pool.MultiClusterServices) > 0)
+}
+
 func isVsPathBasedABDeployment(pool *cisapiv1.VSPool) bool {
 	return pool.AlternateBackends != nil && len(pool.AlternateBackends) > 0 && (pool.Path != "" && pool.Path != "/")
 }
 
-func isVsPathBasedRatioDeployment(pool *cisapiv1.VSPool, mode HAModeType) bool {
-	return mode == Ratio && (pool.Path != "" && pool.Path != "/")
+func isVsPathBasedRatioDeployment(pool *cisapiv1.VSPool, mode discoveryMode) bool {
+	return (mode == Ratio || mode == DefaultMode) && (pool.Path != "" && pool.Path != "/")
 }
 
-func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode HAModeType) bool {
+func isRoutePathBasedRatioDeployment(route *routeapi.Route, mode discoveryMode) bool {
 	return mode == Ratio && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 
 // GetRouteBackends returns the services associated with a route (names + weight)
 func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []cisapiv1.MultiClusterServiceReference) []RouteBackendCxt {
 	var rbcs []RouteBackendCxt
-	if ctlr.haModeType != Ratio {
+	if ctlr.discoveryMode != Ratio {
 		numOfBackends := 1
 		if route.Spec.AlternateBackends != nil {
 			numOfBackends += len(route.Spec.AlternateBackends)
@@ -1534,11 +1594,11 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	// First we calculate the total service weights, total ratio and the total number of backends
 
 	// store the localClusterPool state and HA peer cluster pool state in advance for further processing
-	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName)
+	localClusterPoolRestricted := ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName)
 	hAPeerClusterPoolRestricted := true // By default, skip HA cluster service backend
 	// If HA peer cluster is present then update the hAPeerClusterPoolRestricted state based on the cluster pool state
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" {
-		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.HAPairClusterName)
+	if ctlr.multiClusterHandler.HAPairClusterName != "" {
+		hAPeerClusterPoolRestricted = ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	// factor is used to track whether both the primary and secondary cluster needs to be considered or none/one/both of
 	// them have to be considered( this is based on multiCluster mode and cluster pool state)
@@ -1546,7 +1606,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	if !localClusterPoolRestricted {
 		factor++ // it ensures local cluster services associated with the route are considered
 	}
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		factor++ // it ensures HA peer cluster services associated with the route are considered
 	}
 	// Default service weight is 100 as per openshift route documentation
@@ -1570,11 +1630,11 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	validExtSvcCount := 0
 	// Include local cluster ratio in the totalClusterRatio calculation
 	if !localClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName])
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName])
 	}
 	// Include HA partner cluster ratio in the totalClusterRatio calculation
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
-		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName])
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+		totalClusterRatio += float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName])
 	}
 	// if adding pool member is restricted for both local or HA partner cluster then skip adding service weights for both the clusters
 	if !localClusterPoolRestricted || !hAPeerClusterPoolRestricted {
@@ -1586,7 +1646,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		// Skip the service if it's not valid
 		// This includes check for cis should be running in multiCluster mode, external server parameters validity and
 		// cluster credentials must be specified in the extended configmap
-		if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+		if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		if _, ok := clusterSvcMap[svc.ClusterName]; !ok {
@@ -1636,7 +1696,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		if route.Spec.To.Weight != nil {
 			// Route backend service in local cluster
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 		} else {
 			// Older versions of openshift do not have a weight field
 			// so we will basically ignore it.
@@ -1644,19 +1704,19 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		}
 	}
 	// Route backend service in HA partner cluster
-	if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+	if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 		beIdx++
 		rbcs[beIdx].Name = route.Spec.To.Name
 		if route.Spec.To.Weight != nil {
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
-				(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+				(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
+			rbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 
 		} else {
 			// Older versions of openshift do not have a weight field
 			// so we will basically ignore it.
 			rbcs[beIdx].Weight = 0.0
-			rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+			rbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 		}
 	}
 
@@ -1667,22 +1727,22 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.LocalClusterName]) / totalClusterRatio)
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 			}
 			// HA partner cluster
-			if ctlr.multiClusterConfigs.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
+			if ctlr.multiClusterHandler.HAPairClusterName != "" && !hAPeerClusterPoolRestricted {
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
-					(float64(*ctlr.clusterRatio[ctlr.multiClusterConfigs.HAPairClusterName]) / totalClusterRatio)
-				rbcs[beIdx].Cluster = ctlr.multiClusterConfigs.HAPairClusterName
+					(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.HAPairClusterName]) / totalClusterRatio)
+				rbcs[beIdx].Cluster = ctlr.multiClusterHandler.HAPairClusterName
 			}
 		}
 	}
 	// External services
 	for _, svc := range clusterSvcs {
 		// Skip invalid extended service
-		if ctlr.checkValidExtendedService(svc) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
+		if ctlr.checkValidMultiClusterService(svc, false) != nil || ctlr.isAddingPoolRestricted(svc.ClusterName) {
 			continue
 		}
 		beIdx = beIdx + 1
@@ -1700,19 +1760,15 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	return rbcs
 }
 
-// updateDataGroupForABVirtualServer updates the data group map based on alternativeBackends of route.
-func (ctlr *Controller) updateDataGroupForABVirtualServer(
-	pool *cisapiv1.VSPool,
+func (ctlr *Controller) updateDataGroupForABTransportServer(
+	pool cisapiv1.TSPool,
 	dgName string,
 	partition string,
 	namespace string,
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
-	host string,
-	hostAliases []string,
-	termination string,
 ) {
-	if !isVSABDeployment(pool) && ctlr.haModeType != Ratio {
+	if !isTSABDeployment(&pool) && ctlr.discoveryMode != Ratio && ctlr.discoveryMode != DefaultMode {
 		/*
 				 AB		RATIO      Skip Updating DG
 			=========================================
@@ -1725,7 +1781,71 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 	}
 
 	weightTotal := 0.0
-	backends := ctlr.GetPoolBackends(pool)
+	backends := ctlr.GetPoolBackendsForTS(&pool, namespace)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+	}
+	key := "/"
+	if weightTotal == 0 {
+		// If all services have 0 weight, 503 will be returned
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "string")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0.0
+		for _, be := range backends {
+			// fetch target port for backend, if not found use serviceport
+			targetPort := ctlr.fetchTargetPort(be.SvcNamespace, be.Name, be.SvcPort, be.Cluster)
+			if targetPort != (intstr.IntOrString{}) {
+				be.SvcPort = targetPort
+			}
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := runningWeightTotal / weightTotal
+			svcNamespace := namespace
+			if be.SvcNamespace != "" {
+				svcNamespace = be.SvcNamespace
+			}
+			poolName := ctlr.framePoolNameForTS(svcNamespace, pool, be)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
+	}
+}
+
+// updateDataGroupForABVirtualServer updates the data group map based on alternativeBackends of route.
+func (ctlr *Controller) updateDataGroupForABVirtualServer(
+	pool *cisapiv1.VSPool,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port intstr.IntOrString,
+	host string,
+	hostAliases []string,
+	termination string,
+) {
+	if !isVSABDeployment(pool) && ctlr.discoveryMode != Ratio && ctlr.discoveryMode != DefaultMode {
+		/*
+				 AB		RATIO      Skip Updating DG
+			=========================================
+				True  	True    =       False
+				True  	False   =       False
+				False 	True    =       False
+				False  	False   =       True
+		*/
+		return
+	}
+
+	weightTotal := 0.0
+	backends := ctlr.GetPoolBackendsForVS(pool, namespace)
 	for _, svc := range backends {
 		weightTotal = weightTotal + svc.Weight
 	}
@@ -1780,5 +1900,58 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			updateDataGroup(dgMap, dgName,
 				partition, namespace, key, value, "string")
 		}
+	}
+}
+
+func (ctlr *Controller) updateDataGroupForAdvancedSvcTypeLB(
+	svc *v1.Service,
+	multiClusterServices []cisapiv1.MultiClusterServiceReference,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port v1.ServicePort,
+	clusterName string,
+) {
+	if multiClusterServices == nil {
+		return
+	}
+
+	weightTotal := 0.0
+	backends := ctlr.GetPoolBackendsForSvcTypeLB(svc, port, clusterName, multiClusterServices)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+	}
+	key := "/"
+	if weightTotal == 0 {
+		// If all services have 0 weight, 503 will be returned
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "string")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0.0
+		for _, be := range backends {
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := runningWeightTotal / weightTotal
+			svcNamespace := namespace
+			if be.SvcNamespace != "" {
+				svcNamespace = be.SvcNamespace
+			}
+			poolName := ctlr.formatPoolName(
+				svcNamespace,
+				be.Name,
+				be.SvcPort,
+				"", "", be.Cluster)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
 	}
 }

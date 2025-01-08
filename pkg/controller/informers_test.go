@@ -25,25 +25,28 @@ var _ = Describe("Informers Tests", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 	})
 
 	Describe("Custom Resource Informers", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = CustomResourceMode
-			mockCtlr.namespaces = make(map[string]bool)
-			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.nsInformers = make(map[string]*NSInformer)
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		})
 		It("Resource Informers", func() {
-			err := mockCtlr.addNamespacedInformers(namespace, false)
+			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
-			crInf, found := mockCtlr.getNamespacedCRInformer(namespace)
+			crInf, found := mockCtlr.getNamespacedCRInformer(namespace, "")
 			Expect(crInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 		})
@@ -52,7 +55,7 @@ var _ = Describe("Informers Tests", func() {
 			namespaceSelector, err := createLabelSelector("app=test")
 			Expect(namespaceSelector).ToNot(BeNil(), "Failed to Create Label Selector")
 			Expect(err).To(BeNil(), "Failed to Create Label Selector")
-			err = mockCtlr.createNamespaceLabeledInformer("app=test")
+			err = mockCtlr.createNamespaceLabeledInformerForCluster("app=test", "")
 			Expect(err).To(BeNil(), "Failed to Create Namespace Informer")
 		})
 	})
@@ -60,14 +63,12 @@ var _ = Describe("Informers Tests", func() {
 	Describe("Custom Resource Queueing", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = CustomResourceMode
-			mockCtlr.namespaces = make(map[string]bool)
-			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.nsInformers = make(map[string]*NSInformer)
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -340,7 +341,7 @@ var _ = Describe("Informers Tests", func() {
 					DomainName:        "test.com",
 					LoadBalanceMethod: "round-robin",
 				})
-			mockCtlr.enqueueExternalDNS(edns)
+			mockCtlr.enqueueExternalDNS(edns, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New EDNS  Failed")
@@ -352,7 +353,7 @@ var _ = Describe("Informers Tests", func() {
 					DomainName:        "prod.com",
 					LoadBalanceMethod: "round-robin",
 				})
-			mockCtlr.enqueueUpdatedExternalDNS(edns, newEDNS)
+			mockCtlr.enqueueUpdatedExternalDNS(edns, newEDNS, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated EDNS  Failed")
@@ -360,7 +361,7 @@ var _ = Describe("Informers Tests", func() {
 			Expect(key).ToNot(BeNil(), "Enqueue Updated EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated EDNS  Failed")
 
-			mockCtlr.enqueueDeletedExternalDNS(newEDNS)
+			mockCtlr.enqueueDeletedExternalDNS(newEDNS, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted EDNS  Failed")
@@ -384,7 +385,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 
 			mockCtlr.Partition = "default"
-			mockCtlr.enqueueExternalDNS(edns)
+			mockCtlr.enqueueExternalDNS(edns, mockCtlr.multiClusterHandler.LocalClusterName)
 			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
@@ -393,7 +394,7 @@ var _ = Describe("Informers Tests", func() {
 				"SamplePolicy",
 				namespace,
 				cisapiv1.PolicySpec{})
-			mockCtlr.enqueuePolicy(plc, Create)
+			mockCtlr.enqueuePolicy(plc, Create, "")
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Policy Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Policy  Failed")
@@ -402,12 +403,12 @@ var _ = Describe("Informers Tests", func() {
 				"SamplePolicy2",
 				namespace,
 				cisapiv1.PolicySpec{})
-			mockCtlr.enqueueDeletedPolicy(newPlc)
+			mockCtlr.enqueueDeletedPolicy(newPlc, "")
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Policy Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Policy  Failed")
 
-			mockCtlr.enqueuePolicy(plc, Create)
+			mockCtlr.enqueuePolicy(plc, Create, "")
 			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 		It("Primary Cluster Down Event", func() {
@@ -544,12 +545,12 @@ var _ = Describe("Informers Tests", func() {
 				"testcert",
 				"testkey",
 			)
-			mockCtlr.enqueueSecret(secret, Create)
+			mockCtlr.enqueueSecret(secret, Create, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Secret Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Secret Failed")
 
-			mockCtlr.enqueueSecret(secret, Create)
+			mockCtlr.enqueueSecret(secret, Create, mockCtlr.multiClusterHandler.LocalClusterName)
 			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
@@ -561,12 +562,12 @@ var _ = Describe("Informers Tests", func() {
 				"1",
 				labels,
 			)
-			mockCtlr.enqueueNamespace(ns)
+			mockCtlr.enqueueNamespace(ns, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Namespace Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Namespace  Failed")
 
-			mockCtlr.enqueueDeletedNamespace(ns)
+			mockCtlr.enqueueDeletedNamespace(ns, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Namespace Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Namespace  Failed")
@@ -637,31 +638,30 @@ var _ = Describe("Informers Tests", func() {
 	Describe("Common Resource Informers", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = OpenShiftMode
-			mockCtlr.namespaces = make(map[string]bool)
-			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.nrInformers = make(map[string]*NRInformer)
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resources = NewResourceStore()
 		})
 		It("Resource Informers", func() {
-			err := mockCtlr.addNamespacedInformers(namespace, false)
+			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
-			comInf, found := mockCtlr.getNamespacedCommonInformer(namespace)
+			comInf, found := mockCtlr.getNamespacedCommonInformer(mockCtlr.multiClusterHandler.LocalClusterName, namespace)
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
-			mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
-			comInf, found = mockCtlr.getNamespacedCommonInformer(namespace)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+			comInf, found = mockCtlr.getNamespacedCommonInformer(mockCtlr.multiClusterHandler.LocalClusterName, namespace)
 			Expect(comInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 			nsObj := v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
-			mockCtlr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
-			ns := mockCtlr.getWatchingNamespaces()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient.CoreV1().Namespaces().Create(context.TODO(), &nsObj, metav1.CreateOptions{})
+			ns := mockCtlr.getWatchingNamespaces(mockCtlr.multiClusterHandler.LocalClusterName)
 			Expect(ns).ToNot(BeNil())
-			mockCtlr.nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers[""] = mockCtlr.newNamespacedNativeResourceInformer("")
 			nrInr, found := mockCtlr.getNamespacedNativeInformer(namespace)
 			Expect(nrInr).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
@@ -671,14 +671,12 @@ var _ = Describe("Informers Tests", func() {
 	Describe("Native Resource Queueing", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = OpenShiftMode
-			mockCtlr.namespaces = make(map[string]bool)
-			mockCtlr.namespaces["default"] = true
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.nrInformers = make(map[string]*NRInformer)
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
 			mockCtlr.resources = NewResourceStore()
@@ -746,17 +744,17 @@ var _ = Describe("Informers Tests", func() {
 					"extendedSpec": "extendedRouteSpec",
 				},
 			)
-			mockCtlr.enqueueConfigmap(cm, Create)
+			mockCtlr.enqueueConfigmap(cm, Create, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigMap Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Global ConfigMap  Failed")
 
-			mockCtlr.enqueueConfigmap(cm, Delete)
+			mockCtlr.enqueueConfigmap(cm, Delete, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigMap Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Delete Global ConfigMap  Failed")
 
-			mockCtlr.enqueueDeletedConfigmap(cm)
+			mockCtlr.enqueueDeletedConfigmap(cm, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigMap Failed")
 		})
@@ -773,7 +771,7 @@ var _ = Describe("Informers Tests", func() {
 			cm.SetLabels(map[string]string{
 				"f5nr": "true",
 			})
-			mockCtlr.enqueueConfigmap(cm, Update)
+			mockCtlr.enqueueConfigmap(cm, Update, mockCtlr.multiClusterHandler.LocalClusterName)
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Local ConfigMap Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Local ConfigMap  Failed")

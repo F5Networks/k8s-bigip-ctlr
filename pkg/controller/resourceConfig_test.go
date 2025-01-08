@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
@@ -25,7 +24,11 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.mode = CustomResourceMode
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
@@ -103,6 +106,10 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.mode = CustomResourceMode
 		})
 		It("Replace Unwanted Characters", func() {
@@ -115,8 +122,22 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("crd_1_2_3_4_80"), "Invalid VirtualServer Name")
 		})
 		It("VirtualServer Custom Name", func() {
-			name := formatCustomVirtualServerName("My_VS", 80)
-			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
+			name := formatCustomVirtualServerName("My_VS-Custom.name", 80)
+			Expect(name).To(Equal("My_VS-Custom.name_80"), "Invalid VirtualServer Name")
+		})
+		It("Pool name for TS", func() {
+			var name string
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
+			mockCtlr.multiClusterMode = PrimaryCIS
+			mockCtlr.discoveryMode = ""
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
+			mockCtlr.discoveryMode = DefaultMode
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			Expect(name).To(Equal("svc1_80_default_app_test_cluster1"), "Invalid Pool Name for TS")
+			mockCtlr.multiClusterMode = ""
+			mockCtlr.discoveryMode = ""
 		})
 		It("Pool Name", func() {
 			name := mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
@@ -133,13 +154,17 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("vs_exams_com_sample_pool"))
 			name = formatVirtualServerRuleName("test.com", "", "/foo", "sample_pool", false)
 			Expect(name).To(Equal("vs_test_com_foo_sample_pool"))
-
+			name = formatVirtualServerRuleName("test.com", "", "/++foo++", "sample_pool", false)
+			Expect(name).To(Equal("vs_test_com___foo___sample_pool"))
 		})
 		It("Monitor Name with MultiCluster mode", func() {
 			// Standalone, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = StandAloneCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
-			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			monitorName := "pytest_svc_1_default_foo_example_com_foo_http_80"
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Standalone, no ratio and monitor for external cluster pool
@@ -153,27 +178,27 @@ var _ = Describe("Resource Config Tests", func() {
 			// Primary, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = PrimaryCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
-			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			mockCtlr.multiClusterHandler.LocalClusterName = "cluster1"
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Primary, no ratio and monitor for external cluster pool
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Primary, ratio and monitor for local cluster pool
 			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
-			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterHandler.LocalClusterName), "Invalid Monitor Name")
 			// Primary, ratio and monitor for external cluster pool
 			mockCtlr.clusterRatio["cluster3"] = new(int) // external cluster ratio
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
 
 			// Secondary, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = SecondaryCIS
-			mockCtlr.multiClusterConfigs.LocalClusterName = "cluster1"
+			mockCtlr.multiClusterHandler.LocalClusterName = "cluster1"
 			mockCtlr.clusterRatio = make(map[string]*int)
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Secondary, no ratio and monitor for external cluster pool
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster2")).To(Equal(monitorName), "Invalid Monitor Name")
 			// Secondary, ratio and monitor for local cluster pool
 			mockCtlr.clusterRatio["cluster2"] = new(int) // secondary cluster ratio
-			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterConfigs.LocalClusterName), "Invalid Monitor Name")
+			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "")).To(Equal(monitorName+"_"+mockCtlr.multiClusterHandler.LocalClusterName), "Invalid Monitor Name")
 			// Secondary, ratio and monitor for external cluster pool
 			mockCtlr.clusterRatio["cluster3"] = new(int)
 			Expect(mockCtlr.formatMonitorNameForMultiCluster(monitorName, "cluster3")).To(Equal(monitorName+"_cluster3"), "Invalid Monitor Name")
@@ -262,15 +287,16 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.mode = CustomResourceMode
-			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.crInformers = make(map[string]*CRInformer)
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), kubeCRClient: crdfake.NewSimpleClientset()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
-			_ = mockCtlr.addNamespacedInformers(namespace, false)
+			_ = mockCtlr.addNamespacedInformers(namespace, false, "")
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(
@@ -712,7 +738,7 @@ var _ = Describe("Resource Config Tests", func() {
 			svc.Annotations = make(map[string]string)
 			svc.Annotations[HealthMonitorAnnotation] = `{"interval": 5, "timeout": 10}`
 
-			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort)
+			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to Prepare Resource Config from Service")
@@ -1043,12 +1069,14 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.mode = CustomResourceMode
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.nsInformers = make(map[string]*NSInformer)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		})
 		It("Int target port is returned with integer targetPort", func() {
 			svcPort := v1.ServicePort{
@@ -1070,7 +1098,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort, svcPort2},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"}, "")).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443}, "")).To(Equal(intstr.IntOrString{IntVal: 8443}), "Incorrect target port returned")
@@ -1096,7 +1124,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort, svcPort2},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"}, "")).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443}, "")).To(Equal(intstr.IntOrString{StrVal: "https-port"}), "Incorrect target port returned")
@@ -1115,7 +1143,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{}), "Incorrect target port returned")
 		})
 		It("int target port is returned without port name with int target port", func() {
@@ -1131,7 +1159,7 @@ var _ = Describe("Resource Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort},
 			)
-			mockCtlr.addService(svc)
+			mockCtlr.addService(svc, "")
 			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "")).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
 		})
 	})
@@ -1195,6 +1223,138 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 	})
 
+	Describe("Handle Transport Server TLS", func() {
+		var mockCtlr *mockController
+		var rsCfg *ResourceConfig
+		var ip string
+
+		BeforeEach(func() {
+			ip = "10.8.0.22"
+			mockCtlr = newMockController()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		})
+
+		It("Validate TLS", func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_TS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				80,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			ok := mockCtlr.handleTransportServerTLS(rsCfg, TLSContext{
+				name:          "SampleTS",
+				namespace:     "default",
+				resourceType:  TransportServer,
+				referenceType: Hybrid,
+				ipAddress:     ip,
+				bigIPSSLProfiles: BigIPSSLProfiles{
+					clientSSLs: []string{"/Common/clientssl"},
+					serverSSLs: []string{"/Common/serverssl"},
+				},
+				tlsCipher:    TLSCipher{},
+				poolPathRefs: []poolPathRef{},
+			})
+			Expect(ok).To(BeFalse(), "Failed to Validate TLS Reference")
+		})
+
+		It("TLS with BIGIP Reference", func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_TS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				80,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			ok := mockCtlr.handleTransportServerTLS(rsCfg, TLSContext{
+				name:          "SampleTS",
+				namespace:     "default",
+				resourceType:  TransportServer,
+				referenceType: BIGIP,
+				ipAddress:     ip,
+				bigIPSSLProfiles: BigIPSSLProfiles{
+					clientSSLs: []string{"/Common/clientssl"},
+					serverSSLs: []string{"/Common/serverssl"},
+				},
+				tlsCipher:    TLSCipher{},
+				poolPathRefs: []poolPathRef{},
+			})
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Expected profiles are not created")
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientssl"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[0].Context).To(Equal(CustomProfileClient), "Expected clientside profile")
+			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeTrue(), "Big IP Profile should be true")
+			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("serverssl"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[1].Context).To(Equal(CustomProfileServer), "Expected serverside profile")
+			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeTrue(), "Big IP Profile should be true")
+			Expect(ok).To(BeTrue(), "Failed to Validate TLS Reference")
+		})
+
+		It("TLS with Secret Reference", func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_TS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				80,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			clientSecret := test.NewSecret(
+				"foo-secret",
+				"default",
+				"### cert ###",
+				"#### key ####",
+			)
+
+			serverSecret := test.NewSecret(
+				"foo-back-secret",
+				"default",
+				"### cert ###",
+				"#### key ####",
+			)
+
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+				InformerStore: initInformerStore()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clientSecret)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(serverSecret)
+
+			ok := mockCtlr.handleTransportServerTLS(rsCfg, TLSContext{
+				name:          "SampleTS",
+				namespace:     "default",
+				resourceType:  TransportServer,
+				referenceType: Secret,
+				ipAddress:     ip,
+				bigIPSSLProfiles: BigIPSSLProfiles{
+					clientSSLs: []string{"foo-secret"},
+					serverSSLs: []string{"foo-back-secret"},
+				},
+				tlsCipher:    TLSCipher{},
+				poolPathRefs: []poolPathRef{},
+			})
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Expected profiles are not created")
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("foo-back-secret"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[0].Context).To(Equal(CustomProfileServer), "Expected serverside profile")
+			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeFalse(), "Big IP Profile should be false")
+			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("foo-secret"), "Profile name not matched")
+			Expect(rsCfg.Virtual.Profiles[1].Context).To(Equal(CustomProfileClient), "Expected clientside profile")
+			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeFalse(), "Big IP Profile should be false")
+			Expect(ok).To(BeTrue(), "Failed to Validate TLS Reference")
+		})
+	})
+
 	Describe("Handle Virtual Server TLS", func() {
 		var mockCtlr *mockController
 		var vs *cisapiv1.VirtualServer
@@ -1204,9 +1364,14 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
+
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
@@ -1272,7 +1437,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(ok).To(BeFalse(), "Validation Failed")
 		})
 
-		It("Invalide TLS Reference", func() {
+		It("Invalid TLS Reference", func() {
 			vs.Spec.TLSProfileName = "SampleTLS"
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Validate TLS Reference")
@@ -1300,6 +1465,10 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
+			Expect(rsCfg.IRulesMap[NameRef{
+				Name:      "My_VS_80_tls_irule",
+				Partition: "",
+			}].Code).To(Equal("when CLIENT_ACCEPTED { TCP::collect }\n\n\n\t\tproc select_ab_pool {path default_pool domainpath} {\n\t\t\tset last_slash [string length $path]\n\t\t\tset ab_class \"//Shared/My_VS_80_ab_deployment_dg\"\n\t\t\twhile {$last_slash >= 0} {\n\t\t\t\tif {[class match $path equals $ab_class]} then {\n\t\t\t\t\tbreak\n\t\t\t\t}\n\t\t\t\tset last_slash [string last \"/\" $path $last_slash]\n\t\t\t\tincr last_slash -1\n\t\t\t\tset path [string range $path 0 $last_slash]\n\t\t\t}\n\t\t\tif {$last_slash >= 0} {\n\t\t\t\tset ab_rule [class match -value $path equals $ab_class]\n\t\t\t\tif {$ab_rule != \"\"} then {\n\t\t\t\t\tset weight_selection [expr {rand()}]\n\t\t\t\t\tset service_rules [split $ab_rule \";\"]\n                    set active_pool \"\"\n\t\t\t\t\tforeach service_rule $service_rules {\n\t\t\t\t\t\tset fields [split $service_rule \",\"]\n\t\t\t\t\t\tset pool_name [lindex $fields 0]\n                        if { [active_members $pool_name] >= 1 } {\n\t\t\t\t\t\t    set active_pool $pool_name\n\t\t\t\t\t\t}\n\t\t\t\t\t\tset weight [expr {double([lindex $fields 1])}]\n\t\t\t\t\t\tif {$weight_selection <= $weight} then {\n                            #check if active pool members are available\n\t\t\t\t\t\t    if { [active_members $pool_name] >= 1 } {\n\t\t\t\t\t\t\t    return $pool_name\n\t\t\t\t\t\t    } else {\n\t\t\t\t\t\t          # select the any of pool with active members \n\t\t\t\t\t\t          if {$active_pool!= \"\"} then {\n\t\t\t\t\t\t              return $active_pool\n\t\t\t\t\t\t          }    \n\t\t\t\t\t\t    }\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t# If we had a match, but all weights were 0 then\n\t\t\t\t# retrun a 503 (Service Unavailable)\n\t\t\t\tset static::http_status_503 1\n\t\t\t}\n\t\t\treturn $default_pool\n\t\t}\n\n\n\t\twhen CLIENT_DATA {\n\t\t\t# Byte 0 is the content type.\n\t\t\t# Bytes 1-2 are the TLS version.\n\t\t\t# Bytes 3-4 are the TLS payload length.\n\t\t\t# Bytes 5-$tls_payload_len are the TLS payload.\n\t\t\tset payload [TCP::payload]\n           set payloadlen [TCP::payload length]\n\n           if {![info exists payloadscan]} {\n               set payloadscan [binary scan $payload cSS tls_content_type tls_version tls_payload_len ]\n           }\n\t\t   \n\t       if {($payloadscan == 3)} {\n               if {($tls_payload_len < 0 || $tls_payload_len > 16389)} {  \n                   log local0.warn \"[IP::remote_addr] : parsed SSL/TLS record length ${tls_payload_len} outside of handled length (0..16389)\"\n                   reject\n                   return\n               } elseif {($payloadlen < $tls_payload_len+5)} {\n                   TCP::collect [expr {$tls_payload_len +5 - $payloadlen}]\n                   return\n               }\n\t\t\t\tif { ! [ expr { [info exists tls_content_type] && [string is integer -strict $tls_content_type] } ] }  { reject ; event disable all; return; }\n\t\t\t\tif { ! [ expr { [info exists tls_version] && [string is integer -strict $tls_version] } ] }  { reject ; event disable all; return; }\n\t\t\t\tswitch -exact $tls_version {\n\t\t\t\t\t\"769\" -\n\t\t\t\t\t\"770\" -\n\t\t\t\t\t\"771\" {\n\t\t\t\t\t\t# Content type of 22 indicates the TLS payload contains a handshake.\n\t\t\t\t\t\tif { $tls_content_type == 22 } {\n\t\t\t\t\t\t\t# Byte 5 (the first byte of the handshake) indicates the handshake\n\t\t\t\t\t\t\t# record type, and a value of 1 signifies that the handshake record is\n\t\t\t\t\t\t\t# a ClientHello.\n\t\t\t\t\t\t\tbinary scan [TCP::payload] @5c tls_handshake_record_type\n\t\t\t\t\t\t\tif { ! [ expr { [info exists tls_handshake_record_type] && [string is integer -strict $tls_handshake_record_type] } ] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\tif { $tls_handshake_record_type == 1 } {\n\t\t\t\t\t\t\t\t# Bytes 6-8 are the handshake length (which we ignore).\n\t\t\t\t\t\t\t\t# Bytes 9-10 are the TLS version (which we ignore).\n\t\t\t\t\t\t\t\t# Bytes 11-42 are random data (which we ignore).\n\t\n\t\t\t\t\t\t\t\t# Byte 43 is the session ID length.  Following this are three\n\t\t\t\t\t\t\t\t# variable-length fields which we shall skip over.\n\t\t\t\t\t\t\t\tset record_offset 43\n\t\n\t\t\t\t\t\t\t\t# Skip the session ID.\n\t\t\t\t\t\t\t\tbinary scan [TCP::payload] @${record_offset}c tls_session_id_len\n\t\t\t\t\t\t\t\tif { ! [ expr { [info exists tls_session_id_len] && [string is integer -strict $tls_session_id_len] } ] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\t\tincr record_offset [expr {1 + $tls_session_id_len}]\n\t\n\t\t\t\t\t\t\t\t# Skip the cipher_suites field.\n\t\t\t\t\t\t\t\tbinary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len\n\t\t\t\t\t\t\t\tif { ! [ expr { [info exists tls_cipher_suites_len] && [string is integer -strict $tls_cipher_suites_len] } ] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\t\tincr record_offset [expr {2 + $tls_cipher_suites_len}]\n\t\n\t\t\t\t\t\t\t\t# Skip the compression_methods field.\n\t\t\t\t\t\t\t\tbinary scan [TCP::payload] @${record_offset}c tls_compression_methods_len\n\t\t\t\t\t\t\t\tif { ! [ expr { [info exists tls_compression_methods_len] && [string is integer -strict $tls_compression_methods_len] } ] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\t\tincr record_offset [expr {1 + $tls_compression_methods_len}]\n\t\n\t\t\t\t\t\t\t\t# Get the number of extensions, and store the extensions.\n\t\t\t\t\t\t\t\tbinary scan [TCP::payload] @${record_offset}S tls_extensions_len\n\t\t\t\t\t\t\t\tif { ! [ expr { [info exists tls_extensions_len] && [string is integer -strict $tls_extensions_len] } ] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\t\tincr record_offset 2\n\t\t\t\t\t\t\t\tbinary scan [TCP::payload] @${record_offset}a* tls_extensions\n\t\t\t\t\t\t\t\tif { ! [info exists tls_extensions] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\t\tfor { set extension_start 0 }\n\t\t\t\t\t\t\t\t\t\t{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }\n\t\t\t\t\t\t\t\t\t\t{ incr extension_start 4 } {\n\t\t\t\t\t\t\t\t\t# Bytes 0-1 of the extension are the extension type.\n\t\t\t\t\t\t\t\t\t# Bytes 2-3 of the extension are the extension length.\n\t\t\t\t\t\t\t\t\tbinary scan $tls_extensions @${extension_start}SS extension_type extension_len\n\t\t\t\t\t\t\t\t\tif { ! [ expr { [info exists extension_type] && [string is integer -strict $extension_type] } ] }  { reject ; event disable all; return; }\n\t\t\t\t\t\t\t\t\tif { ! [ expr { [info exists extension_len] && [string is integer -strict $extension_len] } ] }  { reject ; event disable all; return; }\n\t\n\t\t\t\t\t\t\t\t\t# Extension type 00 is the ServerName extension.\n\t\t\t\t\t\t\t\t\tif { $extension_type == \"00\" } {\n\t\t\t\t\t\t\t\t\t\t# Bytes 4-5 of the extension are the SNI length (we ignore this).\n\t\n\t\t\t\t\t\t\t\t\t\t# Byte 6 of the extension is the SNI type.\n\t\t\t\t\t\t\t\t\t\tset sni_type_offset [expr {$extension_start + 6}]\n\t\t\t\t\t\t\t\t\t\tbinary scan $tls_extensions @${sni_type_offset}S sni_type\n\t\t\t\t\t\t\t\t\t\tif { ! [ expr { [info exists sni_type] && [string is integer -strict $sni_type] } ] }  { reject ; event disable all; return; }\n\t\n\t\t\t\t\t\t\t\t\t\t# Type 0 is host_name.\n\t\t\t\t\t\t\t\t\t\tif { $sni_type == \"0\" } {\n\t\t\t\t\t\t\t\t\t\t\t# Bytes 7-8 of the extension are the SNI data (host_name)\n\t\t\t\t\t\t\t\t\t\t\t# length.\n\t\t\t\t\t\t\t\t\t\t\tset sni_len_offset [expr {$extension_start + 7}]\n\t\t\t\t\t\t\t\t\t\t\tbinary scan $tls_extensions @${sni_len_offset}S sni_len\n\t\t\t\t\t\t\t\t\t\t\tif { ! [ expr { [info exists sni_len] && [string is integer -strict $sni_len] } ] }  { reject ; event disable all; return; } \n\t\n\t\t\t\t\t\t\t\t\t\t\t# Bytes 9-$sni_len are the SNI data (host_name).\n\t\t\t\t\t\t\t\t\t\t\tset sni_start [expr {$extension_start + 9}]\n\t\t\t\t\t\t\t\t\t\t\tbinary scan $tls_extensions @${sni_start}A${sni_len} tls_servername\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t}\n\t\n\t\t\t\t\t\t\t\t\tincr extension_start $extension_len\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\tif { [info exists tls_servername] } {\n\t\t\t\t\t\t\t\t\tset servername_lower [string tolower $tls_servername]\n\t\t\t\t\t\t\t\t\tset domain_length [llength [split $servername_lower \".\"]]\n\t\t\t\t\t\t\t\t\tset domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]\n\t\t\t\t\t\t\t\t\t# Set wc_host with the wildcard domain\n\t\t\t\t\t\t\t\t\tset wc_host \".$domain_wc\"\n\t\t\t\t\t\t\t\t\tset passthru_class \"//Shared/My_VS_80_ssl_passthrough_servername_dg\"\n\t\t\t\t\t\t\t\t\tif { [class exists $passthru_class] } {\n\t\t\t\t\t\t\t\t\t\t# check if the passthrough data group has a record with the servername\n\t\t\t\t\t\t\t\t\t\tset passthru_dg_key [class match $servername_lower equals $passthru_class]\n\t\t\t\t\t\t\t\t\t\tset passthru_dg_wc_key [class match $wc_host equals $passthru_class]\n\t\t\t\t\t\t\t\t\t\tif { $passthru_dg_key != 0 || $passthru_dg_wc_key != 0 } {\n\t\t\t\t\t\t\t\t\t\t\tSSL::disable serverside\n\t\t\t\t\t\t\t\t\t\t\tset dflt_pool_passthrough \"\"\n\t\t\n\t\t\t\t\t\t\t\t\t\t\t# Disable Serverside SSL for Passthrough Class\n\t\t\t\t\t\t\t\t\t\t\tset dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]\n\t\t\t\t\t\t\t\t\t\t\t# If no match, try wildcard domain\n\t\t\t\t\t\t\t\t\t\t\tif { $dflt_pool_passthrough == \"\" } {\n\t\t\t\t\t\t\t\t\t\t\t\tif { [class match $wc_host equals $passthru_class] } {\n\t\t\t\t\t\t\t\t\t\t\t\t\t\tset dflt_pool_passthrough [class match -value $wc_host equals $passthru_class]\n\t\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\tif { not ($dflt_pool_passthrough equals \"\") } {\n\t\t\t\t\t\t\t\t\t\t\t\tSSL::disable\n\t\t\t\t\t\t\t\t\t\t\t\tHTTP::disable\n\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\n\t\t\t\t\t\t\t\t\t\t\tset ab_class \"//Shared/My_VS_80_ab_deployment_dg\"\n\t\t\t\t\t\t\t\t\t\t\tif { not [class exists $ab_class] } {\n\t\t\t\t\t\t\t\t\t\t\t\tif { $dflt_pool_passthrough == \"\" } then {\n\t\t\t\t\t\t\t\t\t\t\t\t\tlog local0.debug \"Failed to find pool for $servername_lower $\"\n\t\t\t\t\t\t\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\t\t\t\t\t\t\tpool $dflt_pool_passthrough\n\t\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\t\t\t\t\t\tset selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough \"\"]\n\t\t\t\t\t\t\t\t\t\t\t\tif { $selected_pool == \"\" } then {\n\t\t\t\t\t\t\t\t\t\t\t\t\tlog local0.debug \"Failed to find pool for $servername_lower\"\n\t\t\t\t\t\t\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\t\t\t\t\t\t\tpool $selected_pool\n\t\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\tTCP::release\n\t\t}\n\n\t\t\n\n\t\t when CLIENTSSL_HANDSHAKE {\n\t\t\t\t\tSSL::collect\n\t\t\t\t}\n\n\t\t when CLIENTSSL_DATA {\n\t\t\tif { [llength [split [SSL::payload]]] < 1 }{\n\t\t\t\treject ; event disable all; return;\n\t\t\t\t}\n\t\t\tset sslpath [lindex [split [SSL::payload]] 1]\n\t\t\t# for http2 protocol we receive the sslpath as '*', hence replacing it with root path,\n\t\t\t# however it will not handle the http2 path based routing for now.\n\t\t\t# for http2 currently only host based routing is supported.\n\t\t\tif { $sslpath equals \"*\" } { \n\t\t\t\tset sslpath \"/\"\n\t\t\t}\n\t\t\tset domainpath $sslpath\n\t\t\tset routepath \"\"\n\t\t\tset wc_routepath \"\"\n\t\t\t\n\t\t\tif { [info exists tls_servername] } {\n\t\t\t\tset servername_lower [string tolower $tls_servername]\n\t\t\t\tset domain_length [llength [split $servername_lower \".\"]]\n\t\t\t\tset domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]\n\t\t\t\tset wc_host \".$domain_wc\"\n\t\t\t\t# Set routepath as combination of servername and url path\n\t\t\t\tappend routepath $servername_lower $sslpath\n\t\t\t\tappend wc_routepath $wc_host $sslpath\n\t\t\t\tset routepath [string tolower $routepath]\n\t\t\t\tset wc_routepath [string tolower $wc_routepath]\n\t\t\t\tset sslpath $routepath\n\t\t\t\t# Find the number of \"/\" in the routepath\n\t\t\t\tset rc 0\n\t\t\t\tforeach x [split $routepath {}] {\n\t\t\t\t   if {$x eq \"/\"} {\n\t\t\t\t\t   incr rc\n\t\t\t\t   }\n\t\t\t\t}\n\n\t\t\t\tset reencrypt_class \"//Shared/My_VS_80_ssl_reencrypt_servername_dg\"\n\t\t\t\tset edge_class \"//Shared/My_VS_80_ssl_edge_servername_dg\"\n\t\t\t\tif { [class exists $reencrypt_class] || [class exists $edge_class] } {\n\t\t\t\t\t# Compares the routepath with the entries in ssl_reencrypt_servername_dg and\n\t\t\t\t\t# ssl_edge_servername_dg.\n\t\t\t\t\tfor {set i $rc} {$i >= 0} {incr i -1} {\n\t\t\t\t\t\tif { [class exists $reencrypt_class] } {\n\t\t\t\t\t\t\tset reen_pool [class match -value $routepath equals $reencrypt_class]\n\t\t\t\t\t\t\t# Check for wildcard domain\n\t\t\t\t\t\t\tif { $reen_pool equals \"\" } {\n\t\t\t\t\t\t\t\tif { [class match $wc_routepath equals $reencrypt_class] } {\n\t\t\t\t\t\t\t\t\tset reen_pool [class match -value $wc_routepath equals $reencrypt_class]\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t# Disable serverside ssl and enable only for reencrypt routes with valid pool\n\t\t\t\t\t\t\tif { not ($reen_pool equals \"\") } {\n\t\t\t\t\t\t\t\tset dflt_pool $reen_pool\n\t\t\t\t\t\t\t\tSSL::enable serverside\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif { [class exists $edge_class] } {\n\t\t\t\t\t\t\tset edge_pool [class match -value $routepath equals $edge_class]\n\t\t\t\t\t\t\t# Check for wildcard domain\n\t\t\t\t\t\t\tif { $edge_pool equals \"\" } {\n\t\t\t\t\t\t\t\tif { [class match $wc_routepath equals $edge_class] } {\n\t\t\t\t\t\t\t\t\tset edge_pool [class match -value $wc_routepath equals $edge_class]\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif { not ($edge_pool equals \"\") } {\n\t\t\t\t\t\t\t\t# Disable serverside ssl for edge routes\n\t\t\t\t\t\t\t\tSSL::disable serverside\n\t\t\t\t\t\t\t\tset dflt_pool $edge_pool\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif { not [info exists dflt_pool] } {\n\t\t\t\t\t\t\tset routepath [\n\t\t\t\t\t\t\t\tstring range $routepath 0 [\n\t\t\t\t\t\t\t\t\texpr {[string last \"/\" $routepath]-1}\n\t\t\t\t\t\t\t\t]\n\t\t\t\t\t\t\t]\n\t\t\t\t\t\t\tset wc_routepath [\n\t\t\t\t\t\t\t\tstring range $wc_routepath 0 [\n\t\t\t\t\t\t\t\t\texpr {[string last \"/\" $wc_routepath]-1}\n\t\t\t\t\t\t\t\t]\n\t\t\t\t\t\t\t]\n\t\t\t\t\t\t}\n\t\t\t\t\t\telse {\n\t\t\t\t\t\t\tbreak\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\telse {\n\t\t\t\t\t# Disable serverside ssl for passthrough routes as well\n\t\t\t\t\tSSL::disable serverside\n\t\t\t\t}\n\t\t\t\t# handle the default pool for virtual server\n\t\t\t\tset default_class \"//Shared/My_VS_80_default_pool_servername_dg\"\n\t\t\t\t if { [class exists $default_class] } { \n\t\t\t\t\tset dflt_pool [class match -value \"defaultPool\" equals $default_class]\n\t\t\t\t }\n\t\t\t\t\n\t\t\t\t# Handle requests sent to unknown hosts.\n\t\t\t\t# For valid hosts, Send the request to respective pool.\n\t\t\t\tif { not [info exists dflt_pool] } then {\n\t\t\t\t\t # Allowing HTTP2 traffic to be handled by policies and closing the connection for HTTP/1.1 unknown hosts.\n\t\t\t\t\t if { not ([SSL::payload] starts_with \"PRI * HTTP/2.0\") } {\n\t\t\t\t\t\treject ; event disable all;\n\t\t\t\t\t\tlog local0.debug \"Failed to find pool for $servername_lower\"\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t} else {\n\t\t\t\t\tpool $dflt_pool\n\t\t\t\t}\n\t\t\t\tset ab_class \"//Shared/My_VS_80_ab_deployment_dg\"\n\t\t\t\tif { [class exists $ab_class] } {\n\t\t\t\t\tset selected_pool [call select_ab_pool $servername_lower $dflt_pool $domainpath]\n\t\t\t\t\tif { $selected_pool == \"\" } then {\n\t\t\t\t\t\tlog local0.debug \"Unable to find pool for $servername_lower\"\n\t\t\t\t\t} else {\n\t\t\t\t\t\tpool $selected_pool\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\tSSL::release\n\t\t}\n\n\t\n\t\t\n\t\twhen SERVER_CONNECTED {\n\t\t\tset reencryptssl_class \"//Shared/My_VS_80_ssl_reencrypt_serverssl_dg\"\n\t\t\tset edgessl_class \"//Shared/My_VS_80_ssl_edge_serverssl_dg\"\n\t\t\tif { [info exists sslpath] and [class exists $reencryptssl_class] } {\n\t\t\t\t# Find the nearest child path which matches the reencrypt_class\n\t\t\t\tfor {set i $rc} {$i >= 0} {incr i -1} {\n\t\t\t\t\tif { [class exists $reencryptssl_class] } {\n\t\t\t\t\t\tset reen [class match -value $sslpath equals $reencryptssl_class]\n                        # check for wildcard domain match\n                        if { $reen equals \"\" } {\n\t\t\t\t\t\t    if { [class match $wc_routepath equals $reencryptssl_class] } {\n\t\t\t\t\t\t        set reen [class match -value $wc_routepath equals $reencryptssl_class]\n\t\t\t\t\t\t    }\n                        }\n\t\t\t\t\t\tif { not ($reen equals \"\") } {\n\t\t\t\t\t\t\t    set sslprofile $reen\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif { [class exists $edgessl_class] } {\n\t\t\t\t\t\tset edge [class match -value $sslpath equals $edgessl_class]\n                        # check for wildcard domain match\n                        if { $edge equals \"\" } {\n\t\t\t\t\t\t    if { [class match $wc_routepath equals $edgessl_class] } {\n\t\t\t\t\t\t        set edge [class match -value $wc_routepath equals $edgessl_class]\n\t\t\t\t\t\t    }\n                        }\n\t\t\t\t\t\tif { not ($edge equals \"\") } {\n\t\t\t\t\t\t\t    set sslprofile $edge\n\t\t\t\t\t\t}\n\t\t\t\t\t\t\n\t\t\t\t\t}\n\t\t\t\t\tif { not [info exists sslprofile] } {\n\t\t\t\t\t\tset sslpath [\n\t\t\t\t\t\t\tstring range $sslpath 0 [\n\t\t\t\t\t\t\t\texpr {[string last \"/\" $sslpath]-1}\n\t\t\t\t\t\t\t]\n\t\t\t\t\t\t]\n                        set wc_routepaath [\n\t\t\t\t\t\t\tstring range $wc_routepath 0 [\n\t\t\t\t\t\t\t\texpr {[string last \"/\" $wc_routepath]-1}\n\t\t\t\t\t\t\t]\n\t\t\t\t\t\t]\n\t\t\t\t\t}\n\t\t\t\t\telse {\n\t\t\t\t\t\tbreak\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t# Assign respective SSL profile based on ssl_reencrypt_serverssl_dg\n\t\t\t\tif { not ($sslprofile equals \"false\") } {\n\t\t\t\t\t\tSSL::profile $reen\n\t\t\t\t} else {\n\t\t\t\t\t\tSSL::disable serverside\n\t\t\t\t}\n\t\t\t}\n        }\n\t\t\t\n\t\t\n\n\t\twhen HTTP_REQUEST {\n\t\t\tif { [info exists static::http_status_503] && $static::http_status_503 == 1 } {\n        \t\t# Respond with 503\n       \t\t\tHTTP::respond 503\n\n        \t\t# Unset the variable\n        \t\tunset static::http_status_503\n    \t\t}\n\t\t}\n\t"))
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1), "Failed to Process TLS Termination: Edge")
@@ -1346,8 +1515,8 @@ var _ = Describe("Resource Config Tests", func() {
 
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+				InformerStore: initInformerStore()}
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 
@@ -1357,7 +1526,8 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(clSecret),
+				InformerStore: initInformerStore()}
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
@@ -1450,7 +1620,8 @@ var _ = Describe("Resource Config Tests", func() {
 
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+				InformerStore: initInformerStore()}
 
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
@@ -1461,16 +1632,16 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(clSecret),
+				InformerStore: initInformerStore()}
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
 
 		It("Verifies hybrid profile reference is set properly for tlsProfile", func() {
-			mockCtlr.comInformers = make(map[string]*CommonInformer)
-			mockCtlr.nsInformers = make(map[string]*NSInformer)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+				InformerStore: initInformerStore()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 			vs.Spec.TLSProfileName = "SampleTLS"
 			tlsProf.Spec.TLS.Termination = TLSReencrypt
 			tlsProf.Spec.TLS.Reference = Hybrid
@@ -1487,8 +1658,10 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
-			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(clSecret)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+				InformerStore: initInformerStore()}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clSecret)
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
 			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientsecret"), "profile name is not set properly")
@@ -1638,10 +1811,14 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(
@@ -1773,7 +1950,10 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
@@ -1794,6 +1974,20 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
 			Expect(rsCfg.Virtual.FTPProfile).To(BeEmpty(), "FTP Profile should not be set for Virtual Server")
 			Expect(rsCfg.Virtual.HTMLProfile).To(Equal("/Common/htmlProfile1"), "FTP Profile should not be set for Virtual Server")
+		})
+
+		It("Verify HTTP Compression Profile for VirtualServer", func() {
+			plc.Spec.Profiles.HTTPCompressionProfile = "/Common/compression-profile"
+			err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.HTTPCompressionProfile).To(Equal("/Common/compression-profile"), "HTTP Compression Profile should be set for Virtual Server")
+		})
+
+		It("Verify HTTP Compression Profile for TransportServer", func() {
+			plc.Spec.Profiles.HTTPCompressionProfile = "/Common/compression-profile"
+			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.HTTPCompressionProfile).To(BeEmpty(), "FTP Profile should not be set for Transport Server")
 		})
 
 		It("Verify FTP Profile for TransportServer", func() {
@@ -1986,6 +2180,10 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+			// Handles the resource status updates
+			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			rsCfg = &ResourceConfig{}
 			rsCfg.Pools = Pools{
 				{

@@ -113,18 +113,18 @@ func newMockAgent(writer writer.Writer) *Agent {
 	}
 }
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {
-	appInf, _ := m.getNamespacedCommonInformer(edns.ObjectMeta.Namespace)
+	appInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Add(edns)
 	if m.resourceQueue != nil {
-		m.enqueueExternalDNS(edns)
+		m.enqueueExternalDNS(edns, m.multiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) deleteEDNS(edns *cisapiv1.ExternalDNS) {
-	appInf, _ := m.getNamespacedCommonInformer(edns.ObjectMeta.Namespace)
+	appInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Delete(edns)
 	if m.resourceQueue != nil {
-		m.enqueueDeletedExternalDNS(edns)
+		m.enqueueDeletedExternalDNS(edns, m.multiClusterHandler.LocalClusterName)
 	}
 }
 
@@ -148,22 +148,31 @@ func (m *mockController) updateRoute(route *routeapi.Route) {
 	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
 	appInf.routeInformer.GetStore().Update(route)
 }
-func (m *mockController) addService(svc *v1.Service) {
-	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
+func (m *mockController) addService(svc *v1.Service, clusterName string) {
+	if clusterName == "" {
+		clusterName = m.multiClusterHandler.LocalClusterName
+	}
+	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Add(svc)
 
 	if m.resourceQueue != nil {
-		m.enqueueService(svc, "")
+		m.enqueueService(svc, clusterName)
 	}
 }
 
-func (m *mockController) updateService(svc *v1.Service) {
-	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
+func (m *mockController) updateService(svc *v1.Service, clusterName string) {
+	if clusterName == "" {
+		clusterName = m.multiClusterHandler.LocalClusterName
+	}
+	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Update(svc)
 }
 
-func (m *mockController) deleteService(svc *v1.Service) {
-	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
+func (m *mockController) deleteService(svc *v1.Service, clusterName string) {
+	if clusterName == "" {
+		clusterName = m.multiClusterHandler.LocalClusterName
+	}
+	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Delete(svc)
 	if m.resourceQueue != nil {
 		m.enqueueDeletedService(svc, "")
@@ -171,7 +180,7 @@ func (m *mockController) deleteService(svc *v1.Service) {
 }
 
 func (m *mockController) addEndpoints(ep *v1.Endpoints) {
-	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Add(ep)
 
 	if m.resourceQueue != nil {
@@ -180,12 +189,12 @@ func (m *mockController) addEndpoints(ep *v1.Endpoints) {
 }
 
 func (m *mockController) updateEndpoints(ep *v1.Endpoints) {
-	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Update(ep)
 }
 
 func (m *mockController) deleteEndpoints(ep *v1.Endpoints) {
-	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Delete(ep)
 	if m.resourceQueue != nil {
 		m.enqueueEndpoints(ep, Delete, "")
@@ -202,7 +211,7 @@ func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort
 }
 
 func (m *mockController) addVirtualServer(vs *cisapiv1.VirtualServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.vsInformer.GetStore().Add(vs)
 
 	if m.resourceQueue != nil {
@@ -211,7 +220,7 @@ func (m *mockController) addVirtualServer(vs *cisapiv1.VirtualServer) {
 }
 
 func (m *mockController) updateVirtualServer(oldVS *cisapiv1.VirtualServer, newVS *cisapiv1.VirtualServer) {
-	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace, "")
 	cusInf.vsInformer.GetStore().Update(newVS)
 
 	if m.resourceQueue != nil {
@@ -220,7 +229,7 @@ func (m *mockController) updateVirtualServer(oldVS *cisapiv1.VirtualServer, newV
 }
 
 func (m *mockController) deleteVirtualServer(vs *cisapiv1.VirtualServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.vsInformer.GetStore().Delete(vs)
 
 	if m.resourceQueue != nil {
@@ -229,7 +238,7 @@ func (m *mockController) deleteVirtualServer(vs *cisapiv1.VirtualServer) {
 }
 
 func (m *mockController) addTransportServer(vs *cisapiv1.TransportServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.tsInformer.GetStore().Add(vs)
 
 	if m.resourceQueue != nil {
@@ -238,7 +247,7 @@ func (m *mockController) addTransportServer(vs *cisapiv1.TransportServer) {
 }
 
 func (m *mockController) updateTransportServer(oldVS *cisapiv1.TransportServer, newVS *cisapiv1.TransportServer) {
-	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace, "")
 	cusInf.tsInformer.GetStore().Update(newVS)
 
 	if m.resourceQueue != nil {
@@ -247,7 +256,7 @@ func (m *mockController) updateTransportServer(oldVS *cisapiv1.TransportServer, 
 }
 
 func (m *mockController) deleteTransportServer(vs *cisapiv1.TransportServer) {
-	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace, "")
 	cusInf.tsInformer.GetStore().Delete(vs)
 
 	if m.resourceQueue != nil {
@@ -256,25 +265,25 @@ func (m *mockController) deleteTransportServer(vs *cisapiv1.TransportServer) {
 }
 
 func (m *mockController) addPolicy(plc *cisapiv1.Policy) {
-	cusInf, _ := m.getNamespacedCommonInformer(plc.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, plc.ObjectMeta.Namespace)
 	cusInf.plcInformer.GetStore().Add(plc)
 
 	if m.resourceQueue != nil {
-		m.enqueuePolicy(plc, Create)
+		m.enqueuePolicy(plc, Create, "")
 	}
 }
 
 func (m *mockController) deletePolicy(plc *cisapiv1.Policy) {
-	cusInf, _ := m.getNamespacedCommonInformer(plc.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, plc.ObjectMeta.Namespace)
 	cusInf.plcInformer.GetStore().Delete(plc)
 
 	if m.resourceQueue != nil {
-		m.enqueueDeletedPolicy(plc)
+		m.enqueueDeletedPolicy(plc, "")
 	}
 }
 
 func (m *mockController) addTLSProfile(prof *cisapiv1.TLSProfile) {
-	cusInf, _ := m.getNamespacedCRInformer(prof.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(prof.ObjectMeta.Namespace, "")
 	cusInf.tlsInformer.GetStore().Add(prof)
 
 	if m.resourceQueue != nil {
@@ -283,16 +292,16 @@ func (m *mockController) addTLSProfile(prof *cisapiv1.TLSProfile) {
 }
 
 func (m *mockController) addSecret(secret *v1.Secret) {
-	comInf, _ := m.getNamespacedCommonInformer(secret.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, secret.ObjectMeta.Namespace)
 	comInf.secretsInformer.GetStore().Add(secret)
 
 	if m.resourceQueue != nil {
-		m.enqueueSecret(secret, Create)
+		m.enqueueSecret(secret, Create, m.multiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
-	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace, "")
 	cusInf.ilInformer.GetStore().Add(il)
 
 	if m.resourceQueue != nil {
@@ -301,7 +310,7 @@ func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
 }
 
 func (m *mockController) updateIngressLink(oldIL *cisapiv1.IngressLink, newIL *cisapiv1.IngressLink) {
-	cusInf, _ := m.getNamespacedCRInformer(oldIL.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(oldIL.ObjectMeta.Namespace, "")
 	cusInf.ilInformer.GetStore().Update(newIL)
 
 	if m.resourceQueue != nil {
@@ -310,7 +319,7 @@ func (m *mockController) updateIngressLink(oldIL *cisapiv1.IngressLink, newIL *c
 }
 
 func (m *mockController) deleteIngressLink(il *cisapiv1.IngressLink) {
-	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace, "")
 	cusInf.ilInformer.GetStore().Delete(il)
 
 	if m.resourceQueue != nil {
@@ -319,7 +328,7 @@ func (m *mockController) deleteIngressLink(il *cisapiv1.IngressLink) {
 }
 
 func (m *mockController) addPod(pod *v1.Pod) {
-	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Add(pod)
 
 	if m.resourceQueue != nil {
@@ -328,7 +337,7 @@ func (m *mockController) addPod(pod *v1.Pod) {
 }
 
 func (m *mockController) updatePod(pod *v1.Pod) {
-	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Update(pod)
 
 	if m.resourceQueue != nil {
@@ -337,7 +346,7 @@ func (m *mockController) updatePod(pod *v1.Pod) {
 }
 
 func (m *mockController) deletePod(pod v1.Pod) {
-	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Delete(pod)
 
 	if m.resourceQueue != nil {
@@ -346,48 +355,48 @@ func (m *mockController) deletePod(pod v1.Pod) {
 }
 
 func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Add(cm)
 
 	if m.resourceQueue != nil {
-		m.enqueueConfigmap(cm, Create)
+		m.enqueueConfigmap(cm, Create, m.multiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) updateConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Update(cm)
 
 	if m.resourceQueue != nil {
-		m.enqueueConfigmap(cm, Update)
+		m.enqueueConfigmap(cm, Update, m.multiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Delete(cm)
 
 	if m.resourceQueue != nil {
-		m.enqueueDeletedConfigmap(cm)
+		m.enqueueDeletedConfigmap(cm, m.multiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) addNode(node *v1.Node) {
-	m.nodeInformer.nodeInformer.GetStore().Add(node)
+	m.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Add(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateNode(node *v1.Node, ns string) {
-	m.nodeInformer.nodeInformer.GetStore().Update(node)
+	m.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
-	m.nodeInformer.nodeInformer.GetStore().Update(node)
+	m.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}

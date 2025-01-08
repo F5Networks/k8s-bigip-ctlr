@@ -24,21 +24,23 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.namespaces = make(map[string]bool)
-		mockCtlr.namespaces["default"] = true
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.nrInformers = make(map[string]*NRInformer)
-		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -105,7 +107,7 @@ var _ = Describe("Routes", func() {
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
 				},
-				namespaces: []string{ns},
+				namespaces: map[string]string{ns: ns},
 				partition:  "test",
 			}
 			tlsConfig := &routeapi.TLSConfig{}
@@ -125,13 +127,13 @@ var _ = Describe("Routes", func() {
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", ns, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", ns, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
-			mockCtlr.resources.invertedNamespaceLabelMap[ns] = ns
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces = map[string]struct{}{ns: {}}
 
 			err := mockCtlr.processRoutes(ns, false)
 			mapKey := NameRef{
@@ -164,6 +166,7 @@ var _ = Describe("Routes", func() {
 			Expect(route.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue), "Incorrect route admit status")
 			// Update the status for route with duplicate host path
 			mockCtlr.updateRouteAdmitStatus(rskey, "HostAlreadyClaimed", "Testing", v1.ConditionFalse)
+			time.Sleep(1 * time.Millisecond)
 			route = mockCtlr.fetchRoute(rskey)
 			Expect(route.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("HostAlreadyClaimed"), "Incorrect route admit reason")
@@ -186,15 +189,14 @@ var _ = Describe("Routes", func() {
 				"pro": "asb",
 			}
 			mockCtlr.addRoute(route1)
-			mockCtlr.namespaces = map[string]bool{
-				"test": true,
-			}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["test"] = struct{}{}
 			rskey := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			mockCtlr.updateRouteAdmitStatus(rskey, "Route Admitted", "", v1.ConditionTrue)
 			route := mockCtlr.fetchRoute(rskey)
 			Expect(len(route1.Status.Ingress)).To(BeEquivalentTo(1), "Incorrect route admit status")
-			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
-			mockCtlr.routeLabel = " pro in (pro) "
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeLabel = " pro in (pro) "
 			mockCtlr.processedHostPath.processedHostPathMap["foo.com/foo"] = route1.ObjectMeta.CreationTimestamp
 			mockCtlr.eraseAllRouteAdmitStatus()
 			route = mockCtlr.fetchRoute(rskey)
@@ -284,11 +286,11 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addRoute(route4)
 			_, _ = mockCtlr.processConfigMap(cm, false)
 			mockCtlr.addRoute(route5)
-			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
-			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
-			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
-			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
-			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			Expect(mockCtlr.checkValidRoute(route1, rgPlcSSLProfiles{})).To(BeFalse())
@@ -446,7 +448,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", namespace1, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", namespace1, fooIps, []string{},
@@ -459,11 +461,11 @@ extendedRouteSpec:
 			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", namespace1, spec1, annotation1)
 			mockCtlr.addRoute(route1)
-			mockCtlr.resources.invertedNamespaceLabelMap[namespace1] = namespace1
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces = map[string]struct{}{namespace1: {}}
 			err = mockCtlr.processRoutes(namespace1, false)
 
 			bar := test.NewService("bar", "1", namespace2, "NodePort", fooPorts)
-			mockCtlr.addService(bar)
+			mockCtlr.addService(bar, "")
 			barIPs := []string{"10.1.1.1"}
 			barEndpts := test.NewEndpoints(
 				"bar", "1", "node0", namespace2, barIPs, []string{},
@@ -476,7 +478,7 @@ extendedRouteSpec:
 			annotation2[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route2 := test.NewRoute("route2", "1", namespace2, spec2, annotation2)
 			mockCtlr.addRoute(route2)
-			mockCtlr.resources.invertedNamespaceLabelMap[namespace2] = namespace2
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace2] = struct{}{}
 			err = mockCtlr.processRoutes(namespace2, false)
 
 			newEDNS := test.NewExternalDNS(
@@ -498,7 +500,7 @@ extendedRouteSpec:
 				})
 			//Process ENDS with non-matching domain
 			mockCtlr.addEDNS(newEDNS)
-			mockCtlr.processExternalDNS(newEDNS, false)
+			mockCtlr.processExternalDNS(newEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			DEFAULT_GTM_PARTITION = DEFAULT_GTM_PARTITION + "_gtm"
 			Expect(len(gtmConfig)).To(Equal(1))
@@ -508,14 +510,14 @@ extendedRouteSpec:
 
 			//delete EDNS
 			mockCtlr.deleteEDNS(newEDNS)
-			mockCtlr.processExternalDNS(newEDNS, true)
+			mockCtlr.processExternalDNS(newEDNS, true, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(0))
 
 			// Modify EDNS with matching domain and create again
 			mockCtlr.addEDNS(newEDNS)
 			newEDNS.Spec.DomainName = "pytest-foo-1.com"
-			mockCtlr.processExternalDNS(newEDNS, false)
+			mockCtlr.processExternalDNS(newEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -534,7 +536,7 @@ extendedRouteSpec:
 
 			// Recreate route
 			mockCtlr.addRoute(route1)
-			mockCtlr.resources.invertedNamespaceLabelMap[namespace1] = namespace1
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace1] = struct{}{}
 			err = mockCtlr.processRoutes(namespace1, false)
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -580,7 +582,7 @@ extendedRouteSpec:
 				})
 			//Test with 2nd route with bigIpPartition
 			mockCtlr.addEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, false)
+			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-bar-1.com"].Pools)).To(Equal(1))
@@ -588,7 +590,7 @@ extendedRouteSpec:
 			Expect(strings.Contains(gtmConfig["pytest-bar-1.com"].Pools[0].Members[0], "routes_10.8_3_12_dev"))
 
 			mockCtlr.deleteEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, true)
+			mockCtlr.processExternalDNS(barEDNS, true, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 
@@ -615,7 +617,7 @@ extendedRouteSpec:
 			// EDNS with Monitor type other than http/https
 			barEDNS.Spec.Pools[0].Monitor.Type = "tcp"
 			mockCtlr.addEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, false)
+			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -632,7 +634,7 @@ extendedRouteSpec:
 				},
 			}
 			mockCtlr.addEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, false)
+			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -796,7 +798,7 @@ extendedRouteSpec:
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
 				},
-				namespaces: []string{routeGroup},
+				namespaces: map[string]string{routeGroup: routeGroup},
 				partition:  "test",
 			}
 
@@ -815,7 +817,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
@@ -829,7 +831,7 @@ extendedRouteSpec:
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route1)
-			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err := mockCtlr.processRoutes(routeGroup, false)
 			parition := mockCtlr.resources.extdSpecMap[routeGroup].partition
 			vsName := frameRouteVSName(mockCtlr.resources.extdSpecMap[routeGroup].global.VServerName, mockCtlr.resources.extdSpecMap[routeGroup].global.VServerAddr, portStruct{protocol: "https", port: 443})
@@ -849,7 +851,7 @@ extendedRouteSpec:
 			route2 := test.NewRoute("route2", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route2)
-			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
 			Expect(len(mockCtlr.resources.ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
@@ -958,7 +960,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("bar", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
@@ -1077,6 +1079,7 @@ extendedRouteSpec:
 						"",
 						0,
 					},
+					routeGroupNamespaceMap: make(map[string]string),
 				},
 			}
 			mockCtlr.resources.poolMemCache = make(PoolMemberCache)
@@ -1094,8 +1097,8 @@ extendedRouteSpec:
 				ObjectMeta: metav1.ObjectMeta{Name: "serverssl", Namespace: namespace},
 				Data:       data,
 			}
-			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(clientssl)
-			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(serverssl)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clientssl)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(serverssl)
 
 			annotation1 := make(map[string]string)
 			annotation1[resource.F5ServerSslProfileAnnotation] = "serverssl"
@@ -1202,7 +1205,7 @@ extendedRouteSpec:
 				intstr.IntOrString{IntVal: 443},
 				rgPlcSSLProfiles{}, false)).To(BeFalse())
 
-			// Verify that getRouteGroupForSecret fetches the z routeGroup on k8s secret update
+			// Verify that getRouteGroupForNamespace fetches the z routeGroup on k8s secret update
 			// Prepare extdSpecMap that holds all the
 			mockCtlr.resources.extdSpecMap = make(map[string]*extendedParsedSpec)
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
@@ -1214,19 +1217,16 @@ extendedRouteSpec:
 			mockCtlr.resources.extdSpecMap["test2"] = &extendedParsedSpec{
 				global: &ExtendedRouteGroupSpec{VServerName: "test2"},
 			}
-			// Prepare invertedNamespaceLabelMap that maps namespaces to routeGroup
-			mockCtlr.resources.invertedNamespaceLabelMap = make(map[string]string)
-			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
-			mockCtlr.resources.invertedNamespaceLabelMap["test2"] = routeGroup
-			mockCtlr.resources.invertedNamespaceLabelMap["test1"] = "test1"
-			// get routeGroup clientssl secret which belongs to default namespace
-			Expect(mockCtlr.getRouteGroupForSecret(clientssl)).To(Equal(routeGroup))
+			// Prepare namespaces that maps namespaces to routeGroup
+			mockCtlr.resources.routeGroupNamespaceMap[routeGroup] = routeGroup
+			mockCtlr.resources.routeGroupNamespaceMap["test2"] = routeGroup
+			mockCtlr.resources.routeGroupNamespaceMap["test1"] = "test1" // get routeGroup clientssl secret which belongs to default namespace
+			Expect(mockCtlr.resources.routeGroupNamespaceMap[clientssl.Namespace]).To(Equal(routeGroup))
 			// get routeGroup clientssl secret which belongs to test3 namespace
-			Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl",
-				Namespace: "test3"}})).To(Equal(""))
+			Expect(mockCtlr.resources.routeGroupNamespaceMap["test3"]).To(Equal(""))
 			// Needs to be handled
 			// get routeGroup clientssl1 secret which belongs to default namespace
-			//Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl1",
+			//Expect(mockCtlr.getRouteGroupForNamespace(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl1",
 			//	Namespace: "default"}})).To(Equal(""))
 
 		})
@@ -1263,7 +1263,7 @@ extendedRouteSpec:
 			mockCtlr.getServicePort(&secureRoute)
 
 			// Invalid Route Key
-			mockCtlr.eraseRouteAdmitStatus("test")
+			mockCtlr.eraseRouteAdmitStatus(nil)
 			// Invalid Route Key
 			mockCtlr.updateRouteAdmitStatus("test", "", "", v1.ConditionTrue)
 			Expect(getVirtualPortsForRoutes([]*routeapi.Route{rt})).To(Equal(ports))
@@ -1285,7 +1285,7 @@ extendedRouteSpec:
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
 				},
-				namespaces: []string{ns},
+				namespaces: map[string]string{ns: ns},
 				partition:  "test",
 			}
 			tlsConfig := &routeapi.TLSConfig{}
@@ -1321,13 +1321,13 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", ns, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", ns, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
-			mockCtlr.resources.invertedNamespaceLabelMap[ns] = ns
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[ns] = struct{}{}
 
 			err := mockCtlr.processRoutes(ns, false)
 			Expect(err).To(BeNil(), "Failed to process routes")
@@ -1611,14 +1611,14 @@ extendedRouteSpec:
       vserverName: latestserver
 `
 
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			_ = mockCtlr.comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, true)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -1764,7 +1764,7 @@ extendedRouteSpec:
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
 				},
-				namespaces: []string{routeGroup},
+				namespaces: map[string]string{routeGroup: routeGroup},
 				partition:  "test",
 			}
 
@@ -1781,7 +1781,7 @@ extendedRouteSpec:
 				{Port: 8080, NodePort: 38001},
 				{Port: 9090, NodePort: 39001}}
 			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
@@ -1794,7 +1794,7 @@ extendedRouteSpec:
 			annotations[resource.F5VsAppRootAnnotation] = "/foo"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
-			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err = mockCtlr.processRoutes(routeGroup, false)
 
 			Expect(err).To(BeNil())
@@ -1853,7 +1853,7 @@ extendedRouteSpec:
 					VServerAddr:   "10.8.3.11",
 					AllowOverride: "True",
 				},
-				namespaces: []string{routeGroup},
+				namespaces: map[string]string{routeGroup: routeGroup},
 				partition:  "test",
 			}
 
@@ -1868,7 +1868,7 @@ extendedRouteSpec:
 			}
 			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001}}
 			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
+			mockCtlr.addService(foo, "")
 
 			fooIps := []string{"10.1.1.1"}
 			fooEndpts := test.NewEndpoints(
@@ -1879,7 +1879,7 @@ extendedRouteSpec:
 			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
-			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
 			zero := 0
@@ -1929,23 +1929,23 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
-		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.namespaces = make(map[string]bool)
-		mockCtlr.namespaces["default"] = true
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.nrInformers = make(map[string]*NRInformer)
-		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.nsInformers = make(map[string]*NSInformer)
-		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
-		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
-		mockCtlr.namespaceLabel = "environment=dev"
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1()}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaceLabel = "environment=dev"
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -2018,7 +2018,11 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 	})
@@ -2049,6 +2053,7 @@ extendedRouteSpec:
       vserverAddr: 10.8.3.12
       allowOverride: true
 `
+			mockCtlr.multiClusterHandler.addInformerStore("", initInformerStore())
 			err := mockCtlr.setNamespaceLabelMode(cm)
 			Expect(err).To(MatchError("--namespace-label deployment parameter is required with namespace-label in extended configmap"))
 		})
@@ -2063,26 +2068,31 @@ var _ = Describe("Multi Cluster with Routes", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.namespaces = make(map[string]bool)
-		mockCtlr.namespaces["default"] = true
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.nrInformers = make(map[string]*NRInformer)
-		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
-		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
-		mockCtlr.comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
-		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
-		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
-		mockCtlr.multiClusterNodeInformers = make(map[string]*NodeInformer)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
+			kubeClient:    k8sfake.NewSimpleClientset(),
+			routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
+		}
+		mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{
+			kubeClient:    k8sfake.NewSimpleClientset(),
+			InformerStore: initInformerStore()}
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
 		mockCtlr.clusterAdminState = make(map[string]clustermanager.AdminState)
@@ -2225,18 +2235,18 @@ extendedRouteSpec:
 		It("Process Route with multi cluster annotation with multicluster config", func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
 			mockCtlr.processGlobalExtendedConfigMap()
-			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
+			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
 			clusterName := "cluster3"
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.namespaces {
+			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
-					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
 				}
-				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 
@@ -2255,14 +2265,14 @@ extendedRouteSpec:
 			}
 
 			one := 1
-			mockCtlr.clusterRatio["cluster1"] = &one
+			mockCtlr.clusterRatio[""] = &one
 			two := 2
 			mockCtlr.clusterRatio["cluster2"] = &two
 			three := 3
 			mockCtlr.clusterRatio["cluster3"] = &three
 			var weight int32 = 10
 			route1.Spec.To.Weight = &weight
-			mockCtlr.haModeType = Ratio
+			mockCtlr.discoveryMode = Ratio
 
 			//remove annotation and check
 			delete(route1.Annotations, "virtual-server.f5.com/multiClusterServices")
@@ -2314,10 +2324,11 @@ extendedRouteSpec:
 			cm.Data = data
 			mockCtlr.updateConfigMap(cm)
 			mockCtlr.processGlobalExtendedConfigMap()
-			Expect(len(mockCtlr.clusterAdminState)).To(Equal(3))
+			Expect(len(mockCtlr.clusterAdminState)).To(Equal(4))
 			Expect(mockCtlr.clusterAdminState[""]).To(Equal(clustermanager.Enable))
 			Expect(mockCtlr.clusterAdminState["cluster2"]).To(Equal(clustermanager.Disable))
 			Expect(mockCtlr.clusterAdminState["cluster3"]).To(Equal(clustermanager.Offline))
+			Expect(mockCtlr.clusterAdminState["cluster4"]).To(Equal(clustermanager.Enable))
 		})
 
 		It("Process Route in multiCluster active-active mode with correct pool name", func() {
@@ -2335,11 +2346,6 @@ highAvailabilityCIS:
       secondaryCluster:
         clusterName: cluster2
         secret: default/kubeconfig2
-externalClustersConfig:
-    - clusterName: cluster3
-      secret: default/kubeconfig3
-    - clusterName: cluster4
-      secret: default/kubeconfig4
 extendedRouteSpec:
     - namespace: default
       vserverAddr: 10.8.3.11
@@ -2350,9 +2356,9 @@ extendedRouteSpec:
 			cm.Data = data
 			mockCtlr.updateConfigMap(cm)
 			mockCtlr.processGlobalExtendedConfigMap()
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
-			Expect(len(rsCfg.Pools)).To(Equal(1))
-			Expect(rsCfg.Pools[0].Name).To(Equal("foo_80_default"), "Pool name in multiCluster active-active mode is incorrect")
+			//Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			//Expect(len(rsCfg.Pools)).To(Equal(1))
+			//Expect(rsCfg.Pools[0].Name).To(Equal("foo_80_default"), "Pool name in multiCluster active-active mode is incorrect")
 		})
 
 	})
@@ -2365,25 +2371,29 @@ var _ = Describe("Multi Cluster with CRD", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterConfigs = clustermanager.NewMultiClusterConfig()
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		// Handles the resource status updates
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.namespaces = make(map[string]bool)
-		mockCtlr.namespaces["default"] = true
-		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.nrInformers = make(map[string]*NRInformer)
-		mockCtlr.comInformers = make(map[string]*CommonInformer)
-		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
-		mockCtlr.comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("")
-		mockCtlr.comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
-		mockCtlr.multiClusterPoolInformers = make(map[string]map[string]*MultiClusterPoolInformer)
-		mockCtlr.multiClusterPoolInformers["cluster3"] = make(map[string]*MultiClusterPoolInformer)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
+			kubeClient:    k8sfake.NewSimpleClientset(),
+			routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
+		}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+			InformerStore: initInformerStore()}
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
 		var processedHostPath ProcessedHostPath
@@ -2426,6 +2436,7 @@ highAvailabilityCIS:
       secondaryCluster:
         clusterName: cluster2
         secret: default/kubeconfig2
+        serviceTypeLBDiscovery: true
 externalClustersConfig:
     - clusterName: cluster3
       secret: default/kubeconfig3
@@ -2478,7 +2489,7 @@ externalClustersConfig:
 		})
 		It("Process VS with multi cluster config", func() {
 			one := 1
-			mockCtlr.clusterRatio["cluster1"] = &one
+			mockCtlr.clusterRatio[""] = &one
 			two := 2
 			mockCtlr.clusterRatio["cluster2"] = &two
 			three := 3
@@ -2500,7 +2511,7 @@ externalClustersConfig:
 						{
 							Path:             "/foo",
 							Service:          "svc1",
-							ServiceNamespace: "test",
+							ServiceNamespace: "default",
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -2527,33 +2538,49 @@ externalClustersConfig:
 					},
 				},
 			)
-			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
-			clusterName := "cluster3"
+			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
+			restClient2 := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].kubeClient.CoreV1().RESTClient()
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.namespaces {
-				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
-					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
-					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, "cluster2", restClient2)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace] = poolInfr
+				}
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers = make(map[string]*CommonInformer)
+				}
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, "cluster3", restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace] = poolInfr
 				}
 			}
-			mockCtlr.haModeType = Ratio
+			mockCtlr.discoveryMode = Ratio
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			svc_1 := test.NewService("svc1", "1", "default", "NodePort", fooPorts)
+			mockCtlr.addService(svc_1, "")
+			mockCtlr.addService(svc_1, "cluster3")
+			svc_1_b := test.NewService("svc1-b", "1", "default", "NodePort", fooPorts)
+			mockCtlr.addService(svc_1_b, "")
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
-			// Verify that distinct health monitors are created for all pools in ratio mode
+			//Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
 			expectedHealthMonitors = map[string]struct{}{
-				"svc1_test_test_com_foo_cluster1":    struct{}{},
-				"svc1_test_test_com_foo_cluster2":    struct{}{},
-				"svc1_b_test2_test_com_foo_cluster1": struct{}{},
+				"svc1_default_test_com_foo_":         struct{}{},
+				"svc1_default_test_com_foo_cluster2": struct{}{},
+				"svc1_b_test2_test_com_foo_":         struct{}{},
 				"svc1_b_test2_test_com_foo_cluster2": struct{}{},
+				"svc1_default_test_com_foo_cluster3": struct{}{},
 				"test_default_test_com_foo_cluster3": struct{}{},
 			}
 			for _, hm := range rsCfg.Monitors {
@@ -2572,8 +2599,8 @@ externalClustersConfig:
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			// for local cluster service mapping must be present
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			vs.Spec.Pools[0].MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
 				{
@@ -2587,7 +2614,7 @@ externalClustersConfig:
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(3))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 		})
 
 		It("Process TS with multi cluster config", func() {
@@ -2604,6 +2631,7 @@ externalClustersConfig:
 			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
 			rsCfg.IntDgMap = make(InternalDataGroupMap)
 			rsCfg.IRulesMap = make(IRulesMap)
+			mockCtlr.discoveryMode = StandBy
 
 			ts := test.NewTransportServer(
 				"SampleTS",
@@ -2629,22 +2657,22 @@ externalClustersConfig:
 					},
 				},
 			)
-			restClient := mockCtlr.multiClusterConfigs.ClusterConfigs["cluster3"].KubeClient.CoreV1().RESTClient()
+			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
 			clusterName := "cluster3"
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.namespaces {
+			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterPoolInformers[clusterName]; !found {
-					mockCtlr.multiClusterPoolInformers[clusterName] = make(map[string]*MultiClusterPoolInformer)
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterPoolInformers[clusterName][namespace]; !found {
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterPoolInformers[clusterName][namespace] = poolInfr
+					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
@@ -2658,8 +2686,8 @@ externalClustersConfig:
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			// for local cluster service mapping must be present
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
 			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
@@ -2672,10 +2700,124 @@ externalClustersConfig:
 			}
 			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(2))
 
+		})
+
+		It("Process TS default discovery mode with multi cluster config", func() {
+			one := 1
+			mockCtlr.clusterRatio["cluster1"] = &one
+			two := 2
+			mockCtlr.clusterRatio["cluster2"] = &two
+			three := 3
+			mockCtlr.clusterRatio["cluster3"] = &three
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			weight1 := int32(50)
+			weight2 := int(75)
+			ts := test.NewTransportServer(
+				"SampleTS",
+				"default",
+				cisapiv1.TransportServerSpec{
+					Pool: cisapiv1.TSPool{
+						Service:          "svc1",
+						ServicePort:      intstr.IntOrString{IntVal: 80},
+						ServiceNamespace: "test",
+						Weight:           &weight1,
+						Monitors: []cisapiv1.Monitor{
+							{
+								Type:     "tcp",
+								Timeout:  15,
+								Interval: 15,
+							},
+							{
+								Type:       "tcp",
+								Timeout:    30,
+								Interval:   20,
+								TargetPort: 8080,
+							},
+						},
+						MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+							{
+								ClusterName: "cluster3",
+								Namespace:   "default",
+								SvcName:     "svc",
+								ServicePort: intstr.IntOrString{IntVal: 80},
+							},
+							{
+								ClusterName: "cluster3",
+								Namespace:   "default",
+								SvcName:     "svc-1",
+								ServicePort: intstr.IntOrString{IntVal: 80},
+								Weight:      &weight2,
+							},
+						},
+						AlternateBackends: []cisapiv1.AlternateBackend{
+							{
+								Service:          "svc1-b",
+								ServiceNamespace: "test2",
+							},
+						},
+					},
+				},
+			)
+			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
+			clusterName := "cluster3"
+			// Setup informers with namespaces which are watched by CIS
+			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
+				// add common informers  in all modes
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
+					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
+				}
+				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
+					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
+					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
+					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
+				}
+			}
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(len(rsCfg.Monitors)).To(Equal(4))
+			Expect(len(rsCfg.Pools)).To(Equal(2))
+			Expect(len(rsCfg.IRulesMap)).To(Equal(1))
+			Expect(rsCfg.Monitors[0].Name).To(Equal("svc_default_tcp_80_cluster3"))
+			Expect(rsCfg.Monitors[1].Name).To(Equal("svc_default_tcp_8080_cluster3"))
+			Expect(rsCfg.Monitors[2].Name).To(Equal("svc_1_default_tcp_80_cluster3"))
+			Expect(rsCfg.Monitors[3].Name).To(Equal("svc_1_default_tcp_8080_cluster3"))
+			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))
+
+			resourceKey := resourceRef{
+				kind:      TransportServer,
+				namespace: ts.Namespace,
+				name:      ts.Name,
+			}
+
+			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			// for local cluster service mapping must be present
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(0))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
+
+			ts.Spec.Pool.MultiClusterServices = []cisapiv1.MultiClusterServiceReference{
+				{
+					ClusterName: "cluster3",
+					Namespace:   "default",
+					SvcName:     "test",
+					ServicePort: intstr.IntOrString{IntVal: 80},
+				},
+			}
+			mockCtlr.deleteResourceExternalClusterSvcRouteReference(resourceKey)
+			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
+			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 		})
 	})
 

@@ -17,12 +17,8 @@ import (
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	var nodesIntfc []interface{}
-	if clusterName == "" {
-		nodesIntfc = ctlr.nodeInformer.nodeInformer.GetIndexer().List()
-	} else {
-		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-			nodesIntfc = nodeInf.nodeInformer.GetIndexer().List()
-		}
+	if infStore, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
+		nodesIntfc = infStore.nodeInformer.nodeInformer.GetIndexer().List()
 	}
 
 	var nodesList []v1.Node
@@ -33,7 +29,9 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	sort.Sort(NodeList(nodesList))
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
 	// adding the bigip_monitored_nodes	metrics
-	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
+	if nodesList != nil {
+		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.multiClusterHandler.ClusterConfigs[clusterName].nodeLabelSelector).Set(float64(len(ctlr.multiClusterHandler.ClusterConfigs[clusterName].oldNodes)))
+	}
 	if ctlr.PoolMemberType == NodePort {
 		return nil
 	}
@@ -61,35 +59,21 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	}
 	// process the node and update the all pool members for the cluster
 	if !ctlr.initState {
-		if clusterName == "" {
+		if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 			// Compare last set of nodes with new one
-			if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
-				log.Debugf("Processing Node Updates for local cluster")
+			if !reflect.DeepEqual(newNodes, config.oldNodes) {
+				log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
 				// Update node cache
-				ctlr.oldNodes = newNodes
+				config.oldNodes = newNodes
 				ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-			}
-		} else {
-			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-				// Compare last set of nodes with new one
-				if !reflect.DeepEqual(newNodes, nodeInf.oldNodes) {
-					log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
-					// Update node cache
-					nodeInf.oldNodes = newNodes
-					ctlr.UpdatePoolMembersForNodeUpdate(clusterName)
-				}
 			}
 		}
 	} else {
 		// Initialize controller nodes on our first pass through
 		log.Debugf("%v Initialising controller monitored kubernetes nodes %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
-		if clusterName == "" {
-			ctlr.oldNodes = newNodes
-		} else {
-			if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-				// Update node cache
-				nodeInf.oldNodes = newNodes
-			}
+		if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
+			// Update node cache
+			config.oldNodes = newNodes
 		}
 	}
 }
@@ -106,15 +90,11 @@ func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 // Return a copy of the node cache
 func (ctlr *Controller) getNodesFromCache(clusterName string) []Node {
 	var nodes []Node
-	if clusterName == "" {
-		nodes = make([]Node, len(ctlr.oldNodes))
-		copy(nodes, ctlr.oldNodes)
-	} else {
-		if nodeInf, ok := ctlr.multiClusterNodeInformers[clusterName]; ok {
-			nodes = make([]Node, len(nodeInf.oldNodes))
-			copy(nodes, nodeInf.oldNodes)
-		}
+	if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
+		nodes = make([]Node, len(config.oldNodes))
+		copy(nodes, config.oldNodes)
 	}
+
 	return nodes
 }
 
@@ -179,11 +159,14 @@ func (ctlr *Controller) getNodesWithLabel(
 		log.Warningf("Invalid NodeMemberLabel: %v %v", nodeMemberLabel, getClusterLog(clusterName))
 		return nil
 	}
+	if label[1] == "\"\"" {
+		label[1] = ""
+	}
 	labelKey := label[0]
 	labelValue := label[1]
 	var nodes []Node
 	for _, node := range allNodes {
-		if node.Labels[labelKey] == labelValue {
+		if val, ok := node.Labels[labelKey]; ok && val == labelValue {
 			nodes = append(nodes, node)
 		}
 	}
@@ -437,7 +420,7 @@ func (ctlr *Controller) GetNodePodCIDRMap() map[string]string {
 	var nodePodCIDRMap map[string]string
 	if ctlr.OrchestrationCNI == CALICO_K8S {
 		// Retrieve Calico Block Affinity
-		blockAffinitiesRaw, err := ctlr.kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
+		blockAffinitiesRaw, err := ctlr.multiClusterHandler.ClusterConfigs[""].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
 		if err != nil {
 			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
 			return nodePodCIDRMap

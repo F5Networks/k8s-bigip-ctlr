@@ -36,9 +36,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
 	v1 "k8s.io/api/core/v1"
@@ -55,15 +53,6 @@ type (
 	Controller struct {
 		mode                        ControllerMode
 		resources                   *ResourceStore
-		kubeCRClient                versioned.Interface
-		kubeClient                  kubernetes.Interface
-		kubeAPIClient               *extClient.Clientset
-		eventNotifier               *apm.EventNotifier
-		nativeResourceSelector      labels.Selector
-		customResourceSelector      labels.Selector
-		namespacesMutex             sync.Mutex
-		namespaces                  map[string]bool
-		nodeLabelSelector           string
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
@@ -71,8 +60,6 @@ type (
 		Partition                   string
 		Agent                       *Agent
 		PoolMemberType              string
-		nodePoller                  pollers.Poller
-		oldNodes                    []Node
 		UseNodeInternal             bool
 		initState                   bool
 		firstPostResponse           bool
@@ -81,39 +68,93 @@ type (
 		ipamCli                     *ipammachinery.IPAMClient
 		ipamClusterLabel            string
 		ipamCR                      string
-		defaultRouteDomain          int
+		defaultRouteDomain          int32
 		TeemData                    *teem.TeemsData
 		requestQueue                *requestQueue
-		namespaceLabel              string
 		ipamHostSpecEmpty           bool
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		multiClusterConfigs         *clustermanager.MultiClusterConfig
+		multiClusterHandler         *ClusterHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
+		namespaceLabel              string
 		manageLoadBalancerClassOnly bool
-		haModeType                  HAModeType
+		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		resourceContext
 	}
 	resourceContext struct {
-		resourceQueue             workqueue.RateLimitingInterface
-		routeClientV1             routeclient.RouteV1Interface
-		comInformers              map[string]*CommonInformer
-		nrInformers               map[string]*NRInformer
-		crInformers               map[string]*CRInformer
-		nsInformers               map[string]*NSInformer
-		nodeInformer              *NodeInformer
-		multiClusterPoolInformers map[string]map[string]*MultiClusterPoolInformer
-		multiClusterNodeInformers map[string]*NodeInformer
-		globalExtendedCMKey       string
-		routeLabel                string
-		namespaceLabelMode        bool
-		processedHostPath         *ProcessedHostPath
+		resourceQueue       workqueue.RateLimitingInterface
+		globalExtendedCMKey string
+		namespaceLabelMode  bool
+		processedHostPath   *ProcessedHostPath
+	}
+
+	InformerStore struct {
+		comInformers map[string]*CommonInformer
+		nrInformers  map[string]*NRInformer
+		crInformers  map[string]*CRInformer
+		nsInformers  map[string]*NSInformer
+		nodeInformer *NodeInformer
+	}
+
+	ClusterHandler struct {
+		ClusterConfigs      map[string]*ClusterConfig
+		HAPairClusterName   string
+		LocalClusterName    string
+		uniqueAppIdentifier map[string]struct{}
+		namespaceLabel      string
+		namespaces          []string
+		nodeLabelSelector   string
+		routeLabel          string
+		eventQueue          workqueue.RateLimitingInterface
+		statusUpdate        *StatusUpdate
+		sync.RWMutex
+	}
+
+	//ClusterConfig holds configuration specific for cluster
+	ClusterConfig struct {
+		clusterDetails         ClusterDetails
+		kubeClient             kubernetes.Interface
+		kubeCRClient           versioned.Interface
+		kubeIPAMClient         *extClient.Clientset
+		routeClientV1          routeclient.RouteV1Interface
+		routeLabel             string
+		nativeResourceSelector labels.Selector
+		customResourceSelector labels.Selector
+		namespaces             map[string]struct{}
+		namespaceLabel         string
+		nodeLabelSelector      string
+		oldNodes               []Node
+		eventNotifier          *EventNotifier
+		*InformerStore
+	}
+
+	StatusUpdate struct {
+		ResourceStatusUpdateTracker sync.Map            // Tracks the last time a resource was updated, helps to ensure latest status update
+		ResourceStatusUpdateChan    chan ResourceStatus // Channel holds the resource status
+		eventNotifierChan           chan ResourceEvent  // Channel holds the resource events
+	}
+
+	ResourceStatus struct {
+		ResourceObj       interface{}
+		ResourceKey       resourceRef
+		UpdateAttempts    int
+		Timestamp         metav1.Time
+		IPSet             bool // helps in event creation of LB service as it helps to know if the status update is for IP setting or unsetting
+		ClearKeyFromCache bool // helps clear the cache in case of delete events
+	}
+
+	ResourceEvent struct {
+		resourceObj interface{}
+		eventType   string
+		reason      string
+		message     string
+		clusterName string
 	}
 
 	// Params defines parameters
@@ -133,7 +174,7 @@ type (
 		ShareNodes                  bool
 		IPAM                        bool
 		IPAMClusterLabel            string
-		DefaultRouteDomain          int
+		DefaultRouteDomain          int32
 		Mode                        ControllerMode
 		GlobalExtendedSpecConfigmap string
 		RouteLabel                  string
@@ -144,6 +185,7 @@ type (
 		LoadBalancerClass           string
 		ManageLoadBalancerClassOnly bool
 		IpamNamespace               string
+		LocalClusterName            string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -159,6 +201,7 @@ type (
 	CommonInformer struct {
 		namespace       string
 		stopCh          chan struct{}
+		clusterName     string
 		svcInformer     cache.SharedIndexInformer
 		epsInformer     cache.SharedIndexInformer
 		ednsInformer    cache.SharedIndexInformer
@@ -179,13 +222,12 @@ type (
 		stopCh       chan struct{}
 		nodeInformer cache.SharedIndexInformer
 		clusterName  string
-		oldNodes     []Node
 	}
 
 	NSInformer struct {
-		stopCh     chan struct{}
-		cluster    string
-		nsInformer cache.SharedIndexInformer
+		stopCh      chan struct{}
+		clusterName string
+		nsInformer  cache.SharedIndexInformer
 	}
 	rqKey struct {
 		namespace      string
@@ -232,6 +274,7 @@ type (
 		LogProfiles                []string              `json:"logProfiles,omitempty"`
 		ProfileL4                  string                `json:"profileL4,omitempty"`
 		ProfileMultiplex           string                `json:"profileMultiplex,omitempty"`
+		HTTPCompressionProfile     string                `json:"profileHTTPCompression,omitempty"`
 		ProfileWebSocket           string                `json:"profileWebSocket,omitempty"`
 		ProfileDOS                 string                `json:"profileDOS,omitempty"`
 		ProfileBotDefense          string                `json:"profileBotDefense,omitempty"`
@@ -334,6 +377,16 @@ type (
 		supplementContextCache
 	}
 
+	// l4AppConfig contains IP and port to identify unique L4App
+	l4AppConfig struct {
+		ipOrIPAMKey string
+		port        int32
+		routeDomain int32
+	}
+
+	// L4AppsStore contains TypeLB service details.key is IP
+	L4AppsStore map[l4AppConfig]resourceRef
+
 	// LTMConfig contain partition based ResourceMap
 	LTMConfig map[string]*PartitionConfig
 
@@ -410,7 +463,7 @@ type (
 		ltmConfig          LTMConfig
 		shareNodes         bool
 		gtmConfig          GTMConfig
-		defaultRouteDomain int
+		defaultRouteDomain int32
 		reqId              int
 		poolMemberType     string
 	}
@@ -421,9 +474,11 @@ type (
 	}
 
 	resourceRef struct {
-		kind      string
-		name      string
-		namespace string
+		kind        string
+		name        string
+		namespace   string
+		clusterName string
+		timestamp   metav1.Time
 	}
 
 	VSSpecProperties struct {
@@ -432,27 +487,27 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name                   string                                  `json:"name"`
-		Partition              string                                  `json:"-"`
-		ServiceName            string                                  `json:"-"`
-		ServiceNamespace       string                                  `json:"-"`
-		ServicePort            intstr.IntOrString                      `json:"-"`
-		ServicePortUsed        bool                                    `json:"-"`
-		Balance                string                                  `json:"loadBalancingMethod,omitempty"`
-		Members                []PoolMember                            `json:"members"`
-		NodeMemberLabel        string                                  `json:"-"`
-		MonitorNames           []MonitorName                           `json:"monitors,omitempty"`
-		MinimumMonitors        intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
-		ReselectTries          int32                                   `json:"reselectTries,omitempty"`
-		ServiceDownAction      string                                  `json:"serviceDownAction,omitempty"`
-		SlowRampTime           int32                                   `json:"slowRampTime,omitempty"`
-		Weight                 int32                                   `json:"weight,omitempty"`
-		AlternateBackends      []AlternateBackend                      `json:"alternateBackends"`
-		MultiClusterServices   []cisapiv1.MultiClusterServiceReference `json:"_"`
-		Cluster                string                                  `json:"-"`
-		ConnectionLimit        int32                                   `json:"-"`
-		SinglePoolRatioEnabled bool                                    `json:"-"`
-		BigIPRouteDomain       int32                                   `json:"bigipRouteDomain,omitempty"`
+		Name                     string                                  `json:"name"`
+		Partition                string                                  `json:"-"`
+		ServiceName              string                                  `json:"-"`
+		ServiceNamespace         string                                  `json:"-"`
+		ServicePort              intstr.IntOrString                      `json:"-"`
+		ServicePortUsed          bool                                    `json:"-"`
+		Balance                  string                                  `json:"loadBalancingMethod,omitempty"`
+		Members                  []PoolMember                            `json:"members"`
+		NodeMemberLabel          string                                  `json:"-"`
+		MonitorNames             []MonitorName                           `json:"monitors,omitempty"`
+		MinimumMonitors          intstr.IntOrString                      `json:"minimumMonitors,omitempty"`
+		ReselectTries            int32                                   `json:"reselectTries,omitempty"`
+		ServiceDownAction        string                                  `json:"serviceDownAction,omitempty"`
+		SlowRampTime             int32                                   `json:"slowRampTime,omitempty"`
+		Weight                   int32                                   `json:"weight,omitempty"`
+		AlternateBackends        []AlternateBackend                      `json:"alternateBackends"`
+		MultiClusterServices     []cisapiv1.MultiClusterServiceReference `json:"_"`
+		Cluster                  string                                  `json:"-"`
+		ConnectionLimit          int32                                   `json:"-"`
+		ImplicitSvcSearchEnabled bool                                    `json:"-"`
+		BigIPRouteDomain         int32                                   `json:"bigipRouteDomain,omitempty"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -501,16 +556,15 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
-		baseRouteConfig           BaseRouteConfig
-		poolMemCache              PoolMemberCache
-		sslContext                map[string]*v1.Secret
-		extdSpecMap               extendedSpecMap
-		invertedNamespaceLabelMap map[string]string
+		baseRouteConfig BaseRouteConfig
+		poolMemCache    PoolMemberCache
+		processedL4Apps L4AppsStore
+		sslContext      map[string]*v1.Secret
+		extdSpecMap     extendedSpecMap
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
-		// stores valid externalClustersConfig from extendendCM
-		externalClustersConfig map[string]ExternalClusterConfig
+		routeGroupNamespaceMap   map[string]string
 	}
 
 	// key is group identifier
@@ -522,7 +576,7 @@ type (
 		local      *ExtendedRouteGroupSpec
 		global     *ExtendedRouteGroupSpec
 		defaultrg  *ExtendedRouteGroupSpec
-		namespaces []string
+		namespaces map[string]string
 		partition  string
 	}
 
@@ -744,6 +798,7 @@ type (
 		Name         string
 		SvcNamespace string `json:"svcNamespace,omitempty"`
 		Cluster      string
+		SvcPort      intstr.IntOrString
 	}
 )
 
@@ -1078,6 +1133,7 @@ type (
 		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
 		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
 		ProfileHTML            as3MultiTypeParam    `json:"profileHTML,omitempty"`
+		HTTPCompressionProfile as3MultiTypeParam    `json:"profileHTTPCompression,omitempty"`
 		ProfileAccess          as3MultiTypeParam    `json:"profileAccess,omitempty"`
 		PolicyPerRequestAccess as3MultiTypeParam    `json:"policyPerRequestAccess,omitempty"`
 		ProfileFTP             as3MultiTypeParam    `json:"profileFTP,omitempty"`
@@ -1320,9 +1376,9 @@ type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
 		BaseRouteConfig           `yaml:"baseRouteSpec"`
-		ExternalClustersConfig    []ExternalClusterConfig   `yaml:"externalClustersConfig"`
+		ExternalClustersConfig    []ClusterDetails          `yaml:"externalClustersConfig"`
 		HAClusterConfig           HAClusterConfig           `yaml:"highAvailabilityCIS"`
-		HAMode                    HAModeType                `yaml:"mode"`
+		HAMode                    discoveryMode             `yaml:"mode"`
 		LocalClusterRatio         *int                      `yaml:"localClusterRatio"`
 		LocalClusterAdminState    clustermanager.AdminState `yaml:"localClusterAdminState"`
 	}
@@ -1394,12 +1450,14 @@ const (
 	StatusError = "ERROR"
 )
 
+type discoveryMode string
 type AutoMonitorType string
 
 const (
-	Active          HAModeType      = "active-active"
-	StandBy         HAModeType      = "active-standby"
-	Ratio           HAModeType      = "ratio"
+	Active          discoveryMode   = "active-active"
+	StandBy         discoveryMode   = "active-standby"
+	Ratio           discoveryMode   = "ratio"
+	DefaultMode     discoveryMode   = "default"
 	None            AutoMonitorType = "none"
 	ReadinessProbe  AutoMonitorType = "readiness-probe"
 	ServiceEndpoint AutoMonitorType = "service-endpoint"
@@ -1419,13 +1477,6 @@ const (
 )
 
 type (
-	ExternalClusterConfig struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
-	}
-
 	HAClusterConfig struct {
 		//HAMode                 HAMode         `yaml:"mode"`
 		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`
@@ -1437,14 +1488,15 @@ type (
 
 	HAMode struct {
 		// type can be active-active, active-standby, ratio
-		Type HAModeType `yaml:"type"`
+		Type discoveryMode `yaml:"type"`
 	}
 
 	ClusterDetails struct {
-		ClusterName string                    `yaml:"clusterName"`
-		Secret      string                    `yaml:"secret"`
-		Ratio       *int                      `yaml:"ratio"`
-		AdminState  clustermanager.AdminState `yaml:"adminState"`
+		ClusterName            string                    `yaml:"clusterName"`
+		Secret                 string                    `yaml:"secret"`
+		Ratio                  *int                      `yaml:"ratio"`
+		AdminState             clustermanager.AdminState `yaml:"adminState"`
+		ServiceTypeLBDiscovery bool                      `yaml:"serviceTypeLBDiscovery"`
 	}
 
 	PoolIdentifier struct {
@@ -1467,14 +1519,5 @@ type (
 	}
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
-	}
-
-	MultiClusterPoolInformer struct {
-		namespace   string
-		clusterName string
-		stopCh      chan struct{}
-		svcInformer cache.SharedIndexInformer
-		epsInformer cache.SharedIndexInformer
-		podInformer cache.SharedIndexInformer
 	}
 )

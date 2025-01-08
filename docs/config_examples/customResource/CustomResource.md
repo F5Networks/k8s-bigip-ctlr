@@ -71,6 +71,8 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | dos                              | String                        | Optional  | NA      | Pathname of existing BIG-IP DoS policy.                                                                                                                                                                          |
 | botDefense                       | String                        | Optional  | NA      | Pathname of existing BIG-IP botDefense policy.                                                                                                                                                                   |
 | profileMultiplex                 | String                        | Optional  | NA      | CIS uses the AS3 default profileMultiplex profile. Allowed values are existing BIG-IP profileMultiplex profiles.                                                                                                 |
+| httpCompressionProfile           | String                        | Optional  | NA      | CIS uses the AS3 default httpCompressionProfile profile. Allowed values are existing BIG-IP HTTP Compression profiles.
+              |
 | profiles                         | Object                        | Optional  | NA      | BIG-IP TCP Profiles.                                                                                                                                                                                             |
 | tcp                              | Object                        | Optional  | NA      | BIG-IP TCP client and server profiles.                                                                                                                                                                           |
 | policyName                       | String                        | Optional  | NA      | Name of Policy CRD to attach profiles/policies defined in it.                                                                                                                                                    |
@@ -310,7 +312,9 @@ different terminations(for same domain), one with edge and another with re-encry
 | partition            | String                  | Optional | NA                           | bigip partition                                                                                                                                                                                                                              |
 | bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP and is not supported in cluster mode
                                                             |
+| tls                   | object                                   | Optional | NA       | Describes the TLS configuration for BIG-IP Virtual Server.
 
+|
 **Pool Components**
 
 | PARAMETER | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                        |
@@ -355,6 +359,14 @@ different terminations(for same domain), one with edge and another with re-encry
 | targetPort | Int | Optional | 0 | Port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.  |
 | name | String | Required | NA | Refrence to health monitor name existing on bigip|
 | reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip|
+
+**TLS Components**
+
+| PARAMETER       | TYPE           | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                                   |
+|-----------------|----------------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| clientSSLs      | List of string | Required | NA      | Multiple ClientSSL Profiles on the BIG-IP OR list of kubernetes secrets.                                                                                      |
+| serverSSLs      | List of string | Optional | NA      | Multiple ServerSSL Profiles on the BIG-IP OR list of kubernetes secrets.                                                                                      |
+| reference       | String         | Required | NA      | Describes the location of profile, BIG-IP or k8s Secrets. Allowed values: [bigip,secret] |
 
 **Note**:
 * monitor can be a reference to existing helathmonitor on bigip in which case, name and reference are required parameters.

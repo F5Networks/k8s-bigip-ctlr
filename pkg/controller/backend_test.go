@@ -57,6 +57,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
+			rsCfg.Virtual.HTTPCompressionProfile = "/Common/compressionProfile"
 			rsCfg.Virtual.BigIPRouteDomain = 10
 			rsCfg.Virtual.AdditionalVirtualAddresses = []string{"172.13.14.17", "172.13.14.18"}
 			rsCfg.Virtual.ProfileAdapt = ProfileAdapt{"/Common/example-requestadapt", "/Common/example-responseadapt"}
@@ -348,6 +349,7 @@ var _ = Describe("Backend Tests", func() {
 			Expect(strings.Contains(string(decl), "default_pool_svc3")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "/Common/example-requestadapt")).To(BeTrue())
 			Expect(strings.Contains(string(decl), "/Common/example-responseadapt")).To(BeTrue())
+			Expect(strings.Contains(string(decl), "/Common/compressionProfile")).To(BeTrue())
 
 			sharedApp := as3Application{}
 			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)

@@ -217,6 +217,7 @@ var (
 	configWriter       writer.Writer
 	userAgentInfo      string
 	multiClusterMode   *string
+	localClusterName   *string
 )
 
 func _init() {
@@ -469,6 +470,8 @@ func _init() {
 	// MultiCluster Flags
 	multiClusterMode = multiClusterFlags.String("multi-cluster-mode", "",
 		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
+	localClusterName = multiClusterFlags.String("local-cluster-name", "",
+		"Optional, name of the local cluster")
 
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
@@ -611,6 +614,10 @@ func verifyArgs() error {
 		return fmt.Errorf("'%v' is not a valid multi cluster mode, allowed values are: standalone/primary/secondary", *multiClusterMode)
 	} else if *multiClusterMode != "" {
 		log.Infof("[MultiCluster] CIS running with multi-cluster-mode: %s", *multiClusterMode)
+	}
+
+	if *multiClusterMode != "" && *localClusterName == "" {
+		return fmt.Errorf("missing --local-cluster-name parameter in the multiCluster mode. It's a required parameter in multiCluster mode")
 	}
 
 	if (len(*routeSpecConfigmap) == 0 && len(*extendedSpecConfigmap) == 0) && *multiClusterMode != "" {
@@ -953,7 +960,7 @@ func initController(
 			IPAMClusterLabel:            *ipamClusterLabel,
 			IpamNamespace:               *ipamNamespace,
 			ShareNodes:                  *shareNodes,
-			DefaultRouteDomain:          *defaultRouteDomain,
+			DefaultRouteDomain:          int32(*defaultRouteDomain),
 			Mode:                        controller.ControllerMode(*controllerMode),
 			GlobalExtendedSpecConfigmap: *globalSpecConfigMap,
 			RouteLabel:                  *routeLabel,
@@ -961,12 +968,12 @@ func initController(
 			OrchestrationCNI:            *orchestrationCNI,
 			StaticRouteNodeCIDR:         *staticRouteNodeCIDR,
 			MultiClusterMode:            *multiClusterMode,
+			LocalClusterName:            *localClusterName,
 			LoadBalancerClass:           *loadBalancerClass,
 			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
 		},
 		true,
 	)
-
 	return ctlr
 }
 

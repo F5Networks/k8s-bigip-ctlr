@@ -60,7 +60,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				switch kind {
 				case VirtualServer:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("VirtualServer Informer not found for namespace: %v", ns)
 						continue
@@ -78,31 +78,21 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
-							ctlr.updateResourceStatus(VirtualServer, virtual, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateResourceStatus(VirtualServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateVSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
-							for _, pool := range virtual.Spec.Pools {
-								var svcNamespace string
-								if pool.ServiceNamespace != "" {
-									svcNamespace = pool.ServiceNamespace
-								} else {
-									svcNamespace = virtual.Namespace
-								}
-								if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
-									svc := ctlr.GetService(svcNamespace, pool.Service)
-									if svc != nil {
-										ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
-									}
-								}
+							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
+								// set status of all the LB services associated with this VS
+								go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 							}
 						}
 					}
 
 				case TransportServer:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("TransportServer Informer not found for namespace: %v", ns)
 						continue
@@ -120,29 +110,18 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
-							ctlr.updateResourceStatus(TransportServer, virtual, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateResourceStatus(TransportServer, virtual, virtual.Status.VSAddress, StatusOk, nil)
-							// Update Corresponding Service Status of Type LB
-							var svcNamespace string
-							if virtual.Spec.Pool.ServiceNamespace != "" {
-								svcNamespace = virtual.Spec.Pool.ServiceNamespace
-							} else {
-								svcNamespace = virtual.Namespace
-							}
-							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterConfigs.LocalClusterName) {
-								svc := ctlr.GetService(svcNamespace, virtual.Spec.Pool.Service)
-								if svc != nil {
-									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
-								}
-							}
+							ctlr.updateTSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
+							// set status of all the LB services associated with this TS
+							go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 						}
 					}
 
 				case IngressLink:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("IngressLink Informer not found for namespace: %v", ns)
 						continue
@@ -160,10 +139,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if il.Namespace+"/"+il.Name == rscKey {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
-							ctlr.updateResourceStatus(IngressLink, il, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateResourceStatus(IngressLink, il, il.Status.VSAddress, StatusOk, nil)
+							ctlr.updateILStatus(il, il.Status.VSAddress, StatusOk, nil)
 						}
 					}
 

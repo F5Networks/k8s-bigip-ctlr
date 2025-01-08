@@ -35,7 +35,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 ### Standalone CIS
 
-In a Standalone deployment of CIS, CIS is only deployed in one cluster, then create a route resource with a Multi-Cluster annotation or CRD resource with extendedServiceReferences to expose the apps in different OpenShift/K8s clusters.
+In a Standalone deployment of CIS, CIS is only deployed in one cluster, then create a route resource with a Multi-Cluster annotation or CRD resource with multiClusterServices to expose the apps in different OpenShift/K8s clusters.
 
 ![architecture](images/standaloneMultiCluster.png)
 
@@ -365,7 +365,7 @@ Health probe parameters are provided in highAvailabilityCIS in extended configma
 
 
 ### Route Annotation for Multi-ClusterServices
-Services running in any other OpenShift clusters, apart from the HA cluster pair, can be referenced in the route annotations as mentioned below:
+Services running in any other OpenShift clusters, as mentioned below:
 ```
 virtual-server.f5.com/multiClusterServices: 
 '[
@@ -426,31 +426,13 @@ Following is the sample deployment for primary CIS deployment:
 
 
 ### Virutal Server Pool with Multi-ClusterServices
-Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the VS Pool as mentioned below:
-```
-  pools:
-  - path: /tea
-    serviceNamespace: tea
-    service: svc-2
-    servicePort: 80
-    extendedServiceReferences:
-    - clusterName: cluster2
-      namespace: ns1
-      servicePort: 8080
-      service: svc-1
-    - clusterName: cluster3
-      namespace: ns2
-      servicePort: 80
-      service: svc-ext-1
-```
+This is not supported as of now. It will be supported soon.
 
 ### Transport Server Pool with Multi-ClusterServices
-Services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, can be referenced in the TS Pool as mentioned below:
+Services running in any other OpenShift/Kubernetes clusters those are monitored by CIS, can be referenced in the TS Pool as mentioned below:
 ```
   pool:
-    service: svc-1
-    servicePort: 8181
-    extendedServiceReferences:
+    multiClusterServices:
     - clusterName: cluster2
       service: svc-1
       namespace: ns1
@@ -676,14 +658,8 @@ Ok[root@cluster-1-worker0 ~]#
 where 10.244.1.213 is the CIS PodIP.
 
 
-### How extendedServiceReferences is different from multiClusterServices?
-extendedServiceReferences is applicable for Virtual Server CR or Transport Server CR and multiClusterServices is applicable for NextGen Routes.
-extendedServiceReferences is used to refer the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, in the VS Pool or TS Pool.
-multiClusterServices is used to refer the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair, in the Route annotation.
-
-### How multiClusterServices and extendedServiceReferences are similar?
-multiClusterServices and extendedServiceReferences are similar in terms of referring the services running in any other OpenShift/Kubernetes clusters, apart from the HA cluster pair.
-Both are applicable to refer services running in external Clusters, apart from the HA cluster pair
+### Which services can be provided as multiClusterServices?
+Any service running in any OpenShift/Kubernetes clusters which are part of the multiCluster setup can be provided as multiClusterServices.
 
 ### How to configure multiClusterServices in Route annotation?
 multiClusterServices is a Route annotation. Below is the sample Route annotation with multiClusterServices:
@@ -703,15 +679,11 @@ where clusterName is the name of the cluster where the service is running, names
 where cluster2 is the external cluster apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS
 
-### How to configure extendedServiceReferences in Virtual Server CR or Transport Server CR?
-extendedServiceReferences is a field in Virtual Server CR or Transport Server CR. Below is the sample Virtual Server CR with extendedServiceReferences:
+### How to configure multiClusterServices in Virtual Server CR or Transport Server CR?
+multiClusterServices is not supported in VirutalServer CR yet. It's supported in Transport Server CR only when CIS is running in "default" mode. Below is the sample Transport Server CR with multiClusterServices:
 ```
   pools:
-  - path: /tea
-    serviceNamespace: tea
-    service: svc-2
-    servicePort: 80
-    extendedServiceReferences:
+    multiClusterServices:
     - clusterName: cluster3
       namespace: ns1
       servicePort: 8080
@@ -722,8 +694,7 @@ extendedServiceReferences is a field in Virtual Server CR or Transport Server CR
       service: svc-ext-1
 ```
 where clusterName is the name of the cluster where the service is running, namespace is the namespace where the service is running, servicePort is the port of the service and service is the name of the service.
-where cluster3 and cluster4 are the external clusters apart from the HA cluster pair.
 Note: External Clusters doesn't need to install CIS
 
-### Can I specify the services running in CIS HA cluster in extendedServiceReferences/multiClusterServices?
-No. ExtendedServiceReferences/multiClusterServices is only applicable to refer the services running in K8S/Openshift clusters which are not part of the HA cluster(Primary/Secondary Cluster).
+### Can I specify the services running in CIS HA cluster in multiClusterServices?
+Yes. multiClusterServices is applicable to refer the services running in K8S/Openshift clusters which are part of the HA cluster(Primary/Secondary Cluster) as well.

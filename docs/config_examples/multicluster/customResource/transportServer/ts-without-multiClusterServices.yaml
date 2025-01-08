@@ -1,0 +1,19 @@
+apiVersion: "cis.f5.com/v1"
+kind: TransportServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: transport-server-1
+  namespace: default
+spec:
+  virtualServerAddress: "172.16.3.9"
+  virtualServerPort: 8544
+  virtualServerName: ts1
+  pool:
+    service: svc-1
+    servicePort: 8181
+    loadBalancingMethod: fastest-node
+    monitor:
+      type: tcp
+      interval: 10
+      timeout: 10

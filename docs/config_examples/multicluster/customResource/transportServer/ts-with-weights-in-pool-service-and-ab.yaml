@@ -1,0 +1,31 @@
+apiVersion: cis.f5.com/v1
+kind: TransportServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-transport-server
+  namespace: default
+spec:
+  allowVlans: []
+  iRules:
+    - /Common/test_rule2
+  mode: standard
+  pool:
+    alternateBackends:
+      - service: svc-1-external-service
+        serviceNamespace: default
+        weight: 20
+      - service: svc-2-external-service
+        serviceNamespace: default
+        weight: 60
+    monitor:
+      interval: 20
+      timeout: 10
+      type: udp
+    service: pytest-svc-1
+    servicePort: 1344
+    weight: 20
+  snat: auto
+  type: udp
+  virtualServerAddress: 10.8.0.72
+  virtualServerPort: 1344

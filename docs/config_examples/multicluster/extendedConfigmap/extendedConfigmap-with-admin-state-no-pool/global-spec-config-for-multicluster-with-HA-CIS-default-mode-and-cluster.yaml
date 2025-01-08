@@ -9,9 +9,14 @@ data:
   extendedSpec: |
     mode: default
     externalClustersConfig:
-    - clusterName: cluster1
-      secret: default/kubeconfig1
-    - clusterName: cluster2
-      secret: default/kubeconfig2
     - clusterName: cluster3
       secret: default/kubeconfig3
+      adminState: offline
+    - clusterName: cluster4
+      secret: default/kubeconfig4
+    extendedRouteSpec:
+    - allowOverride: false
+      namespace: foo
+      policyCR: foo/cr-policy1
+      vserverAddr: 10.8.0.4
+      vserverName: vs-foo

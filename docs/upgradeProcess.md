@@ -408,5 +408,4 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
 
 ### **Upgrading from 2.18.0 to 2.18.1:**
 
-**_Functionality Changes:_**
-* Improved the resource status for Virtual Server, Transport Server, and Ingresslink, please upgrade the CRD schema using [CRD Update Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResourceDefinitions/crd_update.md)
+Refer Release Notes for [CIS v2.18.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/RELEASE-NOTES.rst)

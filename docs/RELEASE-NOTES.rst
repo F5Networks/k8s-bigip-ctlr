@@ -13,8 +13,8 @@ Added Functionality
         * CIS now supports the serviceType Load balancer discovery in remote clusters as well using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
         * Support for the MultiCluster serviceType load balancer in the default mode. See `Example <./config_examples/multicluster/default-mode/ServiceTypeLB/sample-multi-cluster-svc-lb.yaml>`_
         * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute
-            * CIS now does the service discovery for VS/TS CR in all the clusters when Active-Active or Ratio mode is configured.
-            * extendedServiceReferences have been deprecated for VS/TS CR in the Active-Active and Ratio mode.
+            * CIS now does the service discovery for VS/TS CR from all the clusters in Active-Active or Ratio mode
+            * extendedServiceReferences property is not supported for VS/TS CR in the Active-Active and Ratio mode any more.
             * Active-standby mode is not supported any more.
 
     * CRD

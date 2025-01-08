@@ -276,7 +276,7 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string,
 	annotationsUsed *AnnotationsUsed, policySSLProfiles rgPlcSSLProfiles) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
-	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
+	for namespace, _ := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
 		orderedRoutes := ctlr.getOrderedRoutes(namespace)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.NativeRoutes[namespace] = len(orderedRoutes)
@@ -1560,6 +1560,7 @@ func frameRouteVSName(vServerName string,
 			portStruct.port,
 		)
 	} else {
+		vServerAddr = AS3NameFormatter(vServerAddr)
 		rsName = formatCustomVirtualServerName(
 			"routes_"+vServerAddr,
 			portStruct.port,
@@ -1758,20 +1759,29 @@ func (ctlr *Controller) deleteHostPathMapEntry(route *routeapi.Route) {
 
 func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) map[string]string {
 	namespaces := make(map[string]string)
-	if !ctlr.namespaceLabelMode {
-		namespaces[namespaceGroup] = namespaceGroup
-		ctlr.resources.routeGroupNamespaceMap[namespaceGroup] = namespaceGroup
-	} else {
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-		nsLabel := fmt.Sprintf("%v,%v", clusterConfig.namespaceLabel, namespaceGroup)
-		nss, err := clusterConfig.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
-		if err != nil {
-			log.Errorf("%v Unable to Fetch Namespaces: %v", ctlr.getMultiClusterLog(), err)
-			return nil
+	//check for defaultRouteGroup
+	if namespaceGroup == defaultRouteGroupName {
+		watchedNs := ctlr.getWatchingNamespaces(ctlr.multiClusterHandler.LocalClusterName)
+		for _, ns := range watchedNs {
+			namespaces[ns] = namespaceGroup
+			ctlr.resources.routeGroupNamespaceMap[ns] = namespaceGroup
 		}
-		for _, ns := range nss.Items {
-			namespaces[ns.Name] = namespaceGroup
-			ctlr.resources.routeGroupNamespaceMap[ns.Name] = namespaceGroup
+	} else {
+		if !ctlr.namespaceLabelMode {
+			namespaces[namespaceGroup] = namespaceGroup
+			ctlr.resources.routeGroupNamespaceMap[namespaceGroup] = namespaceGroup
+		} else {
+			clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+			nsLabel := fmt.Sprintf("%v,%v", clusterConfig.namespaceLabel, namespaceGroup)
+			nss, err := clusterConfig.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
+			if err != nil {
+				log.Errorf("%v Unable to Fetch Namespaces: %v", ctlr.getMultiClusterLog(), err)
+				return nil
+			}
+			for _, ns := range nss.Items {
+				namespaces[ns.Name] = namespaceGroup
+				ctlr.resources.routeGroupNamespaceMap[ns.Name] = namespaceGroup
+			}
 		}
 	}
 	return namespaces

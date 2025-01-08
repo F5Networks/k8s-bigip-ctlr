@@ -7,8 +7,14 @@ metadata:
   namespace: default
 spec:
   host: tea.example.com
-  virtualServerAddress: 10.8.0.71
+  httpTraffic: redirect
   pools:
     - path: /neam
       service: svc-edge-a
       servicePort: 80
+      weight: 50
+      alternateBackends:
+        - service: svc-edge-b
+          weight: 30
+        - service: svc-edge-c
+          weight: 20

@@ -26,9 +26,6 @@ Bug Fixes
 * `Issue 3508 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3508>`_: Fix to disable default uid in F5 BIG-IP Controller Operator
 * Fix for handling resource deletion in case of multiple VS/TS sharing the service
 
-Upgrade notes
-``````````````
-* Improved the resource status for Virtual Server, Transport Server, and Ingresslink, please upgrade the CRD schema using [CRD Update Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResourceDefinitions/crd_update.md)
 
 2.18.0
 -------------

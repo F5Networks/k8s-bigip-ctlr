@@ -1388,6 +1388,10 @@ func (ctlr *Controller) processVirtualServers(
 				ctlr.updateVSStatus(virtual, "", StatusError, errors.New(altErr))
 				return nil
 			}
+			// In case of deletion getVirtualServerAddress will return no IP so virtualServerAddress needs to be used to ensure deletion
+			if ip == "" {
+				ip = virtual.Spec.VirtualServerAddress
+			}
 		}
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.

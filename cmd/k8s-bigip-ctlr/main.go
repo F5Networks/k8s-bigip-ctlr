@@ -581,7 +581,6 @@ func verifyArgs() error {
 		}
 	}
 
-	// just check the url  and creds dir
 	if len(*bigIPURL) == 0 && len(*credsDir) == 0 {
 		return fmt.Errorf("Missing BIG-IP URL")
 	}
@@ -949,8 +948,6 @@ func initController(
 		VerifyInterval:     *verifyInterval,
 		VXLANName:          vxlanName,
 		PythonBaseDir:      *pythonBaseDir,
-		CredsDir:           *credsDir,
-		UserAgent:          userAgentInfo,
 		HttpAddress:        *httpAddress,
 		EnableIPV6:         *enableIPV6,
 		CCCLGTMAgent:       *ccclGtmAgent,

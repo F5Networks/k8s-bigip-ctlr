@@ -83,6 +83,12 @@ type bigIPSection struct {
 	BigIPPartitions []string `json:"partitions,omitempty"`
 }
 
+type gtmBigIPSection struct {
+	GtmBigIPUsername string `json:"username,omitempty"`
+	GtmBigIPPassword string `json:"password,omitempty"`
+	GtmBigIPURL      string `json:"url,omitempty"`
+}
+
 // OCP4 Version for TEEM
 type (
 	Ocp4Version struct {
@@ -776,7 +782,14 @@ func getCredentials() error {
 }
 
 func getGTMCredentials() {
-	if len(*gtmCredsDir) > 0 {
+	if os.Getenv("GTM_BIGIP_USERNAME") != "" {
+		*bigIPUsername = os.Getenv("GTM_BIGIP_USERNAME")
+	}
+	if os.Getenv("GTM_BIGIP_PASSWORD") != "" {
+		*bigIPPassword = os.Getenv("GTM_BIGIP_PASSWORD")
+	}
+	if (*gtmBigIPUsername == "" || *gtmBigIPPassword == "") && len(*gtmCredsDir) > 0 {
+		log.Warning("GTM BIG-IP credentials are not set. Checking back to Creds Directory.")
 		var usr, pass, gtmBigipURL string
 		if strings.HasSuffix(*gtmCredsDir, "/") {
 			usr = *gtmCredsDir + "username"
@@ -936,6 +949,7 @@ func initController(
 		VerifyInterval:     *verifyInterval,
 		VXLANName:          vxlanName,
 		PythonBaseDir:      *pythonBaseDir,
+		CredsDir:           *credsDir,
 		UserAgent:          userAgentInfo,
 		HttpAddress:        *httpAddress,
 		EnableIPV6:         *enableIPV6,
@@ -1166,8 +1180,24 @@ func main() {
 			BigIPURL:        *bigIPURL,
 			BigIPPartitions: *bigIPPartitions,
 		}
+		var gtm gtmBigIPSection
+		if len(*gtmBigIPURL) == 0 || len(*gtmBigIPUsername) == 0 || len(*gtmBigIPPassword) == 0 {
+			// gs.GTM = false
+			gtm = gtmBigIPSection{
+				GtmBigIPUsername: *bigIPUsername,
+				GtmBigIPPassword: *bigIPPassword,
+				GtmBigIPURL:      *bigIPURL,
+			}
+			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
+		} else {
+			gtm = gtmBigIPSection{
+				GtmBigIPUsername: *gtmBigIPUsername,
+				GtmBigIPPassword: *gtmBigIPPassword,
+				GtmBigIPURL:      *gtmBigIPURL,
+			}
+		}
 
-		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *pythonBaseDir)
+		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, gtm, *pythonBaseDir)
 		if nil != err {
 			log.Fatalf("Could not initialize subprocess configuration: %v", err)
 		}

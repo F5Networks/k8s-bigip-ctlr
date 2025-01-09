@@ -25,7 +25,7 @@ This page documents the ratio and active-active mode for multi cluster support i
 
 ## Overview
 
-CIS supports ratio and active-active modes as well for multi-cluster. These modes are used to distribute traffic across multiple clusters based on the ratio defined for each cluster.
+CIS supports ratio and active-active modes as well for multi-cluster. The active-active mode distribute the traffic equally to all the clusters, However the ratio mode is used to distribute traffic across multiple clusters based on the ratio defined for each cluster. 
 
 ## Active-Active Mode
 * In case of active-active mode CIS running on Primary cluster updates the pool members for Virtual Servers from both the clusters those are part of HA Cluster(Primary and Secondary Clusters) as well as pool members from all other remotely monitored clusters.

@@ -19,14 +19,14 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/securecreds"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
-
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 func initializeDriverConfig(
@@ -36,6 +36,14 @@ func initializeDriverConfig(
 ) error {
 	if nil == configWriter {
 		return fmt.Errorf("config writer argument cannot be nil")
+	}
+
+	// Clear sensitive information from the sections
+	for _, section := range []interface{}{&bigIP} {
+		if s, ok := section.(map[string]interface{}); ok {
+			delete(s, "username")
+			delete(s, "password")
+		}
 	}
 
 	sectionNames := []string{"global", "bigip"}
@@ -58,18 +66,21 @@ func initializeDriverConfig(
 }
 
 func createDriverCmd(
+	configFilename string,
 	pyCmd string,
 ) *exec.Cmd {
 	var cmd *exec.Cmd
 
 	if pyCmd == "bigipconfigdriver.py" {
 		cmdArgs := []string{
+			"--config-file", configFilename,
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(pyCmd, cmdArgs...)
 	} else {
 		cmdName := "python3"
 		cmdArgs := []string{
 			pyCmd,
+			"--config-file", configFilename,
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(cmdName, cmdArgs...)
 	}
@@ -143,9 +154,13 @@ func startPythonDriver(
 	configWriter writer.Writer,
 	global globalSection,
 	bigIP bigIPSection,
+	gtm gtmBigIPSection,
 	pythonBaseDir string,
 ) (<-chan int, error) {
 	var pyCmd string
+
+	// Start a goroutine to handle credential requests from the Python driver
+	go securecreds.HandleCredentialsRequest(bigIP.BigIPUsername, bigIP.BigIPPassword, gtm.GtmBigIPUsername, gtm.GtmBigIPPassword)
 
 	err := initializeDriverConfig(configWriter, global, bigIP)
 	if nil != err {
@@ -159,7 +174,11 @@ func startPythonDriver(
 	} else {
 		pyCmd = "bigipconfigdriver.py"
 	}
-	cmd := createDriverCmd(pyCmd)
+	cmd := createDriverCmd(
+		configWriter.GetOutputFilename(),
+		pyCmd,
+	)
+
 	go runBigIPDriver(subPidCh, cmd)
 
 	return subPidCh, nil

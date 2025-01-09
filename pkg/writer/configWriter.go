@@ -29,6 +29,7 @@ import (
 )
 
 type Writer interface {
+	GetOutputFilename() string
 	Stop()
 	SendSection(string, interface{}) (<-chan struct{}, <-chan error, error)
 }
@@ -79,6 +80,10 @@ func NewConfigWriter() (Writer, error) {
 
 	log.Infof("ConfigWriter started: %p", cw)
 	return cw, nil
+}
+
+func (cw *configWriter) GetOutputFilename() string {
+	return cw.configFile
 }
 
 func (cw *configWriter) Stop() {

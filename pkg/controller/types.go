@@ -834,6 +834,7 @@ type (
 		VerifyInterval     int
 		VXLANName          string
 		PythonBaseDir      string
+		CredsDir           string
 		UserAgent          string
 		HttpAddress        string
 		EnableIPV6         bool

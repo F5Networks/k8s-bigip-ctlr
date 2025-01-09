@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"reflect"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -1480,6 +1482,20 @@ func (nsInfr *NSInformer) stop() {
 	close(nsInfr.stopCh)
 }
 
+func (dynamicInf *DynamicInformers) start() {
+	if dynamicInf.CalicoBlockAffinityInformer != nil {
+		log.Infof("Starting calico block affinity Informer for cluster %v", dynamicInf.clusterName)
+		go dynamicInf.CalicoBlockAffinityInformer.Informer().Run(dynamicInf.stopCh)
+		if dynamicInf.CalicoBlockAffinityInformer.Informer().HasSynced() {
+			log.Debugf("Successfully synced block affinity informer caches for Cluster: %s", dynamicInf.clusterName)
+		}
+	}
+}
+
+func (dynamicInf *DynamicInformers) stop() {
+	close(dynamicInf.stopCh)
+}
+
 func (nodeInfr *NodeInformer) start(apiServerUnreachable bool) {
 	var cacheSyncs []cache.InformerSynced
 	if nodeInfr.nodeInformer != nil {
@@ -1626,5 +1642,35 @@ func (ctlr *Controller) getErrorHandlerFunc(rsType, clusterName string) func(r *
 		default:
 			utilruntime.HandleError(fmt.Errorf("[ERROR] Failed to watch %v in cluster %v: %v", rsType, clusterName, err))
 		}
+	}
+}
+
+func (ctlr *Controller) newDynamicInformersForCluster(client dynamic.Interface, clusterName string) *DynamicInformers {
+	log.Debugf("Creating dynamic Informers for cluster: %s", clusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	informers := &DynamicInformers{
+		clusterName: clusterName,
+		stopCh:      make(chan struct{}),
+	}
+	dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(client, 0)
+	// if orchestration cni is calico and static routing mode is true,
+	// create informers for blockaffinities CR.
+	if ctlr.StaticRoutingMode && ctlr.OrchestrationCNI == CALICO_K8S {
+		informers.CalicoBlockAffinityInformer = dynamicInformerFactory.ForResource(CalicoBlockaffinity)
+	}
+	clusterConfig.InformerStore.dynamicInformers = informers
+	ctlr.addDynamicResourceEventHandlers(informers)
+	return informers
+}
+
+func (ctlr *Controller) addDynamicResourceEventHandlers(dynamicInf *DynamicInformers) {
+	if dynamicInf.CalicoBlockAffinityInformer != nil {
+		dynamicInf.CalicoBlockAffinityInformer.Informer().AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.processBlockAffinities(dynamicInf.clusterName) },
+				DeleteFunc: func(obj interface{}) { ctlr.processBlockAffinities(dynamicInf.clusterName) },
+			},
+		)
+		dynamicInf.CalicoBlockAffinityInformer.Informer().SetWatchErrorHandler(ctlr.getErrorHandlerFunc(BLOCKAFFINITIES, dynamicInf.clusterName))
 	}
 }

@@ -1,7 +1,7 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.19.0
 -------------
 
 Added Functionality
@@ -13,7 +13,7 @@ Added Functionality
         * CIS now supports the serviceType Load balancer discovery in remote clusters as well using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
         * Support for the MultiCluster serviceType load balancer in the default mode. See `Example <./config_examples/multicluster/default-mode/ServiceTypeLB/sample-multi-cluster-svc-lb.yaml>`_
         * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute
-            * CIS now does the service discovery for VS/TS CR from all the clusters in Active-Active or Ratio mode
+            * CIS now does the service discovery for VS/TS CR from all the clusters implicitly in Active-Active or Ratio mode
             * extendedServiceReferences property is not supported for VS/TS CR in the Active-Active and Ratio mode any more.
             * Active-standby mode is not supported any more.
 
@@ -21,16 +21,27 @@ Added Functionality
         * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP Compression profile in VS CR. See `Example <./config_examples/customResource/VirtualServer/httpCompressionProfile/>`_
         * `Issue 3637 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3637>`_: Support for TLS in transport server. See `Example <./config_examples/customResource/TransportServer/transport-server-with-tls>`_
         * `Issue 3574 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3574>`_: OpenShift operator: needs to run oc adm policy add-cluster-role-to-user cluster-admin -z f5-bigip-ctlr-serviceaccount -n <spec.namespace>
+        * `Issue 3528 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3528>`_: Cross Site Multi-Cluster GTM Support with ccclGTMAgent
         * Support for empty node label selector
 
 Bug Fixes
 ````````````
+* `Issue 3615 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Fix service type LoadBalancer IPs re-assigned on service update
 * `Issue 3561 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Controller stops posting changes at runtime when some ingress path has the + character
 * `Issue 3570 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3570>`_: tls irule fails if pool has no active members
 * `Issue 3654 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3654>`_: Persistent connection issue with SSL and HTTP pools in a VirtualServer Hostgroup
+* `Issue 3599 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3599>`_: typo in CIS Operator arguments
+* `Issue 3574 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3574>`_: Fix the adm policy for service account in OpenShift operator
 * Support dots and dashes in object names aligned to AS3
 
-
+Upgrade notes
+``````````````
+* serviceAddress property for VS and TS CR is not allowed to add/delete once the CR is created.
+* --local-cluster-name parameter is a new and mandatory parameter for multi-cluster mode, It’s required for all the modes(default, active-active and ratio).
+* Default mode is the default mode for multi-cluster, if no mode is specified in the extended configMap.
+* CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap when active-active or ratio mode is configured.
+* Active-standby mode is deprecated and not supported anymore.
+* extendedServiceReferences have been deprecated for VS/TS CR in the active-active and ratio mode.
 
 
 2.18.1
@@ -61,6 +72,7 @@ Bug Fixes
 Upgrade notes
 ``````````````
 * Improved the resource status for Virtual Server, Transport Server, and Ingresslink, please upgrade the CRD schema using [CRD Update Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResourceDefinitions/crd_update.md)
+
 
 2.18.0
 -------------

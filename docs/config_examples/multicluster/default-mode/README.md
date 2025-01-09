@@ -26,9 +26,7 @@ This page documents the default mode for multi cluster support in CIS.
 
 This is the default mode for multi-cluster support in CIS. This mode is supported with both standalone and HA deployments of CIS. 
 
-In this mode, you need to explicitly define the list of services from all the clusters in the TS and VS CR that you want to expose through CIS. 
-
-In this mode, routes are processed same as any other mode. If multiClusterServices annotation is not provided in the Route, then CIS will fetch the services from primary & secondary clusters and add the pool-members. If multiClusterServices annotation is provided in the Route, then CIS will fetch the services from the primary & secondary clusters as well as from the clusters mentioned in the annotation and add the pool-members.
+In this mode, you need to explicitly define the list of services from all the clusters in the TS and VS CR that you want to expose through CIS.
 
 This mode also supports the discovery of serviceType LB resources from external clusters including HA peer cluster. 
 
@@ -137,31 +135,8 @@ Note: In order to run CIS in high availability mode, multi-cluster-mode paramete
 * See [Examples](virtualServer)
 
 ### Routes Support
-* If multiClusterServices annotation is not provided in the Route, then CIS will fetch the services from primary & secondary clusters and add the pool-members.
-* If multiClusterServices annotation is provided in the Route, then CIS will fetch the services from the primary & secondary clusters as well as from the clusters mentioned in the annotation and add the pool-members.
-* See Examples [here](routes)
-### Route Annotation for Multi-ClusterServices
-Services running in any other OpenShift clusters, as mentioned below:
-```
-virtual-server.f5.com/multiClusterServices: 
-'[
-     {
-         "clusterName": "cluster2", 
-         "service": "svc-pytest-foo-1-com",
-         "namespace": "foo", 
-         "servicePort": 80,
-         "weight": 30,
-     }
-]'
-```
+* default mode is currently not supported for Routes, please use active-active/active-standby/ratio mode
 
-| Parameter   | Type       | Required   | Description                                             | Default | Examples |
-|-------------|------------|------------|---------------------------------------------------------|---------|----------|
-| clusterName | String     | Mandatory  | Name of the cluster                                     | -       | cluster1 |
-| service     | String     | Mandatory  | Name of the service                                     | -       | svc-1    |
-| namespace   | String     | Mandatory  | Namespace where the service is created                  | -       | test     |
-| servicePort | String/Int | Mandatory  | port of the service  (for named port use string value ) | -       | 80       |
-| weight      | Int        | Optional   | weight to be used for traffic splitting                 | 0       | 20       |
 
 ### Service Type Load Balancer Support
 In multiCluster environment CIS offers following two solutions for supporting ServiceTypeLBs:

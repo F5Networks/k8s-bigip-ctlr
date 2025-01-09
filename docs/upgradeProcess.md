@@ -416,9 +416,9 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
 ### **Upgrading from 2.18.1 to 2.19.0:**
 
 **_Functionality Changes:_**
- * serviceAddress property for VS and TS CR is not allowed to add/delete once the CR is created.
- * --local-cluster-name parameter is a new and mandatory parameter for multi-cluster mode, It’s required for all the modes(default, active-active and ratio).
- * Default mode is the default mode for multi-cluster, if no mode is specified in the extended configMap.
- * CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap when active-active or ratio mode is configured.
- * Active-standby mode is deprecated and not supported anymore.
- * extendedServiceReferences have been deprecated for VS/TS CR in the active-active and ratio mode.
+  * serviceAddress property for VS and TS CR is not allowed to add/delete after creating the once the CR.
+  * --local-cluster-name parameter is a new and mandatory parameter for multi-cluster mode, It’s required for all the modes(default, active-active and ratio).
+  * If the extended configMap does not specify a mode, CIS defaults to the Default mode for multi-cluster.
+  * CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap in active-active or ratio mode.
+  * Active-standby mode is not supported from CIS 2.19.0 release.
+  * extendedServiceReferences property is not supported with VS/TS CR in the active-active and ratio mode.

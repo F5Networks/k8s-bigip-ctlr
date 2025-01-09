@@ -13,8 +13,8 @@ Added Functionality
         * CIS now supports the serviceType Load balancer discovery in remote clusters as well using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
         * Support for the MultiCluster serviceType load balancer in the default mode. See `Example <./config_examples/multicluster/default-mode/ServiceTypeLB/sample-multi-cluster-svc-lb.yaml>`_
         * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute
-            * CIS now does the service discovery for VS/TS CR from all the clusters implicitly in Active-Active or Ratio mode
-            * extendedServiceReferences property is not supported for VS/TS CR in the Active-Active and Ratio mode any more.
+            * CIS now does the service discovery for VS/TS CR from all the clusters implicitly in active-active or ratio mode
+            * extendedServiceReferences property is not supported for VS/TS CR in the active-active and ratio mode any more.
             * Active-standby mode is not supported any more.
 
     * CRD
@@ -36,12 +36,12 @@ Bug Fixes
 
 Upgrade notes
 ``````````````
-* serviceAddress property for VS and TS CR is not allowed to add/delete once the CR is created.
+* serviceAddress property for VS and TS CR is not allowed to add/delete after creating the once the CR.
 * --local-cluster-name parameter is a new and mandatory parameter for multi-cluster mode, It’s required for all the modes(default, active-active and ratio).
-* Default mode is the default mode for multi-cluster, if no mode is specified in the extended configMap.
-* CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap when active-active or ratio mode is configured.
-* Active-standby mode is deprecated and not supported anymore.
-* extendedServiceReferences have been deprecated for VS/TS CR in the active-active and ratio mode.
+* If the extended configMap does not specify a mode, CIS defaults to the Default mode for multi-cluster.
+* CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap in active-active or ratio mode.
+* Active-standby mode is not supported from CIS 2.19.0 release.
+* extendedServiceReferences property is not supported with VS/TS CR in the active-active and ratio mode.
 
 
 2.18.1

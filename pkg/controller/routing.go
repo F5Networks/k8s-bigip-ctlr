@@ -1539,6 +1539,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 		rbcs = make([]RouteBackendCxt, numOfBackends)
 		beIdx := 0
 		rbcs[beIdx].Name = route.Spec.To.Name
+		rbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 		if route.Spec.To.Weight != nil {
 			rbcs[beIdx].Weight = float64(*(route.Spec.To.Weight))
 		} else {
@@ -1551,6 +1552,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 			for _, svc := range route.Spec.AlternateBackends {
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
+				rbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 				rbcs[beIdx].Weight = float64(*(svc.Weight))
 			}
 		}
@@ -1693,6 +1695,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 	if !localClusterPoolRestricted {
 		beIdx++
 		rbcs[beIdx].Name = route.Spec.To.Name
+		rbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 		if route.Spec.To.Weight != nil {
 			// Route backend service in local cluster
 			rbcs[beIdx].Weight = (float64(*(route.Spec.To.Weight)) / totalSvcWeights) *
@@ -1726,6 +1729,7 @@ func (ctlr *Controller) GetRouteBackends(route *routeapi.Route, clusterSvcs []ci
 			if !localClusterPoolRestricted {
 				beIdx = beIdx + 1
 				rbcs[beIdx].Name = svc.Name
+				rbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
 				rbcs[beIdx].Weight = (float64(*(svc.Weight)) / totalSvcWeights) *
 					(float64(*ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName]) / totalClusterRatio)
 			}

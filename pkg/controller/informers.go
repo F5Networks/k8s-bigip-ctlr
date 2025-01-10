@@ -458,7 +458,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 	}
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig("")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	switch ctlr.mode {
 	case OpenShiftMode:
 		// Ensure the default server cert is loaded

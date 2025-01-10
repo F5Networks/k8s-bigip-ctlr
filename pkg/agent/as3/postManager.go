@@ -402,7 +402,7 @@ func (postMgr *PostManager) getBigipRegKeyURL() string {
 
 func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
 	// removing the certificates/privateKey from response log
-	if declaration, ok := (responseMap["declaration"]).([]interface{}); ok {
+	if declaration, ok := (responseMap["declaration"]).(map[string]interface{}); ok {
 		for _, value := range declaration {
 			if tenantMap, ok := value.(map[string]interface{}); ok {
 				for _, value2 := range tenantMap {

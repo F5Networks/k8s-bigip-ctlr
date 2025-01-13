@@ -49,6 +49,7 @@ Compatibility Matrix
 | v2.17.1     | v17.0          | v1.31              | v4.15.0*                                                      | Yes | Yes                | v3.50       | v0.1.10     | v0.0.5            | v0.0.31           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.18.0     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.32           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.18.1     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.33           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.19.0     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.34           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
 Compatibility Matrix for Multi Cluster Support
@@ -58,20 +59,21 @@ Compatibility Matrix for Multi Cluster Support
 |-------------|----------------|--------------------|-------------------|----------|-----|--------------------|-------------|-------------------|
 | v2.14.0     | v16.0          | v1.27              | v4.12.0           | Yes      | No  | Yes                | v3.45       | v0.0.26           |
 | v2.15.0     | v16.0          | v1.28              | v4.13.0           | Yes      | No  | Yes                | v3.48       | v0.0.27           |
-| v2.16.0     | v17.0          | v1.29              | v4.14.0*           | Yes      | No  | Yes                | v3.50       | v0.0.29           |
-| v2.17.0     | v17.0          | v1.31              | v4.15.0*           | Yes      | No  | Yes                | v3.50       | v0.0.30           |
-| v2.18.0     | v17.0          | v1.31              | v4.16.0*           | Yes      | No  | Yes                | v3.52       | v0.0.32           |
-| v2.18.1     | v17.0          | v1.31              | v4.16.0*           | Yes      | No  | Yes                | v3.52       | v0.0.33           |
+| v2.16.0     | v17.0          | v1.29              | v4.14.0*          | Yes      | No  | Yes                | v3.50       | v0.0.29           |
+| v2.17.0     | v17.0          | v1.31              | v4.15.0*          | Yes      | No  | Yes                | v3.50       | v0.0.30           |
+| v2.18.0     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.32           |
+| v2.18.1     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.33           |
+| v2.19.0     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.34           |
 
 
 
 CIS Features and Examples
 -------------------------
 
-| Feature                              | Example                                                                                                                                                                                         | Description                                                                                                                                              | CIS Version |
-|--------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
-| user-defined-as3                     | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#modify-as3-configmap)                                                                                            | Allows users to modify AS3 ConfigMap in CIS                                                                                                              | v2.0.0      |
-| override-as3                         | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#override-as3-configmap)                                                                                          | The Override AS3 ConfigMap hosts a part of AS3 as a configuration to be overridden. Using this ConfigMap, CIS implements the AS3 override functionality. | v2.0.0      |
+| Feature                              | Example                                                                                                                                                                                             | Description                                                                                                                                              | CIS Version |
+|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| user-defined-as3                     | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#modify-as3-configmap)                                                                                                | Allows users to modify AS3 ConfigMap in CIS                                                                                                              | v2.0.0      |
+| override-as3                         | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#override-as3-configmap)                                                                                              | The Override AS3 ConfigMap hosts a part of AS3 as a configuration to be overridden. Using this ConfigMap, CIS implements the AS3 override functionality. | v2.0.0      |
 | VirtualServer With TLS profile       | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile)                                                             | VirtualServer with TLSProfile is used to specify the TLS termination. TLS termination relies on SNI.                                                     | v2.1.0      |
 | virtualServer insecure               | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/unsecure-virtual-server)                                                   | Allows user to create a Virtual Server on BIG-IP with VIP.  It will load balance the traffic for domain                                                  | v2.1.1      |
 | Health Monitors in EDNS              | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-tcp-monitor.yaml)                                      | Configure health monitor for GSLB pools in DNS. Heath monitor is supported for each pool members                                                         | v2.2.0      |
@@ -83,7 +85,7 @@ CIS Features and Examples
 | virtualServer with HostGroup         | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup)                                                    | Allows Associated VirutalServers are grouped based on “hostGroup” parameter. MultiHost support for VS CRD is achieved using this parameter.              | v2.7.0      |
 | virtualServer with Wildcard domain   | [Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer/virtual-with-wildcard-domain)                                              | Allows users to create a Virtual Server on BIG-IP with wildcard domain name                                                                              | v2.7.0      |
 | Policy-CRD                           | [Example](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResource/Policy/sample-policy.yaml)                                                     | Policy CRD resource defines the profile configuration for a virtual server in BIG-IP.                                                                    | v2.7.0      |
-| Filter-Tenants                       | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#filter-tenant-support-for-as3-configmap)                                                                         | Uses tenant filtering API for AS3 declaration. This allows CIS to process each AS3 Tenant separately. Compatible with ConfigMap only.                    | v2.7.0      |
+| Filter-Tenants                       | [Example](https://clouddocs.f5.com/containers/latest/userguide/config-map.html#filter-tenant-support-for-as3-configmap)                                                                             | Uses tenant filtering API for AS3 declaration. This allows CIS to process each AS3 Tenant separately. Compatible with ConfigMap only.                    | v2.7.0      |
 
 ### **Upgrading from 1.14.to 2.0:**
 
@@ -414,8 +416,12 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
 ### **Upgrading from 2.18.1 to 2.19.0:**
 
 **_Functionality Changes:_**
- * --local-cluster-name parameter is a new and mandatory parameter for multi-cluster mode, It’s required for all the modes(default, active-active and ratio).
- * Default mode is the default mode for multi-cluster, if no mode is specified in the extended configMap.
- * CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap when active-active or ratio mode is configured.
- * Active-standby mode is deprecated and not supported anymore.
- * extendedServiceReferences have been deprecated for VS/TS CR in the active-active and ratio mode.
+* Multi Cluster CRD
+  * The --local-cluster-name parameter is a new mandatory requirement for multi-cluster mode and applies to all modes, including default, active-active, and ratio.
+  * If the extended configMap does not specify a mode, CIS defaults to the Default mode for multi-cluster.
+  * CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap in active-active or ratio mode.
+  * CIS 2.19.0 release no longer supports active-standby mode. Use active-active mode instead.
+  * CIS no longer supports the extendedServiceReferences property for VirtualServer and TransportServer CRs in active-active and ratio modes.
+* CRD
+  * You cannot add or delete the serviceAddress property for VS and TS CR after creating the CR.
+

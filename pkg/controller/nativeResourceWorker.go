@@ -515,7 +515,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 					pool.MultiClusterServices = multiClusterServices
 				}
 				// update the multicluster resource serviceMap with local cluster services
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, ctlr.multiClusterHandler.LocalClusterName)
 				// update the multicluster resource serviceMap with HA pair cluster services
 				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,

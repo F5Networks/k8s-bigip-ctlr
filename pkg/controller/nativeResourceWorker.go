@@ -515,7 +515,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 					pool.MultiClusterServices = multiClusterServices
 				}
 				// update the multicluster resource serviceMap with local cluster services
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, "")
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, ctlr.multiClusterHandler.LocalClusterName)
 				// update the multicluster resource serviceMap with HA pair cluster services
 				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
@@ -989,14 +989,16 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 			// setting up the namespace nsLabel informer
 			nsLabel := fmt.Sprintf("%v,%v", clusterConfig.namespaceLabel, ergc.NamespaceLabel)
 			if _, ok := clusterConfig.nsInformers[nsLabel]; !ok {
-				err := ctlr.createNamespaceLabeledInformerForCluster(nsLabel, clusterConfig.clusterDetails.ClusterName)
+				err := ctlr.createNamespaceLabeledInformerForCluster(nsLabel, ctlr.multiClusterHandler.LocalClusterName)
 				if err != nil {
 					log.Errorf("%v %v", ctlr.getMultiClusterLog(), err)
-					clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterConfig.clusterDetails.ClusterName)
-					for _, nsInf := range clusterConfig.nsInformers {
-						for _, v := range nsInf.nsInformer.GetIndexer().List() {
-							ns := v.(*v1.Namespace)
-							clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
+					clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+					if clusterConfig != nil {
+						for _, nsInf := range clusterConfig.nsInformers {
+							for _, v := range nsInf.nsInformer.GetIndexer().List() {
+								ns := v.(*v1.Namespace)
+								clusterConfig.namespaces[ns.ObjectMeta.Name] = struct{}{}
+							}
 						}
 					}
 				} else {

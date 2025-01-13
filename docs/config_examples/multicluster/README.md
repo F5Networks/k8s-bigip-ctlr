@@ -19,7 +19,6 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 
 **Note**:
-* CIS supports processing of routes in traditional way as well as with NextGen Controller and with Multi-Cluster support.
 * At present, nodePort mode is supported and Cluster mode is available with static route configuration on BIGIP(No tunnels)
 
 ## Prerequisites
@@ -33,7 +32,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 * In a Standalone deployment of CIS, CIS is only deployed in one cluster, 
 * There are two modes supported in the Standalone CIS, namely default and ratio.
-  * The default mode is supported with VS/TS CRs, routes and ServiceType LB. See [Documentation](default-mode/README.md).
+  * The default mode is supported with VS/TS CRs and ServiceType LB. See [Documentation](default-mode/README.md).
   * The ratio mode is supported with VS/TS CRs and routes.See [Documentation](non-default-mode/README.md#ratio-mode).
 
 ![architecture](images/standaloneMultiCluster.png)
@@ -47,7 +46,7 @@ Multi-Cluster Support in CIS allows users to expose multiple apps spread across 
 
 * In HA deployment of CIS, CIS needs to be deployed in both the primary and secondary cluster. Also, the same extendedConfigMap needs to be deployed in both the primary and secondary cluster.
 * There are three modes supported in the High Availability CIS, namely default, active-active and ratio.
-  * The default mode is supported with VS/TS CRs, routes and ServiceType LB. See [Documentation](default-mode/README.md).
+  * The default mode is supported with VS/TS CRs and ServiceType LB. See [Documentation](default-mode/README.md).
   * The Active-Active mode is supported with VS/TS CRs and routes.See [Documentation](non-default-mode/README.md#active-active-mode).
   * The ratio mode is supported with VS/TS CRs and routes.See [Documentation](non-default-mode/README.md#ratio-mode).
 
@@ -239,9 +238,8 @@ where 10.244.1.213 is the CIS PodIP.
 No, Custom resources like TS and VS are different in default mode and non-default mode. See [Documentation](default-mode/README.md) for default mode and [Documentation](non-default-mode/README.md) for active-active and ratio mode.
 
 ### Are the routes supported in all modes(default, active-active, ratio)?
-Yes, Routes are supported in all modes. 
-See [Documentation](non-default-mode/README.md#routes-support) for active-active and ratio mode. 
-See [Documentation](default-mode/README.md#routes-support) for default mode.
+No, Routes are only supported in active-active and ratio mode
+See [Documentation](non-default-mode/README.md#routes-support) for active-active and ratio mode.
 
 ### Are policy CR supported in all modes(default, active-active, ratio)?
 Yes, Policy CR is supported in all modes same as non-multi-cluster mode.

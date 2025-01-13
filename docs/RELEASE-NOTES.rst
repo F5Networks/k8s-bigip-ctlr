@@ -8,40 +8,42 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
-        * *local-cluster-name* parameter is a new and mandatory parameter for multi-cluster mode,
+        * *local-cluster-name* parameter is a new and mandatory parameter for multi-cluster mode.
         * Introducing the new *default* mode for MultiCluster topologies which supports the ServiceType LoadBalancer, VirtualServer CR and Transport Server CR. See `Documentation <./config_examples/multicluster/default-mode>`_
-        * CIS now supports the serviceType Load balancer discovery in remote clusters as well using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
+        * CIS discovers serviceType LoadBalancer in remote clusters using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
         * Support for the MultiCluster serviceType load balancer in the default mode. See `Example <./config_examples/multicluster/default-mode/ServiceTypeLB/sample-multi-cluster-svc-lb.yaml>`_
-        * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute
-            * CIS now does the service discovery for VS/TS CR from all the clusters implicitly in active-active or ratio mode
-            * extendedServiceReferences property is not supported for VS/TS CR in the active-active and ratio mode any more.
-            * Active-standby mode is not supported any more.
+        * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute.
+            * CIS performs service discovery for VirtualServer and TransportServer CRs across all clusters implicitly in active-active or ratio mode.
+            * CIS no longer supports the extendedServiceReferences property for VirtualServer and TransportServer CRs in active-active and ratio modes.
+            * CIS no longer supports active-standby mode. Use active-active mode instead.
 
     * CRD
         * `Issue 3523 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3523>`_: Support for HTTP Compression profile in VS CR. See `Example <./config_examples/customResource/VirtualServer/httpCompressionProfile/>`_
         * `Issue 3637 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3637>`_: Support for TLS in transport server. See `Example <./config_examples/customResource/TransportServer/transport-server-with-tls>`_
-        * `Issue 3574 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3574>`_: OpenShift operator: needs to run oc adm policy add-cluster-role-to-user cluster-admin -z f5-bigip-ctlr-serviceaccount -n <spec.namespace>
-        * `Issue 3528 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3528>`_: Cross Site Multi-Cluster GTM Support with ccclGTMAgent
-        * Support for empty node label selector
+        * `Issue 3528 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3528>`_: Cross Site Multi-Cluster GTM Support with ccclGTMAgent.
+        * Support for empty node label selector.
 
 Bug Fixes
 ````````````
-* `Issue 3615 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Fix service type LoadBalancer IPs re-assigned on service update
-* `Issue 3561 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Controller stops posting changes at runtime when some ingress path has the + character
-* `Issue 3570 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3570>`_: tls irule fails if pool has no active members
-* `Issue 3654 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3654>`_: Persistent connection issue with SSL and HTTP pools in a VirtualServer Hostgroup
-* `Issue 3599 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3599>`_: typo in CIS Operator arguments
-* `Issue 3574 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3574>`_: Fix the adm policy for service account in OpenShift operator
-* Support dots and dashes in object names aligned to AS3
+* `Issue 3615 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Fix service type LoadBalancer IPs re-assigned on service update.
+* `Issue 3561 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Controller stops posting changes at runtime when some ingress path has the + character.
+* `Issue 3570 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3570>`_: tls irule fails if pool has no active members.
+* `Issue 3654 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3654>`_: Persistent connection issue with SSL and HTTP pools in a VirtualServer Hostgroup.
+* `Issue 3599 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3599>`_: typo in CIS Operator arguments.
+* `Issue 3574 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3574>`_: Fix the adm policy for service account in OpenShift operator.
+* Support dots and dashes in object names aligned to AS3.
 
 Upgrade notes
 ``````````````
-* serviceAddress property for VS and TS CR is not allowed to add/delete after creating the once the CR.
-* --local-cluster-name parameter is a new and mandatory parameter for multi-cluster mode, It’s required for all the modes(default, active-active and ratio).
-* If the extended configMap does not specify a mode, CIS defaults to the Default mode for multi-cluster.
-* CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap in active-active or ratio mode.
-* Active-standby mode is not supported from CIS 2.19.0 release.
-* extendedServiceReferences property is not supported with VS/TS CR in the active-active and ratio mode.
+* Multi Cluster CRD
+    * The --local-cluster-name parameter is a new mandatory requirement for multi-cluster mode and applies to all modes, including default, active-active, and ratio.
+    * If the extended configMap does not specify a mode, CIS defaults to the Default mode for multi-cluster.
+    * CIS now does the service discovery for VS/TS CR in all the clusters defined via extended configMap in active-active or ratio mode.
+    * CIS 2.19.0 release no longer supports active-standby mode. Use active-active mode instead.
+    * CIS no longer supports the extendedServiceReferences property for VirtualServer and TransportServer CRs in active-active and ratio modes.
+* CRD
+    * You cannot add or delete the serviceAddress property for VS and TS CR after creating the CR.
+
 
 
 2.18.1

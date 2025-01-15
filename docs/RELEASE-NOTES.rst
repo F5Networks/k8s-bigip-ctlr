@@ -7,11 +7,10 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
-    * Multi Cluster
-    * CRD
 
 Bug Fixes
 ````````````
+* `Issue 3679 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3679>`_: Certificate, CA chain and private key are shown in debug logs
 
 2.19.0
 -------------

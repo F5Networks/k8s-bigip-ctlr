@@ -782,10 +782,10 @@ func getCredentials() error {
 
 func getGTMCredentials() {
 	if os.Getenv("GTM_BIGIP_USERNAME") != "" {
-		*bigIPUsername = os.Getenv("GTM_BIGIP_USERNAME")
+		*gtmBigIPUsername = os.Getenv("GTM_BIGIP_USERNAME")
 	}
 	if os.Getenv("GTM_BIGIP_PASSWORD") != "" {
-		*bigIPPassword = os.Getenv("GTM_BIGIP_PASSWORD")
+		*gtmBigIPPassword = os.Getenv("GTM_BIGIP_PASSWORD")
 	}
 	if (*gtmBigIPUsername == "" || *gtmBigIPPassword == "") && len(*gtmCredsDir) > 0 {
 		log.Warning("GTM BIG-IP credentials are not set. Checking back to Creds Directory.")

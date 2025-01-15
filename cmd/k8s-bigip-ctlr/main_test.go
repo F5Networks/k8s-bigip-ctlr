@@ -933,7 +933,12 @@ var _ = Describe("Main Tests", func() {
 				BigIPURL:        "url",
 				BigIPPartitions: []string{},
 			}
-			subPidCh, _ := startPythonDriver(configWriter, gs, bs, "test")
+			gtm := gtmBigIPSection{
+				GtmBigIPUsername: "admin",
+				GtmBigIPPassword: "admin",
+				GtmBigIPURL:      "url",
+			}
+			subPidCh, _ := startPythonDriver(configWriter, gs, bs, gtm, "test")
 			pid = <-subPidCh
 		})
 

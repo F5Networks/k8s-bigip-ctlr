@@ -401,8 +401,13 @@ func (postMgr *PostManager) getBigipRegKeyURL() string {
 }
 
 func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
+	// Avoid modifying the original response
+	responseMapCopy := make(map[string]interface{})
+	for key, value := range responseMap {
+		responseMapCopy[key] = value
+	}
 	// removing the certificates/privateKey from response log
-	if declaration, ok := (responseMap["declaration"]).(map[string]interface{}); ok {
+	if declaration, ok := (responseMapCopy["declaration"]).(map[string]interface{}); ok {
 		for _, value := range declaration {
 			if tenantMap, ok := value.(map[string]interface{}); ok {
 				for _, value2 := range tenantMap {
@@ -425,9 +430,9 @@ func (postMgr *PostManager) logAS3Response(responseMap map[string]interface{}) {
 			log.Errorf("[AS3] error while reading declaration from AS3 response: %v\n", err)
 			return
 		}
-		responseMap["declaration"] = as3Declaration(decl)
+		responseMapCopy["declaration"] = as3Declaration(decl)
 	}
-	log.Debugf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	log.Debugf("[AS3] Raw response from Big-IP: %v ", responseMapCopy)
 }
 
 func (postMgr *PostManager) logAS3Request(cfg string) {

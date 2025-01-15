@@ -1,6 +1,17 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next release
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+
+Bug Fixes
+````````````
+* `Issue 3679 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3679>`_: Certificate, CA chain and private key are shown in debug logs
+
 2.19.0
 -------------
 

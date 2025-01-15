@@ -53,6 +53,11 @@ USER ctlr
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
 COPY LICENSE /licenses/
 
+LABEL name="F5 Container Ingress Services" \
+    maintainer="F5 Networks <automation_toolchain_pm@f5.com>" \
+    vendor="F5 Networks Inc." \
+    summary="Container Ingress Services for F5 BIG-IP"
+
 COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
 
 # Enable CN Certificate validation

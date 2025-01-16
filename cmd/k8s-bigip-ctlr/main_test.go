@@ -382,10 +382,8 @@ var _ = Describe("Main Tests", func() {
 
 			// Test empty required args
 			allArgs := map[string]*string{
-				"bigipUrl":      bigIPURL,
-				"bigipUsername": bigIPUsername,
-				"bigipPassword": bigIPPassword,
-				"logLevel":      logLevel,
+				"bigipUrl": bigIPURL,
+				"logLevel": logLevel,
 			}
 
 			for argName, arg := range allArgs {
@@ -698,8 +696,6 @@ var _ = Describe("Main Tests", func() {
 				"--bigip-partition=velcro1",
 				"--bigip-url=bigip.example.com",
 				"--gtm-bigip-url=bigip1.example.com",
-				"--gtm-bigip-username=cli-user-gtm",
-				"--gtm-bigip-password=cli-pass-gtm",
 				"--pool-member-type=nodeport",
 			}
 			flags.Parse(os.Args)

@@ -373,7 +373,7 @@ var _ = Describe("Main Tests", func() {
 			argError := verifyArgs()
 			Expect(argError).To(BeNil())
 			Expect(*namespaces).To(Equal(nameVar))
-			Expect(*bigIPURL).To(Equal("bigip.example.com"))
+			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
 			Expect(*bigIPUsername).To(Equal("admin"))
 			Expect(*bigIPPassword).To(Equal("admin"))
 			Expect(*bigIPPartitions).To(Equal([]string{"velcro1", "velcro2"}))

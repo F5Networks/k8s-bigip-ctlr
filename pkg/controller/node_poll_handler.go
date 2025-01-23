@@ -246,6 +246,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 							}
 							route.Gateway = nodeIP
 							route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+							routes.Entries = append(routes.Entries, route)
 						}
 					} else {
 						nodeIP, err = parseHostAddresses(hostaddresses, nodenetwork)
@@ -255,6 +256,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 						}
 						route.Gateway = nodeIP
 						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+						routes.Entries = append(routes.Entries, route)
 					}
 				}
 			} else {
@@ -269,6 +271,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					}
 					route.Gateway = nodeIP
 					route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, nodeIP)
+					routes.Entries = append(routes.Entries, route)
 				}
 			}
 		} else if ctlr.OrchestrationCNI == CILIUM_K8S {
@@ -283,6 +286,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					if addr.Type == addrType {
 						route.Gateway = addr.Address
 						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+						routes.Entries = append(routes.Entries, route)
 					}
 				}
 
@@ -295,13 +299,16 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					nodePodCIDRMap = ctlr.GetNodePodCIDRMap()
 				}
 				if nodeIPValue, ok := node.Annotations[CALICONodeIPAnnotation]; ok {
-					if cidr, ok := nodePodCIDRMap[node.Name]; ok {
-						route.Gateway = strings.Split(nodeIPValue, "/")[0]
-						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, route.Gateway)
-						route.Network = cidr
-					} else {
-						log.Warningf("Pod Network not found for node %v, static route not added", node.Name)
-						continue
+					for _, bacidr := range nodePodCIDRMap {
+						if bacidr.nodeName == node.Name {
+							route.Gateway = strings.Split(nodeIPValue, "/")[0]
+							route.Name = fmt.Sprintf("k8s-%v", bacidr.baName)
+							route.Network = bacidr.cidr
+							routes.Entries = append(routes.Entries, route)
+						} else {
+							log.Warningf("Pod Network not found for node %v, static route not added", node.Name)
+							continue
+						}
 					}
 				} else {
 					log.Warningf("Host addresses annotation %v not found on node %v ,static route not added", CALICONodeIPAnnotation, node.Name)
@@ -318,6 +325,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 					if addr.Type == addrType {
 						route.Gateway = addr.Address
 						route.Name = fmt.Sprintf("k8s-%v-%v", node.Name, addr.Address)
+						routes.Entries = append(routes.Entries, route)
 					}
 				}
 			} else {
@@ -325,7 +333,6 @@ func (ctlr *Controller) processStaticRouteUpdate(
 				continue
 			}
 		}
-		routes.Entries = append(routes.Entries, route)
 	}
 	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
 
@@ -416,14 +423,14 @@ func parseHostCIDRS(ann string, nodenetwork *net.IPNet) (string, error) {
 	return "", err
 }
 
-func (ctlr *Controller) GetNodePodCIDRMap() map[string]string {
-	var nodePodCIDRMap map[string]string
+func (ctlr *Controller) GetNodePodCIDRMap() []BlockAffinitycidr {
+	var bacidrs []BlockAffinitycidr
 	if ctlr.OrchestrationCNI == CALICO_K8S {
 		// Retrieve Calico Block Affinity
-		blockAffinitiesRaw, err := ctlr.multiClusterHandler.ClusterConfigs[""].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
+		blockAffinitiesRaw, err := ctlr.multiClusterHandler.ClusterConfigs[ctlr.multiClusterHandler.LocalClusterName].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
 		if err != nil {
 			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
-			return nodePodCIDRMap
+			return bacidrs
 		}
 		// Define a map to store the unmarshalled data
 		var blockAffinities unstructured.UnstructuredList
@@ -432,14 +439,65 @@ func (ctlr *Controller) GetNodePodCIDRMap() map[string]string {
 		err = json.Unmarshal(blockAffinitiesRaw, &blockAffinities)
 		if err != nil {
 			log.Errorf("Unable to unmarshall block affinity resource %v, getting error %v", string(blockAffinitiesRaw), err)
-			return nodePodCIDRMap
+			return bacidrs
 		}
-		nodePodCIDRMap = make(map[string]string)
 		for _, blockAffinity := range blockAffinities.Items {
 			// Access the spec field from the unstructured object
 			specData := blockAffinity.Object["spec"].(map[string]interface{})
-			nodePodCIDRMap[specData["node"].(string)] = specData["cidr"].(string)
+			bacidr := BlockAffinitycidr{}
+			bacidr.baName = blockAffinity.Object["metadata"].(map[string]interface{})["name"].(string)
+			bacidr.nodeName = specData["node"].(string)
+			bacidr.cidr = specData["cidr"].(string)
+			bacidrs = append(bacidrs, bacidr)
 		}
 	}
-	return nodePodCIDRMap
+	return bacidrs
+}
+
+func (ctlr *Controller) processBlockAffinities(clusterName string) {
+	var baListInf []interface{}
+	if infStore, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
+		baListInf = infStore.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetIndexer().List()
+	}
+	routes := routeSection{}
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	for _, obj := range baListInf {
+		blockAffinity := obj.(*unstructured.Unstructured)
+		baJSON, found, err := unstructured.NestedStringMap(blockAffinity.UnstructuredContent(), "spec")
+		if err != nil || !found {
+			log.Debugf("calico blockaffinity spec not found: %+v", err)
+			continue
+		}
+		baName := blockAffinity.Object["metadata"].(map[string]interface{})["name"]
+		route := routeConfig{}
+		if clusterConfig != nil {
+			nodes := clusterConfig.oldNodes
+			cidr := baJSON["cidr"]
+			nodeName := baJSON["node"]
+			//check if node is in watched nodes
+			for _, node := range nodes {
+				if node.Name == nodeName {
+					route.Gateway = node.Addr
+					route.Name = fmt.Sprintf("k8s-%v", baName)
+					route.Network = cidr
+					routes.Entries = append(routes.Entries, route)
+					break
+				}
+			}
+		}
+	}
+	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
+
+	if nil != err {
+		log.Warningf("Failed to write static routes config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote static route config section: %v", routes)
+		case e := <-errCh:
+			log.Warningf("Failed to write static route config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
+		}
+	}
 }

@@ -915,9 +915,10 @@ func (ctlr *Controller) processResources() bool {
 		} else {
 			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqId, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		}
-		ctlr.Agent.PostConfig(config)
+		ctlr.RequestHandler.EnqueueRequestConfig(config)
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
+
 	}
 	return true
 }
@@ -3766,9 +3767,10 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	partitions := ctlr.resources.getLTMPartitions()
 
+	// TODO: Handle the BIGIP address properly
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.RequestHandler.AgentWorkers[0].BigIpAddress, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -3807,7 +3809,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 						continue
 					}
 					preGTMServerName := ""
-					if ctlr.Agent.ccclGTMAgent {
+					if ctlr.RequestHandler.ccclGTMAgent {
 						preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
 					}
 					// add only one VS member to pool.
@@ -4346,7 +4348,8 @@ func (ctlr *Controller) processIngressLink(
 					hostnames = rsCfg.MetaData.hosts
 				}
 				// delete the entry from the L4 app cache
-				_, port := extractVirtualAddressAndPort(rsCfg.Virtual.Destination)
+				as3 := ctlr.APIHandler.getApiHandler()
+				_, port := as3.extractVirtualAddressAndPort(rsCfg.Virtual.Destination)
 				appConfig := getL4AppConfig(ip, key, int32(port), ingLink.Spec.BigIPRouteDomain)
 				if appConfig != (l4AppConfig{}) {
 					delete(ctlr.resources.processedL4Apps, appConfig)
@@ -4968,7 +4971,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if es.HAMode != "" {
 			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio || es.HAMode == DefaultMode {
 				ctlr.discoveryMode = es.HAMode
-				ctlr.Agent.HAMode = true
+				ctlr.RequestHandler.HAMode = true
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio, default)")

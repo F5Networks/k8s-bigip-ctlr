@@ -18,9 +18,6 @@ package controller
 
 import (
 	"container/list"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/informers"
 	"net/http"
 	"sync"
 
@@ -54,15 +51,14 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode      ControllerMode
-		resources *ResourceStore
-		*RequestHandler
+		mode                        ControllerMode
+		resources                   *ResourceStore
+		RequestHandler              *RequestHandler
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
 		resourceQueue               workqueue.RateLimitingInterface
 		Partition                   string
-		Agent                       *Agent
 		PoolMemberType              string
 		UseNodeInternal             bool
 		initState                   bool
@@ -89,8 +85,7 @@ type (
 		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
-		ResourceStatusVSAddressMap  map[resourceRef]string
-		APIHandler                  ApiTypeHandlerInterface
+		APIHandler                  APIHandlerInterface
 		resourceContext
 	}
 	resourceContext struct {
@@ -101,17 +96,14 @@ type (
 	}
 
 	InformerStore struct {
-		comInformers     map[string]*CommonInformer
-		nrInformers      map[string]*NRInformer
-		crInformers      map[string]*CRInformer
-		nsInformers      map[string]*NSInformer
-		nodeInformer     *NodeInformer
-		dynamicInformers *DynamicInformers
+		comInformers map[string]*CommonInformer
+		nrInformers  map[string]*NRInformer
+		crInformers  map[string]*CRInformer
+		nsInformers  map[string]*NSInformer
+		nodeInformer *NodeInformer
 	}
 
 	ClusterHandler struct {
-		*PrimaryClusterHealthProbeParams
-		MultiClusterMode    string
 		ClusterConfigs      map[string]*ClusterConfig
 		HAPairClusterName   string
 		LocalClusterName    string
@@ -120,8 +112,6 @@ type (
 		namespaces          []string
 		nodeLabelSelector   string
 		routeLabel          string
-		orchestrationCNI    string
-		staticRoutingMode   bool
 		eventQueue          workqueue.RateLimitingInterface
 		statusUpdate        *StatusUpdate
 		sync.RWMutex
@@ -134,15 +124,12 @@ type (
 		kubeCRClient           versioned.Interface
 		kubeIPAMClient         *extClient.Clientset
 		routeClientV1          routeclient.RouteV1Interface
-		dynamicClient          dynamic.Interface
 		routeLabel             string
 		nativeResourceSelector labels.Selector
 		customResourceSelector labels.Selector
 		namespaces             map[string]struct{}
 		namespaceLabel         string
 		nodeLabelSelector      string
-		orchestrationCNI       string
-		staticRoutingMode      bool
 		oldNodes               []Node
 		eventNotifier          *EventNotifier
 		*InformerStore
@@ -163,12 +150,6 @@ type (
 		ClearKeyFromCache bool // helps clear the cache in case of delete events
 	}
 
-	BlockAffinitycidr struct {
-		baName   string
-		nodeName string
-		cidr     string
-	}
-
 	ResourceEvent struct {
 		resourceObj interface{}
 		eventType   string
@@ -184,7 +165,6 @@ type (
 		RequestHandler              *RequestHandler
 		NamespaceLabel              string
 		Partition                   string
-		Agent                       *Agent
 		PoolMemberType              string
 		VXLANName                   string
 		VXLANMode                   string
@@ -250,14 +230,6 @@ type (
 		clusterName string
 		nsInformer  cache.SharedIndexInformer
 	}
-
-	//DynamicInformers holds informers for third party integration
-	DynamicInformers struct {
-		stopCh                      chan struct{}
-		clusterName                 string
-		CalicoBlockAffinityInformer informers.GenericInformer
-	}
-
 	rqKey struct {
 		namespace      string
 		kind           string
@@ -411,7 +383,6 @@ type (
 		ipOrIPAMKey string
 		port        int32
 		routeDomain int32
-		protocol    string
 	}
 
 	// L4AppsStore contains TypeLB service details.key is IP
@@ -443,15 +414,13 @@ type (
 
 	// static route config
 	routeSection struct {
-		Entries       []routeConfig `json:"routes"`
-		CISIdentifier string        `json:"cis-identifier,omitempty"`
+		Entries []routeConfig `json:"routes"`
 	}
 
 	routeConfig struct {
-		Name        string `json:"name"`
-		Network     string `json:"network"`
-		Gateway     string `json:"gw"`
-		Description string `json:"description,omitempty"`
+		Name    string `json:"name"`
+		Network string `json:"network"`
+		Gateway string `json:"gw"`
 	}
 	// GTMConfig key is domainName and value is WideIP
 
@@ -841,8 +810,7 @@ type (
 	}
 
 	RequestHandler struct {
-		AgentWorkers map[string]*AgentWorker
-		resources    *ResourceStore
+		AgentWorkers []*AgentWorker
 		reqChan      chan ResourceConfigRequest
 		userAgent    string
 		respChan     chan resourceStatusMeta
@@ -852,32 +820,6 @@ type (
 		HAMode       bool
 	}
 
-	// Define an interface for configuration types
-	Configurable interface{}
-
-	PostConfigStrategy interface {
-		Post(config agentPostConfig)
-	}
-
-	agentPostConfig struct {
-		data                  string
-		targetAddress         string
-		as3APIURL             string
-		id                    int
-		tenantResponseMap     map[string]tenantResponse
-		acceptedTaskId        string
-		failedTenants         map[string]struct{}
-		incomingTenantDeclMap map[string]as3Tenant
-		deleted               bool
-		reqMeta               requestMeta
-		reqStatusMeta         resourceStatusMeta
-	}
-
-	// PostToChannelStrategy posts config to a channel.
-	PostToChannelStrategy struct {
-		postChan chan agentPostConfig
-	}
-
 	AgentWorker struct {
 		*Agent
 		Type              string
@@ -885,23 +827,17 @@ type (
 		stopChan          chan struct{}
 		BigIpAddress      string
 		PythonDriverPID   int
-		postChan          chan agentPostConfig
-		PostStrategy      PostConfigStrategy
+		postChan          chan ResourceConfigRequest
 		StopChan          chan interface{}
-	}
-
-	PostToFileStrategy struct {
-		ConfigWriter writer.Writer
 	}
 
 	Agent struct {
 		*APIHandler
-		*PostManager
 		Partition                       string
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		ConfigWriter                    writer.Writer
 		EventChan                       chan interface{}
-		respChan                        chan *agentPostConfig
+		respChan                        chan resourceStatusMeta
 		PythonDriverPID                 int
 		userAgent                       string
 		HttpAddress                     string
@@ -910,12 +846,11 @@ type (
 		ccclGTMAgent                    bool
 		disableARP                      bool
 		HAMode                          bool
-		GTMPostManager                  *GTMPostManager
 	}
 
 	BaseAPIHandler struct {
 		apiType    string
-		APIHandler ApiTypeHandlerInterface
+		APIHandler APIHandlerInterface
 		Partition  string
 		*PostManager
 	}
@@ -932,6 +867,49 @@ type (
 	APIHandler struct {
 		GTM *GTMAPIHandler
 		LTM *LTMAPIHandler
+	}
+
+	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
+	// other API types like GTM. The current hierarchy allows:
+	// 1. Common HTTP posting capabilities via PostManager
+	// 2. API-specific handling via apiHandler interface
+	// 3. Specialized GTM posting via GTMPostManager
+	// This separation of concerns is appropriate for the controller architecture.
+
+	AS3Handler struct {
+		AS3Config         map[string]interface{}
+		AS3VersionInfo    as3VersionInfo
+		bigIPAS3Version   float64
+		postManagerPrefix string
+		*PostParams
+		*AS3Parser
+	}
+
+	AS3Parser struct {
+		// AS3Parser implements AS3ParserInterface
+		AS3ParserInterface
+		AS3VersionInfo  as3VersionInfo
+		bigIPAS3Version float64
+	}
+
+	PostManager struct {
+		httpClient        *http.Client
+		tenantResponseMap map[string]tenantResponse
+		PostParams
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		firstPost                       bool
+		postManagerPrefix               string
+		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
+		cachedTenantDeclMap   map[string]as3Tenant
+		incomingTenantDeclMap map[string]as3Tenant
+		// this map stores the tenant priority map
+		tenantPriorityMap map[string]int
+		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
+		retryTenantDeclMap map[string]*tenantParams
+		postChan           chan ResourceConfigRequest
+		respChan           chan resourceStatusMeta
+		httpClientMetrics  bool
+		retryChan          chan struct{}
 	}
 
 	AgentParams struct {
@@ -957,57 +935,6 @@ type (
 		SecondaryBigIP     string
 		HAMode             bool
 	}
-	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
-	// other API types like GTM. The current hierarchy allows:
-	// 1. Common HTTP posting capabilities via PostManager
-	// 2. API-specific handling via apiHandler interface
-	// 3. Specialized GTM posting via GTMPostManager
-	// This separation of concerns is appropriate for the controller architecture.
-
-	AS3Handler struct {
-		AS3Config         map[string]interface{}
-		AS3VersionInfo    as3VersionInfo
-		bigIPAS3Version   float64
-		postManagerPrefix string
-		LogResponse       bool
-		LogRequest        bool
-		*PostManager
-		*PostParams
-		*AS3Parser
-	}
-
-	AS3Parser struct {
-		// AS3Parser implements AS3ParserInterface
-		AS3ParserInterface
-		AS3VersionInfo  as3VersionInfo
-		bigIPAS3Version float64
-	}
-
-	PostManager struct {
-		sync.RWMutex
-		httpClient        *http.Client
-		tenantResponseMap map[string]tenantResponse
-		PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		firstPost                       bool
-		AS3VersionInfo                  as3VersionInfo
-		bigIPAS3Version                 float64
-		postManagerPrefix               string
-		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
-		cachedTenantDeclMap   map[string]as3Tenant
-		incomingTenantDeclMap map[string]as3Tenant
-		// this map stores the tenant priority map
-		tenantPriorityMap map[string]int
-		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
-		retryTenantDeclMap map[string]*tenantParams
-		//postChan           chan ResourceConfigRequest
-		postChan          chan agentPostConfig
-		respChan          chan resourceStatusMeta
-		httpClientMetrics bool
-		retryChan         chan struct{}
-		apiType           string
-	}
-
 	PrimaryClusterHealthProbeParams struct {
 		paramLock     *sync.RWMutex
 		EndPoint      string
@@ -1022,7 +949,6 @@ type (
 		BIGIPUsername string
 		BIGIPPassword string
 		BIGIPURL      string
-		BIGIPType     string
 		TrustedCerts  string
 		SSLInsecure   bool
 		AS3PostDelay  int
@@ -1591,9 +1517,8 @@ const (
 type HAModeType string
 
 const (
-	StatusOk      = "OK"
-	StatusError   = "ERROR"
-	StatusStandby = "STANDBY"
+	StatusOk    = "OK"
+	StatusError = "ERROR"
 )
 
 type discoveryMode string
@@ -1665,14 +1590,5 @@ type (
 	}
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
-	}
-)
-
-var (
-	// CalicoBlockaffinity : Calico's BlockAffinity CRD resource identifier
-	CalicoBlockaffinity = schema.GroupVersionResource{
-		Group:    "crd.projectcalico.org",
-		Version:  "v1",
-		Resource: "blockaffinities",
 	}
 )

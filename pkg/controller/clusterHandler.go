@@ -242,26 +242,34 @@ func (ch *ClusterHandler) getClusterNames() map[string]struct{} {
 
 // ResourceStatusUpdater is a go routine that listens to the resourceStatusUpdateChan
 func (ch *ClusterHandler) ResourceStatusUpdater() {
+	var wg sync.WaitGroup
+	log.Debugf("updating resource status - resource status updater")
 	for rscStatus := range ch.statusUpdate.ResourceStatusUpdateChan {
-		if rscStatus.UpdateAttempts > 3 {
-			log.Errorf("Resource %v status update attempts exceeded 3 times.", rscStatus.ResourceObj)
-			continue
-		}
-		if timestamp, ok := ch.statusUpdate.ResourceStatusUpdateTracker.Load(rscStatus.ResourceKey); ok {
-			if timestamp.(metav1.Time).After(rscStatus.Timestamp.Time) {
-				log.Debugf("Resource %v status already updated after time: %v. Skipping status update.",
-					rscStatus.ResourceObj, rscStatus.Timestamp)
-				continue
+		log.Debugf("updating resource status - resource status updater - %v", rscStatus)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if rscStatus.UpdateAttempts > Retries {
+				log.Errorf("Resource %v status update attempts exceeded 3 times.", rscStatus.ResourceObj)
+				return
 			}
-		}
-		// Update the timestamp
-		if !rscStatus.ClearKeyFromCache {
-			ch.statusUpdate.ResourceStatusUpdateTracker.Store(rscStatus.ResourceKey, rscStatus.Timestamp)
-		} else {
-			// If ClearKeyFromCache is true, it means the resource has been deleted so the associated key has to be removed
-			ch.statusUpdate.ResourceStatusUpdateTracker.Delete(rscStatus.ResourceKey)
-		}
-		go ch.UpdateResourceStatus(rscStatus)
+			if timestamp, ok := ch.statusUpdate.ResourceStatusUpdateTracker.Load(rscStatus.ResourceKey); ok {
+				if timestamp.(metav1.Time).After(rscStatus.Timestamp.Time) {
+					log.Debugf("Resource %v status already updated after time: %v. Skipping status update.",
+						rscStatus.ResourceObj, rscStatus.Timestamp)
+					return
+				}
+			}
+			// Update the timestamp
+			if !rscStatus.ClearKeyFromCache {
+				ch.statusUpdate.ResourceStatusUpdateTracker.Store(rscStatus.ResourceKey, rscStatus.Timestamp)
+			} else {
+				// If ClearKeyFromCache is true, it means the resource has been deleted so the associated key has to be removed
+				ch.statusUpdate.ResourceStatusUpdateTracker.Delete(rscStatus.ResourceKey)
+			}
+			go ch.UpdateResourceStatus(rscStatus)
+		}()
+		wg.Wait()
 	}
 }
 
@@ -289,10 +297,8 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 	}
 
 	var updateErr error
-	var resourceType string
-	switch rscStatus.ResourceObj.(type) {
-	case cisv1.VirtualServerStatus:
-		resourceType = VirtualServer
+	switch rscStatus.ResourceKey.kind {
+	case VirtualServer:
 		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {
 			updateErr = fmt.Errorf("failed to get informer")
@@ -337,8 +343,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			}
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
-	case cisv1.TransportServerStatus:
-		resourceType = TransportServer
+	case TransportServer:
 		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {
 			updateErr = fmt.Errorf("failed to get informer")
@@ -376,15 +381,18 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
+<<<<<<< HEAD
 			if isStatusStandby {
 				ts.Status.Status = StatusStandby
 			} else {
 				ts.Status = rscStatus.ResourceObj.(cisv1.TransportServerStatus)
 			}
+=======
+			ts.Status = rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
+>>>>>>> c4846f11 (response handler for bigip next with throttling errors fix)
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
-	case cisv1.IngressLinkStatus:
-		resourceType = IngressLink
+	case IngressLink:
 		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {
 			updateErr = fmt.Errorf("failed to get informer")
@@ -422,15 +430,18 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
+<<<<<<< HEAD
 			if isStatusStandby {
 				il.Status.Status = StatusStandby
 			} else {
 				il.Status = rscStatus.ResourceObj.(cisv1.IngressLinkStatus)
 			}
+=======
+			il.Status = rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
+>>>>>>> c4846f11 (response handler for bigip next with throttling errors fix)
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
-	case v1.ServiceStatus:
-		resourceType = Service
+	case Service:
 		informer := ch.getCommonInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {
 			updateErr = fmt.Errorf("failed to get informer")
@@ -507,8 +518,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 				rscStatus.ResourceKey.clusterName,
 			}
 		}
-	case routeapi.RouteStatus:
-		resourceType = Route
+	case Route:
 		informer := ch.getNRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {
 			updateErr = fmt.Errorf("failed to get informer")
@@ -561,12 +571,12 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 	}
 	// Retry the update if it fails
 	if nil != updateErr {
-		log.Errorf("Failed to update the status of %s:%s/%s in Cluster %s. Error: %v. Retry will be attempted.", resourceType,
+		log.Errorf("Failed to update the status of %s:%s/%s in Cluster %s. Error: %v. Retry will be attempted.", rscStatus.ResourceKey.kind,
 			rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName, updateErr)
 		rscStatus.UpdateAttempts++
 		ch.statusUpdate.ResourceStatusUpdateChan <- rscStatus
 	} else {
-		log.Infof("Successfully updated status of %s:%s/%s in Cluster %s", resourceType,
+		log.Infof("Successfully updated status of %s:%s/%s in Cluster %s", rscStatus.ResourceKey.kind,
 			rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName)
 	}
 }

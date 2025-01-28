@@ -15,12 +15,12 @@ type VirtualServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VirtualServerSpec   `json:"spec"`
-	Status VirtualServerStatus `json:"status,omitempty"`
+	Spec   VirtualServerSpec    `json:"spec"`
+	Status CustomResourceStatus `json:"status,omitempty"`
 }
 
-// VirtualServerStatus is the status of the VirtualServer resource.
-type VirtualServerStatus struct {
+// CustomResourceStatus handles the Resource status for Virtual Server, TransportServer, and Ingresslink
+type CustomResourceStatus struct {
 	VSAddress   string      `json:"vsAddress,omitempty"`
 	Status      string      `json:"status,omitempty"`
 	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
@@ -260,16 +260,8 @@ type IngressLink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   IngressLinkSpec   `json:"spec"`
-	Status IngressLinkStatus `json:"status,omitempty"`
-}
-
-// IngressLinkStatus is the status of the ingressLink resource.
-type IngressLinkStatus struct {
-	VSAddress   string      `json:"vsAddress,omitempty"`
-	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
-	Error       string      `json:"error,omitempty"`
-	Status      string      `json:"status,omitempty"`
+	Spec   IngressLinkSpec `json:"spec"`
+	Status CustomResourceStatus        `json:"status,omitempty"`
 }
 
 // IngressLinkSpec is Spec for IngressLink
@@ -303,16 +295,8 @@ type TransportServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TransportServerSpec   `json:"spec"`
-	Status TransportServerStatus `json:"status,omitempty"`
-}
-
-// TransportServerStatus is the status of the VirtualServer resource.
-type TransportServerStatus struct {
-	VSAddress   string      `json:"vsAddress,omitempty"`
-	Status      string      `json:"status,omitempty"`
-	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
-	Error       string      `json:"error,omitempty"`
+	Spec   TransportServerSpec `json:"spec"`
+	Status CustomResourceStatus            `json:"status,omitempty"`
 }
 
 // TransportServerSpec is the spec of the VirtualServer resource.

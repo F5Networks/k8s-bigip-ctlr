@@ -4731,51 +4731,6 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 	return 0
 }
 
-// Update virtual server status with virtual server address
-func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
-	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, Status: statusOk}
-	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", vsStatus, vs.Name, vs.Namespace)
-	vs.Status = vsStatus
-	vs.Status.VSAddress = ip
-	vs.Status.Status = statusOk
-	config := ctlr.multiClusterHandler.getClusterConfig("")
-	_, updateErr := config.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating virtual server status:%v", updateErr)
-		return
-	}
-}
-
-// Update Transport server status with virtual server address
-func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {
-	// Set the vs status to include the virtual IP address
-	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip, Status: statusOk}
-	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", tsStatus, ts.Name, ts.Namespace)
-	ts.Status = tsStatus
-	ts.Status.VSAddress = ip
-	ts.Status.Status = statusOk
-	config := ctlr.multiClusterHandler.getClusterConfig("")
-	_, updateErr := config.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating Transport server status:%v", updateErr)
-		return
-	}
-}
-
-// Update ingresslink status with virtual server address
-func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {
-	// Set the vs status to include the virtual IP address
-	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
-	il.Status = ilStatus
-	config := ctlr.multiClusterHandler.getClusterConfig("")
-	_, updateErr := config.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating ingresslink status:%v", updateErr)
-		return
-	}
-}
-
 // returns service obj with servicename
 func (ctlr *Controller) GetService(namespace, serviceName, clusterName string) *v1.Service {
 	svcKey := namespace + "/" + serviceName

@@ -45,4 +45,6 @@ const (
 	BLOCKAFFINITIES             = "blockaffinities"
 
 	CommonPartition = "Common"
+	LocalCluster    = ""
+	Retries         = 3
 )

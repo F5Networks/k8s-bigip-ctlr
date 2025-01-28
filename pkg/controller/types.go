@@ -54,13 +54,15 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode ControllerMode
+		mode                        ControllerMode
+		resources                   *ResourceStore
 		*RequestHandler
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
 		resourceQueue               workqueue.RateLimitingInterface
 		Partition                   string
+		Agent                       *Agent
 		PoolMemberType              string
 		UseNodeInternal             bool
 		initState                   bool

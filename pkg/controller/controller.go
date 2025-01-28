@@ -19,14 +19,13 @@ package controller
 import (
 	"context"
 	"fmt"
+	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/client-go/dynamic"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 	"unicode"
-
-	authv1 "k8s.io/api/authorization/v1"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 
@@ -91,10 +90,6 @@ const (
 	StandAloneCIS = "standalone"
 	SecondaryCIS  = "secondary"
 	PrimaryCIS    = "primary"
-
-	PrimaryBigIP   = "primary"
-	SecondaryBigIP = "secondary"
-
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 
@@ -148,6 +143,7 @@ const (
 func NewController(params Params, startController bool) *Controller {
 
 	ctlr := &Controller{
+		resources:                   NewResourceStore(),
 		RequestHandler:              params.RequestHandler,
 		PoolMemberType:              params.PoolMemberType,
 		UseNodeInternal:             params.UseNodeInternal,
@@ -168,7 +164,6 @@ func NewController(params Params, startController bool) *Controller {
 		manageLoadBalancerClassOnly: params.ManageLoadBalancerClassOnly,
 		clusterRatio:                make(map[string]*int),
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
-		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
 	}
 
 	log.Debug("Controller Created")
@@ -251,8 +246,8 @@ func NewController(params Params, startController bool) *Controller {
 			tunnelName,
 			ctlr.ciliumTunnelName,
 			ctlr.UseNodeInternal,
-			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].ConfigWriter,
-			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan,
+			ctlr.Agent.ConfigWriter,
+			ctlr.Agent.EventChan,
 		)
 		if nil != err {
 			log.Errorf("error creating vxlan manager: %v", err)
@@ -261,8 +256,7 @@ func NewController(params Params, startController bool) *Controller {
 	}
 
 	if startController {
-		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].respChan, ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].LTM)
-		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[SecondaryBigIP].respChan, ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].LTM)
+		go ctlr.responseHandler(ctlr.Agent.respChan)
 
 		go ctlr.Start()
 
@@ -494,12 +488,12 @@ func (ctlr *Controller) Start() {
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	ctlr.StopInformers(ctlr.multiClusterHandler.LocalClusterName)
-	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].Stop()
+	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
 	}
-	if ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan != nil {
-		close(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan)
+	if ctlr.Agent.EventChan != nil {
+		close(ctlr.Agent.EventChan)
 	}
 }
 
@@ -609,8 +603,7 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 				response = "kube-api server is not reachable."
 			}
 			// Check if big-ip server is reachable
-			//_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
-			_, _, _, err2 := ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.GetBigIPAPIVersion()
+			_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
 			if err2 != nil {
 				response = response + "big-ip server is not reachable."
 			}

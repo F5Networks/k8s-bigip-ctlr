@@ -15,26 +15,11 @@ func NewGTMPostManager(params AgentParams) *GTMPostManager {
 	return gtmPostMgr
 }
 
-// write a function which checks if the GTM is on a separate server under the agentworker object
-func (aw *AgentWorker) isGTMOnSeparateServer() bool {
-	if !aw.ccclGTMAgent && len(aw.GTM.PostManager.PostParams.BIGIPURL) != 0 &&
-		len(aw.GTM.PostManager.PostParams.BIGIPUsername) != 0 &&
-		len(aw.GTM.PostManager.PostParams.BIGIPPassword) != 0 {
-		// Check if GTM parameter is different than LTM parameter
-		if aw.LTM.PostManager.PostParams.BIGIPURL != aw.GTM.PostManager.PostParams.BIGIPURL ||
-			aw.LTM.PostManager.PostParams.BIGIPUsername != aw.GTM.PostManager.PostParams.BIGIPUsername ||
-			aw.LTM.PostManager.PostParams.BIGIPPassword != aw.GTM.PostManager.PostParams.BIGIPPassword {
-			return true
-		}
-	}
-	return false
-}
-
 // retryGTMWorker blocks on retryChan
 // whenever it gets unblocked, retries failed declarations and polls for accepted tenant statuses
 func (aw *AgentWorker) gtmWorker() {
 
-	for rsConfigData := range aw.GTM.PostManager.postChan {
+	for rsConfig := range aw.GTM.PostManager.postChan {
 		// For the very first post after starting controller, need not wait to post
 		if !aw.GTM.PostManager.firstPost && aw.GTM.PostManager.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
@@ -47,21 +32,15 @@ func (aw *AgentWorker) gtmWorker() {
 		aw.declUpdate.Lock()
 
 		// Fetch the latest config from channel
-		rsConfig := ResourceConfigRequest{}
 		select {
-		case rsConfigData = <-aw.GTM.PostManager.postChan:
-			rsConfig, err := aw.GTM.APIHandler.getResourceConfigRequest(rsConfigData)
-			if err != nil {
-				log.Errorf("Error getting resource config request: %v", err)
-				continue
-			}
+		case rsConfig = <-aw.GTM.PostManager.postChan:
 			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
 		case <-time.After(1 * time.Microsecond):
 		}
 		adc := as3ADC{}
 		aw.GTM.PostManager.incomingTenantDeclMap = make(map[string]as3Tenant)
 		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(rsConfig.reqId))
-		for tenant, cfg := range aw.Agent.createGTMConfigADC(rsConfig, adc) {
+		for tenant, cfg := range aw.createAS3GTMConfigADC(rsConfig, adc) {
 			if !reflect.DeepEqual(cfg, aw.GTM.PostManager.cachedTenantDeclMap[tenant]) {
 				aw.GTM.PostManager.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 			} else {
@@ -89,7 +68,7 @@ func (aw *AgentWorker) gtmWorker() {
 		}
 
 		cfg := agentConfig{
-			data:      string(aw.GTM.APIHandler.createAPIDeclaration(aw.GTM.PostManager.incomingTenantDeclMap, aw.userAgent)),
+			data:      string(aw.GTM.APIHandler.createAS3Declaration(aw.GTM.PostManager.incomingTenantDeclMap, aw.userAgent)),
 			as3APIURL: aw.GTM.APIHandler.getAPIURL([]string{aw.GTM.Partition}),
 			id:        0,
 		}

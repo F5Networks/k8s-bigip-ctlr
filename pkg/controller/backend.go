@@ -59,12 +59,15 @@ func NewAgentWorker(params AgentParams) *AgentWorker {
 		stopChan: make(chan struct{}),
 	}
 
+	// Set the AS3 version for the LTM Postmanager
 	err := aw.LTM.IsBigIPAppServicesAvailable()
 	if err != nil {
 		log.Errorf("%v", err)
 		aw.Stop()
 		os.Exit(1)
 	}
+	// Set the AS3 version on the GTM Postmanager
+	// how to access the GTMPostManager from the AgentWorker?
 	if aw.GTM.PostManager != nil {
 		err = aw.GTM.IsBigIPAppServicesAvailable()
 		if err != nil {
@@ -74,7 +77,8 @@ func NewAgentWorker(params AgentParams) *AgentWorker {
 		}
 	}
 
-	if isGTMOnSeparateServer(params) && !aw.ccclGTMAgent {
+	// if agent is running in as3 gtm mode and bipip gtm is different from bigip ltm create the gtm agent
+	if isGTMOnSeparateServer(params) {
 		go aw.gtmWorker()
 	}
 
@@ -83,12 +87,12 @@ func NewAgentWorker(params AgentParams) *AgentWorker {
 	return aw
 }
 
-func NewAgentWorkersMap(params AgentParams) map[string]*AgentWorker {
+func NewAgentWorkersMap(params AgentParams) []*AgentWorker {
 	// Create workers based on configured BIG-IPs
-	workers := make(map[string]*AgentWorker)
-	for _, bigIP := range []string{PrimaryBigIP, SecondaryBigIP} {
+	workers := make([]*AgentWorker, 0, 2)
+	for _, bigIP := range []string{params.PrimaryBigIP, params.SecondaryBigIP} {
 		if bigIP != "" {
-			workers[bigIP] = NewAgentWorker(params)
+			workers = append(workers, NewAgentWorker(params))
 		}
 	}
 
@@ -100,85 +104,30 @@ func (aw *AgentWorker) Stop() {
 	close(aw.StopChan)
 }
 
-func (ps *PostToChannelStrategy) Post(agentConfig agentPostConfig) {
+func (aw *AgentWorker) PostLTMConfig(rsConfig ResourceConfigRequest) {
 	// Always push latest activeConfig to channel
 	// Case1: Put latest config into the channel
 	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
 	// Either Case1 or Case2 executes, which ensures the above
 	select {
-	case ps.postChan <- agentConfig:
-	case <-ps.postChan:
-		ps.postChan <- agentConfig
+	case aw.LTM.PostManager.postChan <- rsConfig:
+	case <-aw.LTM.PostManager.postChan:
+		aw.LTM.PostManager.postChan <- rsConfig
 	}
 
-}
-
-func (ps *PostToFileStrategy) Post(config ResourceConfigRequest) {
-
-	dnsConfig := make(map[string]interface{})
-	wideIPs := WideIPs{}
-
-	for _, gtmPartitionConfig := range config.gtmConfig {
-		for _, v := range gtmPartitionConfig.WideIPs {
-			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
-		}
-	}
-	deletedTenants := []string{}
-	activeTenants := []string{}
-	for tenant, partitionConfig := range config.ltmConfig {
-		if len(partitionConfig.ResourceMap) == 0 {
-			deletedTenants = append(deletedTenants, tenant)
-		} else {
-			activeTenants = append(activeTenants, tenant)
-		}
-	}
-	dnsConfig["deletedTenants"] = deletedTenants
-	dnsConfig["activeTenants"] = activeTenants
-	wideIpConfig := make(map[string]interface{})
-	wideIpConfig["Common"] = wideIPs
-	dnsConfig["config"] = wideIpConfig
-	doneCh, errCh, err := ps.ConfigWriter.SendSection("gtm", dnsConfig)
-
-	if nil != err {
-		log.Warningf("Failed to write gtm config section: %v", err)
-	} else {
-		select {
-		case <-doneCh:
-			log.Debugf("Wrote gtm config section: %v", config.gtmConfig)
-		case e := <-errCh:
-			log.Warningf("Failed to write gtm config section: %v", e)
-		case <-time.After(time.Second):
-			log.Warningf("Did not receive write response in 1s")
-		}
-	}
 }
 
 func (aw *AgentWorker) PostGTMConfig(rsConfig ResourceConfigRequest) {
-	as3Config := agentPostConfig{
-		data:      string(aw.createTenantDeclaration(rsConfig)),
-		id:        rsConfig.reqId,
-		as3APIURL: aw.LTM.APIHandler.getAPIURL([]string{}),
+	// Always push latest activeConfig to channel
+	// Case1: Put latest config into the channel
+	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
+	// Either Case1 or Case2 executes, which ensures the above
+	select {
+	case aw.GTM.PostManager.postChan <- rsConfig:
+	case <-aw.GTM.PostManager.postChan:
+		aw.GTM.PostManager.postChan <- rsConfig
 	}
-	aw.PostStrategy.Post(as3Config)
-}
 
-func (aw *AgentWorker) PostLTMConfig(config Configurable) {
-	switch v := config.(type) {
-	case agentPostConfig:
-		fmt.Println("Posting As3Config:", v.data)
-		aw.PostStrategy.Post(v)
-	case ResourceConfigRequest:
-		fmt.Printf("Posting ResourceConfigRequest: %+v\n", v)
-		// Convert ResourceConfigRequest to as3Config
-		as3Config := agentPostConfig{
-			data:      string(aw.createTenantDeclaration(v)),
-			id:        v.reqId,
-			as3APIURL: aw.LTM.APIHandler.getAPIURL([]string{}),
-		}
-		aw.PostStrategy.Post(as3Config)
-	default:
-		fmt.Println("Unknown config type, cannot post to channel")
-	}
 }
 
 func NewAgent(params AgentParams) *Agent {
@@ -320,7 +269,7 @@ func (aw *AgentWorker) agentWorker() {
 		}
 
 		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(rsConfig.reqId))
-		decl := aw.createTenantDeclaration(rsConfig)
+		decl := aw.createTenantAS3Declaration(rsConfig)
 
 		if len(aw.LTM.incomingTenantDeclMap) == 0 {
 			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(rsConfig.reqId))
@@ -568,11 +517,11 @@ func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 }
 
 // Creates AS3 adc only for tenants with updated configuration
-func (agent *Agent) createTenantDeclaration(config ResourceConfigRequest) as3Declaration {
+func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
 	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
 	agent.LTM.incomingTenantDeclMap = make(map[string]as3Tenant)
 	agent.LTM.tenantPriorityMap = make(map[string]int)
-	for tenant, cfg := range agent.createLTMAndGTMConfigADC(config) {
+	for tenant, cfg := range agent.createAS3LTMAndGTMConfigADC(config) {
 		if !reflect.DeepEqual(cfg, agent.LTM.cachedTenantDeclMap[tenant]) ||
 			(agent.LTM.PrimaryClusterHealthProbeParams.EndPoint != "" && agent.LTM.PrimaryClusterHealthProbeParams.statusChanged) {
 			agent.LTM.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
@@ -598,18 +547,18 @@ func (agent *Agent) createTenantDeclaration(config ResourceConfigRequest) as3Dec
 	//	}
 	//}
 
-	return agent.LTM.APIHandler.createAPIDeclaration(agent.LTM.incomingTenantDeclMap, agent.userAgent)
+	return agent.LTM.APIHandler.createAS3Declaration(agent.LTM.incomingTenantDeclMap, agent.userAgent)
 }
 
-func (agent *Agent) createLTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
-	adc := agent.createLTMConfigADC(config)
+func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
+	adc := agent.createAS3LTMConfigADC(config)
 	if !agent.ccclGTMAgent && agent.GTM.PostManager == nil {
-		adc = agent.createGTMConfigADC(config, adc)
+		adc = agent.createAS3GTMConfigADC(config, adc)
 	}
 	return adc
 }
 
-func (agent *Agent) createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
+func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
 	if len(config.gtmConfig) == 0 {
 		sharedApp := as3Application{}
 		sharedApp["class"] = "Application"
@@ -707,7 +656,7 @@ func (agent *Agent) createGTMConfigADC(config ResourceConfigRequest, adc as3ADC)
 	return adc
 }
 
-func (agent *Agent) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
+func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	cisLabel := agent.Partition
 

@@ -925,6 +925,9 @@ func initController(
 		StaticRoutingMode:  *staticRoutingMode,
 		SharedStaticRoutes: *sharedStaticRoutes,
 		MultiClusterMode:   *multiClusterMode,
+		PrimaryBigIP:       "",
+		SecondaryBigIP:     "",
+		HAMode:             false,
 	}
 
 	agentParams.DisableARP = true
@@ -933,8 +936,6 @@ func initController(
 		agentParams.DisableARP = false
 	}
 
-	agent := controller.NewAgent(agentParams)
-
 	var globalSpecConfigMap *string
 	if *extendedSpecConfigmap != "" {
 		globalSpecConfigMap = extendedSpecConfigmap
@@ -942,13 +943,15 @@ func initController(
 		globalSpecConfigMap = routeSpecConfigmap
 	}
 
+	requestHandler := controller.NewRequestHandler(agentParams)
+
 	ctlr := controller.NewController(
 		controller.Params{
 			Config:                      config,
 			Namespaces:                  *namespaces,
+			RequestHandler:              requestHandler,
 			NamespaceLabel:              *namespaceLabel,
 			Partition:                   (*bigIPPartitions)[0],
-			Agent:                       agent,
 			PoolMemberType:              *poolMemberType,
 			VXLANName:                   vxlanName,
 			VXLANMode:                   vxlanMode,
@@ -974,6 +977,8 @@ func initController(
 		},
 		true,
 	)
+	ctlr.APIHandler = controller.NewAS3Handler(agentParams)
+
 	return ctlr
 }
 

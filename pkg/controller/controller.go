@@ -145,7 +145,7 @@ func NewController(params Params, startController bool) *Controller {
 
 	ctlr := &Controller{
 		resources:                   NewResourceStore(),
-		Agent:                       params.Agent,
+		RequestHandler:              params.RequestHandler,
 		PoolMemberType:              params.PoolMemberType,
 		UseNodeInternal:             params.UseNodeInternal,
 		Partition:                   params.Partition,

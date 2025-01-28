@@ -18,12 +18,11 @@ package controller
 
 import (
 	"container/list"
-	"net/http"
-	"sync"
-
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
+	"net/http"
+	"sync"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
@@ -57,12 +56,12 @@ type (
 	Controller struct {
 		mode                        ControllerMode
 		resources                   *ResourceStore
+		RequestHandler              *RequestHandler
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
 		resourceQueue               workqueue.RateLimitingInterface
 		Partition                   string
-		Agent                       *Agent
 		PoolMemberType              string
 		UseNodeInternal             bool
 		initState                   bool
@@ -90,6 +89,7 @@ type (
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
+		APIHandler                  APIHandlerInterface
 		resourceContext
 	}
 	resourceContext struct {
@@ -837,8 +837,33 @@ type (
 		*PostManager
 		Partition string
 	}
+
+	RequestHandler struct {
+		AgentWorkers []*AgentWorker
+		reqChan      chan ResourceConfigRequest
+		userAgent    string
+		respChan     chan resourceStatusMeta
+		//CMTokenManager                  *tokenmanager.TokenManager
+		ccclGTMAgent bool
+		disableARP   bool
+		HAMode       bool
+	}
+
+	AgentWorker struct {
+		*Agent
+		Type              string
+		httpClientMetrics bool
+		stopChan          chan struct{}
+		BigIpAddress      string
+		PythonDriverPID   int
+		postChan          chan ResourceConfigRequest
+		StopChan          chan interface{}
+	}
+
 	Agent struct {
+		*APIHandler
 		*PostManager
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		Partition       string
 		ConfigWriter    writer.Writer
 		EventChan       chan interface{}
@@ -854,6 +879,26 @@ type (
 		GTMPostManager  *GTMPostManager
 	}
 
+	BaseAPIHandler struct {
+		apiType    string
+		APIHandler APIHandlerInterface
+		Partition  string
+		*PostManager
+	}
+
+	GTMAPIHandler struct {
+		*BaseAPIHandler
+		Partition string
+	}
+
+	LTMAPIHandler struct {
+		*BaseAPIHandler
+	}
+
+	APIHandler struct {
+		GTM *GTMAPIHandler
+		LTM *LTMAPIHandler
+	}
 	AgentParams struct {
 		PostParams                      PostParams
 		GTMParams                       PostParams
@@ -872,6 +917,34 @@ type (
 		StaticRoutingMode  bool
 		SharedStaticRoutes bool
 		MultiClusterMode   string
+		ApiType            string
+		PrimaryBigIP       string
+		SecondaryBigIP     string
+		HAMode             bool
+	}
+
+
+	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
+	// other API types like GTM. The current hierarchy allows:
+	// 1. Common HTTP posting capabilities via PostManager
+	// 2. API-specific handling via apiHandler interface
+	// 3. Specialized GTM posting via GTMPostManager
+	// This separation of concerns is appropriate for the controller architecture.
+
+	AS3Handler struct {
+		AS3Config         map[string]interface{}
+		AS3VersionInfo    as3VersionInfo
+		bigIPAS3Version   float64
+		postManagerPrefix string
+		*PostParams
+		*AS3Parser
+	}
+
+	AS3Parser struct {
+		// AS3Parser implements AS3ParserInterface
+		AS3ParserInterface
+		AS3VersionInfo  as3VersionInfo
+		bigIPAS3Version float64
 	}
 
 	PostManager struct {
@@ -891,6 +964,7 @@ type (
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
 		postChan           chan ResourceConfigRequest
+		httpClientMetrics  bool
 		retryChan          chan struct{}
 	}
 
@@ -912,8 +986,8 @@ type (
 		SSLInsecure   bool
 		AS3PostDelay  int
 		// Log the AS3 response body in Controller logs
-		LogAS3Response    bool
-		LogAS3Request     bool
+		LogResponse       bool
+		LogRequest        bool
 		HTTPClientMetrics bool
 	}
 
@@ -969,7 +1043,7 @@ type (
 	// AS3 version struct
 
 	as3VersionInfo struct {
-		as3Version       string
+		as3Version       float64
 		as3SchemaVersion string
 		as3Release       string
 	}

@@ -19,14 +19,14 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/securecreds"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func initializeDriverConfig(
@@ -36,14 +36,6 @@ func initializeDriverConfig(
 ) error {
 	if nil == configWriter {
 		return fmt.Errorf("config writer argument cannot be nil")
-	}
-
-	// Clear sensitive information from the sections
-	for _, section := range []interface{}{&bigIP} {
-		if s, ok := section.(map[string]interface{}); ok {
-			delete(s, "username")
-			delete(s, "password")
-		}
 	}
 
 	sectionNames := []string{"global", "bigip"}
@@ -154,13 +146,9 @@ func startPythonDriver(
 	configWriter writer.Writer,
 	global globalSection,
 	bigIP bigIPSection,
-	gtm gtmBigIPSection,
 	pythonBaseDir string,
 ) (<-chan int, error) {
 	var pyCmd string
-
-	// Start a goroutine to handle credential requests from the Python driver
-	go securecreds.HandleCredentialsRequest(bigIP.BigIPUsername, bigIP.BigIPPassword, gtm.GtmBigIPUsername, gtm.GtmBigIPPassword)
 
 	err := initializeDriverConfig(configWriter, global, bigIP)
 	if nil != err {
@@ -178,7 +166,6 @@ func startPythonDriver(
 		configWriter.GetOutputFilename(),
 		pyCmd,
 	)
-
 	go runBigIPDriver(subPidCh, cmd)
 
 	return subPidCh, nil

@@ -83,12 +83,6 @@ type bigIPSection struct {
 	BigIPPartitions []string `json:"partitions,omitempty"`
 }
 
-type gtmBigIPSection struct {
-	GtmBigIPUsername string `json:"username,omitempty"`
-	GtmBigIPPassword string `json:"password,omitempty"`
-	GtmBigIPURL      string `json:"url,omitempty"`
-}
-
 // OCP4 Version for TEEM
 type (
 	Ocp4Version struct {
@@ -581,8 +575,9 @@ func verifyArgs() error {
 		}
 	}
 
-	if len(*bigIPURL) == 0 && len(*credsDir) == 0 {
-		return fmt.Errorf("Missing BIG-IP URL")
+	if (len(*bigIPURL) == 0 || len(*bigIPUsername) == 0 ||
+		len(*bigIPPassword) == 0) && len(*credsDir) == 0 {
+		return fmt.Errorf("Missing BIG-IP credentials info")
 	}
 
 	if len(*namespaces) != 0 && len(*namespaceLabel) != 0 {
@@ -707,17 +702,7 @@ func verifyArgs() error {
 }
 
 func getCredentials() error {
-	if os.Getenv("BIGIP_USERNAME") != "" {
-		*bigIPUsername = os.Getenv("BIGIP_USERNAME")
-	}
-	if os.Getenv("BIGIP_PASSWORD") != "" {
-		*bigIPPassword = os.Getenv("BIGIP_PASSWORD")
-	}
-
-	// If credentials are still not set via ENV's, check the credsDir
-	if (*bigIPUsername == "" || *bigIPPassword == "") && len(*credsDir) > 0 {
-		log.Warning("BIG-IP credentials are not set. Checking back to Creds Directory.")
-
+	if len(*credsDir) > 0 {
 		var usr, pass, bigipURL string
 		var err error
 		if strings.HasSuffix(*credsDir, "/") {
@@ -757,14 +742,6 @@ func getCredentials() error {
 			return err
 		}
 	}
-
-	// If credentials are not set via environment variables,
-	// check the credentials directory for username and password files.
-	// If credentials are still not found, return an error.
-	if *bigIPUsername == "" || *bigIPPassword == "" || *bigIPURL == "" {
-		return fmt.Errorf("BIG-IP username, password and URL must be provided")
-	}
-
 	// Verify URL is valid
 	if !strings.HasPrefix(*bigIPURL, "https://") {
 		*bigIPURL = "https://" + *bigIPURL
@@ -781,14 +758,7 @@ func getCredentials() error {
 }
 
 func getGTMCredentials() {
-	if os.Getenv("GTM_BIGIP_USERNAME") != "" {
-		*gtmBigIPUsername = os.Getenv("GTM_BIGIP_USERNAME")
-	}
-	if os.Getenv("GTM_BIGIP_PASSWORD") != "" {
-		*gtmBigIPPassword = os.Getenv("GTM_BIGIP_PASSWORD")
-	}
-	if (*gtmBigIPUsername == "" || *gtmBigIPPassword == "") && len(*gtmCredsDir) > 0 {
-		log.Warning("GTM BIG-IP credentials are not set. Checking back to Creds Directory.")
+	if len(*gtmCredsDir) > 0 {
 		var usr, pass, gtmBigipURL string
 		if strings.HasSuffix(*gtmCredsDir, "/") {
 			usr = *gtmCredsDir + "username"
@@ -948,6 +918,7 @@ func initController(
 		VerifyInterval:     *verifyInterval,
 		VXLANName:          vxlanName,
 		PythonBaseDir:      *pythonBaseDir,
+		UserAgent:          userAgentInfo,
 		HttpAddress:        *httpAddress,
 		EnableIPV6:         *enableIPV6,
 		CCCLGTMAgent:       *ccclGtmAgent,
@@ -1177,24 +1148,8 @@ func main() {
 			BigIPURL:        *bigIPURL,
 			BigIPPartitions: *bigIPPartitions,
 		}
-		var gtm gtmBigIPSection
-		if len(*gtmBigIPURL) == 0 || len(*gtmBigIPUsername) == 0 || len(*gtmBigIPPassword) == 0 {
-			// gs.GTM = false
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: *bigIPUsername,
-				GtmBigIPPassword: *bigIPPassword,
-				GtmBigIPURL:      *bigIPURL,
-			}
-			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-		} else {
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: *gtmBigIPUsername,
-				GtmBigIPPassword: *gtmBigIPPassword,
-				GtmBigIPURL:      *gtmBigIPURL,
-			}
-		}
 
-		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, gtm, *pythonBaseDir)
+		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *pythonBaseDir)
 		if nil != err {
 			log.Fatalf("Could not initialize subprocess configuration: %v", err)
 		}

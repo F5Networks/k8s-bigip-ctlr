@@ -130,8 +130,8 @@ func (agent *Agent) retryGTMWorker() {
 
 		for len(agent.GTMPostManager.retryTenantDeclMap) != 0 {
 			// Ignoring timeouts for custom errors
-			log.Debugf("[AS3][GTM] Posting failed tenants configuration in %v seconds", timeoutMedium)
-			<-time.After(timeoutMedium)
+			log.Debugf("[AS3][GTM] Posting failed tenants configuration in %v seconds", timeoutSmall)
+			<-time.After(timeoutSmall)
 
 			agent.declUpdate.Lock()
 

@@ -4,14 +4,14 @@ import (
 	"container/list"
 	"errors"
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
-	"sync"
-
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
-
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
 )
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
@@ -23,7 +23,6 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	} else {
 		rm.id = ctlr.requestQueue.Back().Value.(requestMeta).id + 1
 	}
-
 	for partition, partitionConfig := range config.ltmConfig {
 		rm.partitionMap[partition] = make(map[string]string)
 		for _, cfg := range partitionConfig.ResourceMap {
@@ -237,5 +236,45 @@ func (ctlr *Controller) removeUnusedIPAMEntries(kind string) {
 		}
 		// Delete cacheIPAMHostSpecs
 		ctlr.cacheIPAMHostSpecs = CacheIPAM{}
+	}
+}
+
+// handleConfigFailures handles any failure that occurred in posting of configuration to BigIP
+//  1. It ensures that the failed config is re-queued only if it's the latest config
+//  2. It decides the waiting time for the requeue of failed config based on the response code from BigIP
+//  3. It is flexible to handle any type of config, currently AS3 config failure handling is supported, but it can be
+//     extended to any other configurations in the future
+func (ctlr *Controller) handleConfigFailures(agentConfig AgentConfig) {
+	latestRequestMeta, _ := ctlr.requestMap.requestMap[agentConfig.getBigIPConfig()]
+	switch agentConfig.getConfigType() {
+	case AS3:
+		// If there are failed tenants and no new config request is generated then handle the failure
+		if len(agentConfig.getFailedTenants()) > 0 && latestRequestMeta.id == agentConfig.getRequestMeta().id {
+			// if the current request id is same as the failed tenant request id, then retry the failed tenants
+
+			// This logic needs to be updated according to the AgentWorker and Postmanager implementation
+			aw := ctlr.RequestHandler.AgentWorker[agentConfig.getBigIPConfig()]
+			aw.RLock()
+			// Get the config
+			config := agentConfig.getConfig()
+			as3Config := config.(as3Config)
+			// Delay the retry of failed tenants based on the response code received from BigIP
+			// If BigIP is not available then wait for 1 min, otherwise wait for 30 seconds
+			timeout := timeoutSmall
+			for tenant, _ := range agentConfig.getFailedTenants() {
+				if res, ok := as3Config.tenantResponseMap[tenant]; ok && res.agentResponseCode == http.StatusServiceUnavailable {
+					timeout = timeoutMedium
+				}
+			}
+			<-time.After(timeout)
+			// Again check after timeout if this is still the latest config or new config is available
+			latestRequestMeta, _ := ctlr.requestMap.requestMap[agentConfig.getBigIPConfig()]
+			if latestRequestMeta.id == agentConfig.getRequestMeta().id {
+				aw.PostChan <- agentConfig
+			}
+			aw.RUnlock()
+		}
+	default:
+		log.Warningf("Config posting Failure handling is not implemented for %s", agentConfig.getConfigType())
 	}
 }

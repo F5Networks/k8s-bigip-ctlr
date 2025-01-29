@@ -425,8 +425,8 @@ func (agent *Agent) retryWorker() {
 
 		for len(agent.retryTenantDeclMap) != 0 {
 			// Ignoring timeouts for custom errors
-			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
-			<-time.After(timeoutMedium)
+			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutSmall)
+			<-time.After(timeoutSmall)
 			if agent.HAMode {
 				// if endPoint is not empty -> cis is running in secondary mode
 				// check if the primary cis is up and running
@@ -2007,4 +2007,113 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 
 func (agent *Agent) isGTMTenant(partition string) bool {
 	return partition == DEFAULT_GTM_PARTITION
+}
+
+// Getter and Setter methods for AS3AgentConfig
+func (as3AgentConfig *AS3AgentConfig) getConfigType() ConfigType {
+	//TODO implement me
+	return AS3
+}
+
+func (as3AgentConfig *AS3AgentConfig) getConfig() interface{} {
+	//TODO implement me
+	return as3AgentConfig.as3Config
+}
+
+func (as3AgentConfig *AS3AgentConfig) getRequestMeta() requestMeta {
+	//TODO implement me
+	return as3AgentConfig.reqMeta
+}
+
+func (as3AgentConfig *AS3AgentConfig) getAPIURL() string {
+	//TODO implement me
+	return as3AgentConfig.as3Config.as3APIURL
+}
+
+func (as3AgentConfig *AS3AgentConfig) getTargetAddress() string {
+	//TODO implement me
+	return as3AgentConfig.as3Config.targetAddress
+}
+
+func (as3AgentConfig *AS3AgentConfig) getTenantResponseMap() map[string]tenantResponse {
+	//TODO implement me
+	return as3AgentConfig.as3Config.tenantResponseMap
+}
+
+func (as3AgentConfig *AS3AgentConfig) getAcceptedTaskId() string {
+	//TODO implement me
+	return as3AgentConfig.as3Config.acceptedTaskId
+}
+
+func (as3AgentConfig *AS3AgentConfig) getFailedTenants() map[string]struct{} {
+	//TODO implement me
+	return as3AgentConfig.as3Config.failedTenants
+}
+
+func (as3AgentConfig *AS3AgentConfig) getIncomingTenantConfigMap() interface{} {
+	//TODO implement me
+	return as3AgentConfig.as3Config.incomingTenantDeclMap
+}
+
+func (as3AgentConfig *AS3AgentConfig) getIsDeleted() bool {
+	//TODO implement me
+	return as3AgentConfig.as3Config.deleted
+}
+
+func (as3AgentConfig *AS3AgentConfig) getBigIPConfig() BigIpConfig {
+	//TODO implement me
+	return as3AgentConfig.BigIpConfig
+}
+
+func (as3AgentConfig *AS3AgentConfig) getL3Config() l3Config {
+	//TODO implement me
+	return as3AgentConfig.l3Config
+}
+
+func (as3AgentConfig *AS3AgentConfig) setConfigType(ConfigType) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setConfig(interface{}) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setRequestMeta(i int) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setAPIURL(s string) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setTargetAddress(s string) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setTenantResponseMap(m map[string]tenantResponse) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setAcceptedTaskId(s string) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setFailedTenants(m map[string]struct{}) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setIncomingTenantConfigMap(m interface{}) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setIsDeleted(b bool) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setBigIPConfig(config BigIpConfig) {
+	//TODO implement me
+}
+
+func (as3AgentConfig *AS3AgentConfig) setL3Config(config l3Config) {
+	//TODO implement me
 }

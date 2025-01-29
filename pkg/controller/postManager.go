@@ -34,7 +34,8 @@ import (
 )
 
 const (
-	timeoutMedium = 30 * time.Second
+	timeoutSmall  = 30 * time.Second
+	timeoutMedium = 60 * time.Second
 	timeoutLarge  = 180 * time.Second
 )
 
@@ -340,7 +341,7 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 	// traverse all response results
 	if respId, ok := (responseMap["id"]).(string); ok {
 		postMgr.updateTenantResponseCode(http.StatusAccepted, respId, "", false, "")
-		log.Debugf("[AS3]%v Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, respId, timeoutMedium)
+		log.Debugf("[AS3]%v Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", postMgr.postManagerPrefix, respId, timeoutSmall)
 	} else {
 		postMgr.logAS3Response(responseMap)
 	}
@@ -354,7 +355,7 @@ func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap m
 	} else {
 		postMgr.logAS3Response(responseMap)
 	}
-	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", postMgr.postManagerPrefix, timeoutMedium)
+	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", postMgr.postManagerPrefix, timeoutSmall)
 	postMgr.updateTenantResponseCode(http.StatusServiceUnavailable, "", "", false, message)
 }
 
@@ -810,7 +811,7 @@ func (postMgr *PostManager) pollTenantStatus(agentWorkerUpdate bool) {
 		// Keep retrying until accepted tenant statuses are updated
 		// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
 		for taskId := range acceptedTenantIds {
-			<-time.After(timeoutMedium)
+			<-time.After(timeoutSmall)
 			postMgr.getTenantConfigStatus(taskId)
 		}
 		for _, tenant := range acceptedTenants {

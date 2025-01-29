@@ -59,6 +59,8 @@ type (
 		resourceQueue               workqueue.RateLimitingInterface
 		Partition                   string
 		Agent                       *Agent
+		requestMap                  *requestMap
+		RequestHandler              *RequestHandler
 		PoolMemberType              string
 		UseNodeInternal             bool
 		initState                   bool
@@ -92,6 +94,32 @@ type (
 		globalExtendedCMKey string
 		namespaceLabelMode  bool
 		processedHostPath   *ProcessedHostPath
+	}
+
+	// TODO: Needs to be updated with request handler implementation
+	RequestHandler struct {
+		AgentWorker                     map[BigIpConfig]*AgentWorker
+		reqChan                         chan ResourceConfigRequest
+		userAgent                       string
+		PostParams                      PostParams
+		respChan                        chan *agentConfig
+		HAMode                          bool
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		httpClientMetrics               bool
+	}
+	AgentWorker struct {
+		PostManager PostManager
+		PostChan    chan AgentConfig
+		sync.RWMutex
+	}
+	requestMap struct {
+		sync.RWMutex
+		requestMap map[BigIpConfig]requestMeta
+	}
+	BigIpConfig struct {
+		BigIpAddress     string `json:"bigIpAddress,omitempty"`
+		BigIpLabel       string `json:"bigIpLabel,omitempty"`
+		DefaultPartition string `json:"defaultPartition,omitempty"`
 	}
 
 	InformerStore struct {
@@ -1520,4 +1548,63 @@ type (
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
 	}
+)
+
+type (
+	ConfigType string
+
+	AgentConfig interface {
+		getConfigType() ConfigType // AS3, CCCL, etc
+		getConfig() interface{}
+		getRequestMeta() requestMeta
+		getAPIURL() string
+		getTargetAddress() string
+		getTenantResponseMap() map[string]tenantResponse
+		getAcceptedTaskId() string
+		getFailedTenants() map[string]struct{}
+		getIncomingTenantConfigMap() interface{} // For AS3 map[string]as3Tenant
+		getIsDeleted() bool
+		getBigIPConfig() BigIpConfig
+		getL3Config() l3Config
+		setConfigType(ConfigType)
+		setConfig(interface{})
+		setRequestMeta(int)
+		setAPIURL(string)
+		setTargetAddress(string)
+		setTenantResponseMap(map[string]tenantResponse)
+		setAcceptedTaskId(string)
+		setFailedTenants(map[string]struct{})
+		setIncomingTenantConfigMap(interface{}) // For AS3 map[string]as3Tenant
+		setIsDeleted(bool)
+		setBigIPConfig(BigIpConfig)
+		setL3Config(l3Config)
+	}
+
+	AS3AgentConfig struct {
+		as3Config   as3Config
+		l3Config    l3Config
+		BigIpConfig BigIpConfig
+		reqMeta     requestMeta
+	}
+
+	l3Config struct {
+		deployL3Status bool
+	}
+
+	//as3Config to put into post channel
+	as3Config struct {
+		data                  string
+		targetAddress         string
+		as3APIURL             string
+		id                    int
+		tenantResponseMap     map[string]tenantResponse
+		acceptedTaskId        string
+		failedTenants         map[string]struct{}
+		incomingTenantDeclMap map[string]as3Tenant
+		deleted               bool
+	}
+)
+
+const (
+	AS3 ConfigType = "AS3"
 )

@@ -2580,12 +2580,7 @@ externalClustersConfig:
 			//Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
 			expectedHealthMonitors = map[string]struct{}{
-				"svc1_default_test_com_foo_":         struct{}{},
-				"svc1_default_test_com_foo_cluster2": struct{}{},
-				"svc1_b_test2_test_com_foo_":         struct{}{},
-				"svc1_b_test2_test_com_foo_cluster2": struct{}{},
-				"svc1_default_test_com_foo_cluster3": struct{}{},
-				"test_default_test_com_foo_cluster3": struct{}{},
+				"svc1_default_test_com_foo": struct{}{},
 			}
 			for _, hm := range rsCfg.Monitors {
 				_, ok := expectedHealthMonitors[hm.Name]
@@ -2786,13 +2781,11 @@ externalClustersConfig:
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
-			Expect(len(rsCfg.Monitors)).To(Equal(4))
+			Expect(len(rsCfg.Monitors)).To(Equal(2))
 			Expect(len(rsCfg.Pools)).To(Equal(2))
 			Expect(len(rsCfg.IRulesMap)).To(Equal(1))
-			Expect(rsCfg.Monitors[0].Name).To(Equal("svc_default_tcp_80_cluster3"))
-			Expect(rsCfg.Monitors[1].Name).To(Equal("svc_default_tcp_8080_cluster3"))
-			Expect(rsCfg.Monitors[2].Name).To(Equal("svc_1_default_tcp_80_cluster3"))
-			Expect(rsCfg.Monitors[3].Name).To(Equal("svc_1_default_tcp_8080_cluster3"))
+			Expect(rsCfg.Monitors[0].Name).To(Equal("svc_default_tcp_80"))
+			Expect(rsCfg.Monitors[1].Name).To(Equal("svc_default_tcp_8080"))
 			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))

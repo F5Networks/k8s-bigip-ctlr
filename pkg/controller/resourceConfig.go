@@ -540,6 +540,29 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
+		// create monitor for the pool
+		var monitorNames []MonitorName
+		if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
+			monitorName := ctlr.createVirtualServerMonitor(pl.Monitor, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
+				vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl)
+			if monitorName != (MonitorName{}) {
+				monitorNames = append(monitorNames, monitorName)
+			}
+		} else if pl.Monitors != nil {
+			var formatPort intstr.IntOrString
+			for _, monitor := range pl.Monitors {
+				if monitor.TargetPort != 0 {
+					formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+				} else {
+					formatPort = pl.ServicePort
+				}
+				monitorName := ctlr.createVirtualServerMonitor(monitor, rsCfg, formatPort, vs.Spec.Host, pl.Path,
+					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl)
+				if monitorName != (MonitorName{}) {
+					monitorNames = append(monitorNames, monitorName)
+				}
+			}
+		}
 		// Fetch service backends with weights for pool
 		backendSvcs := ctlr.GetPoolBackendsForVS(&pl, vs.Namespace)
 		for _, SvcBackend := range backendSvcs {
@@ -571,6 +594,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				Cluster:                  SvcBackend.Cluster, // In all modes other than ratio, the cluster is ""
 				BigIPRouteDomain:         rsCfg.Virtual.BigIPRouteDomain,
 				ImplicitSvcSearchEnabled: true,
+				MonitorNames:             monitorNames,
 			}
 
 			if ctlr.multiClusterMode != "" {
@@ -627,21 +651,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				rsCfg.MetaData.Active = true
 			}
 
-			if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
-				ctlr.createVirtualServerMonitor(pl.Monitor, &pool, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
-					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, SvcBackend)
-			} else if pl.Monitors != nil {
-				var formatPort intstr.IntOrString
-				for _, monitor := range pl.Monitors {
-					if monitor.TargetPort != 0 {
-						formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
-					} else {
-						formatPort = pl.ServicePort
-					}
-					ctlr.createVirtualServerMonitor(monitor, &pool, rsCfg, formatPort, vs.Spec.Host, pl.Path,
-						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, SvcBackend)
-				}
-			}
 			pools = append(pools, pool)
 			if tlsTermination != "" {
 				// Handle AB datagroup for secure virtualserver
@@ -811,32 +820,34 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	return nil
 }
 
-func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, host, path, vsName string, svcCtx SvcBackendCxt) {
+func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, rsCfg *ResourceConfig,
+	formatPort intstr.IntOrString, host, path, vsName string, pl cisapiv1.VSPool) MonitorName {
+	var monitorRefName MonitorName
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+				monitorRefName = MonitorName{Name: monitor.Name, Reference: monitor.Reference}
 			} else {
 				log.Errorf("missing monitor name with bigip reference in virtual server: %v", vsName)
-				return
+				return monitorRefName
 			}
 		} else {
 			if (monitor.Type == HTTPS || monitor.Type == HTTP) && monitor.Send == "" {
 				log.Errorf("missing send string for monitor. skipping monitor for virtual server: %v", vsName)
-				return
+				return monitorRefName
 			}
-
+			poolSvc := pl.Service
+			poolSvcNamespace := pl.ServiceNamespace
+			if ctlr.discoveryMode == DefaultMode && pl.MultiClusterServices != nil && len(pl.MultiClusterServices) > 0 {
+				poolSvc = pl.MultiClusterServices[0].SvcName
+				poolSvcNamespace = pl.MultiClusterServices[0].Namespace
+			}
 			monitorName := monitor.Name
 			if monitorName == "" {
-				monitorName = formatMonitorName(pool.ServiceNamespace, svcCtx.Name, monitor.Type, formatPort, host,
+				monitorName = formatMonitorName(poolSvcNamespace, poolSvc, monitor.Type, formatPort, host,
 					path)
 			}
-
-			// Format the monitor name in case of multi cluster ratio mode
-			monitorName = ctlr.formatMonitorNameForMultiCluster(monitorName, svcCtx.Cluster)
-
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+			monitorRefName = MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
 			monitor := Monitor{
 				Name:       monitorName,
 				Partition:  rsCfg.Virtual.Partition,
@@ -851,27 +862,29 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, poo
 			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 		}
 	}
+	return monitorRefName
 }
 
-func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, pool *Pool, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, vsNamespace, vsName string, svcCtx SvcBackendCxt) {
+func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, rsCfg *ResourceConfig,
+	formatPort intstr.IntOrString, vsNamespace, vsName string, pl cisapiv1.TSPool) MonitorName {
+	var monitorRefName MonitorName
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
 			if monitor.Name != "" {
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+				monitorRefName = MonitorName{Name: monitor.Name, Reference: monitor.Reference}
 			} else {
 				log.Errorf("missing monitor name with bigip reference in transport server: %v", vsNamespace+"/"+vsName)
-				return
 			}
 		} else {
 			monitorName := monitor.Name
-			if monitorName == "" {
-				monitorName = formatMonitorName(vsNamespace, svcCtx.Name, monitor.Type, formatPort, "", "")
+			poolSVC := pl.Service
+			if ctlr.discoveryMode == DefaultMode && pl.MultiClusterServices != nil && len(pl.MultiClusterServices) > 0 {
+				poolSVC = pl.MultiClusterServices[0].SvcName
 			}
-			// Format the monitor name in case of multi cluster ratio mode
-			monitorName = ctlr.formatMonitorNameForMultiCluster(monitorName, svcCtx.Cluster)
-
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+			if monitorName == "" {
+				monitorName = formatMonitorName(vsNamespace, poolSVC, monitor.Type, formatPort, "", "")
+			}
+			monitorRefName = MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
 			monitor := Monitor{
 				Name:       monitorName,
 				Partition:  rsCfg.Virtual.Partition,
@@ -885,6 +898,7 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, p
 			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 		}
 	}
+	return monitorRefName
 }
 
 // Handle the default pool for virtual server
@@ -2296,6 +2310,34 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		namespace: vs.Namespace,
 		kind:      TransportServer,
 	}
+	formatPort := intstr.IntOrString{}
+	var monitorNames []MonitorName
+	if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
+		if pl.Monitor.TargetPort != 0 {
+			formatPort = intstr.IntOrString{IntVal: pl.Monitor.TargetPort}
+		} else {
+			formatPort = pl.ServicePort
+		}
+		monitorName := ctlr.createTransportServerMonitor(pl.Monitor, rsCfg, formatPort,
+			vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, pl)
+		if monitorName != (MonitorName{}) {
+			monitorNames = append(monitorNames, monitorName)
+		}
+	} else if pl.Monitors != nil {
+		var formatPort intstr.IntOrString
+		for _, monitor := range pl.Monitors {
+			if monitor.TargetPort != 0 {
+				formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+			} else {
+				formatPort = pl.ServicePort
+			}
+			monitorName := ctlr.createTransportServerMonitor(monitor, rsCfg, formatPort,
+				vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, pl)
+			if monitorName != (MonitorName{}) {
+				monitorNames = append(monitorNames, monitorName)
+			}
+		}
+	}
 	framedPools := make(map[string]struct{})
 	backendSvcs := ctlr.GetPoolBackendsForTS(&pl, vs.Namespace)
 	for _, SvcBackend := range backendSvcs {
@@ -2328,6 +2370,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 			// this is a temporary config. Should be removed later after implicit service search for virtual server
 			ImplicitSvcSearchEnabled: true,
+			MonitorNames:             monitorNames,
 		}
 
 		//svcKey := MultiClusterServiceKey{
@@ -2391,28 +2434,6 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {
 			rsCfg.MetaData.Active = true
-		}
-
-		formatPort := intstr.IntOrString{}
-		if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
-			if pl.Monitor.TargetPort != 0 {
-				formatPort = intstr.IntOrString{IntVal: pl.Monitor.TargetPort}
-			} else {
-				formatPort = pl.ServicePort
-			}
-			ctlr.createTransportServerMonitor(pl.Monitor, &pool, rsCfg, formatPort,
-				vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, SvcBackend)
-		} else if pl.Monitors != nil {
-			var formatPort intstr.IntOrString
-			for _, monitor := range pl.Monitors {
-				if monitor.TargetPort != 0 {
-					formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
-				} else {
-					formatPort = pl.ServicePort
-				}
-				ctlr.createTransportServerMonitor(monitor, &pool, rsCfg, formatPort,
-					vs.ObjectMeta.Namespace, vs.ObjectMeta.Name, SvcBackend)
-			}
 		}
 		pools = append(pools, pool)
 		if !isTSABDeployment(&pl) && ctlr.discoveryMode != Ratio {

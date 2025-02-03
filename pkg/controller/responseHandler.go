@@ -81,7 +81,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateVSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateVSStatus(virtual, ctlr.vsAddressesMap[rscKey], StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
 								// set status of all the LB services associated with this VS
@@ -113,7 +113,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateTSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateTSStatus(virtual, ctlr.tsAddressesMap[rscKey], StatusOk, nil)
 							// set status of all the LB services associated with this TS
 							go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 						}
@@ -142,7 +142,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateILStatus(il, il.Status.VSAddress, StatusOk, nil)
+							ctlr.updateILStatus(il, ctlr.ilAddressesMap[rscKey], StatusOk, nil)
 						}
 					}
 

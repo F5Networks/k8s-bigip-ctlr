@@ -375,6 +375,7 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
+			delete(ctlr.vsAddressesMap, rscRefKey.namespace+"/"+rscRefKey.name)
 		}
 
 		err := ctlr.processVirtualServers(virtual, rscDelete)
@@ -474,6 +475,7 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
+			delete(ctlr.tsAddressesMap, rscRefKey.namespace+"/"+rscRefKey.name)
 		}
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
@@ -499,6 +501,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 			// clean the CIS cache
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
+			delete(ctlr.ilAddressesMap, rsRef.namespace+"/"+rsRef.name)
 		}
 		err := ctlr.processIngressLink(ingLink, rscDelete)
 		if err != nil {
@@ -1523,6 +1526,7 @@ func (ctlr *Controller) processVirtualServers(
 		for _, vrt := range virtuals {
 			// Updating the virtual server IP Address status for all associated virtuals
 			vrt.Status.VSAddress = ip
+			ctlr.vsAddressesMap[vrt.Namespace+"/"+vrt.Name] = ip
 			passthroughVS := false
 			var tlsProf *cisapiv1.TLSProfile
 			var tlsTermination string
@@ -3164,6 +3168,7 @@ func (ctlr *Controller) processTransportServers(
 	}
 	// Updating the virtual server IP Address status
 	virtual.Status.VSAddress = ip
+	ctlr.tsAddressesMap[virtual.Namespace+"/"+virtual.Name] = ip
 	var rsName string
 	if virtual.Spec.VirtualServerName != "" {
 		rsName = formatCustomVirtualServerName(
@@ -4385,6 +4390,8 @@ func (ctlr *Controller) processIngressLink(
 		if len(ingLink.Spec.IRules) > 0 {
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
+		ingLink.Status.VSAddress = ip
+		ctlr.ilAddressesMap[ingLink.Namespace+"/"+ingLink.Name] = ip
 		if ingLink.Spec.BigIPRouteDomain > 0 {
 			if ctlr.PoolMemberType == Cluster {
 				log.Warning("bigipRouteDomain is not supported in Cluster mode")
@@ -4713,51 +4720,6 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 		}
 	}
 	return 0
-}
-
-// Update virtual server status with virtual server address
-func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
-	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, Status: statusOk}
-	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", vsStatus, vs.Name, vs.Namespace)
-	vs.Status = vsStatus
-	vs.Status.VSAddress = ip
-	vs.Status.Status = statusOk
-	config := ctlr.multiClusterHandler.getClusterConfig("")
-	_, updateErr := config.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating virtual server status:%v", updateErr)
-		return
-	}
-}
-
-// Update Transport server status with virtual server address
-func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {
-	// Set the vs status to include the virtual IP address
-	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip, Status: statusOk}
-	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", tsStatus, ts.Name, ts.Namespace)
-	ts.Status = tsStatus
-	ts.Status.VSAddress = ip
-	ts.Status.Status = statusOk
-	config := ctlr.multiClusterHandler.getClusterConfig("")
-	_, updateErr := config.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating Transport server status:%v", updateErr)
-		return
-	}
-}
-
-// Update ingresslink status with virtual server address
-func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {
-	// Set the vs status to include the virtual IP address
-	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
-	il.Status = ilStatus
-	config := ctlr.multiClusterHandler.getClusterConfig("")
-	_, updateErr := config.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating ingresslink status:%v", updateErr)
-		return
-	}
 }
 
 // returns service obj with servicename

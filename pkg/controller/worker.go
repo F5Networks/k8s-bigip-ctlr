@@ -4413,9 +4413,9 @@ func (ctlr *Controller) processIngressLink(
 		}
 		ingLink.Status.VSAddress = ip
 		ctlr.vsAddressesMap[resourceRef{
-			name: ingLink.Name,
+			name:      ingLink.Name,
 			namespace: ingLink.Namespace,
-			kind: IngressLink,
+			kind:      IngressLink,
 		}] = ip
 		if ingLink.Spec.BigIPRouteDomain > 0 {
 			if ctlr.PoolMemberType == Cluster {

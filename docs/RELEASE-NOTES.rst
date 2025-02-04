@@ -15,8 +15,8 @@ Bug Fixes
 * `Issue 3679 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3679>`_: Certificate, CA chain, and private key shown in debug logs
 * `Issue 3655 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3655>`_: Calico static routes not updated when nodes added/removed from cluster
 * `Issue 3717 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3717>`_: StaticRoute CNI calico doesn't detect multiple blockaffinities
+* `Issue 3723 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3723>`_: Configuration errors reset VSAddress to None for all VirtualServers, TransportServers, and IngressLinks
 
-Upgrade notes
 ``````````````
 * For using calico cni with staticRoutingMode, update RBAC permissions to monitor calico blockaffinities resource. See `RBAC <./config_examples/rbac/k8s_rbac.yaml>`_
 

@@ -414,16 +414,29 @@ func (ctlr *Controller) processResources() bool {
 			if err != nil {
 				log.Warningf(err.Error())
 			}
-			if !ctlr.initState && rKey.event == Create {
-				//for external clusters
-				if mcc.ServiceTypeLBDiscovery || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
-					//start all informers for the cluster
-					ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
-				} else {
-					//check cluster svc map to start required  namespace informers for cluster
-					ctlr.startInfomersForClusterReferencedSvcs(mcc.ClusterName)
+			if !ctlr.initState {
+				if rKey.event == Create {
+					//for external clusters
+					if mcc.ServiceTypeLBDiscovery || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
+						//start all informers for the cluster
+						ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+					} else {
+						//check cluster svc map to start required  namespace informers for cluster
+						ctlr.startInfomersForClusterReferencedSvcs(mcc.ClusterName)
+					}
+				} else if rKey.event == Update {
+					log.Debugf("kubeconfig updated for cluster %s.Updating informers with new client", mcc.ClusterName)
+					ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
+					ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
+					//start the informers with updated client kubeconfig
+					if mcc.ServiceTypeLBDiscovery || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
+						//start all informers for the cluster
+						ctlr.setupAndStartExternalClusterInformers(mcc.ClusterName)
+					} else {
+						//check cluster svc map to start required  namespace informers for cluster
+						ctlr.startInfomersForClusterReferencedSvcs(mcc.ClusterName)
+					}
 				}
-
 			}
 			break
 		}

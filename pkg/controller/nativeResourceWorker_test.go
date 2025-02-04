@@ -211,7 +211,7 @@ var _ = Describe("Routes", func() {
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeLabel = " pro in (pro) "
 			mockCtlr.processedHostPath.processedHostPathMap["foo.com/foo"] = route1.ObjectMeta.CreationTimestamp
 			mockCtlr.eraseAllRouteAdmitStatus()
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 			route = mockCtlr.fetchRoute(rskey)
 			Expect(len(route.Status.Ingress)).To(BeEquivalentTo(0), "Incorrect route admit status")
 		})

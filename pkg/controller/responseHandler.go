@@ -82,7 +82,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateVSStatus(virtual, ctlr.vsAddressesMap[resourceRef{
+							ctlr.updateVSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
 								namespace: virtual.Namespace,
 								kind:      VirtualServer,
@@ -118,7 +118,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateTSStatus(virtual, ctlr.vsAddressesMap[resourceRef{
+							ctlr.updateTSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
 								namespace: virtual.Namespace,
 								kind:      TransportServer,
@@ -151,7 +151,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateILStatus(il, ctlr.vsAddressesMap[resourceRef{
+							ctlr.updateILStatus(il, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      il.Name,
 								namespace: il.Namespace,
 								kind:      IngressLink,

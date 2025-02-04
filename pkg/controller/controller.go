@@ -19,13 +19,14 @@ package controller
 import (
 	"context"
 	"fmt"
-	authv1 "k8s.io/api/authorization/v1"
-	"k8s.io/client-go/dynamic"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 	"unicode"
+
+	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 
@@ -164,7 +165,7 @@ func NewController(params Params, startController bool) *Controller {
 		manageLoadBalancerClassOnly: params.ManageLoadBalancerClassOnly,
 		clusterRatio:                make(map[string]*int),
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
-		vsAddressesMap:              make(map[resourceRef]string),
+		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
 	}
 
 	log.Debug("Controller Created")

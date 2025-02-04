@@ -375,7 +375,7 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
-			delete(ctlr.vsAddressesMap, rscRefKey)
+			delete(ctlr.ResourceStatusVSAddressMap, rscRefKey)
 		}
 
 		err := ctlr.processVirtualServers(virtual, rscDelete)
@@ -488,7 +488,7 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
-			delete(ctlr.vsAddressesMap, rscRefKey)
+			delete(ctlr.ResourceStatusVSAddressMap, rscRefKey)
 		}
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
@@ -514,7 +514,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 			// clean the CIS cache
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
-			delete(ctlr.vsAddressesMap, rsRef)
+			delete(ctlr.ResourceStatusVSAddressMap, rsRef)
 		}
 		err := ctlr.processIngressLink(ingLink, rscDelete)
 		if err != nil {
@@ -1539,7 +1539,7 @@ func (ctlr *Controller) processVirtualServers(
 		for _, vrt := range virtuals {
 			// Updating the virtual server IP Address status for all associated virtuals
 			vrt.Status.VSAddress = ip
-			ctlr.vsAddressesMap[resourceRef{
+			ctlr.ResourceStatusVSAddressMap[resourceRef{
 				name:      vrt.Name,
 				namespace: vrt.Namespace,
 				kind:      VirtualServer,
@@ -3185,7 +3185,7 @@ func (ctlr *Controller) processTransportServers(
 	}
 	// Updating the virtual server IP Address status
 	virtual.Status.VSAddress = ip
-	ctlr.vsAddressesMap[resourceRef{
+	ctlr.ResourceStatusVSAddressMap[resourceRef{
 		name:      virtual.Name,
 		namespace: virtual.Namespace,
 		kind:      TransportServer,
@@ -4412,7 +4412,7 @@ func (ctlr *Controller) processIngressLink(
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
 		ingLink.Status.VSAddress = ip
-		ctlr.vsAddressesMap[resourceRef{
+		ctlr.ResourceStatusVSAddressMap[resourceRef{
 			name:      ingLink.Name,
 			namespace: ingLink.Namespace,
 			kind:      IngressLink,

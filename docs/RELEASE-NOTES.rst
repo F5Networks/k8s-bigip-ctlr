@@ -23,6 +23,7 @@ Bug Fixes
 * `Issue 3724 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3724>`_: Transport server status “ERROR” on the secondary cluster
 * Optimized monitor creation for default mode with shared monitor for pools
 
+Upgrade notes
 ``````````````
 * For using calico cni with staticRoutingMode, update RBAC permissions to monitor calico blockaffinities resource. See `RBAC <./config_examples/rbac/k8s_rbac.yaml>`_
 * Optimized monitor creation for CIS multicluster default mode with shared monitor for pools. This fix required a bug fix from AS3 for https://my.f5.com/manage/s/article/K33604210 which limited sharing monitors for pools.

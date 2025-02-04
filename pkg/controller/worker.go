@@ -375,7 +375,7 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
-			delete(ctlr.vsAddressesMap, rscRefKey.namespace+"/"+rscRefKey.name)
+			delete(ctlr.vsAddressesMap, rscRefKey)
 		}
 
 		err := ctlr.processVirtualServers(virtual, rscDelete)
@@ -488,7 +488,7 @@ func (ctlr *Controller) processResources() bool {
 		if rKey.event != Create {
 			// update the poolMem cache, clusterSvcResource & resource-svc maps
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rscRefKey)
-			delete(ctlr.tsAddressesMap, rscRefKey.namespace+"/"+rscRefKey.name)
+			delete(ctlr.vsAddressesMap, rscRefKey)
 		}
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
@@ -514,7 +514,7 @@ func (ctlr *Controller) processResources() bool {
 			}
 			// clean the CIS cache
 			ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
-			delete(ctlr.ilAddressesMap, rsRef.namespace+"/"+rsRef.name)
+			delete(ctlr.vsAddressesMap, rsRef)
 		}
 		err := ctlr.processIngressLink(ingLink, rscDelete)
 		if err != nil {
@@ -1539,7 +1539,11 @@ func (ctlr *Controller) processVirtualServers(
 		for _, vrt := range virtuals {
 			// Updating the virtual server IP Address status for all associated virtuals
 			vrt.Status.VSAddress = ip
-			ctlr.vsAddressesMap[vrt.Namespace+"/"+vrt.Name] = ip
+			ctlr.vsAddressesMap[resourceRef{
+				name:      vrt.Name,
+				namespace: vrt.Namespace,
+				kind:      VirtualServer,
+			}] = ip
 			passthroughVS := false
 			var tlsProf *cisapiv1.TLSProfile
 			var tlsTermination string
@@ -3181,7 +3185,11 @@ func (ctlr *Controller) processTransportServers(
 	}
 	// Updating the virtual server IP Address status
 	virtual.Status.VSAddress = ip
-	ctlr.tsAddressesMap[virtual.Namespace+"/"+virtual.Name] = ip
+	ctlr.vsAddressesMap[resourceRef{
+		name:      virtual.Name,
+		namespace: virtual.Namespace,
+		kind:      TransportServer,
+	}] = ip
 	var rsName string
 	if virtual.Spec.VirtualServerName != "" {
 		rsName = formatCustomVirtualServerName(
@@ -4404,7 +4412,11 @@ func (ctlr *Controller) processIngressLink(
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
 		ingLink.Status.VSAddress = ip
-		ctlr.ilAddressesMap[ingLink.Namespace+"/"+ingLink.Name] = ip
+		ctlr.vsAddressesMap[resourceRef{
+			name: ingLink.Name,
+			namespace: ingLink.Namespace,
+			kind: IngressLink,
+		}] = ip
 		if ingLink.Spec.BigIPRouteDomain > 0 {
 			if ctlr.PoolMemberType == Cluster {
 				log.Warning("bigipRouteDomain is not supported in Cluster mode")

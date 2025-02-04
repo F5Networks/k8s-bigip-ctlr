@@ -88,9 +88,7 @@ type (
 		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
-		vsAddressesMap              map[string]string
-		tsAddressesMap              map[string]string
-		ilAddressesMap              map[string]string
+		vsAddressesMap              map[resourceRef]string
 		resourceContext
 	}
 	resourceContext struct {

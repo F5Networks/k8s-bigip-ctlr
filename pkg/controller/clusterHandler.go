@@ -267,7 +267,7 @@ func (ch *ClusterHandler) ResourceStatusUpdater() {
 
 // UpdateResourceStatus updates the status of the resource
 func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
-	var primaryClusterStatusDown bool
+	var isStatusStandby bool
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("recovered from panic while updating status for resource %s/%s in cluster %s with err %v",
@@ -279,7 +279,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 	//   2. The cluster is **primary** AND the **primary cluster is unhealthy**.
 	if (ch.MultiClusterMode != PrimaryCIS && ch.PrimaryClusterHealthProbeParams.statusRunning) ||
 		(ch.MultiClusterMode == PrimaryCIS && !ch.PrimaryClusterHealthProbeParams.statusRunning) {
-		primaryClusterStatusDown = true
+		isStatusStandby = true
 	}
 	clusterConfig := ch.getClusterConfig(rscStatus.ResourceKey.clusterName)
 	if clusterConfig == nil {
@@ -330,7 +330,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if primaryClusterStatusDown {
+			if isStatusStandby {
 				vs.Status.Status = StatusStandby
 			} else {
 				vs.Status = rscStatus.ResourceObj.(cisv1.VirtualServerStatus)
@@ -377,7 +377,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 		}
 
 		if found {
-			if primaryClusterStatusDown {
+			if isStatusStandby {
 				ts.Status.Status = StatusStandby
 			} else {
 				ts.Status = rscStatus.ResourceObj.(cisv1.TransportServerStatus)
@@ -423,7 +423,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if primaryClusterStatusDown {
+			if isStatusStandby {
 				il.Status.Status = StatusStandby
 			} else {
 				il.Status = rscStatus.ResourceObj.(cisv1.IngressLinkStatus)
@@ -469,7 +469,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if primaryClusterStatusDown {
+			if isStatusStandby {
 				svc.Status.Conditions[0].Message = StatusStandby
 			} else {
 				svc.Status = rscStatus.ResourceObj.(v1.ServiceStatus)
@@ -547,7 +547,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if primaryClusterStatusDown {
+			if isStatusStandby {
 				route.Status.Ingress[0].Conditions[0].Message = StatusStandby
 			} else {
 				route.Status = rscStatus.ResourceObj.(routeapi.RouteStatus)

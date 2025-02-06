@@ -17,6 +17,7 @@ Bug Fixes
 * `Issue 3717 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3717>`_: StaticRoute CNI calico doesn't detect multiple blockaffinities
 * `Issue 3723 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3723>`_: Configuration errors reset VSAddress to None for all VirtualServers, TransportServers, and IngressLinks
 * `Issue 3727 <https://github.com/F5Networks/k8s-bigip-ctlr/pull/3738>`_: F5-cis needs a restart to use updated kubeconfig secret
+* Fix the Kubernetes Client API throttling errors
 
 Upgrade notes
 ``````````````

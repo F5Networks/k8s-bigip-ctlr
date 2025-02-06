@@ -100,6 +100,13 @@ const (
 	versionPathOpenshiftv3 = "/version/openshift"
 	versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
 	versionPathk8s         = "/version"
+
+	// High enough QPS to fit all expected use cases. QPS=0 is not set here, because
+	// client code is overriding it.
+	defaultQPS = 1000
+	// High enough Burst to fit all expected use cases. Burst=0 is not set here, because
+	// client code is overriding it.
+	defaultBurst = 1000
 )
 
 var (
@@ -1373,6 +1380,10 @@ func getKubeConfig() (*rest.Config, error) {
 		log.Fatalf("[INIT] error creating configuration: %v", err)
 		return nil, err
 	}
+
+	// set the default burst and default QPS to the kube client API
+	config.Burst = defaultBurst
+	config.QPS = defaultQPS
 
 	// creates the clientset
 	return config, nil

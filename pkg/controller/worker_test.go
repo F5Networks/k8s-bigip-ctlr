@@ -43,7 +43,17 @@ var _ = Describe("Worker Tests", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		params := Params{
+			MultiClusterMode: PrimaryCIS,
+			Agent: &Agent{
+				PostManager: &PostManager{
+					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+						statusRunning: true,
+					},
+				},
+			},
+		}
+		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -3915,7 +3925,17 @@ extendedRouteSpec:
 	Describe("Processing VS, TS, IL, SvcLB on pod update", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
@@ -4118,7 +4138,17 @@ extendedRouteSpec:
 	Describe("Verify helper functions", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

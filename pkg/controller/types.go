@@ -18,11 +18,12 @@ package controller
 
 import (
 	"container/list"
+	"net/http"
+	"sync"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
-	"net/http"
-	"sync"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
@@ -88,6 +89,7 @@ type (
 		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
+		ResourceStatusVSAddressMap  map[resourceRef]string
 		resourceContext
 	}
 	resourceContext struct {

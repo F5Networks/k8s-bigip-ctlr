@@ -185,11 +185,11 @@ var _ = Describe("Main Tests", func() {
 			os.Args = []string{
 				"./bin/k8s-bigip-ctlr",
 				"--namespace=testing",
-				"--bigip-username=admin",
-				"--bigip-password=admin",
 				"--bigip-partition=velcro1",
 				"--bigip-partition=velcro2",
+				"--bigip-password=admin",
 				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
 				"--vs-snat-pool-name=test-snat-pool"}
 
 			nameVar := []string{"testing"}
@@ -206,184 +206,10 @@ var _ = Describe("Main Tests", func() {
 
 			// Test empty required args
 			allArgs := map[string]*string{
-				"bigipUrl": bigIPURL,
-				"logLevel": logLevel,
-			}
-
-			for argName, arg := range allArgs {
-				holder := *arg
-				*arg = ""
-				argError = verifyArgs()
-				Expect(argError).ToNot(BeNil(), fmt.Sprintf(
-					"Argument %s is required, and should not allow an empty string.", argName))
-				*arg = holder
-			}
-
-			// Test bigIPPartitions seperatly as it's a string array
-			holder := *bigIPPartitions
-			*bigIPPartitions = []string{}
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil(),
-				"Argument bigIPPartitions is required, and should not allow an empty string.")
-			*bigIPPartitions = holder
-
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--namespace=testing",
-				"--bigip-partition=velcro1",
-				"--bigip-partition=velcro2",
-				"--bigip-password=admin",
-				"--bigip-url=bigip.example.com",
-				"--bigip-username=admin",
-				"--pool-member-type=cluster",
-			}
-
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).To(BeNil())
-			Expect(isNodePort).To(BeFalse())
-
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--namespace=testing",
-				"--bigip-partition=velcro1",
-				"--bigip-partition=velcro2",
-				"--bigip-password=admin",
-				"--bigip-url=bigip.example.com",
-				"--bigip-username=admin",
-				"--pool-member-type=invalid",
-			}
-
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-			Expect(isNodePort).To(BeFalse())
-
-			// Verify if bigIPPartition is Common
-			os.Args = []string{
-				"--bigip-partition=Common",
-			}
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-
-			// Invalid static route mode with nodeport mode
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--namespace=testing",
-				"--bigip-partition=velcro1",
-				"--bigip-partition=velcro2",
-				"--bigip-password=admin",
-				"--bigip-url=bigip.example.com",
-				"--bigip-username=admin",
-				"--pool-member-type=nodeport",
-				"--static-routing-mode=true",
-			}
-			*bigIPPartitions = []string{}
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-
-			// Invalid static route mode with openshiftSDNName
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--bigip-partition=velcro1",
-				"--openshift-sdn-name=flannel-vxlan",
-				"--static-routing-mode=true",
-				"--pool-member-type=cluster",
-			}
-			*bigIPPartitions = []string{}
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-
-			// Invalid override-as3-declaration
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--bigip-partition=velcro1",
-				"--pool-member-type=cluster",
-				"--override-as3-declaration=invalid",
-			}
-			*bigIPPartitions = []string{}
-			*openshiftSDNName = ""
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-
-			// Invalid controller mode
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--bigip-partition=velcro1",
-				"--pool-member-type=cluster",
-				"--controller-mode=invalid",
-			}
-			*bigIPPartitions = []string{}
-			*overriderAS3CfgmapName = ""
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-
-			// Invalid route spec configmap in openshift mode
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--bigip-partition=velcro1",
-				"--pool-member-type=cluster",
-				"--controller-mode=openshift",
-				"--route-spec-configmap=invalid",
-			}
-			*bigIPPartitions = []string{}
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil())
-
-			// Valid route spec configmap in openshift mode
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--bigip-partition=velcro1",
-				"--pool-member-type=cluster",
-				"--controller-mode=openshift",
-				"--route-spec-configmap=kube-config/ecm",
-				"--route-label=systest",
-			}
-			*bigIPPartitions = []string{}
-			*overriderAS3CfgmapName = ""
-			*routeSpecConfigmap = ""
-			*routeLabel = ""
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).To(BeNil())
-		})
-
-		It("Verifies CLI arguments without including credentials in args", func() {
-			defer _init()
-			os.Args = []string{
-				"./bin/k8s-bigip-ctlr",
-				"--namespace=testing",
-				"--bigip-partition=velcro1",
-				"--bigip-partition=velcro2",
-				"--bigip-url=bigip.example.com",
-				"--vs-snat-pool-name=test-snat-pool"}
-
-			nameVar := []string{"testing"}
-			flags.Parse(os.Args)
-			os.Setenv("BIGIP_USERNAME", "admin")
-			os.Setenv("BIGIP_PASSWORD", "admin")
-			err := getCredentials()
-			Expect(err).ToNot(HaveOccurred())
-			argError := verifyArgs()
-			Expect(argError).To(BeNil())
-			Expect(*namespaces).To(Equal(nameVar))
-			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
-			Expect(*bigIPUsername).To(Equal("admin"))
-			Expect(*bigIPPassword).To(Equal("admin"))
-			Expect(*bigIPPartitions).To(Equal([]string{"velcro1", "velcro2"}))
-			Expect(*vsSnatPoolName).To(Equal("test-snat-pool"))
-			Expect(*logLevel).To(Equal("INFO"))
-
-			// Test empty required args
-			allArgs := map[string]*string{
-				"bigipUrl": bigIPURL,
-				"logLevel": logLevel,
+				"bigipUrl":      bigIPURL,
+				"bigipUsername": bigIPUsername,
+				"bigipPassword": bigIPPassword,
+				"logLevel":      logLevel,
 			}
 
 			for argName, arg := range allArgs {
@@ -695,7 +521,11 @@ var _ = Describe("Main Tests", func() {
 				"--gtm-credentials-directory=/tmp/k8s-test-gtm-creds",
 				"--bigip-partition=velcro1",
 				"--bigip-url=bigip.example.com",
+				"--bigip-username=cli-user",
+				"--bigip-password=cli-pass",
 				"--gtm-bigip-url=bigip1.example.com",
+				"--gtm-bigip-username=cli-user-gtm",
+				"--gtm-bigip-password=cli-pass-gtm",
 				"--pool-member-type=nodeport",
 			}
 			flags.Parse(os.Args)
@@ -1103,12 +933,7 @@ var _ = Describe("Main Tests", func() {
 				BigIPURL:        "url",
 				BigIPPartitions: []string{},
 			}
-			gtm := gtmBigIPSection{
-				GtmBigIPUsername: "admin",
-				GtmBigIPPassword: "admin",
-				GtmBigIPURL:      "url",
-			}
-			subPidCh, _ := startPythonDriver(configWriter, gs, bs, gtm, "test")
+			subPidCh, _ := startPythonDriver(configWriter, gs, bs, "test")
 			pid = <-subPidCh
 		})
 

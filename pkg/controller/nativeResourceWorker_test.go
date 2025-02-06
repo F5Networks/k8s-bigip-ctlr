@@ -193,14 +193,14 @@ var _ = Describe("Routes", func() {
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["test"] = struct{}{}
 			rskey := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			mockCtlr.updateRouteAdmitStatus(rskey, "Route Admitted", "", v1.ConditionTrue)
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 			route := mockCtlr.fetchRoute(rskey)
 			Expect(len(route1.Status.Ingress)).To(BeEquivalentTo(1), "Incorrect route admit status")
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeLabel = " pro in (pro) "
 			mockCtlr.processedHostPath.processedHostPathMap["foo.com/foo"] = route1.ObjectMeta.CreationTimestamp
 			mockCtlr.eraseAllRouteAdmitStatus()
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 			route = mockCtlr.fetchRoute(rskey)
 			Expect(len(route.Status.Ingress)).To(BeEquivalentTo(0), "Incorrect route admit status")
 		})

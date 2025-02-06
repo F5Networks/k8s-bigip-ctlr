@@ -7,6 +7,8 @@ Next Release
 Added Functionality
 ```````````````````
 **What's new:**
+    * Multi Cluster
+    * CRD
 
 Bug Fixes
 ````````````

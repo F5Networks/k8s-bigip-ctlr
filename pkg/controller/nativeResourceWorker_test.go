@@ -161,6 +161,7 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addRoute(route1)
 			rskey := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			mockCtlr.updateRouteAdmitStatus(rskey, "", "", v1.ConditionTrue)
+			time.Sleep(1 * time.Second)
 			route := mockCtlr.fetchRoute(rskey)
 			Expect(route.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue), "Incorrect route admit status")
@@ -1268,6 +1269,7 @@ extendedRouteSpec:
 			mockCtlr.eraseRouteAdmitStatus(nil)
 			// Invalid Route Key
 			mockCtlr.updateRouteAdmitStatus("test", "", "", v1.ConditionTrue)
+			time.Sleep(1 * time.Second)
 			Expect(getVirtualPortsForRoutes([]*routeapi.Route{rt})).To(Equal(ports))
 			secureRoute.Namespace = "test"
 			mockCtlr.getServicePort(&secureRoute)

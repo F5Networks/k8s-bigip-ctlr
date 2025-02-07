@@ -19,6 +19,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	authv1 "k8s.io/api/authorization/v1"
+	"k8s.io/client-go/dynamic"
 	"net/http"
 	"os"
 	"strings"
@@ -173,6 +175,8 @@ func NewController(params Params, startController bool) *Controller {
 	clusterConfig.nodeLabelSelector = params.NodeLabelSelector
 	clusterConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	clusterConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	clusterConfig.orchestrationCNI = params.OrchestrationCNI
+	clusterConfig.staticRoutingMode = params.StaticRoutingMode
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
 		clusterConfig.routeLabel = params.RouteLabel
@@ -189,7 +193,6 @@ func NewController(params Params, startController bool) *Controller {
 	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
 		ctlr.shareNodes = true
 	}
-
 	if err := ctlr.setupClientsforCluster(params.Config, params.IPAM, ctlr.mode == OpenShiftMode, ctlr.multiClusterHandler.LocalClusterName, clusterConfig); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
@@ -198,6 +201,8 @@ func NewController(params Params, startController bool) *Controller {
 	ctlr.multiClusterHandler.namespaces = params.Namespaces
 	ctlr.multiClusterHandler.nodeLabelSelector = params.NodeLabelSelector
 	ctlr.multiClusterHandler.routeLabel = params.RouteLabel
+	ctlr.multiClusterHandler.staticRoutingMode = params.StaticRoutingMode
+	ctlr.multiClusterHandler.orchestrationCNI = params.OrchestrationCNI
 	// add the cluster config for local cluster
 	ctlr.multiClusterHandler.addClusterConfig(ctlr.multiClusterHandler.LocalClusterName, clusterConfig)
 
@@ -420,12 +425,20 @@ func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient, 
 		}
 	}
 
+	var dynamicClient dynamic.Interface
+	if clusterConfig.orchestrationCNI == CALICO_K8S && clusterConfig.staticRoutingMode {
+		dynamicClient, err = dynamic.NewForConfig(config)
+		if nil != err {
+			return fmt.Errorf("Failed to create dynamic Client for cluster %s: %v", clusterName, err)
+		}
+	}
 	log.Debugf("Clients Created for cluster: %s", clusterName)
 	//Update the clusterConfig store
 	clusterConfig.kubeClient = kubeClient
 	clusterConfig.kubeCRClient = kubeCRClient
 	clusterConfig.kubeIPAMClient = kubeIPAMClient
 	clusterConfig.routeClientV1 = rclient
+	clusterConfig.dynamicClient = dynamicClient
 	return nil
 }
 
@@ -438,6 +451,12 @@ func (ctlr *Controller) setupInformers(clusterName string) error {
 		}
 	}
 	_ = ctlr.setNodeInformer(clusterName)
+	// create block affinities informer for calico cni enabled clusters.
+	if clusterConfig.orchestrationCNI == CALICO_K8S && clusterConfig.staticRoutingMode {
+		if clusterConfig.dynamicClient != nil {
+			_ = ctlr.newDynamicInformersForCluster(clusterConfig.dynamicClient, clusterName)
+		}
+	}
 	return nil
 }
 
@@ -492,6 +511,38 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 	for _, inf := range informerStore.comInformers {
 		inf.start(ctlr.multiClusterHandler.LocalClusterName, false)
 	}
+
+	//start CNI informers if required
+	if ctlr.StaticRoutingMode && ctlr.OrchestrationCNI == CALICO_K8S {
+		// check if role permissions exists for calico crd
+		roleCheck := authv1.SelfSubjectAccessReview{
+			Spec: authv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authv1.ResourceAttributes{
+					Resource:  BLOCKAFFINITIES,
+					Verb:      "watch",
+					Group:     "crd.projectcalico.org",
+					Namespace: "",
+				},
+			},
+		}
+		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		if clusterConfig != nil {
+			resp, err := clusterConfig.kubeClient.AuthorizationV1().
+				SelfSubjectAccessReviews().
+				Create(context.TODO(), &roleCheck, metaV1.CreateOptions{})
+			if err == nil {
+				if resp.Status.Allowed {
+					log.Debugf("RBAC present for blockaffinities watch: %v", resp)
+					informerStore.dynamicInformers.start()
+				} else {
+					log.Warning("Role Permissions to watch blockaffinities resource for calico CNI is not provided.Informers are not created for blockaffinities resource.Create proper RBAC for blockaffinities watch for static routing to work properly")
+				}
+			} else {
+				log.Errorf("Failed to create Self Subject Access Review for blockaffinities resource: %v.Skipping informer creation for blockaffinitoes resource", err)
+			}
+		}
+
+	}
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
 		// nrInformers only with openShiftMode
@@ -527,6 +578,10 @@ func (ctlr *Controller) StopInformers(clusterName string) {
 	}
 	for _, nsInf := range informerStore.nsInformers {
 		nsInf.stop()
+	}
+	// stop cni Informer
+	if informerStore.dynamicInformers != nil {
+		informerStore.dynamicInformers.stop()
 	}
 	// stop node Informer
 	informerStore.nodeInformer.stop()

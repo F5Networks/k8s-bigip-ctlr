@@ -346,7 +346,6 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	return httpResp, response
 }
 
-// GetBigipRegKey ...
 
 //func (postMgr *PostManager) getBigipRegKeyURL() string {
 //	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"

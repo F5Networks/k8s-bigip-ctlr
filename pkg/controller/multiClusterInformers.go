@@ -260,6 +260,7 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 		log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", clusterName, err)
 		return err
 	}
+
 	return nil
 }
 

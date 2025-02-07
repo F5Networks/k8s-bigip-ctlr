@@ -157,7 +157,7 @@ func NewController(params Params, startController bool) *Controller {
 		StaticRoutingMode:           params.StaticRoutingMode,
 		OrchestrationCNI:            params.OrchestrationCNI,
 		StaticRouteNodeCIDR:         params.StaticRouteNodeCIDR,
-		multiClusterHandler:         NewClusterHandler(params.LocalClusterName),
+		multiClusterHandler:         NewClusterHandler(params.LocalClusterName, params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams),
 		multiClusterResources:       newMultiClusterResourceStore(),
 		multiClusterMode:            params.MultiClusterMode,
 		loadBalancerClass:           params.LoadBalancerClass,

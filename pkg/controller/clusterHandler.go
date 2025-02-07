@@ -48,6 +48,8 @@ func (ch *ClusterHandler) addClusterConfig(clusterName string, config *ClusterCo
 	config.namespaceLabel = ch.namespaceLabel
 	config.nodeLabelSelector = ch.nodeLabelSelector
 	config.routeLabel = ch.routeLabel
+	config.orchestrationCNI = ch.orchestrationCNI
+	config.staticRoutingMode = ch.staticRoutingMode
 	config.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	config.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	ch.ClusterConfigs[clusterName] = config

@@ -42,7 +42,7 @@ const (
 	CALICO_K8S                  = "calico-k8s"
 	CALICO_API_BLOCK_AFFINITIES = "/apis/crd.projectcalico.org/v1/blockaffinities"
 	CALICONodeIPAnnotation      = "projectcalico.org/IPv4Address"
+	BLOCKAFFINITIES             = "blockaffinities"
 
 	CommonPartition = "Common"
-	LocalCluster    = ""
 )

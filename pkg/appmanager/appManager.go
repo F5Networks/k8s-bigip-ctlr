@@ -166,6 +166,7 @@ type Manager struct {
 	// Mutex to control access to nplStore map
 	nplStoreMutex sync.Mutex
 	AgentName     string
+	BigIPURL      string
 	//vxlan
 	vxlanName           string
 	ciliumTunnelName    string
@@ -201,13 +202,15 @@ type NPLAnnoations []NPLAnnotation
 
 // static route config section
 type routeSection struct {
-	Entries []routeConfig `json:"routes"`
+	CISIdentifier string        `json:"cis-identifier,omitempty"`
+	Entries       []routeConfig `json:"routes"`
 }
 
 type routeConfig struct {
-	Name    string `json:"name"`
-	Network string `json:"network"`
-	Gateway string `json:"gw"`
+	Name        string `json:"name"`
+	Network     string `json:"network"`
+	Gateway     string `json:"gw"`
+	Description string `json:"description,omitempty"`
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -252,6 +255,7 @@ type Params struct {
 	StaticRoutingMode   bool
 	OrchestrationCNI    string
 	StaticRouteNodeCIDR string
+	BigIPURL            string
 }
 
 type SvcEndPointsCache struct {
@@ -428,6 +432,7 @@ func NewManager(params *Params) *Manager {
 		orchestrationCNI:       params.OrchestrationCNI,
 		staticRouteNodeCIDR:    params.StaticRouteNodeCIDR,
 		membersToDisable:       make(map[string]map[string]struct{}),
+		BigIPURL:               params.BigIPURL,
 	}
 	if params.PodGracefulShutdown {
 		manager.podSvcCache = PodSvcCache{
@@ -4157,6 +4162,7 @@ func (appMgr *Manager) processStaticRouteUpdate(
 	}
 
 	routes := routeSection{}
+	routes.CISIdentifier = DEFAULT_PARTITION + "_" + strings.TrimPrefix(appMgr.BigIPURL, "https://")
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
 		// Ignore the Nodes with status NotReady
@@ -4171,6 +4177,7 @@ func (appMgr *Manager) processStaticRouteUpdate(
 			continue
 		}
 		route := routeConfig{}
+		route.Description = routes.CISIdentifier
 		// For ovn-k8s get pod subnet and node ip from annotation
 		if appMgr.orchestrationCNI == OVN_K8S {
 			annotations := node.Annotations

@@ -15,6 +15,7 @@ Bug Fixes
 * `Issue 3679 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3679>`_: Certificate, CA chain, and private key shown in debug logs
 * `Issue 3655 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3655>`_: Calico static routes not updated when nodes added/removed from cluster
 * `Issue 3717 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3717>`_: StaticRoute CNI calico doesn't detect multiple blockaffinities
+* `Issue 3727 <https://github.com/F5Networks/k8s-bigip-ctlr/pull/3738>`_: F5-cis needs a restart to use updated kubeconfig secret
 
 Upgrade notes
 ``````````````

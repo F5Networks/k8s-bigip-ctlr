@@ -194,6 +194,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 	}
 	log.Debugf("Processing Node Updates for static routes")
 	routes := routeSection{}
+	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.Agent.PostManager.BIGIPURL, "https://")
 	nodePodCIDRMap := ctlr.GetNodePodCIDRMap()
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
@@ -209,6 +210,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 			continue
 		}
 		route := routeConfig{}
+		route.Description = routes.CISIdentifier
 		// For ovn-k8s get pod subnet and node ip from annotation
 		if ctlr.OrchestrationCNI == OVN_K8S {
 			annotations := node.Annotations

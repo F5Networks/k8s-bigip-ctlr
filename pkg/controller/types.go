@@ -438,13 +438,15 @@ type (
 
 	// static route config
 	routeSection struct {
-		Entries []routeConfig `json:"routes"`
+		Entries       []routeConfig `json:"routes"`
+		CISIdentifier string        `json:"cis-identifier,omitempty"`
 	}
 
 	routeConfig struct {
-		Name    string `json:"name"`
-		Network string `json:"network"`
-		Gateway string `json:"gw"`
+		Name        string `json:"name"`
+		Network     string `json:"network"`
+		Gateway     string `json:"gw"`
+		Description string `json:"description,omitempty"`
 	}
 	// GTMConfig key is domainName and value is WideIP
 

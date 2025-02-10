@@ -1349,6 +1349,7 @@ func getAppManagerParams() appmanager.Params {
 		StaticRoutingMode:      *staticRoutingMode,
 		OrchestrationCNI:       *orchestrationCNI,
 		StaticRouteNodeCIDR:    *staticRouteNodeCIDR,
+		BigIPURL:               *bigIPURL,
 	}
 }
 

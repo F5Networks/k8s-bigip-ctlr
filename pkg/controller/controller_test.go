@@ -16,7 +16,17 @@ var _ = Describe("OtherSDNType", func() {
 	var pod *v1.Pod
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		params := Params{
+			MultiClusterMode: PrimaryCIS,
+			Agent: &Agent{
+				PostManager: &PostManager{
+					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+						statusRunning: true,
+					},
+				},
+			},
+		}
+		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -64,6 +74,7 @@ var _ = Describe("OtherSDNType", func() {
 			PoolMemberType: NodePort,
 			Config:         &rest.Config{},
 			IPAM:           true,
+			Agent:          newMockAgent(&test.MockWriter{FailStyle: test.Success}),
 		}, false)
 		Expect(ctlrK8s.processedHostPath).To(BeNil(), "processedHostPath object should be nil")
 		Expect(ctlrK8s.shareNodes).To(BeTrue(), "shareNodes should be enable")
@@ -71,6 +82,7 @@ var _ = Describe("OtherSDNType", func() {
 	It("Validate the IPAM configuration", func() {
 		ctlr := NewController(Params{
 			Config: &rest.Config{},
+			Agent:  newMockAgent(&test.MockWriter{FailStyle: test.Success}),
 		}, false)
 		delete(ctlr.multiClusterHandler.ClusterConfigs[""].namespaces, "")
 		Expect(ctlr.validateIPAMConfig("kube-system")).To(BeFalse(), "ipam namespace should not be valid")

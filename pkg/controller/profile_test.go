@@ -13,7 +13,17 @@ var _ = Describe("Profile", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		params := Params{
+			MultiClusterMode: PrimaryCIS,
+			Agent: &Agent{
+				PostManager: &PostManager{
+					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+						statusRunning: true,
+					},
+				},
+			},
+		}
+		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

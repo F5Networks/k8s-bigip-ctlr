@@ -37,6 +37,7 @@ Added Functionality
         * Introducing the new *default* mode for MultiCluster topologies which supports the ServiceType LoadBalancer, VirtualServer CR and Transport Server CR. See `Documentation <./config_examples/multicluster/default-mode>`_
         * CIS discovers serviceType LoadBalancer in remote clusters using the default mode. See `Documentation <./config_examples/multicluster/default-mode>`_
         * Support for the MultiCluster serviceType load balancer in the default mode. See `Example <./config_examples/multicluster/default-mode/ServiceTypeLB/sample-multi-cluster-svc-lb.yaml>`_
+        * `Issue 3679 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3679>`_: Certificate, CA chain, and private key shown in debug logs
         * `Issue 3494 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3494>`_: make service discovery equal for all clusters by eliminating the extendedServiceReferences attribute.
             * CIS performs service discovery for VirtualServer and TransportServer CRs across all clusters implicitly in active-active or ratio mode.
             * CIS no longer supports the extendedServiceReferences property for VirtualServer and TransportServer CRs in active-active and ratio modes.

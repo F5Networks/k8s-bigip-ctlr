@@ -3770,7 +3770,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	// TODO: Handle the BIGIP address properly
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.RequestHandler.AgentWorkers[0].BigIpAddress, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].BigIpAddress, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,

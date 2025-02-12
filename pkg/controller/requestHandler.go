@@ -13,7 +13,7 @@ func NewRequestHandler(agentParams AgentParams) *RequestHandler {
 	if agentParams.HAMode {
 		reqHandler.AgentWorkers = NewAgentWorkersMap(agentParams)
 	} else {
-		reqHandler.AgentWorkers = append(reqHandler.AgentWorkers, NewAgentWorker(agentParams))
+		reqHandler.AgentWorkers[PrimaryBigIP] = NewAgentWorker(agentParams)
 	}
 
 	return reqHandler
@@ -48,19 +48,19 @@ func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) 
 
 func (req *RequestHandler) requestHandler() {
 	for rsConfig := range req.reqChan {
-		// Process each agent worker based on HA mode
-		// TODO: Convert the rsConfig to AS3
-		for _, worker := range req.AgentWorkers {
-			worker.PostLTMConfig(rsConfig)
+		worker := req.AgentWorkers[PrimaryBigIP]
 
-			// TODO: Handle the imperative apis
-			if !(worker.EnableIPV6) && worker.ccclGTMAgent {
-				worker.PostGTMConfig(rsConfig)
-			}
-			// put GMT config in the post channel if gtm agent is running
-			if worker.GTM.PostManager != nil {
-				worker.PostGTMConfig(rsConfig)
-			}
+		// Post GTM config if enabled for either mode
+		if worker.ccclGTMAgent || worker.isGTMOnSeparateServer() {
+			worker.PostGTMConfig(rsConfig)
+		}
+
+		// Post LTM config based on HA mode
+		if req.HAMode {
+			req.AgentWorkers[PrimaryBigIP].PostLTMConfig(rsConfig)
+			req.AgentWorkers[SecondaryBigIP].PostLTMConfig(rsConfig)
+		} else {
+			worker.PostLTMConfig(rsConfig)
 		}
 	}
 }

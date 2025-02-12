@@ -85,7 +85,7 @@ type (
 		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
-		APIHandler                  APIHandlerInterface
+		APIHandler                  ApiTypeHandlerInterface
 		resourceContext
 	}
 	resourceContext struct {
@@ -810,7 +810,7 @@ type (
 	}
 
 	RequestHandler struct {
-		AgentWorkers []*AgentWorker
+		AgentWorkers map[string]*AgentWorker
 		reqChan      chan ResourceConfigRequest
 		userAgent    string
 		respChan     chan resourceStatusMeta
@@ -820,6 +820,31 @@ type (
 		HAMode       bool
 	}
 
+	// Define an interface for configuration types
+	Configurable interface{}
+
+	PostConfigStrategy interface {
+		Post(config agentPostConfig)
+	}
+
+	agentPostConfig struct {
+		data                  string
+		targetAddress         string
+		as3APIURL             string
+		id                    int
+		tenantResponseMap     map[string]tenantResponse
+		acceptedTaskId        string
+		failedTenants         map[string]struct{}
+		incomingTenantDeclMap map[string]as3Tenant
+		deleted               bool
+		reqMeta               requestMeta
+	}
+
+	// PostToChannelStrategy posts config to a channel.
+	PostToChannelStrategy struct {
+		postChan chan agentPostConfig
+	}
+
 	AgentWorker struct {
 		*Agent
 		Type              string
@@ -827,8 +852,14 @@ type (
 		stopChan          chan struct{}
 		BigIpAddress      string
 		PythonDriverPID   int
-		postChan          chan ResourceConfigRequest
-		StopChan          chan interface{}
+		postChan          chan agentPostConfig
+		//postChan          chan ResourceConfigRequest
+		PostStrategy PostConfigStrategy
+		StopChan     chan interface{}
+	}
+
+	PostToFileStrategy struct {
+		ConfigWriter writer.Writer
 	}
 
 	Agent struct {
@@ -850,7 +881,7 @@ type (
 
 	BaseAPIHandler struct {
 		apiType    string
-		APIHandler APIHandlerInterface
+		APIHandler ApiTypeHandlerInterface
 		Partition  string
 		*PostManager
 	}
@@ -881,6 +912,9 @@ type (
 		AS3VersionInfo    as3VersionInfo
 		bigIPAS3Version   float64
 		postManagerPrefix string
+		LogResponse       bool
+		LogRequest        bool
+		*PostManager
 		*PostParams
 		*AS3Parser
 	}
@@ -910,6 +944,7 @@ type (
 		respChan           chan resourceStatusMeta
 		httpClientMetrics  bool
 		retryChan          chan struct{}
+		apiType            string
 	}
 
 	AgentParams struct {
@@ -972,7 +1007,7 @@ type (
 	}
 
 	tenantParams struct {
-		as3Decl interface{} // to update cachedTenantDeclMap on success
+		decl interface{} // to update cachedTenantDeclMap on success
 		tenantResponse
 	}
 

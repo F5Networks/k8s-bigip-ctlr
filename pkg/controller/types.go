@@ -180,9 +180,9 @@ type (
 	Params struct {
 		Config                      *rest.Config
 		Namespaces                  []string
+		RequestHandler              *RequestHandler
 		NamespaceLabel              string
 		Partition                   string
-		Agent                       *Agent
 		PoolMemberType              string
 		VXLANName                   string
 		VXLANMode                   string
@@ -839,7 +839,7 @@ type (
 	}
 
 	RequestHandler struct {
-		AgentWorkers []*AgentWorker
+		AgentWorkers map[string]*AgentWorker
 		reqChan      chan ResourceConfigRequest
 		userAgent    string
 		respChan     chan resourceStatusMeta
@@ -849,6 +849,31 @@ type (
 		HAMode       bool
 	}
 
+	// Define an interface for configuration types
+	Configurable interface{}
+
+	PostConfigStrategy interface {
+		Post(config agentPostConfig)
+	}
+
+	agentPostConfig struct {
+		data                  string
+		targetAddress         string
+		as3APIURL             string
+		id                    int
+		tenantResponseMap     map[string]tenantResponse
+		acceptedTaskId        string
+		failedTenants         map[string]struct{}
+		incomingTenantDeclMap map[string]as3Tenant
+		deleted               bool
+		reqMeta               requestMeta
+	}
+
+	// PostToChannelStrategy posts config to a channel.
+	PostToChannelStrategy struct {
+		postChan chan agentPostConfig
+	}
+
 	AgentWorker struct {
 		*Agent
 		Type              string
@@ -856,32 +881,38 @@ type (
 		stopChan          chan struct{}
 		BigIpAddress      string
 		PythonDriverPID   int
-		postChan          chan ResourceConfigRequest
-		StopChan          chan interface{}
+		postChan          chan agentPostConfig
+		//postChan          chan ResourceConfigRequest
+		PostStrategy PostConfigStrategy
+		StopChan     chan interface{}
+	}
+
+	PostToFileStrategy struct {
+		ConfigWriter writer.Writer
 	}
 
 	Agent struct {
 		*APIHandler
 		*PostManager
+		Partition                       string
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		Partition       string
-		ConfigWriter    writer.Writer
-		EventChan       chan interface{}
-		respChan        chan resourceStatusMeta
-		PythonDriverPID int
-		userAgent       string
-		HttpAddress     string
-		EnableIPV6      bool
-		declUpdate      sync.Mutex
-		ccclGTMAgent    bool
-		disableARP      bool
-		HAMode          bool
+		ConfigWriter                    writer.Writer
+		EventChan                       chan interface{}
+		respChan                        chan resourceStatusMeta
+		PythonDriverPID                 int
+		userAgent                       string
+		HttpAddress                     string
+		EnableIPV6                      bool
+		declUpdate                      sync.Mutex
+		ccclGTMAgent                    bool
+		disableARP                      bool
+		HAMode                          bool
 		GTMPostManager  *GTMPostManager
 	}
 
 	BaseAPIHandler struct {
 		apiType    string
-		APIHandler APIHandlerInterface
+		APIHandler ApiTypeHandlerInterface
 		Partition  string
 		*PostManager
 	}
@@ -899,6 +930,7 @@ type (
 		GTM *GTMAPIHandler
 		LTM *LTMAPIHandler
 	}
+
 	AgentParams struct {
 		PostParams                      PostParams
 		GTMParams                       PostParams
@@ -922,8 +954,6 @@ type (
 		SecondaryBigIP     string
 		HAMode             bool
 	}
-
-
 	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
 	// other API types like GTM. The current hierarchy allows:
 	// 1. Common HTTP posting capabilities via PostManager
@@ -936,6 +966,9 @@ type (
 		AS3VersionInfo    as3VersionInfo
 		bigIPAS3Version   float64
 		postManagerPrefix string
+		LogResponse       bool
+		LogRequest        bool
+		*PostManager
 		*PostParams
 		*AS3Parser
 	}
@@ -964,9 +997,12 @@ type (
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
 		postChan           chan ResourceConfigRequest
+		respChan           chan resourceStatusMeta
 		httpClientMetrics  bool
 		retryChan          chan struct{}
+		apiType            string
 	}
+
 
 	PrimaryClusterHealthProbeParams struct {
 		paramLock     *sync.RWMutex

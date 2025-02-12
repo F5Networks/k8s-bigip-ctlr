@@ -15,6 +15,21 @@ func NewGTMPostManager(params AgentParams) *GTMPostManager {
 	return gtmPostMgr
 }
 
+// write a function which checks if the GTM is on a separate server under the agentworker object
+func (aw *AgentWorker) isGTMOnSeparateServer() bool {
+	if !aw.ccclGTMAgent && len(aw.GTM.PostManager.PostParams.BIGIPURL) != 0 &&
+		len(aw.GTM.PostManager.PostParams.BIGIPUsername) != 0 &&
+		len(aw.GTM.PostManager.PostParams.BIGIPPassword) != 0 {
+		// Check if GTM parameter is different than LTM parameter
+		if aw.LTM.PostManager.PostParams.BIGIPURL != aw.GTM.PostManager.PostParams.BIGIPURL ||
+			aw.LTM.PostManager.PostParams.BIGIPUsername != aw.GTM.PostManager.PostParams.BIGIPUsername ||
+			aw.LTM.PostManager.PostParams.BIGIPPassword != aw.GTM.PostManager.PostParams.BIGIPPassword {
+			return true
+		}
+	}
+	return false
+}
+
 // retryGTMWorker blocks on retryChan
 // whenever it gets unblocked, retries failed declarations and polls for accepted tenant statuses
 func (aw *AgentWorker) gtmWorker() {

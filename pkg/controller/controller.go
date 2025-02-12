@@ -90,6 +90,10 @@ const (
 	StandAloneCIS = "standalone"
 	SecondaryCIS  = "secondary"
 	PrimaryCIS    = "primary"
+
+	PrimaryBigIP   = "primary"
+	SecondaryBigIP = "secondary"
+
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 

@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -2231,6 +2232,8 @@ var _ = Describe("AppManager Tests", func() {
 			})
 
 			It("Process static routes", func() {
+				mockMgr.appMgr.BigIPURL = "https://0.0.0.0"
+				cisIdentifier := DEFAULT_PARTITION + "_" + strings.TrimPrefix(mockMgr.appMgr.BigIPURL, "https://")
 				err := mockMgr.appMgr.AddNodeInformer(0)
 				Expect(err).To(BeNil())
 				mockMgr.appMgr.useNodeInternal = true
@@ -2247,13 +2250,13 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.configWriter = mw
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 				// Nodes without taints, CNI flannel, no podCIDR
 				nodeObjs.Spec.Taints = []v1.Taint{}
 				mockMgr.updateNode(nodeObjs, namespace)
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// Nodes without taints, CNI flannel, with podCIDR, InternalNodeIP
 				nodeObjs.Spec.PodCIDR = "10.244.0.0/28"
@@ -2266,11 +2269,13 @@ var _ = Describe("AppManager Tests", func() {
 				expectedRouteSection := routeSection{
 					Entries: []routeConfig{
 						{
-							Name:    "k8s-worker1-1.2.3.4",
-							Network: "10.244.0.0/28",
-							Gateway: "1.2.3.4",
+							Name:        "k8s-worker1-1.2.3.4",
+							Network:     "10.244.0.0/28",
+							Gateway:     "1.2.3.4",
+							Description: cisIdentifier,
 						},
 					},
+					CISIdentifier: cisIdentifier,
 				}
 				Expect(len(mw.Sections)).To(Equal(1))
 				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
@@ -2279,7 +2284,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.orchestrationCNI = OVN_K8S
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// OrchestrationCNI = OVN_K8S with incorrect OVN annotation on node
 				nodeObjs.Annotations = make(map[string]string)
@@ -2287,7 +2292,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.updateNode(nodeObjs, namespace)
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 				// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node with interface but no k8s.ovn.org/node-primary-ifaddr annotation
 
 				nodeObjs.Annotations = make(map[string]string)
@@ -2296,7 +2301,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// OrchestrationCNI = OVN_K8S with correct OVN annotation k8s.ovn.org/node-subnets on node but no k8s.ovn.org/node-primary-ifaddr annotation
 
@@ -2305,7 +2310,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.updateNode(nodeObjs, namespace)
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// OrchestrationCNI = OVN_K8S with StaticRouteNodeCIDR and invalid OVN annotation k8s.ovn.org/host-cidrss on node but no k8s.ovn.org/node-primary-ifaddr annotation
 				mockMgr.appMgr.staticRouteNodeCIDR = "10.244.0.0/28"
@@ -2313,7 +2318,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.updateNode(nodeObjs, namespace)
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// OrchestrationCNI = OVN_K8S with correct OVN annotation on node invalid k8s.ovn.org/node-primary-ifaddr annotation
 				mockMgr.appMgr.staticRouteNodeCIDR = ""
@@ -2322,7 +2327,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.updateNode(nodeObjs, namespace)
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// OrchestrationCNI = OVN_K8S with correct OVN annotation on node valid k8s.ovn.org/node-primary-ifaddr annotation
 
@@ -2333,11 +2338,13 @@ var _ = Describe("AppManager Tests", func() {
 				expectedRouteSection = routeSection{
 					Entries: []routeConfig{
 						{
-							Name:    "k8s-worker1-10.244.0.0",
-							Network: "10.244.0.0/28",
-							Gateway: "10.244.0.0",
+							Name:        "k8s-worker1-10.244.0.0",
+							Network:     "10.244.0.0/28",
+							Gateway:     "10.244.0.0",
+							Description: cisIdentifier,
 						},
 					},
+					CISIdentifier: cisIdentifier,
 				}
 				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
 				// OrchestrationCNI = ovn_k8s and invalid hostaddresses annotation
@@ -2347,7 +2354,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.updateNode(nodeObjs, namespace)
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 				// OrchestrationCNI = ovn_k8s and node network CIDR
 
 				nodeObjs.Annotations["k8s.ovn.org/host-addresses"] = "[\"10.244.0.0\"]"
@@ -2357,11 +2364,13 @@ var _ = Describe("AppManager Tests", func() {
 				expectedRouteSection = routeSection{
 					Entries: []routeConfig{
 						{
-							Name:    "k8s-worker1-10.244.0.0",
-							Network: "10.244.0.0/28",
-							Gateway: "10.244.0.0",
+							Name:        "k8s-worker1-10.244.0.0",
+							Network:     "10.244.0.0/28",
+							Gateway:     "10.244.0.0",
+							Description: cisIdentifier,
 						},
 					},
+					CISIdentifier: cisIdentifier,
 				}
 				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
 				// set valid hostcidrs annoation
@@ -2374,18 +2383,20 @@ var _ = Describe("AppManager Tests", func() {
 				expectedRouteSection = routeSection{
 					Entries: []routeConfig{
 						{
-							Name:    "k8s-worker1-10.244.0.0",
-							Network: "10.244.0.0/28",
-							Gateway: "10.244.0.0",
+							Name:        "k8s-worker1-10.244.0.0",
+							Network:     "10.244.0.0/28",
+							Gateway:     "10.244.0.0",
+							Description: cisIdentifier,
 						},
 					},
+					CISIdentifier: cisIdentifier,
 				}
 				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
 				// OrchestrationCNI = CILIUM_K8S with no valid cilium-k8s annotation
 				mockMgr.appMgr.orchestrationCNI = CILIUM_K8S
 				mockMgr.appMgr.setupNodeProcessing()
 				Expect(len(mw.Sections)).To(Equal(1))
-				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{}))
+				Expect(mw.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
 
 				// OrchestrationCNI = CILIUM_K8S with network.cilium.io/ipv4-pod-cidr annotation
 
@@ -2396,11 +2407,13 @@ var _ = Describe("AppManager Tests", func() {
 				expectedRouteSection = routeSection{
 					Entries: []routeConfig{
 						{
-							Name:    "k8s-worker1-1.2.3.4",
-							Network: "10.244.0.0/28",
-							Gateway: "1.2.3.4",
+							Name:        "k8s-worker1-1.2.3.4",
+							Network:     "10.244.0.0/28",
+							Gateway:     "1.2.3.4",
+							Description: cisIdentifier,
 						},
 					},
+					CISIdentifier: cisIdentifier,
 				}
 				Expect(mw.Sections["static-routes"]).To(Equal(expectedRouteSection))
 

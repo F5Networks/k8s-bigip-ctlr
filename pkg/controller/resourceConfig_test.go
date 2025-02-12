@@ -24,7 +24,17 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			mockCtlr.mode = CustomResourceMode
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
@@ -106,7 +116,17 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -161,7 +181,17 @@ var _ = Describe("Resource Config Tests", func() {
 			// Standalone, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = StandAloneCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -287,7 +317,17 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -1069,7 +1109,17 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -1231,7 +1281,17 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			ip = "10.8.0.22"
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -1364,7 +1424,17 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -1811,7 +1881,17 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -1950,7 +2030,17 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -2180,7 +2270,17 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			params := Params{
+				MultiClusterMode: PrimaryCIS,
+				Agent: &Agent{
+					PostManager: &PostManager{
+						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
+							statusRunning: true,
+						},
+					},
+				},
+			}
+			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

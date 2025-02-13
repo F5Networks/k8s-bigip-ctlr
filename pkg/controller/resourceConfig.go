@@ -544,7 +544,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		var monitorNames []MonitorName
 		if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
 			monitorName := ctlr.createVirtualServerMonitor(pl.Monitor, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
-				vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl)
+				vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl, vs.ObjectMeta.Namespace)
 			if monitorName != (MonitorName{}) {
 				monitorNames = append(monitorNames, monitorName)
 			}
@@ -557,7 +557,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 					formatPort = pl.ServicePort
 				}
 				monitorName := ctlr.createVirtualServerMonitor(monitor, rsCfg, formatPort, vs.Spec.Host, pl.Path,
-					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl)
+					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl, vs.ObjectMeta.Namespace)
 				if monitorName != (MonitorName{}) {
 					monitorNames = append(monitorNames, monitorName)
 				}
@@ -821,7 +821,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 }
 
 func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, host, path, vsName string, pl cisapiv1.VSPool) MonitorName {
+	formatPort intstr.IntOrString, host, path, vsName string, pl cisapiv1.VSPool, rscNamespace string) MonitorName {
 	var monitorRefName MonitorName
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
@@ -838,6 +838,9 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, rsC
 			}
 			poolSvc := pl.Service
 			poolSvcNamespace := pl.ServiceNamespace
+			if poolSvcNamespace == "" {
+				poolSvcNamespace = rscNamespace
+			}
 			if ctlr.discoveryMode == DefaultMode && pl.MultiClusterServices != nil && len(pl.MultiClusterServices) > 0 {
 				poolSvc = pl.MultiClusterServices[0].SvcName
 				poolSvcNamespace = pl.MultiClusterServices[0].Namespace

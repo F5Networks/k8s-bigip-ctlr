@@ -542,27 +542,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	for _, pl := range vs.Spec.Pools {
 		// create monitor for the pool
 		var monitorNames []MonitorName
-		if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
-			monitorName := ctlr.createVirtualServerMonitor(pl.Monitor, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
-				vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl)
-			if monitorName != (MonitorName{}) {
-				monitorNames = append(monitorNames, monitorName)
-			}
-		} else if pl.Monitors != nil {
-			var formatPort intstr.IntOrString
-			for _, monitor := range pl.Monitors {
-				if monitor.TargetPort != 0 {
-					formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
-				} else {
-					formatPort = pl.ServicePort
-				}
-				monitorName := ctlr.createVirtualServerMonitor(monitor, rsCfg, formatPort, vs.Spec.Host, pl.Path,
-					vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl)
-				if monitorName != (MonitorName{}) {
-					monitorNames = append(monitorNames, monitorName)
-				}
-			}
-		}
 		// Fetch service backends with weights for pool
 		backendSvcs := ctlr.GetPoolBackendsForVS(&pl, vs.Namespace)
 		for _, SvcBackend := range backendSvcs {
@@ -571,6 +550,30 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				// Pool with same name framed earlier, so skipping this pool
 				log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
 				continue
+			}
+			// monitor spec is handled only once per pool for all svcBackends
+			if len(monitorNames) == 0 {
+				if !reflect.DeepEqual(pl.Monitor, cisapiv1.Monitor{}) {
+					monitorName := ctlr.createVirtualServerMonitor(pl.Monitor, rsCfg, pl.ServicePort, vs.Spec.Host, pl.Path,
+						vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl, vs.ObjectMeta.Namespace)
+					if monitorName != (MonitorName{}) {
+						monitorNames = append(monitorNames, monitorName)
+					}
+				} else if pl.Monitors != nil {
+					var formatPort intstr.IntOrString
+					for _, monitor := range pl.Monitors {
+						if monitor.TargetPort != 0 {
+							formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+						} else {
+							formatPort = pl.ServicePort
+						}
+						monitorName := ctlr.createVirtualServerMonitor(monitor, rsCfg, formatPort, vs.Spec.Host, pl.Path,
+							vs.ObjectMeta.Namespace+"/"+vs.ObjectMeta.Name, pl, vs.ObjectMeta.Namespace)
+						if monitorName != (MonitorName{}) {
+							monitorNames = append(monitorNames, monitorName)
+						}
+					}
+				}
 			}
 			framedPools[poolName] = struct{}{}
 			targetPort := ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, SvcBackend.SvcPort, SvcBackend.Cluster)
@@ -821,7 +824,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 }
 
 func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, rsCfg *ResourceConfig,
-	formatPort intstr.IntOrString, host, path, vsName string, pl cisapiv1.VSPool) MonitorName {
+	formatPort intstr.IntOrString, host, path, vsName string, pl cisapiv1.VSPool, rscNamespace string) MonitorName {
 	var monitorRefName MonitorName
 	if !reflect.DeepEqual(monitor, Monitor{}) {
 		if monitor.Reference == BIGIP {
@@ -838,6 +841,9 @@ func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, rsC
 			}
 			poolSvc := pl.Service
 			poolSvcNamespace := pl.ServiceNamespace
+			if poolSvcNamespace == "" {
+				poolSvcNamespace = rscNamespace
+			}
 			if ctlr.discoveryMode == DefaultMode && pl.MultiClusterServices != nil && len(pl.MultiClusterServices) > 0 {
 				poolSvc = pl.MultiClusterServices[0].SvcName
 				poolSvcNamespace = pl.MultiClusterServices[0].Namespace

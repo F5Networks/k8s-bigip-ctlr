@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
@@ -41,16 +40,14 @@ const (
 
 func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
 	pm := &PostManager{
-		firstPost: true,
-		PrimaryClusterHealthProbeParams: &PrimaryClusterHealthProbeParams{
-			paramLock: &sync.RWMutex{},
-		},
-		cachedTenantDeclMap:   make(map[string]as3Tenant),
-		incomingTenantDeclMap: make(map[string]as3Tenant),
-		retryTenantDeclMap:    make(map[string]*tenantParams),
-		tenantPriorityMap:     make(map[string]int),
-		postChan:              make(chan ResourceConfigRequest, 1),
-		retryChan:             make(chan struct{}, 1),
+		firstPost:                       true,
+		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
+		cachedTenantDeclMap:             make(map[string]as3Tenant),
+		incomingTenantDeclMap:           make(map[string]as3Tenant),
+		retryTenantDeclMap:              make(map[string]*tenantParams),
+		tenantPriorityMap:               make(map[string]int),
+		postChan:                        make(chan ResourceConfigRequest, 1),
+		retryChan:                       make(chan struct{}, 1),
 	}
 	if !gtmPostMgr {
 		pm.PostParams = params.PostParams

@@ -462,6 +462,7 @@ func (ctlr *Controller) processBlockAffinities(clusterName string) {
 		baListInf = infStore.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetIndexer().List()
 	}
 	routes := routeSection{}
+	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.Agent.PostManager.BIGIPURL, "https://")
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	for _, obj := range baListInf {
 		blockAffinity := obj.(*unstructured.Unstructured)
@@ -472,6 +473,7 @@ func (ctlr *Controller) processBlockAffinities(clusterName string) {
 		}
 		baName := blockAffinity.Object["metadata"].(map[string]interface{})["name"]
 		route := routeConfig{}
+		route.Description = routes.CISIdentifier
 		if clusterConfig != nil {
 			nodes := clusterConfig.oldNodes
 			cidr := baJSON["cidr"]

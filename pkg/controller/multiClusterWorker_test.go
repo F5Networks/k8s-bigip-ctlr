@@ -15,17 +15,7 @@ var _ = Describe("MultiClusterWorker", func() {
 	var clusterName2 string
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("cluster-1", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("cluster-1")
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

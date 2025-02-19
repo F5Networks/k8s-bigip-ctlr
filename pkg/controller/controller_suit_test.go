@@ -102,12 +102,7 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
-		PostManager: &PostManager{
-			postChan: make(chan ResourceConfigRequest, 1),
-			PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			},
-		},
+		PostManager:     &PostManager{postChan: make(chan ResourceConfigRequest, 1)},
 		Partition:       "test",
 		ConfigWriter:    writer,
 		EventChan:       make(chan interface{}),

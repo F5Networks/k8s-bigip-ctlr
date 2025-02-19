@@ -276,9 +276,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 	}()
 	// - STANDBY when:
 	//   1. The cluster is **not primary** AND the **primary cluster is healthy**.
-	//   2. The cluster is **primary** AND the **primary cluster is unhealthy**.
-	if (ch.MultiClusterMode != PrimaryCIS && ch.PrimaryClusterHealthProbeParams.statusRunning) ||
-		(ch.MultiClusterMode == PrimaryCIS && !ch.PrimaryClusterHealthProbeParams.statusRunning) {
+	if ch.MultiClusterMode == SecondaryCIS && ch.PrimaryClusterHealthProbeParams.statusRunning {
 		isStatusStandby = true
 	}
 	clusterConfig := ch.getClusterConfig(rscStatus.ResourceKey.clusterName)

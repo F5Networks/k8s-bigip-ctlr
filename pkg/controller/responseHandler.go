@@ -80,8 +80,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
-						} else {
 							// update the status for virtual server as tenant posting is success
+						} else if ctlr.multiClusterMode == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning {
+							ctlr.updateVSStatus(virtual, "", StatusStandby, errors.New(tenantResponse.message))
+						} else {
 							ctlr.updateVSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
 								namespace: virtual.Namespace,
@@ -116,6 +118,8 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
+						} else if ctlr.multiClusterMode == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning {
+							ctlr.updateTSStatus(virtual, "", StatusStandby, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
 							ctlr.updateTSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
@@ -149,6 +153,8 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
+						} else if ctlr.multiClusterMode == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning {
+							ctlr.updateILStatus(il, "", StatusStandby, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
 							ctlr.updateILStatus(il, ctlr.ResourceStatusVSAddressMap[resourceRef{
@@ -163,6 +169,8 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					if _, found := rscUpdateMeta.failedTenants[partition]; found {
 						// TODO : distinguish between a 503 and an actual failure
 						go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
+					} else if ctlr.multiClusterMode == SecondaryCIS && ctlr.Agent.PrimaryClusterHealthProbeParams.statusRunning {
+						ctlr.updateRouteAdmitStatus(rscKey, "StandBy config", "Please check logs for more information", v1.ConditionFalse)
 					} else {
 						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 					}

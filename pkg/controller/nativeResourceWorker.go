@@ -2221,8 +2221,8 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 // updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
 func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig) {
 	// Initialize PrimaryClusterHealthProbeParams if it's the first time
-	if ctlr.Agent.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
-		ctlr.Agent.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
+	if ctlr.Agent.PrimaryClusterHealthProbeParams == nil {
+		ctlr.Agent.PrimaryClusterHealthProbeParams = &PrimaryClusterHealthProbeParams{
 			paramLock: &sync.RWMutex{},
 		}
 	}

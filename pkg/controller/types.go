@@ -856,7 +856,7 @@ type (
 	AgentParams struct {
 		PostParams                      PostParams
 		GTMParams                       PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
 		Partition          string
 		LogLevel           string
@@ -877,7 +877,7 @@ type (
 		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		firstPost                       bool
 		AS3VersionInfo                  as3VersionInfo
 		bigIPAS3Version                 float64

@@ -109,9 +109,7 @@ type (
 	}
 
 	ClusterHandler struct {
-		ClusterConfigs map[string]*ClusterConfig
-		*PrimaryClusterHealthProbeParams
-		MultiClusterMode    string
+		ClusterConfigs      map[string]*ClusterConfig
 		HAPairClusterName   string
 		LocalClusterName    string
 		uniqueAppIdentifier map[string]struct{}
@@ -1475,9 +1473,8 @@ const (
 type HAModeType string
 
 const (
-	StatusOk      = "OK"
-	StatusError   = "ERROR"
-	StatusStandby = "STANDBY"
+	StatusOk    = "OK"
+	StatusError = "ERROR"
 )
 
 type discoveryMode string

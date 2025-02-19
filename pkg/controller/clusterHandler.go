@@ -14,15 +14,13 @@ import (
 )
 
 // NewClusterHandler initializes the ClusterHandler with the required structures for each cluster.
-func NewClusterHandler(LocalClusterName, multiclusterMode string, clusterParams *PrimaryClusterHealthProbeParams) *ClusterHandler {
+func NewClusterHandler(LocalClusterName string) *ClusterHandler {
 	return &ClusterHandler{
-		PrimaryClusterHealthProbeParams: clusterParams,
-		MultiClusterMode:                multiclusterMode,
-		ClusterConfigs:                  make(map[string]*ClusterConfig),
-		uniqueAppIdentifier:             make(map[string]struct{}),
-		eventQueue:                      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		LocalClusterName:                LocalClusterName,
-		statusUpdate:                    NewStatusUpdater(),
+		ClusterConfigs:      make(map[string]*ClusterConfig),
+		uniqueAppIdentifier: make(map[string]struct{}),
+		eventQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		LocalClusterName:    LocalClusterName,
+		statusUpdate:        NewStatusUpdater(),
 	}
 }
 
@@ -267,20 +265,12 @@ func (ch *ClusterHandler) ResourceStatusUpdater() {
 
 // UpdateResourceStatus updates the status of the resource
 func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
-	var isStatusStandby bool
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("recovered from panic while updating status for resource %s/%s in cluster %s with err %v",
 				rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName, r)
 		}
 	}()
-	// - STANDBY when:
-	//   1. The cluster is **not primary** AND the **primary cluster is healthy**.
-	//   2. The cluster is **primary** AND the **primary cluster is unhealthy**.
-	if (ch.MultiClusterMode != PrimaryCIS && ch.PrimaryClusterHealthProbeParams.statusRunning) ||
-		(ch.MultiClusterMode == PrimaryCIS && !ch.PrimaryClusterHealthProbeParams.statusRunning) {
-		isStatusStandby = true
-	}
 	clusterConfig := ch.getClusterConfig(rscStatus.ResourceKey.clusterName)
 	if clusterConfig == nil {
 		log.Errorf("Failed while updating status of %s/%s. Error: Unable to get cluster config for cluster:%s",
@@ -330,11 +320,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if isStatusStandby {
-				vs.Status.Status = StatusStandby
-			} else {
-				vs.Status = rscStatus.ResourceObj.(cisv1.VirtualServerStatus)
-			}
+			vs.Status = rscStatus.ResourceObj.(cisv1.VirtualServerStatus)
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	case cisv1.TransportServerStatus:
@@ -375,13 +361,8 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			}
 			found = true
 		}
-
 		if found {
-			if isStatusStandby {
-				ts.Status.Status = StatusStandby
-			} else {
-				ts.Status = rscStatus.ResourceObj.(cisv1.TransportServerStatus)
-			}
+			ts.Status = rscStatus.ResourceObj.(cisv1.TransportServerStatus)
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
 	case cisv1.IngressLinkStatus:
@@ -423,11 +404,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if isStatusStandby {
-				il.Status.Status = StatusStandby
-			} else {
-				il.Status = rscStatus.ResourceObj.(cisv1.IngressLinkStatus)
-			}
+			il.Status = rscStatus.ResourceObj.(cisv1.IngressLinkStatus)
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
 	case v1.ServiceStatus:
@@ -469,11 +446,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if isStatusStandby {
-				svc.Status.Conditions[0].Message = StatusStandby
-			} else {
-				svc.Status = rscStatus.ResourceObj.(v1.ServiceStatus)
-			}
+			svc.Status = rscStatus.ResourceObj.(v1.ServiceStatus)
 		}
 		_, updateErr = clusterConfig.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 		if nil != updateErr {
@@ -547,11 +520,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			if isStatusStandby {
-				route.Status.Ingress[0].Conditions[0].Message = StatusStandby
-			} else {
-				route.Status = rscStatus.ResourceObj.(routeapi.RouteStatus)
-			}
+			route.Status = rscStatus.ResourceObj.(routeapi.RouteStatus)
 		}
 		_, updateErr = clusterConfig.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(),
 			route, metav1.UpdateOptions{})

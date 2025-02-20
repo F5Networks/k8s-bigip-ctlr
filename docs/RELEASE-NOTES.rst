@@ -25,7 +25,7 @@ Bug Fixes
 Upgrade notes
 ``````````````
 * For using Calico CNI with staticRoutingMode, update RBAC permissions to monitor calico block affinities resource. See `RBAC <./config_examples/rbac/k8s_rbac.yaml>`_
-* Optimized monitor creation for default mode in CIS Multicluster with shared monitor for pools. This required a bug fix from AS3 for https://my.f5.com/manage/s/article/K33604210 which limited sharing monitors for pools and fixed with AS3 3.52 version. For Multicluster default mode, AS3 should be updated to 3.52 before upgrading CIS to 2.19.1
+* o	Optimized monitor creation for default mode in CIS Multicluster with shared monitor for pools. This required a bug fix from AS3(https://my.f5.com/manage/s/article/K33604210), which limited sharing monitors for pools which fixed in AS3 3.52 version. So for Multicluster default mode, AS3 should be updated to 3.52 before upgrading CIS to 2.19.1
 * With shared static routes enabled, CIS creates static routes in common partition with a specific description using BIG IP and partition. This will help the CIS to identify the routes created by particular CIS and clean routes in the case of delete. 
 If there is a  CIS partition change, its recommended to clean up the routes manually.
 

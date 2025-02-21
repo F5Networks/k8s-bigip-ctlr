@@ -23,7 +23,7 @@ Upgrade notes
 
 Known Issues
 `````````````
-* o	When shared static routes enabled, if there is a change in the CIS partition, it's recommended to manually clean up the routes.o	When shared static routes enabled, if there is a change in the CIS partition, it's recommended to manually clean up the routes.
+* When shared static routes enabled, if there is a change in the CIS partition, it's recommended to manually clean up the routes from the Common partition.
 
 2.19.0
 -------------

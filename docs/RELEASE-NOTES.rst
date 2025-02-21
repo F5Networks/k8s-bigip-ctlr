@@ -4,20 +4,14 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 2.19.1
 -------------
 
-Added Functionality
-```````````````````
-**What's new:**
-    * Multi Cluster
-    * CRD
-
 Bug Fixes
 ````````````
 * `Issue 3679 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3679>`_: Certificate, CA chain, and private key shown in debug logs
 * `Issue 3726 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3726>`_: VS in default multi cluster mode not working
 * `Issue 3655 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3655>`_: Calico static routes not updated when nodes added/removed from cluster
-* `Issue 3717 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3717>`_: StaticRoute CNI calico doesn't detect multiple blockaffinities
+* `Issue 3717 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3717>`_: Static Route CNI calico doesn't detect multiple blockaffinities
 * `Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other.
-* `Issue 3723 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3723>`_: Configuration errors reset VSAddress to None for all VirtualServers, TransportServers, and IngressLinks
+* `Issue 3723 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3723>`_: Configuration errors reset VS Address to None for all Virtual Servers, Transport Servers, and Ingress Links
 * `Issue 3727 <https://github.com/F5Networks/k8s-bigip-ctlr/pull/3738>`_: F5-cis needs a restart to use updated kubeconfig secret
 * Fix the Kubernetes Client API throttling errors
 * Optimized monitor creation for default mode with shared monitor for pools
@@ -25,8 +19,11 @@ Bug Fixes
 Upgrade notes
 ``````````````
 * For using Calico CNI with staticRoutingMode, update RBAC permissions to monitor calico block affinities resource. See `RBAC <./config_examples/rbac/k8s_rbac.yaml>`_
-* Optimized monitor creation for default mode in CIS Multicluster with shared monitor for pools. This required a bug fix from AS3(https://my.f5.com/manage/s/article/K33604210), which limited sharing monitors for pools which fixed in AS3 3.52 version. So for Multicluster default mode, AS3 should be updated to 3.52 before upgrading CIS to 2.19.1
-* With shared static routes enabled, CIS creates static routes in common partition with a specific description using BIG IP and partition. This will help the CIS to identify the routes created by particular CIS and clean routes in the case of delete. If there is a  CIS partition change, its recommended to clean up the routes manually.
+* Upgrade AS3 to 3.52 version, for shared monitor creation in Multicluster default mode.
+
+Known Issues
+`````````````
+* o	When shared static routes enabled, if there is a change in the CIS partition, it's recommended to manually clean up the routes.o	When shared static routes enabled, if there is a change in the CIS partition, it's recommended to manually clean up the routes.
 
 2.19.0
 -------------

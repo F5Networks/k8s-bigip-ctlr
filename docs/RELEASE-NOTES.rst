@@ -18,6 +18,7 @@ Bug Fixes
 * `Issue 3655 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3655>`_: Calico static routes not updated when nodes added/removed from cluster
 * `Issue 3717 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3717>`_: StaticRoute CNI calico doesn't detect multiple blockaffinities
 * `Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other.
+* `Issue 3723 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3723>`_: Configuration errors reset VSAddress to None for all VirtualServers, TransportServers, and IngressLinks
 * `Issue 3727 <https://github.com/F5Networks/k8s-bigip-ctlr/pull/3738>`_: F5-cis needs a restart to use updated kubeconfig secret
 * `Issue 3726 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3726>`_: VS in default multi cluster mode not working
 * `Issue 3724 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3724>`_: Transport server status “ERROR” on the secondary cluster

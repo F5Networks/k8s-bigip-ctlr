@@ -3,10 +3,11 @@ package controller
 import (
 	"container/list"
 	"errors"
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"sync"
+
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
@@ -81,7 +82,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateVSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateVSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
+								name:      virtual.Name,
+								namespace: virtual.Namespace,
+								kind:      VirtualServer,
+							}], StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
 								// set status of all the LB services associated with this VS
@@ -113,7 +118,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateTSStatus(virtual, virtual.Status.VSAddress, StatusOk, nil)
+							ctlr.updateTSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
+								name:      virtual.Name,
+								namespace: virtual.Namespace,
+								kind:      TransportServer,
+							}], StatusOk, nil)
 							// set status of all the LB services associated with this TS
 							go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 						}
@@ -142,7 +151,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateILStatus(il, il.Status.VSAddress, StatusOk, nil)
+							ctlr.updateILStatus(il, ctlr.ResourceStatusVSAddressMap[resourceRef{
+								name:      il.Name,
+								namespace: il.Namespace,
+								kind:      IngressLink,
+							}], StatusOk, nil)
 						}
 					}
 

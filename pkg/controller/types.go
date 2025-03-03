@@ -409,6 +409,7 @@ type (
 		ipOrIPAMKey string
 		port        int32
 		routeDomain int32
+		protocol    string
 	}
 
 	// L4AppsStore contains TypeLB service details.key is IP

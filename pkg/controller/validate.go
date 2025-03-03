@@ -23,6 +23,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"strings"
 )
 
 func (ctlr *Controller) checkValidVirtualServer(
@@ -351,6 +352,7 @@ func getL4AppConfigForService(svc *v1.Service, ipamClusterLabel string, routeDom
 			ipOrIPAMKey: ip,
 			port:        svc.Spec.Ports[0].Port,
 			routeDomain: routeDomain,
+			protocol:    strings.ToLower(string(svc.Spec.Ports[0].Protocol)),
 		}
 	}
 	if _, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]; ok {
@@ -358,6 +360,7 @@ func getL4AppConfigForService(svc *v1.Service, ipamClusterLabel string, routeDom
 			ipOrIPAMKey: ipamClusterLabel + svc.Namespace + "/" + svc.Name + "_svc",
 			port:        svc.Spec.Ports[0].Port,
 			routeDomain: routeDomain,
+			protocol:    strings.ToLower(string(svc.Spec.Ports[0].Protocol)),
 		}
 	}
 	return l4AppConfig{}

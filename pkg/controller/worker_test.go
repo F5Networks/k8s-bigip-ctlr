@@ -144,6 +144,7 @@ var _ = Describe("Worker Tests", func() {
 				options.LabelSelector = mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector.String()
 			},
 		)
+		mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
 	})
 
 	Describe("Validating Ingress link functions", func() {
@@ -3989,6 +3990,7 @@ extendedRouteSpec:
 					options.LabelSelector = mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector.String()
 				},
 			)
+			mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
 		})
 		It("Virtual Server processing on pod update", func() {
 			mockCtlr.PoolMemberType = NodePortLocal

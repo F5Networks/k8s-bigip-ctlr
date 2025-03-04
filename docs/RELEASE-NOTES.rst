@@ -49,7 +49,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
-* `Issue 3615 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Fix service type LoadBalancer IPs re-assigned on service update.
+* `Issue 3615 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3615>`_: Fix service type LoadBalancer IPs re-assigned on service update.
 * `Issue 3561 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3561>`_: Controller stops posting changes at runtime when some ingress path has the + character.
 * `Issue 3570 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3570>`_: tls irule fails if pool has no active members.
 * `Issue 3654 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3654>`_: Persistent connection issue with SSL and HTTP pools in a VirtualServer Hostgroup.

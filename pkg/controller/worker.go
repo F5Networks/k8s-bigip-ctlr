@@ -918,6 +918,7 @@ func (ctlr *Controller) processResources() bool {
 		ctlr.RequestHandler.EnqueueRequestConfig(config)
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
+
 	}
 	return true
 }

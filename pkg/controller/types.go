@@ -54,7 +54,8 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode ControllerMode
+		mode      ControllerMode
+		resources *ResourceStore
 		*RequestHandler
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
@@ -88,7 +89,7 @@ type (
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
-		APIHandler                  APIHandlerInterface
+		APIHandler                  ApiTypeHandlerInterface
 		resourceContext
 	}
 	resourceContext struct {
@@ -907,7 +908,7 @@ type (
 		ccclGTMAgent                    bool
 		disableARP                      bool
 		HAMode                          bool
-		GTMPostManager  *GTMPostManager
+		GTMPostManager                  *GTMPostManager
 	}
 
 	BaseAPIHandler struct {
@@ -1004,7 +1005,6 @@ type (
 		apiType           string
 	}
 
-
 	PrimaryClusterHealthProbeParams struct {
 		paramLock     *sync.RWMutex
 		EndPoint      string
@@ -1042,7 +1042,7 @@ type (
 	}
 
 	tenantParams struct {
-		as3Decl interface{} // to update cachedTenantDeclMap on success
+		decl interface{} // to update cachedTenantDeclMap on success
 		tenantResponse
 	}
 

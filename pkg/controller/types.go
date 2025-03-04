@@ -54,9 +54,8 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode                        ControllerMode
-		resources                   *ResourceStore
-		RequestHandler              *RequestHandler
+		mode ControllerMode
+		*RequestHandler
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
@@ -183,6 +182,7 @@ type (
 		RequestHandler              *RequestHandler
 		NamespaceLabel              string
 		Partition                   string
+		Agent                       *Agent
 		PoolMemberType              string
 		VXLANName                   string
 		VXLANMode                   string
@@ -839,6 +839,7 @@ type (
 
 	RequestHandler struct {
 		AgentWorkers map[string]*AgentWorker
+		resources    *ResourceStore
 		reqChan      chan ResourceConfigRequest
 		userAgent    string
 		respChan     chan resourceStatusMeta
@@ -995,11 +996,12 @@ type (
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
-		postChan           chan ResourceConfigRequest
-		respChan           chan resourceStatusMeta
-		httpClientMetrics  bool
-		retryChan          chan struct{}
-		apiType            string
+		//postChan           chan ResourceConfigRequest
+		postChan          chan agentPostConfig
+		respChan          chan resourceStatusMeta
+		httpClientMetrics bool
+		retryChan         chan struct{}
+		apiType           string
 	}
 
 

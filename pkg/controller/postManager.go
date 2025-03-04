@@ -45,8 +45,10 @@ func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
 		incomingTenantDeclMap:           make(map[string]as3Tenant),
 		retryTenantDeclMap:              make(map[string]*tenantParams),
 		tenantPriorityMap:               make(map[string]int),
-		postChan:                        make(chan ResourceConfigRequest, 1),
-		apiType:                         params.ApiType,
+		// fix this below the postChan
+
+		postChan: make(chan agentPostConfig),
+		apiType:  params.ApiType,
 	}
 	if !gtmPostMgr {
 		pm.PostParams = params.PostParams
@@ -103,13 +105,13 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 func (postMgr *PostManager) postConfig(cfg *agentConfig) (*http.Response, map[string]interface{}) {
 	// log as3 request if it's set
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
-	req, err := http.NewRequest("POST", cfg.apiURL, httpReqBody)
+	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("%v[%s]%v Creating new HTTP request error: %v ", getRequestPrefix(cfg.id), postMgr.apiType, postMgr.postManagerPrefix, err)
 		return nil, nil
 	}
-	log.Debugf("[%s]%v posting request to %v", postMgr.apiType, postMgr.postManagerPrefix, cfg.apiURL)
-	log.Infof("%v[%s]%v posting request to %v for %v tenants", getRequestPrefix(cfg.id), postMgr.apiType, postMgr.postManagerPrefix, postMgr.BIGIPURL, getTenantsFromUri(cfg.apiURL))
+	log.Debugf("[%s]%v posting request to %v", postMgr.apiType, postMgr.postManagerPrefix, cfg.as3APIURL)
+	log.Infof("%v[%s]%v posting request to %v for %v tenants", getRequestPrefix(cfg.id), postMgr.apiType, postMgr.postManagerPrefix, postMgr.BIGIPURL, getTenantsFromUri(cfg.as3APIURL))
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)

@@ -919,8 +919,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
-		LogAS3Response:    *logAS3Response,
-		LogAS3Request:     *logAS3Request,
+		LogResponse:       *logAS3Response,
+		LogRequest:        *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -931,8 +931,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
-		LogAS3Response:    *logAS3Response,
-		LogAS3Request:     *logAS3Request,
+		LogResponse:       *logAS3Response,
+		LogRequest:        *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -1006,7 +1006,7 @@ func initController(
 		},
 		true,
 	)
-	ctlr.APIHandler = controller.NewAS3Handler(agentParams)
+	//ctlr.APIHandler = controller.NewAS3Handler(agentParams)
 
 	return ctlr
 }
@@ -1132,7 +1132,7 @@ func main() {
 		ctlr := initController(config)
 		ctlr.TeemData = td
 		if !(*disableTeems) {
-			key, err := ctlr.Agent.GetBigipRegKey()
+			key, err := ctlr.RequestHandler.AgentWorkers[controller.PrimaryBigIP].LTM.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}

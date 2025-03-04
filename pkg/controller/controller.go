@@ -148,7 +148,6 @@ const (
 func NewController(params Params, startController bool) *Controller {
 
 	ctlr := &Controller{
-		resources:                   NewResourceStore(),
 		RequestHandler:              params.RequestHandler,
 		PoolMemberType:              params.PoolMemberType,
 		UseNodeInternal:             params.UseNodeInternal,
@@ -252,8 +251,8 @@ func NewController(params Params, startController bool) *Controller {
 			tunnelName,
 			ctlr.ciliumTunnelName,
 			ctlr.UseNodeInternal,
-			ctlr.Agent.ConfigWriter,
-			ctlr.Agent.EventChan,
+			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].ConfigWriter,
+			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan,
 		)
 		if nil != err {
 			log.Errorf("error creating vxlan manager: %v", err)
@@ -262,7 +261,7 @@ func NewController(params Params, startController bool) *Controller {
 	}
 
 	if startController {
-		go ctlr.responseHandler(ctlr.Agent.respChan)
+		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].respChan)
 
 		go ctlr.Start()
 
@@ -494,12 +493,12 @@ func (ctlr *Controller) Start() {
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	ctlr.StopInformers(ctlr.multiClusterHandler.LocalClusterName)
-	ctlr.Agent.Stop()
+	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
 	}
-	if ctlr.Agent.EventChan != nil {
-		close(ctlr.Agent.EventChan)
+	if ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan != nil {
+		close(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan)
 	}
 }
 
@@ -609,7 +608,8 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 				response = "kube-api server is not reachable."
 			}
 			// Check if big-ip server is reachable
-			_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
+			//_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
+			_, _, _, err2 := ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.GetBigIPAPIVersion()
 			if err2 != nil {
 				response = response + "big-ip server is not reachable."
 			}

@@ -637,6 +637,8 @@ var _ = Describe("Main Tests", func() {
 				"--trusted-certs-cfgmap=default/foomap",
 			}
 			flags.Parse(os.Args)
+			os.Setenv("BIGIP_USERNAME", "")
+			os.Setenv("BIGIP_PASSWORD", "")
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
 			err := os.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
 			Expect(err).ToNot(HaveOccurred())
@@ -699,6 +701,8 @@ var _ = Describe("Main Tests", func() {
 				"--pool-member-type=nodeport",
 			}
 			flags.Parse(os.Args)
+			os.Setenv("BIGIP_USERNAME", "")
+			os.Setenv("BIGIP_PASSWORD", "")
 			os.Mkdir("/tmp/k8s-test-creds", 0755)
 			err := os.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
 			Expect(err).ToNot(HaveOccurred())

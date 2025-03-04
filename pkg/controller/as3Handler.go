@@ -34,8 +34,9 @@ type ApiTypeHandlerInterface interface {
 	logRequest(cfg string)
 	createAPIDeclaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration
 	getApiHandler() *AS3Handler
-	createLTMConfigADC(config ResourceConfigRequest) as3ADC
-	createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC
+	getResourceConfigRequest(config agentPostConfig) (*ResourceConfigRequest, error)
+	//createLTMConfigADC(config ResourceConfigRequest) as3ADC
+	//createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC
 }
 
 func NewAS3Handler(params AgentParams, postManager *PostManager) *AS3Handler {
@@ -514,168 +515,60 @@ func (am *AS3Handler) removeDeletedTenantsForBigIP(as3Config map[string]interfac
 	}
 }
 
-func (am *AS3Handler) createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
-	if len(config.gtmConfig) == 0 {
-		sharedApp := as3Application{}
-		sharedApp["class"] = "Application"
-		sharedApp["template"] = "shared"
-		cisLabel := agent.Partition
-		tenantDecl := as3Tenant{
-			"class":              "Tenant",
-			as3SharedApplication: sharedApp,
-			"label":              cisLabel,
-		}
-		adc[DEFAULT_GTM_PARTITION] = tenantDecl
+func (am *AS3Handler) getResourceConfigRequest(cfg agentPostConfig) (*ResourceConfigRequest, error) {
+	// fix this entire function below in terms of parsing and return the error
+	var rcr ResourceConfigRequest
+	var as3Config map[string]interface{}
 
-		return adc
+	err := json.Unmarshal([]byte(cfg.data), &as3Config)
+	if err != nil {
+		return nil, fmt.Errorf("[AS3] Error unmarshaling AS3 declaration: %v", err)
 	}
 
-	for pn, gtmPartitionConfig := range config.gtmConfig {
-		var tenantDecl as3Tenant
-		var sharedApp as3Application
+	// Extract declaration from AS3 config
+	//declaration, ok := as3Config["declaration"].(map[string]interface{})
+	//if !ok {
+	//	return nil, fmt.Errorf("[AS3] Error extracting declaration from AS3 config")
+	//}
 
-		if obj, ok := adc[pn]; ok {
-			tenantDecl = obj.(as3Tenant)
-			sharedApp = tenantDecl[as3SharedApplication].(as3Application)
-		} else {
-			sharedApp = as3Application{}
-			sharedApp["class"] = "Application"
-			sharedApp["template"] = "shared"
+	rcr.reqId = cfg.id
+	rcr.ltmConfig = make(LTMConfig)
 
-			tenantDecl = as3Tenant{
-				"class":              "Tenant",
-				as3SharedApplication: sharedApp,
-			}
-		}
+	//// Process each tenant in declaration
+	//for tenant, config := range declaration {
+	//	// Skip class and schemaVersion fields
+	//	if tenant == "class" || tenant == "schemaVersion" {
+	//		continue
+	//	}
+	//
+	//	tenantCfg, ok := config.(map[string]interface{})
+	//	if !ok {
+	//		return nil, fmt.Errorf("[AS3] Error parsing tenant config for %s", tenant)
+	//	}
+	//
+	//	rcr.ltmConfig[tenant] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: config.Priority}
+	//
+	//	// Process each resource in tenant
+	//	for resource, rConfig := range tenantCfg {
+	//		if resource == "class" {
+	//			continue
+	//		}
+	//
+	//		resourceCfg, ok := rConfig.(map[string]interface{})
+	//		if !ok {
+	//			return nil, fmt.Errorf("[AS3] Error parsing resource config for %s/%s", tenant, resource)
+	//		}
+	//
+	//		rcr.ltmConfig[tenant].ResourceMap[resource] = &ResourceConfig{
+	//			MetaData: metaData{
+	//				ResourceType: "ltm",
+	//				Name:         resource,
+	//			},
+	//			Raw: resourceCfg,
+	//		}
+	//	}
+	//}
 
-		for domainName, wideIP := range gtmPartitionConfig.WideIPs {
+	return &rcr, nil
 
-			gslbDomain := as3GLSBDomain{
-				Class:              "GSLB_Domain",
-				DomainName:         wideIP.DomainName,
-				RecordType:         wideIP.RecordType,
-				LBMode:             wideIP.LBMethod,
-				PersistenceEnabled: wideIP.PersistenceEnabled,
-				PersistCidrIPv4:    wideIP.PersistCidrIPv4,
-				PersistCidrIPv6:    wideIP.PersistCidrIPv6,
-				TTLPersistence:     wideIP.TTLPersistence,
-				Pools:              make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
-			}
-			if wideIP.ClientSubnetPreferred != nil {
-				gslbDomain.ClientSubnetPreferred = wideIP.ClientSubnetPreferred
-			}
-			for _, pool := range wideIP.Pools {
-				gslbPool := as3GSLBPool{
-					Class:          "GSLB_Pool",
-					RecordType:     pool.RecordType,
-					LBMode:         pool.LBMethod,
-					LBModeFallback: pool.LBModeFallBack,
-					Members:        make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
-					Monitors:       make([]as3ResourcePointer, 0, len(pool.Monitors)),
-				}
-
-				for _, mem := range pool.Members {
-					gslbPool.Members = append(gslbPool.Members, as3GSLBPoolMemberA{
-						Enabled: true,
-						Server: as3ResourcePointer{
-							BigIP: pool.DataServer,
-						},
-						VirtualServer: mem,
-					})
-				}
-
-				for _, mon := range pool.Monitors {
-					gslbMon := as3GSLBMonitor{
-						Class:    "GSLB_Monitor",
-						Interval: mon.Interval,
-						Type:     mon.Type,
-						Send:     mon.Send,
-						Receive:  mon.Recv,
-						Timeout:  mon.Timeout,
-					}
-
-					gslbPool.Monitors = append(gslbPool.Monitors, as3ResourcePointer{
-						Use: mon.Name,
-					})
-
-					sharedApp[mon.Name] = gslbMon
-				}
-				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name, Ratio: pool.Ratio})
-				sharedApp[pool.Name] = gslbPool
-			}
-
-			sharedApp[strings.Replace(domainName, "*", "wildcard", -1)] = gslbDomain
-		}
-		adc[pn] = tenantDecl
-	}
-
-	return adc
-}
-
-func (am *AS3Handler) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
-	adc := as3ADC{}
-	cisLabel := agent.Partition
-
-	if agent.HAMode {
-		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
-		// if it's secondary CIS and primary CIS is down and statusChanged is true
-		if agent.LTM.firstPost ||
-			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
-				agent.PrimaryClusterHealthProbeParams.statusChanged) {
-			agent.LTM.removeDeletedTenantsForBigIP(&config, cisLabel)
-			agent.LTM.firstPost = false
-		}
-	}
-
-	as3 := agent.LTM.APIHandler.getApiHandler()
-
-	for tenant := range agent.LTM.cachedTenantDeclMap {
-		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
-			// Remove partition
-			adc[tenant] = as3.getDeletedTenantDeclaration(agent.Partition, tenant, cisLabel, &config)
-		}
-	}
-	for tenantName, partitionConfig := range config.ltmConfig {
-		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
-		partitionConfig.PriorityMutex.RLock()
-		if *(partitionConfig.Priority) > 0 {
-			agent.LTM.tenantPriorityMap[tenantName] = *(partitionConfig.Priority)
-		}
-		partitionConfig.PriorityMutex.RUnlock()
-		if len(partitionConfig.ResourceMap) == 0 {
-			// Remove partition
-			adc[tenantName] = as3.getDeletedTenantDeclaration(agent.Partition, tenantName, cisLabel, &config)
-			continue
-		}
-		// Create Shared as3Application object
-		sharedApp := as3Application{}
-		sharedApp["class"] = "Application"
-		sharedApp["template"] = "shared"
-
-		// Process rscfg to create AS3 Resources
-		as3 := agent.LTM.APIHandler.getApiHandler()
-
-		as3.processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName,
-			config.poolMemberType)
-
-		// Process CustomProfiles
-		as3.processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		// Process Profiles
-		as3.processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		as3.processIRulesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		as3.processDataGroupForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		// Create AS3 Tenant
-		tenantDecl := as3Tenant{
-			"class":              "Tenant",
-			"defaultRouteDomain": config.defaultRouteDomain,
-			as3SharedApplication: sharedApp,
-			"label":              cisLabel,
-		}
-		adc[tenantName] = tenantDecl
-	}
-	return adc
 }

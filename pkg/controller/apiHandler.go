@@ -18,7 +18,6 @@ func NewGTMAPIHandler(params AgentParams) *GTMAPIHandler {
 		BaseAPIHandler: NewBaseAPIHandler(params, true),
 		Partition:      DEFAULT_GTM_PARTITION,
 	}
-	// Initialize appropriate API handler based on type
 	switch params.ApiType {
 	case "as3":
 		gtm.APIHandler = NewAS3Handler(params, gtm.PostManager)
@@ -206,7 +205,7 @@ func (api *BaseAPIHandler) publishConfig(cfg agentConfig) {
 }
 
 func (api *BaseAPIHandler) PopulateAPIVersion() error {
-	version, build, schemaVersion, err := api.GetBigIPAPIVersion(api.postManagerPrefix)
+	version, build, schemaVersion, err := api.GetBigIPAPIVersion()
 	if err != nil {
 		log.Errorf("[%s]%v %v ", api.apiType, api.postManagerPrefix, err)
 		return err
@@ -216,10 +215,10 @@ func (api *BaseAPIHandler) PopulateAPIVersion() error {
 
 }
 
-func (api *BaseAPIHandler) GetBigIPAPIVersion(postManagerPrefix string) (string, string, string, error) {
+func (api *BaseAPIHandler) GetBigIPAPIVersion() (string, string, string, error) {
 	url := api.APIHandler.getVersionURL()
 
-	req, err := api.createHTTPRequest(url, postManagerPrefix)
+	req, err := api.createHTTPRequest(url, api.postManagerPrefix)
 	if err != nil {
 		return "", "", "", fmt.Errorf("Internal Error")
 	}

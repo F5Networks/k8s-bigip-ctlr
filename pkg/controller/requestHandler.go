@@ -12,8 +12,11 @@ func NewRequestHandler(agentParams AgentParams) *RequestHandler {
 	}
 	if agentParams.HAMode {
 		reqHandler.AgentWorkers = NewAgentWorkersMap(agentParams)
+		reqHandler.AgentWorkers[PrimaryBigIP].LTM.PostParams.BIGIPType = PrimaryBigIP
+		reqHandler.AgentWorkers[SecondaryBigIP].LTM.PostParams.BIGIPType = SecondaryBigIP
 	} else {
 		reqHandler.AgentWorkers[PrimaryBigIP] = NewAgentWorker(agentParams)
+		reqHandler.AgentWorkers[PrimaryBigIP].LTM.PostParams.BIGIPType = PrimaryBigIP
 	}
 
 	return reqHandler

@@ -224,11 +224,27 @@ func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
 				}
 			}
 		}
-		//if agentWorkerUpdate {
-		//	postMgr.updateRetryMap(tenant, resp, postMgr.incomingTenantDeclMap[tenant])
-		//} else {
-		//	postMgr.updateRetryMap(tenant, resp, postMgr.retryTenantDeclMap[tenant].as3Decl)
-		//}
+		if agentWorkerUpdate {
+			postMgr.updateRetryMap(tenant, resp, postMgr.incomingTenantDeclMap[tenant])
+		} else {
+			postMgr.updateRetryMap(tenant, resp, postMgr.retryTenantDeclMap[tenant].decl)
+		}
+	}
+}
+
+func (postMgr *PostManager) updateRetryMap(tenant string, resp tenantResponse, tenDecl interface{}) {
+	if resp.agentResponseCode == http.StatusOK {
+		// delete the tenant entry from retry if any
+		delete(postMgr.retryTenantDeclMap, tenant)
+		// if received the 200 response remove the entry from tenantPriorityMap
+		if _, ok := postMgr.tenantPriorityMap[tenant]; ok {
+			delete(postMgr.tenantPriorityMap, tenant)
+		}
+	} else {
+		postMgr.retryTenantDeclMap[tenant] = &tenantParams{
+			tenDecl,
+			tenantResponse{resp.agentResponseCode, resp.taskId, false, resp.message},
+		}
 	}
 }
 

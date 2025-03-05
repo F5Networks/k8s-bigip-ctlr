@@ -281,12 +281,6 @@ func (aw *AgentWorker) agentWorker() {
 		select {
 		case rsConfigData = <-aw.LTM.PostManager.postChan:
 
-			//config := ResourceConfigRequest{
-			//	ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
-			//	shareNodes:         ctlr.shareNodes,
-			//	gtmConfig:          ctlr.resources.getGTMConfigCopy(),
-			//	defaultRouteDomain: ctlr.defaultRouteDomain,
-			//}
 			rsConfig, err := aw.LTM.APIHandler.getResourceConfigRequest(rsConfigData)
 			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
 			// handle the err below
@@ -407,9 +401,9 @@ func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 		id,
 		make(map[string]tenantResponse),
 	}
-	//for tenant := range agent.LTM.retryTenantDeclMap {
-	//	rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
-	//}
+	for tenant := range agent.LTM.retryTenantDeclMap {
+		rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
+	}
 	// If triggerred from retry block, process the previous successful request completely
 	if !overwriteCfg {
 		agent.respChan <- rscUpdateMeta

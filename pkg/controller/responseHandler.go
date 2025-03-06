@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +42,7 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	return rm.id
 }
 
-func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
+func (ctlr *Controller) responseHandler(respChan chan *agentPostConfig, ltm *LTMAPIHandler) {
 	// todo: update only when there is a change(success to fail or vice versa) in tenant status
 	ctlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 	for rscUpdateMeta := range respChan {
@@ -53,6 +54,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 			if _, found := rscUpdateMeta.failedTenants[partition]; !found && len(meta) == 0 {
 				// updating the tenant priority back to zero if it's not in failed tenants
 				ctlr.resources.updatePartitionPriority(partition, 0)
+				ltm.PostManager.RLock()
+				<-time.After(timeoutMedium)
+				ltm.postChan <- *rscUpdateMeta
+				ltm.PostManager.RUnlock()
 				continue
 			}
 			for rscKey, kind := range meta {

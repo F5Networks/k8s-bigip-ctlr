@@ -868,6 +868,7 @@ type (
 		incomingTenantDeclMap map[string]as3Tenant
 		deleted               bool
 		reqMeta               requestMeta
+		reqStatusMeta         resourceStatusMeta
 	}
 
 	// PostToChannelStrategy posts config to a channel.
@@ -883,9 +884,8 @@ type (
 		BigIpAddress      string
 		PythonDriverPID   int
 		postChan          chan agentPostConfig
-		//postChan          chan ResourceConfigRequest
-		PostStrategy PostConfigStrategy
-		StopChan     chan interface{}
+		PostStrategy      PostConfigStrategy
+		StopChan          chan interface{}
 	}
 
 	PostToFileStrategy struct {
@@ -899,7 +899,7 @@ type (
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		ConfigWriter                    writer.Writer
 		EventChan                       chan interface{}
-		respChan                        chan resourceStatusMeta
+		respChan                        chan *agentPostConfig
 		PythonDriverPID                 int
 		userAgent                       string
 		HttpAddress                     string
@@ -982,6 +982,7 @@ type (
 	}
 
 	PostManager struct {
+		sync.RWMutex
 		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams

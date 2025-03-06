@@ -12,6 +12,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Loadbalancer doesn't work in 2.19.0 and 2.19.1
 
 2.19.1
 -------------

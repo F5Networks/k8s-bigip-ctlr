@@ -261,7 +261,8 @@ func NewController(params Params, startController bool) *Controller {
 	}
 
 	if startController {
-		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].respChan)
+		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].respChan, ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].LTM)
+		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[SecondaryBigIP].respChan, ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].LTM)
 
 		go ctlr.Start()
 

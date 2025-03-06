@@ -396,26 +396,30 @@ func (agent *Agent) postTenantsDeclaration(decl as3Declaration, reqId int, tenan
 }
 
 func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
-
 	rscUpdateMeta := resourceStatusMeta{
 		id,
 		make(map[string]tenantResponse),
 	}
+
+	agentPostConfig := agentPostConfig{
+		reqStatusMeta: rscUpdateMeta,
+	}
+
 	for tenant := range agent.LTM.retryTenantDeclMap {
 		rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
 	}
 	// If triggerred from retry block, process the previous successful request completely
 	if !overwriteCfg {
-		agent.respChan <- rscUpdateMeta
+		agent.respChan <- agentPostConfig
 	} else {
 		// Always push latest id to channel
 		// Case1: Put latest id into the channel
 		// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
 		// Either Case1 or Case2 executes, which ensures the above
 		select {
-		case agent.respChan <- rscUpdateMeta:
+		case agent.respChan <- agentPostConfig:
 		case <-agent.respChan:
-			agent.respChan <- rscUpdateMeta
+			agent.respChan <- agentPostConfig
 		}
 	}
 }

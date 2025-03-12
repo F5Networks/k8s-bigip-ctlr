@@ -216,7 +216,7 @@ func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
 				if agentWorkerUpdate {
 					postMgr.cachedTenantDeclMap[tenant] = postMgr.incomingTenantDeclMap[tenant]
 				} else {
-					postMgr.cachedTenantDeclMap[tenant] = postMgr.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
+					postMgr.cachedTenantDeclMap[tenant] = postMgr.retryTenantDeclMap[tenant].decl.(as3Tenant)
 				}
 				// if received the 200 response remove the entry from tenantPriorityMap
 				if _, ok := postMgr.tenantPriorityMap[tenant]; ok {
@@ -227,7 +227,7 @@ func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
 		if agentWorkerUpdate {
 			postMgr.updateRetryMap(tenant, resp, postMgr.incomingTenantDeclMap[tenant])
 		} else {
-			postMgr.updateRetryMap(tenant, resp, postMgr.retryTenantDeclMap[tenant].as3Decl)
+			postMgr.updateRetryMap(tenant, resp, postMgr.retryTenantDeclMap[tenant].decl)
 		}
 	}
 }

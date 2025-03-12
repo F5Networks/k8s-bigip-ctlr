@@ -62,7 +62,6 @@ type (
 		initialResourceCount        int
 		resourceQueue               workqueue.RateLimitingInterface
 		Partition                   string
-		Agent                       *Agent
 		PoolMemberType              string
 		UseNodeInternal             bool
 		initState                   bool
@@ -1046,7 +1045,7 @@ type (
 	}
 
 	tenantParams struct {
-		as3Decl interface{} // to update cachedTenantDeclMap on success
+		decl interface{} // to update cachedTenantDeclMap on success
 		tenantResponse
 	}
 

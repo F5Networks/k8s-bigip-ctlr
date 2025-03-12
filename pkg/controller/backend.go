@@ -132,12 +132,12 @@ func (ps *PostToFileStrategy) Post(config ResourceConfigRequest) {
 }
 
 func (aw *AgentWorker) PostGTMConfig(rsConfig ResourceConfigRequest) {
-	as3Config := agentPostConfig{
+	agentConfig := agentPostConfig{
 		data:      string(aw.createTenantDeclaration(rsConfig)),
 		id:        rsConfig.reqId,
 		as3APIURL: aw.LTM.APIHandler.getAPIURL([]string{}),
 	}
-	aw.PostStrategy.Post(as3Config)
+	aw.PostStrategy.Post(agentConfig)
 }
 
 // can you write a function which converts the agentPostConfig to ResourceConfigRequest
@@ -150,12 +150,12 @@ func (aw *AgentWorker) PostLTMConfig(config Configurable) {
 	case ResourceConfigRequest:
 		fmt.Printf("Posting ResourceConfigRequest: %+v\n", v)
 		// Convert ResourceConfigRequest to as3Config
-		as3Config := agentPostConfig{
+		agentConfig := agentPostConfig{
 			data:      string(aw.createTenantDeclaration(v)),
 			id:        v.reqId,
 			as3APIURL: aw.LTM.APIHandler.getAPIURL([]string{}),
 		}
-		aw.PostStrategy.Post(as3Config)
+		aw.PostStrategy.Post(agentConfig)
 	default:
 		fmt.Println("Unknown config type, cannot post to channel")
 	}
@@ -174,7 +174,7 @@ func NewAgent(params AgentParams) *Agent {
 		Partition:    params.Partition,
 		ConfigWriter: configWriter,
 		EventChan:    make(chan interface{}),
-		respChan:     make(chan resourceStatusMeta, 1),
+		respChan:     make(chan *agentPostConfig),
 		userAgent:    params.UserAgent,
 		HttpAddress:  params.HttpAddress,
 		ccclGTMAgent: params.CCCLGTMAgent,
@@ -264,8 +264,7 @@ func (agent *Agent) Stop() {
 
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (aw *AgentWorker) agentWorker() {
-	rsConfig := ResourceConfigRequest{}
-	for rsConfigData := range aw.LTM.PostManager.postChan {
+	for agentConfig := range aw.LTM.PostManager.postChan {
 		// For the very first post after starting controller, need not wait to post
 		if !aw.LTM.PostManager.firstPost && aw.LTM.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
@@ -279,27 +278,19 @@ func (aw *AgentWorker) agentWorker() {
 
 		// Fetch the latest config from channel
 		select {
-		case rsConfigData = <-aw.LTM.PostManager.postChan:
+		case agentConfig = <-aw.LTM.PostManager.postChan:
 
-			rsConfig, err := aw.LTM.APIHandler.getResourceConfigRequest(rsConfigData)
-			log.Infof("%v[AS3] Processing request", getRequestPrefix(rsConfig.reqId))
-			// handle the err below
-			if err != nil {
-				log.Errorf("Error getting resource config request: %v", err)
-				aw.declUpdate.Unlock()
-				continue
-			}
+			log.Infof("%v[AS3] Processing request", getRequestPrefix(agentConfig.id))
 
 		case <-time.After(1 * time.Microsecond):
 		}
 
-		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(rsConfig.reqId))
-		decl := aw.createTenantDeclaration(rsConfig)
+		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(agentConfig.id))
 
 		if len(aw.LTM.incomingTenantDeclMap) == 0 {
-			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(rsConfig.reqId))
+			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(agentConfig.id))
 			// notify resourceStatusUpdate response handler for resourcestatus update
-			aw.notifyRscStatusHandler(rsConfig.reqId, false)
+			aw.notifyRscStatusHandler(agentConfig.id, false)
 			aw.declUpdate.Unlock()
 			continue
 		}
@@ -348,11 +339,11 @@ func (aw *AgentWorker) agentWorker() {
 
 		// Update the priority tenants first
 		if len(priorityTenants) > 0 {
-			aw.postTenantsDeclaration(decl, rsConfig.reqId, priorityTenants)
+			aw.postTenantsDeclaration(as3Declaration(agentConfig.data), agentConfig.id, priorityTenants)
 		}
 		// Updating the remaining tenants
 		if len(updatedTenants) > 0 {
-			aw.postTenantsDeclaration(decl, rsConfig.reqId, updatedTenants)
+			aw.postTenantsDeclaration(as3Declaration(agentConfig.data), agentConfig.id, updatedTenants)
 		}
 
 		aw.declUpdate.Unlock()
@@ -410,16 +401,16 @@ func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 	}
 	// If triggerred from retry block, process the previous successful request completely
 	if !overwriteCfg {
-		agent.respChan <- agentPostConfig
+		agent.respChan <- &agentPostConfig
 	} else {
 		// Always push latest id to channel
 		// Case1: Put latest id into the channel
 		// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
 		// Either Case1 or Case2 executes, which ensures the above
 		select {
-		case agent.respChan <- agentPostConfig:
+		case agent.respChan <- &agentPostConfig:
 		case <-agent.respChan:
-			agent.respChan <- agentPostConfig
+			agent.respChan <- &agentPostConfig
 		}
 	}
 }

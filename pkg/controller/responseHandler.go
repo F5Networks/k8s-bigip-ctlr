@@ -82,7 +82,7 @@ func (ctlr *Controller) responseHandler(respChan chan *agentPostConfig, ltm *LTM
 					}
 					virtual := obj.(*cisapiv1.VirtualServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
-						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+						if tenantResponse, found := rscUpdateMeta.reqStatusMeta.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
@@ -118,7 +118,7 @@ func (ctlr *Controller) responseHandler(respChan chan *agentPostConfig, ltm *LTM
 					}
 					virtual := obj.(*cisapiv1.TransportServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
-						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+						if tenantResponse, found := rscUpdateMeta.reqStatusMeta.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
@@ -151,7 +151,7 @@ func (ctlr *Controller) responseHandler(respChan chan *agentPostConfig, ltm *LTM
 					}
 					il := obj.(*cisapiv1.IngressLink)
 					if il.Namespace+"/"+il.Name == rscKey {
-						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+						if tenantResponse, found := rscUpdateMeta.reqStatusMeta.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {

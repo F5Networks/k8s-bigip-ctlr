@@ -37,45 +37,58 @@ import (
 var DEFAULT_PARTITION string
 var DEFAULT_GTM_PARTITION string
 
-func NewAgentWorker(params AgentParams) *AgentWorker {
+func NewAgentWorker(params AgentParams, kind string) *AgentWorker {
 	aw := &AgentWorker{
-		Agent:    NewAgent(params),
 		stopChan: make(chan struct{}),
 	}
-
-	err := aw.LTM.IsBigIPAppServicesAvailable()
-	if err != nil {
-		log.Errorf("%v", err)
-		aw.Stop()
-		os.Exit(1)
-	}
-	if aw.GTM.PostManager != nil {
+	var err error
+	switch kind {
+	case GTMBigIP:
+		aw.Agent = NewAgent(params, GTMBigIP)
 		err = aw.GTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
 			aw.Stop()
 			os.Exit(1)
 		}
-	}
-
-	if isGTMOnSeparateServer(params) && !aw.ccclGTMAgent {
 		go aw.gtmWorker()
+	case SecondaryBigIP:
+		aw.Agent = NewAgent(params, SecondaryBigIP)
+		err = aw.LTM.IsBigIPAppServicesAvailable()
+		if err != nil {
+			log.Errorf("%v", err)
+			aw.Stop()
+			os.Exit(1)
+		}
+		go aw.agentWorker()
+	case PrimaryBigIP:
+		aw.Agent = NewAgent(params, PrimaryBigIP)
+		err = aw.LTM.IsBigIPAppServicesAvailable()
+		if err != nil {
+			log.Errorf("%v", err)
+			aw.Stop()
+			os.Exit(1)
+		}
+		go aw.agentWorker()
+	default:
+		log.Errorf("Invalid Agent kind: %s", kind)
+		os.Exit(1)
 	}
-
-	go aw.agentWorker()
-
 	return aw
 }
 
 func NewAgentWorkersMap(params AgentParams) map[string]*AgentWorker {
 	// Create workers based on configured BIG-IPs
 	workers := make(map[string]*AgentWorker)
-	for _, bigIP := range []string{PrimaryBigIP, SecondaryBigIP} {
-		if bigIP != "" {
-			workers[bigIP] = NewAgentWorker(params)
-		}
+	if (params.PrimaryParams != PostParams{}) {
+		workers[PrimaryBigIP] = NewAgentWorker(params, PrimaryBigIP)
 	}
-
+	if (params.SecondaryParams != PostParams{}) {
+		workers[SecondaryBigIP] = NewAgentWorker(params, SecondaryBigIP)
+	}
+	if isGTMOnSeparateServer(params) && !params.CCCLGTMAgent {
+		workers[GTMBigIP] = NewAgentWorker(params, GTMBigIP)
+	}
 	return workers
 }
 
@@ -167,96 +180,101 @@ func (aw *AgentWorker) PostLTMConfig(config Configurable) {
 	}
 }
 
-func NewAgent(params AgentParams) *Agent {
-	DEFAULT_PARTITION = params.Partition
-	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
-	apiHandler := NewAPIHandler(params)
-	configWriter, err := writer.NewConfigWriter()
-	if nil != err {
-		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
-	}
+func NewAgent(params AgentParams, kind string) *Agent {
 	agent := &Agent{
-		APIHandler:   apiHandler,
-		Partition:    params.Partition,
-		ConfigWriter: configWriter,
-		EventChan:    make(chan interface{}),
-		respChan:     make(chan *agentPostConfig),
-		userAgent:    params.UserAgent,
-		HttpAddress:  params.HttpAddress,
+		APIHandler:   &APIHandler{},
 		ccclGTMAgent: params.CCCLGTMAgent,
-		disableARP:   params.DisableARP,
+		respChan:     make(chan *agentPostConfig),
 	}
+	switch kind {
+	case GTMBigIP:
+		DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
+		agent.APIHandler.GTM = NewGTMAPIHandler(params)
+	default:
+		DEFAULT_PARTITION = params.Partition
+		agent.APIHandler.LTM = NewLTMAPIHandler(params, kind)
+		agent.Partition = params.Partition
+		configWriter, err := writer.NewConfigWriter()
+		if nil != err {
+			log.Fatalf("Failed creating ConfigWriter tool: %v", err)
+		}
+		agent.ConfigWriter = configWriter
+		agent.EventChan = make(chan interface{})
+		agent.userAgent = params.UserAgent
+		agent.HttpAddress = params.HttpAddress
+		agent.disableARP = params.DisableARP
 
-	// If running in VXLAN mode, extract the partition name from the tunnel
-	// to be used in configuring a net instance of CCCL for that partition
-	var vxlanPartition string
-	if len(params.VXLANName) > 0 {
-		cleanPath := strings.TrimLeft(params.VXLANName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos == -1 {
-			// No partition
-			vxlanPartition = "Common"
+		// If running in VXLAN mode, extract the partition name from the tunnel
+		// to be used in configuring a net instance of CCCL for that partition
+		var vxlanPartition string
+		if len(params.VXLANName) > 0 {
+			cleanPath := strings.TrimLeft(params.VXLANName, "/")
+			slashPos := strings.Index(cleanPath, "/")
+			if slashPos == -1 {
+				// No partition
+				vxlanPartition = "Common"
+			} else {
+				// Partition and name
+				vxlanPartition = cleanPath[:slashPos]
+			}
+		}
+		if params.StaticRoutingMode == true {
+			vxlanPartition = params.Partition
+			if params.SharedStaticRoutes == true {
+				vxlanPartition = "Common"
+			}
+		}
+		gs := globalSection{
+			LogLevel:          params.LogLevel,
+			VerifyInterval:    params.VerifyInterval,
+			VXLANPartition:    vxlanPartition,
+			DisableLTM:        true,
+			GTM:               params.CCCLGTMAgent,
+			DisableARP:        params.DisableARP,
+			StaticRoutingMode: params.StaticRoutingMode,
+			MultiClusterMode:  params.MultiClusterMode,
+		}
+
+		// If AS3DEBUG is set, set log level to DEBUG
+		if gs.LogLevel == "AS3DEBUG" {
+			gs.LogLevel = "DEBUG"
+		}
+
+		bs := bigIPSection{
+			BigIPUsername:   agent.APIHandler.LTM.PostManager.BIGIPUsername,
+			BigIPPassword:   agent.APIHandler.LTM.PostManager.BIGIPPassword,
+			BigIPURL:        agent.APIHandler.LTM.PostManager.BIGIPURL,
+			BigIPPartitions: []string{params.Partition},
+		}
+
+		var gtm gtmBigIPSection
+		if len(params.GTMParams.BIGIPURL) == 0 || len(params.GTMParams.BIGIPUsername) == 0 || len(params.GTMParams.BIGIPPassword) == 0 {
+			// gs.GTM = false
+			gtm = gtmBigIPSection{
+				GtmBigIPUsername: agent.APIHandler.LTM.PostManager.BIGIPUsername,
+				GtmBigIPPassword: agent.APIHandler.LTM.PostManager.BIGIPPassword,
+				GtmBigIPURL:      agent.APIHandler.LTM.PostManager.BIGIPURL,
+			}
+			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
 		} else {
-			// Partition and name
-			vxlanPartition = cleanPath[:slashPos]
+			gtm = gtmBigIPSection{
+				GtmBigIPUsername: params.GTMParams.BIGIPUsername,
+				GtmBigIPPassword: params.GTMParams.BIGIPPassword,
+				GtmBigIPURL:      params.GTMParams.BIGIPURL,
+			}
 		}
-	}
-	if params.StaticRoutingMode == true {
-		vxlanPartition = params.Partition
-		if params.SharedStaticRoutes == true {
-			vxlanPartition = "Common"
+		//For IPV6 net config is not required. f5-sdk doesnt support ipv6
+		if !(params.EnableIPV6) {
+			agent.startPythonDriver(
+				gs,
+				bs,
+				gtm,
+				params.PythonBaseDir,
+			)
+		} else {
+			// we only enable metrics as pythondriver is not initialized for ipv6
+			go agent.enableMetrics()
 		}
-	}
-	gs := globalSection{
-		LogLevel:          params.LogLevel,
-		VerifyInterval:    params.VerifyInterval,
-		VXLANPartition:    vxlanPartition,
-		DisableLTM:        true,
-		GTM:               params.CCCLGTMAgent,
-		DisableARP:        params.DisableARP,
-		StaticRoutingMode: params.StaticRoutingMode,
-		MultiClusterMode:  params.MultiClusterMode,
-	}
-
-	// If AS3DEBUG is set, set log level to DEBUG
-	if gs.LogLevel == "AS3DEBUG" {
-		gs.LogLevel = "DEBUG"
-	}
-
-	bs := bigIPSection{
-		BigIPUsername:   params.PostParams.BIGIPUsername,
-		BigIPPassword:   params.PostParams.BIGIPPassword,
-		BigIPURL:        params.PostParams.BIGIPURL,
-		BigIPPartitions: []string{params.Partition},
-	}
-
-	var gtm gtmBigIPSection
-	if len(params.GTMParams.BIGIPURL) == 0 || len(params.GTMParams.BIGIPUsername) == 0 || len(params.GTMParams.BIGIPPassword) == 0 {
-		// gs.GTM = false
-		gtm = gtmBigIPSection{
-			GtmBigIPUsername: params.PostParams.BIGIPUsername,
-			GtmBigIPPassword: params.PostParams.BIGIPPassword,
-			GtmBigIPURL:      params.PostParams.BIGIPURL,
-		}
-		log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-	} else {
-		gtm = gtmBigIPSection{
-			GtmBigIPUsername: params.GTMParams.BIGIPUsername,
-			GtmBigIPPassword: params.GTMParams.BIGIPPassword,
-			GtmBigIPURL:      params.GTMParams.BIGIPURL,
-		}
-	}
-	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
-	if !(params.EnableIPV6) {
-		agent.startPythonDriver(
-			gs,
-			bs,
-			gtm,
-			params.PythonBaseDir,
-		)
-	} else {
-		// we only enable metrics as pythondriver is not initialized for ipv6
-		go agent.enableMetrics()
 	}
 	return agent
 }

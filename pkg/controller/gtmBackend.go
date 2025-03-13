@@ -7,7 +7,7 @@ import (
 )
 
 func NewGTMPostManager(params AgentParams) *GTMPostManager {
-	gtmMgr := NewPostManager(params, true)
+	gtmMgr := NewPostManager(params, GTMBigIP)
 	gtmPostMgr := &GTMPostManager{
 		PostManager: gtmMgr,
 		Partition:   DEFAULT_GTM_PARTITION,
@@ -164,7 +164,7 @@ func isGTMOnSeparateServer(params AgentParams) bool {
 	var isGTMOnSeparateServer bool
 	if !params.CCCLGTMAgent && len(params.GTMParams.BIGIPURL) != 0 && len(params.GTMParams.BIGIPUsername) != 0 && len(params.GTMParams.BIGIPPassword) != 0 {
 		// Check if GTM parameter is different then LTM parameter
-		if params.PostParams.BIGIPURL != params.GTMParams.BIGIPURL || params.PostParams.BIGIPUsername != params.GTMParams.BIGIPUsername || params.PostParams.BIGIPPassword != params.GTMParams.BIGIPPassword {
+		if params.PrimaryParams.BIGIPURL != params.GTMParams.BIGIPURL || params.PrimaryParams.BIGIPUsername != params.GTMParams.BIGIPUsername || params.PrimaryParams.BIGIPPassword != params.GTMParams.BIGIPPassword {
 			isGTMOnSeparateServer = true
 		}
 	}

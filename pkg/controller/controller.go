@@ -92,8 +92,9 @@ const (
 	SecondaryCIS  = "secondary"
 	PrimaryCIS    = "primary"
 
-	PrimaryBigIP   = "primary"
-	SecondaryBigIP = "secondary"
+	PrimaryBigIP   = "primaryBigIP"
+	SecondaryBigIP = "secondaryBigIP"
+	GTMBigIP       = "gtmBigIP"
 
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
@@ -310,7 +311,7 @@ func (ctlr *Controller) setOtherSDNType() {
 func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 	// verify the ipam configuration
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	for ns, _ := range clusterConfig.namespaces {
+	for ns := range clusterConfig.namespaces {
 		if ns == "" {
 			return true
 		} else {

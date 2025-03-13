@@ -44,8 +44,6 @@ func NewAS3Handler(params AgentParams, postManager *PostManager) *AS3Handler {
 		AS3Config:   make(map[string]interface{}),
 		AS3Parser:   NewAS3Parser(params),
 		PostManager: postManager,
-		LogResponse: params.PostParams.LogResponse,
-		LogRequest:  params.PostParams.LogRequest,
 	}
 
 	return handler
@@ -163,7 +161,7 @@ func (am *AS3Handler) getVersionsFromResponse(httpResp *http.Response, responseM
 			if version, ok1 := responseMap["version"].(string); ok1 {
 				release, ok2 := responseMap["release"].(string)
 				schemaVersion, ok3 := responseMap["schemaCurrent"].(string)
-				if ok1 && ok2 && ok3 {
+				if ok2 && ok3 {
 					return version, release, schemaVersion, nil
 				}
 			}
@@ -289,7 +287,7 @@ func (am *AS3Handler) getTenantConfigStatus(id string, httpResp *http.Response, 
 		// reset task id, so that any failed tenants will go to post call in the next retry
 		am.PostManager.updateTenantResponseCode(httpResp.StatusCode, "", "", false, "")
 	}
-	if !am.LogResponse && unknownResponse {
+	if !am.PostManager.LogResponse && unknownResponse {
 		am.logResponse(responseMap)
 	}
 }

@@ -23,9 +23,9 @@ var _ = Describe("Backend Tests", func() {
 			agentParams.CCCLGTMAgent = true
 			Expect(isGTMOnSeparateServer(agentParams)).To(Equal(false), "GTM is not on a separate server")
 			agentParams.CCCLGTMAgent = false
-			agentParams.PostParams.BIGIPURL = "https://192.168.1.1"
-			agentParams.PostParams.BIGIPPassword = "admin"
-			agentParams.PostParams.BIGIPUsername = "admin"
+			agentParams.PrimaryParams.BIGIPURL = "https://192.168.1.1"
+			agentParams.PrimaryParams.BIGIPPassword = "admin"
+			agentParams.PrimaryParams.BIGIPUsername = "admin"
 			Expect(isGTMOnSeparateServer(agentParams)).To(Equal(false), "GTM is not on a separate server")
 			agentParams.GTMParams.BIGIPURL = "https://192.168.1.1"
 			agentParams.GTMParams.BIGIPPassword = "admin"

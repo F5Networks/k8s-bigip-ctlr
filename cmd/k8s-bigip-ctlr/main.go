@@ -175,7 +175,6 @@ var (
 	enableTLS                   *string
 	tls13CipherGroupReference   *string
 	ciphers                     *string
-	trustedCerts                *string
 	as3PostDelay                *int
 
 	trustedCertsCfgmap      *string
@@ -941,7 +940,7 @@ func initController(
 		GtmParams.TrustedCerts = getBIGIPTrustedCerts()
 	}
 	agentParams := controller.AgentParams{
-		PostParams:         postMgrParams,
+		PrimaryParams:      postMgrParams,
 		GTMParams:          GtmParams,
 		Partition:          (*bigIPPartitions)[0],
 		LogLevel:           *logLevel,

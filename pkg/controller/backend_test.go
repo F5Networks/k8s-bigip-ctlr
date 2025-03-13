@@ -683,8 +683,8 @@ var _ = Describe("Backend Tests", func() {
 			agentParams.EnableIPV6 = true
 			agentParams.Partition = "test"
 			agentParams.VXLANName = "vxlan500"
-			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
-			agent := NewAgent(agentParams)
+			agentParams.PrimaryParams.BIGIPURL = "http://" + server.Addr()
+			agent := NewAgent(agentParams, PrimaryBigIP)
 			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.52.0"))
 			agent.Stop()
 

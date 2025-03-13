@@ -37,7 +37,7 @@ const (
 	timeoutLarge  = 180 * time.Second
 )
 
-func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
+func NewPostManager(params AgentParams, kind string) *PostManager {
 	pm := &PostManager{
 		firstPost:                       true,
 		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
@@ -50,11 +50,16 @@ func NewPostManager(params AgentParams, gtmPostMgr bool) *PostManager {
 		postChan: make(chan agentPostConfig),
 		apiType:  params.ApiType,
 	}
-	if !gtmPostMgr {
-		pm.PostParams = params.PostParams
-	} else {
+	switch kind {
+	case GTMBigIP:
 		pm.PostParams = params.GTMParams
-		pm.postManagerPrefix = "[GTM]"
+		pm.postManagerPrefix = "[GTM BigIP]"
+	case PrimaryBigIP:
+		pm.PostParams = params.PrimaryParams
+		pm.postManagerPrefix = "[Primary BigIP]"
+	case SecondaryBigIP:
+		pm.PostParams = params.SecondaryParams
+		pm.postManagerPrefix = "[Secondary BigIP]"
 	}
 	pm.setupBIGIPRESTClient()
 	return pm

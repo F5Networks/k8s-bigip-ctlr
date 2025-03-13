@@ -167,6 +167,7 @@ func NewController(params Params, startController bool) *Controller {
 		manageLoadBalancerClassOnly: params.ManageLoadBalancerClassOnly,
 		clusterRatio:                make(map[string]*int),
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
+		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
 	}
 
 	log.Debug("Controller Created")

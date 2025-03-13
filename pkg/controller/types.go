@@ -18,6 +18,9 @@ package controller
 
 import (
 	"container/list"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/informers"
 	"net/http"
 	"sync"
 
@@ -36,6 +39,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
@@ -51,8 +55,18 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode ControllerMode
+		mode      ControllerMode
+		resources *ResourceStore
 		*RequestHandler
+		kubeCRClient                versioned.Interface
+		kubeClient                  kubernetes.Interface
+		kubeAPIClient               *extClient.Clientset
+		eventNotifier               *apm.EventNotifier
+		nativeResourceSelector      labels.Selector
+		customResourceSelector      labels.Selector
+		namespacesMutex             sync.Mutex
+		namespaces                  map[string]bool
+		nodeLabelSelector           string
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
@@ -84,6 +98,7 @@ type (
 		discoveryMode               discoveryMode
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
+		ResourceStatusVSAddressMap  map[resourceRef]string
 		APIHandler                  ApiTypeHandlerInterface
 		resourceContext
 	}
@@ -95,14 +110,17 @@ type (
 	}
 
 	InformerStore struct {
-		comInformers map[string]*CommonInformer
-		nrInformers  map[string]*NRInformer
-		crInformers  map[string]*CRInformer
-		nsInformers  map[string]*NSInformer
-		nodeInformer *NodeInformer
+		comInformers     map[string]*CommonInformer
+		nrInformers      map[string]*NRInformer
+		crInformers      map[string]*CRInformer
+		nsInformers      map[string]*NSInformer
+		nodeInformer     *NodeInformer
+		dynamicInformers *DynamicInformers
 	}
 
 	ClusterHandler struct {
+		*PrimaryClusterHealthProbeParams
+		MultiClusterMode    string
 		ClusterConfigs      map[string]*ClusterConfig
 		HAPairClusterName   string
 		LocalClusterName    string
@@ -111,6 +129,8 @@ type (
 		namespaces          []string
 		nodeLabelSelector   string
 		routeLabel          string
+		orchestrationCNI    string
+		staticRoutingMode   bool
 		eventQueue          workqueue.RateLimitingInterface
 		statusUpdate        *StatusUpdate
 		sync.RWMutex
@@ -123,12 +143,15 @@ type (
 		kubeCRClient           versioned.Interface
 		kubeIPAMClient         *extClient.Clientset
 		routeClientV1          routeclient.RouteV1Interface
+		dynamicClient          dynamic.Interface
 		routeLabel             string
 		nativeResourceSelector labels.Selector
 		customResourceSelector labels.Selector
 		namespaces             map[string]struct{}
 		namespaceLabel         string
 		nodeLabelSelector      string
+		orchestrationCNI       string
+		staticRoutingMode      bool
 		oldNodes               []Node
 		eventNotifier          *EventNotifier
 		*InformerStore
@@ -147,6 +170,12 @@ type (
 		Timestamp         metav1.Time
 		IPSet             bool // helps in event creation of LB service as it helps to know if the status update is for IP setting or unsetting
 		ClearKeyFromCache bool // helps clear the cache in case of delete events
+	}
+
+	BlockAffinitycidr struct {
+		baName   string
+		nodeName string
+		cidr     string
 	}
 
 	ResourceEvent struct {
@@ -230,6 +259,14 @@ type (
 		clusterName string
 		nsInformer  cache.SharedIndexInformer
 	}
+
+	//DynamicInformers holds informers for third party integration
+	DynamicInformers struct {
+		stopCh                      chan struct{}
+		clusterName                 string
+		CalicoBlockAffinityInformer informers.GenericInformer
+	}
+
 	rqKey struct {
 		namespace      string
 		kind           string
@@ -383,6 +420,7 @@ type (
 		ipOrIPAMKey string
 		port        int32
 		routeDomain int32
+		protocol    string
 	}
 
 	// L4AppsStore contains TypeLB service details.key is IP
@@ -414,13 +452,15 @@ type (
 
 	// static route config
 	routeSection struct {
-		Entries []routeConfig `json:"routes"`
+		Entries       []routeConfig `json:"routes"`
+		CISIdentifier string        `json:"cis-identifier,omitempty"`
 	}
 
 	routeConfig struct {
-		Name    string `json:"name"`
-		Network string `json:"network"`
-		Gateway string `json:"gw"`
+		Name        string `json:"name"`
+		Network     string `json:"network"`
+		Gateway     string `json:"gw"`
+		Description string `json:"description,omitempty"`
 	}
 	// GTMConfig key is domainName and value is WideIP
 
@@ -865,6 +905,7 @@ type (
 
 	Agent struct {
 		*APIHandler
+		*PostManager
 		Partition                       string
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		ConfigWriter                    writer.Writer
@@ -878,6 +919,7 @@ type (
 		ccclGTMAgent                    bool
 		disableARP                      bool
 		HAMode                          bool
+		GTMPostManager                  *GTMPostManager
 	}
 
 	BaseAPIHandler struct {
@@ -901,6 +943,29 @@ type (
 		LTM *LTMAPIHandler
 	}
 
+	AgentParams struct {
+		PostParams                      PostParams
+		GTMParams                       PostParams
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		// VxlnParams      VXLANParams
+		Partition          string
+		LogLevel           string
+		VerifyInterval     int
+		VXLANName          string
+		PythonBaseDir      string
+		UserAgent          string
+		HttpAddress        string
+		EnableIPV6         bool
+		DisableARP         bool
+		CCCLGTMAgent       bool
+		StaticRoutingMode  bool
+		SharedStaticRoutes bool
+		MultiClusterMode   string
+		ApiType            string
+		PrimaryBigIP       string
+		SecondaryBigIP     string
+		HAMode             bool
+	}
 	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
 	// other API types like GTM. The current hierarchy allows:
 	// 1. Common HTTP posting capabilities via PostManager
@@ -934,6 +999,8 @@ type (
 		PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		firstPost                       bool
+		AS3VersionInfo                  as3VersionInfo
+		bigIPAS3Version                 float64
 		postManagerPrefix               string
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
 		cachedTenantDeclMap   map[string]as3Tenant
@@ -950,29 +1017,6 @@ type (
 		apiType           string
 	}
 
-	AgentParams struct {
-		PostParams                      PostParams
-		GTMParams                       PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		// VxlnParams      VXLANParams
-		Partition          string
-		LogLevel           string
-		VerifyInterval     int
-		VXLANName          string
-		PythonBaseDir      string
-		UserAgent          string
-		HttpAddress        string
-		EnableIPV6         bool
-		DisableARP         bool
-		CCCLGTMAgent       bool
-		StaticRoutingMode  bool
-		SharedStaticRoutes bool
-		MultiClusterMode   string
-		ApiType            string
-		PrimaryBigIP       string
-		SecondaryBigIP     string
-		HAMode             bool
-	}
 	PrimaryClusterHealthProbeParams struct {
 		paramLock     *sync.RWMutex
 		EndPoint      string
@@ -1556,8 +1600,9 @@ const (
 type HAModeType string
 
 const (
-	StatusOk    = "OK"
-	StatusError = "ERROR"
+	StatusOk      = "OK"
+	StatusError   = "ERROR"
+	StatusStandby = "STANDBY"
 )
 
 type discoveryMode string
@@ -1587,6 +1632,13 @@ const (
 )
 
 type (
+	ExternalClusterConfig struct {
+		ClusterName string                    `yaml:"clusterName"`
+		Secret      string                    `yaml:"secret"`
+		Ratio       *int                      `yaml:"ratio"`
+		AdminState  clustermanager.AdminState `yaml:"adminState"`
+	}
+
 	HAClusterConfig struct {
 		//HAMode                 HAMode         `yaml:"mode"`
 		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`
@@ -1629,5 +1681,14 @@ type (
 	}
 	MultiClusterServiceConfig struct {
 		svcPort intstr.IntOrString
+	}
+)
+
+var (
+	// CalicoBlockaffinity : Calico's BlockAffinity CRD resource identifier
+	CalicoBlockaffinity = schema.GroupVersionResource{
+		Group:    "crd.projectcalico.org",
+		Version:  "v1",
+		Resource: "blockaffinities",
 	}
 )

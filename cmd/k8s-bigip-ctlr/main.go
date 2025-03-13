@@ -919,8 +919,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
-		LogAS3Response:    *logAS3Response,
-		LogAS3Request:     *logAS3Request,
+		LogResponse:       *logAS3Response,
+		LogRequest:        *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -931,8 +931,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
-		LogAS3Response:    *logAS3Response,
-		LogAS3Request:     *logAS3Request,
+		LogResponse:       *logAS3Response,
+		LogRequest:        *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -962,7 +962,7 @@ func initController(
 		agentParams.DisableARP = false
 	}
 
-	agent := controller.NewAgent(agentParams)
+	//agent := controller.NewAgent(agentParams)
 
 	var globalSpecConfigMap *string
 	if *extendedSpecConfigmap != "" {
@@ -971,13 +971,16 @@ func initController(
 		globalSpecConfigMap = routeSpecConfigmap
 	}
 
+	requestHandler := controller.NewRequestHandler(agentParams)
+
 	ctlr := controller.NewController(
 		controller.Params{
-			Config:                      config,
-			Namespaces:                  *namespaces,
-			NamespaceLabel:              *namespaceLabel,
-			Partition:                   (*bigIPPartitions)[0],
-			Agent:                       agent,
+			Config:         config,
+			Namespaces:     *namespaces,
+			NamespaceLabel: *namespaceLabel,
+			Partition:      (*bigIPPartitions)[0],
+			//Agent:                       agent,
+			RequestHandler:              requestHandler,
 			PoolMemberType:              *poolMemberType,
 			VXLANName:                   vxlanName,
 			VXLANMode:                   vxlanMode,
@@ -1127,7 +1130,8 @@ func main() {
 		ctlr := initController(config)
 		ctlr.TeemData = td
 		if !(*disableTeems) {
-			key, err := ctlr.Agent.GetBigipRegKey()
+			key, err := ctlr.RequestHandler.AgentWorkers[controller.PrimaryBigIP].LTM.GetBigipRegKey()
+			//key, err := ctlr.Agent.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}

@@ -40,6 +40,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
@@ -55,14 +56,23 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode                        ControllerMode
-		resources                   *ResourceStore
+		mode      ControllerMode
+		resources *ResourceStore
+		*RequestHandler
+		kubeCRClient                versioned.Interface
+		kubeClient                  kubernetes.Interface
+		kubeAPIClient               *extClient.Clientset
+		eventNotifier               *apm.EventNotifier
+		nativeResourceSelector      labels.Selector
+		customResourceSelector      labels.Selector
+		namespacesMutex             sync.Mutex
+		namespaces                  map[string]bool
+		nodeLabelSelector           string
 		ciliumTunnelName            string
 		vxlanMgr                    *vxlan.VxlanMgr
 		initialResourceCount        int
 		resourceQueue               workqueue.RateLimitingInterface
 		Partition                   string
-		Agent                       *Agent
 		PoolMemberType              string
 		UseNodeInternal             bool
 		initState                   bool
@@ -90,6 +100,7 @@ type (
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
+		APIHandler                  ApiTypeHandlerInterface
 		resourceContext
 	}
 	resourceContext struct {
@@ -180,6 +191,7 @@ type (
 	Params struct {
 		Config                      *rest.Config
 		Namespaces                  []string
+		RequestHandler              *RequestHandler
 		NamespaceLabel              string
 		Partition                   string
 		Agent                       *Agent
@@ -837,21 +849,99 @@ type (
 		*PostManager
 		Partition string
 	}
+
+	RequestHandler struct {
+		AgentWorkers map[string]*AgentWorker
+		resources    *ResourceStore
+		reqChan      chan ResourceConfigRequest
+		userAgent    string
+		respChan     chan resourceStatusMeta
+		//CMTokenManager                  *tokenmanager.TokenManager
+		ccclGTMAgent bool
+		disableARP   bool
+		HAMode       bool
+	}
+
+	// Define an interface for configuration types
+	Configurable interface{}
+
+	PostConfigStrategy interface {
+		Post(config agentPostConfig)
+	}
+
+	agentPostConfig struct {
+		data                  string
+		targetAddress         string
+		as3APIURL             string
+		id                    int
+		tenantResponseMap     map[string]tenantResponse
+		acceptedTaskId        string
+		failedTenants         map[string]struct{}
+		incomingTenantDeclMap map[string]as3Tenant
+		deleted               bool
+		reqMeta               requestMeta
+		reqStatusMeta         resourceStatusMeta
+	}
+
+	// PostToChannelStrategy posts config to a channel.
+	PostToChannelStrategy struct {
+		postChan chan agentPostConfig
+	}
+
+	AgentWorker struct {
+		*Agent
+		Type              string
+		httpClientMetrics bool
+		stopChan          chan struct{}
+		BigIpAddress      string
+		PythonDriverPID   int
+		postChan          chan agentPostConfig
+		PostStrategy      PostConfigStrategy
+		StopChan          chan interface{}
+	}
+
+	PostToFileStrategy struct {
+		ConfigWriter writer.Writer
+	}
+
 	Agent struct {
+		*APIHandler
 		*PostManager
-		Partition       string
-		ConfigWriter    writer.Writer
-		EventChan       chan interface{}
-		respChan        chan resourceStatusMeta
-		PythonDriverPID int
-		userAgent       string
-		HttpAddress     string
-		EnableIPV6      bool
-		declUpdate      sync.Mutex
-		ccclGTMAgent    bool
-		disableARP      bool
-		HAMode          bool
-		GTMPostManager  *GTMPostManager
+		Partition                       string
+		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		ConfigWriter                    writer.Writer
+		EventChan                       chan interface{}
+		respChan                        chan *agentPostConfig
+		PythonDriverPID                 int
+		userAgent                       string
+		HttpAddress                     string
+		EnableIPV6                      bool
+		declUpdate                      sync.Mutex
+		ccclGTMAgent                    bool
+		disableARP                      bool
+		HAMode                          bool
+		GTMPostManager                  *GTMPostManager
+	}
+
+	BaseAPIHandler struct {
+		apiType    string
+		APIHandler ApiTypeHandlerInterface
+		Partition  string
+		*PostManager
+	}
+
+	GTMAPIHandler struct {
+		*BaseAPIHandler
+		Partition string
+	}
+
+	LTMAPIHandler struct {
+		*BaseAPIHandler
+	}
+
+	APIHandler struct {
+		GTM *GTMAPIHandler
+		LTM *LTMAPIHandler
 	}
 
 	AgentParams struct {
@@ -872,9 +962,39 @@ type (
 		StaticRoutingMode  bool
 		SharedStaticRoutes bool
 		MultiClusterMode   string
+		ApiType            string
+		PrimaryBigIP       string
+		SecondaryBigIP     string
+		HAMode             bool
+	}
+	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
+	// other API types like GTM. The current hierarchy allows:
+	// 1. Common HTTP posting capabilities via PostManager
+	// 2. API-specific handling via apiHandler interface
+	// 3. Specialized GTM posting via GTMPostManager
+	// This separation of concerns is appropriate for the controller architecture.
+
+	AS3Handler struct {
+		AS3Config         map[string]interface{}
+		AS3VersionInfo    as3VersionInfo
+		bigIPAS3Version   float64
+		postManagerPrefix string
+		LogResponse       bool
+		LogRequest        bool
+		*PostManager
+		*PostParams
+		*AS3Parser
+	}
+
+	AS3Parser struct {
+		// AS3Parser implements AS3ParserInterface
+		AS3ParserInterface
+		AS3VersionInfo  as3VersionInfo
+		bigIPAS3Version float64
 	}
 
 	PostManager struct {
+		sync.RWMutex
 		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams
@@ -890,8 +1010,12 @@ type (
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
-		postChan           chan ResourceConfigRequest
-		retryChan          chan struct{}
+		//postChan           chan ResourceConfigRequest
+		postChan          chan agentPostConfig
+		respChan          chan resourceStatusMeta
+		httpClientMetrics bool
+		retryChan         chan struct{}
+		apiType           string
 	}
 
 	PrimaryClusterHealthProbeParams struct {
@@ -908,12 +1032,13 @@ type (
 		BIGIPUsername string
 		BIGIPPassword string
 		BIGIPURL      string
+		BIGIPType     string
 		TrustedCerts  string
 		SSLInsecure   bool
 		AS3PostDelay  int
 		// Log the AS3 response body in Controller logs
-		LogAS3Response    bool
-		LogAS3Request     bool
+		LogResponse       bool
+		LogRequest        bool
 		HTTPClientMetrics bool
 	}
 
@@ -969,7 +1094,7 @@ type (
 	// AS3 version struct
 
 	as3VersionInfo struct {
-		as3Version       string
+		as3Version       float64
 		as3SchemaVersion string
 		as3Release       string
 	}
@@ -1508,6 +1633,13 @@ const (
 )
 
 type (
+	ExternalClusterConfig struct {
+		ClusterName string                    `yaml:"clusterName"`
+		Secret      string                    `yaml:"secret"`
+		Ratio       *int                      `yaml:"ratio"`
+		AdminState  clustermanager.AdminState `yaml:"adminState"`
+	}
+
 	HAClusterConfig struct {
 		//HAMode                 HAMode         `yaml:"mode"`
 		PrimaryClusterEndPoint string         `yaml:"primaryEndPoint"`

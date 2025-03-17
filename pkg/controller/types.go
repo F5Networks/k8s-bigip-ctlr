@@ -856,7 +856,7 @@ type (
 		reqChan      chan ResourceConfigRequest
 		userAgent    string
 		respChan     chan resourceStatusMeta
-		//CMTokenManager                  *tokenmanager.TokenManager
+		//TokenManager                  *tokenmanager.TokenManager
 		ccclGTMAgent bool
 		disableARP   bool
 		HAMode       bool
@@ -916,7 +916,6 @@ type (
 		userAgent                       string
 		HttpAddress                     string
 		EnableIPV6                      bool
-		declUpdate                      sync.Mutex
 		ccclGTMAgent                    bool
 		disableARP                      bool
 		HAMode                          bool
@@ -974,35 +973,33 @@ type (
 	// This separation of concerns is appropriate for the controller architecture.
 
 	AS3Handler struct {
-		AS3Config         map[string]interface{}
-		AS3VersionInfo    as3VersionInfo
-		bigIPAS3Version   float64
-		postManagerPrefix string
+		AS3VersionInfo      as3VersionInfo
+		bigIPAS3Version     float64
+		postManagerPrefix   string
+		cachedTenantDeclMap map[string]as3Tenant
+		userAgent           string
 		*PostManager
-		*PostParams
 		*AS3Parser
 	}
 
 	AS3Parser struct {
 		// AS3Parser implements AS3ParserInterface
 		AS3ParserInterface
-		AS3VersionInfo  as3VersionInfo
-		bigIPAS3Version float64
+		AS3VersionInfo     as3VersionInfo
+		bigIPAS3Version    float64
+		defaultPartition   string
+		defaultRouteDomain interface{}
 	}
 
 	PostManager struct {
 		sync.RWMutex
-		httpClient        *http.Client
-		tenantResponseMap map[string]tenantResponse
+		httpClient *http.Client
 		PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		firstPost                       bool
 		AS3VersionInfo                  as3VersionInfo
 		bigIPAS3Version                 float64
 		postManagerPrefix               string
-		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
-		cachedTenantDeclMap   map[string]as3Tenant
-		incomingTenantDeclMap map[string]as3Tenant
 		// this map stores the tenant priority map
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
@@ -1055,12 +1052,6 @@ type (
 	tenantParams struct {
 		as3Decl interface{} // to update cachedTenantDeclMap on success
 		tenantResponse
-	}
-
-	agentConfig struct {
-		data      string
-		as3APIURL string
-		id        int
 	}
 
 	globalSection struct {

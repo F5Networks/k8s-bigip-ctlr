@@ -41,8 +41,6 @@ func NewPostManager(params AgentParams, kind string) *PostManager {
 	pm := &PostManager{
 		firstPost:                       true,
 		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
-		cachedTenantDeclMap:             make(map[string]as3Tenant),
-		incomingTenantDeclMap:           make(map[string]as3Tenant),
 		retryTenantDeclMap:              make(map[string]*tenantParams),
 		tenantPriorityMap:               make(map[string]int),
 		// fix this below the postChan
@@ -107,7 +105,7 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 	}
 }
 
-func (postMgr *PostManager) postConfig(cfg *agentConfig) (*http.Response, map[string]interface{}) {
+func (postMgr *PostManager) postConfig(cfg *agentPostConfig) (*http.Response, map[string]interface{}) {
 	// log as3 request if it's set
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
@@ -167,17 +165,6 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func (postMgr *PostManager) updateTenantResponseCode(code int, id string, tenant string, isDeleted bool, message string) {
-	// Update status for a specific tenant if mentioned, else update the response for all tenants
-	if tenant != "" {
-		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, isDeleted, message}
-	} else {
-		for tenant := range postMgr.tenantResponseMap {
-			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, false, message}
-		}
-	}
-}
-
 func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
 	httpResp, err := postMgr.httpClient.Do(request)
 	if err != nil {
@@ -204,53 +191,6 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 		return nil, nil
 	}
 	return httpResp, response
-}
-
-func (postMgr *PostManager) updateTenantResponseMap(agentWorkerUpdate bool) {
-	/*
-		Non 200 ok tenants will be added to retryTenantDeclMap map
-		Locks to update the map will be acquired in the calling method
-	*/
-	for tenant, resp := range postMgr.tenantResponseMap {
-		if resp.agentResponseCode == 200 {
-			if resp.isDeleted {
-				// Update the cache tenant map if tenant is deleted.
-				delete(postMgr.cachedTenantDeclMap, tenant)
-			} else {
-				// update cachedTenantDeclMap with successfully posted declaration
-				if agentWorkerUpdate {
-					postMgr.cachedTenantDeclMap[tenant] = postMgr.incomingTenantDeclMap[tenant]
-				} else {
-					postMgr.cachedTenantDeclMap[tenant] = postMgr.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
-				}
-				// if received the 200 response remove the entry from tenantPriorityMap
-				if _, ok := postMgr.tenantPriorityMap[tenant]; ok {
-					delete(postMgr.tenantPriorityMap, tenant)
-				}
-			}
-		}
-		if agentWorkerUpdate {
-			postMgr.updateRetryMap(tenant, resp, postMgr.incomingTenantDeclMap[tenant])
-		} else {
-			postMgr.updateRetryMap(tenant, resp, postMgr.retryTenantDeclMap[tenant].as3Decl)
-		}
-	}
-}
-
-func (postMgr *PostManager) updateRetryMap(tenant string, resp tenantResponse, tenDecl interface{}) {
-	if resp.agentResponseCode == http.StatusOK {
-		// delete the tenant entry from retry if any
-		delete(postMgr.retryTenantDeclMap, tenant)
-		// if received the 200 response remove the entry from tenantPriorityMap
-		if _, ok := postMgr.tenantPriorityMap[tenant]; ok {
-			delete(postMgr.tenantPriorityMap, tenant)
-		}
-	} else {
-		postMgr.retryTenantDeclMap[tenant] = &tenantParams{
-			tenDecl,
-			tenantResponse{resp.agentResponseCode, resp.taskId, false, resp.message},
-		}
-	}
 }
 
 // function for returning the prefix string for request id

@@ -119,8 +119,8 @@ type AS3ParserInterface interface {
 	getSortedCustomProfileKeys(customProfiles map[SecretKey]CustomProfile) []SecretKey
 }
 
-func (ap *AS3Parser) getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string, config *ResourceConfigRequest) as3Tenant {
-	if defaultPartition == tenant {
+func (ap *AS3Parser) getDeletedTenantDeclaration(tenant, cisLabel string) as3Tenant {
+	if ap.defaultPartition == tenant {
 		// Flush Partition contents
 		sharedApp := as3Application{}
 		sharedApp["class"] = "Application"
@@ -128,7 +128,7 @@ func (ap *AS3Parser) getDeletedTenantDeclaration(defaultPartition, tenant, cisLa
 		return as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
-			"defaultRouteDomain": config.defaultRouteDomain,
+			"defaultRouteDomain": ap.defaultRouteDomain,
 			"label":              cisLabel,
 		}
 	}
@@ -137,81 +137,75 @@ func (ap *AS3Parser) getDeletedTenantDeclaration(defaultPartition, tenant, cisLa
 	}
 }
 
-func (ap *AS3Parser) processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
-	for _, rsCfg := range rsMap {
-		// Skip processing IRules for "None" value
-		for _, v := range rsCfg.Virtual.IRules {
-			if v == "none" {
-				continue
-			}
+func (ap *AS3Parser) processIRulesForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
+	// Skip processing IRules for "None" value
+	for _, v := range rsCfg.Virtual.IRules {
+		if v == "none" {
+			continue
 		}
-		// Create irule declaration
-		for _, v := range rsCfg.IRulesMap {
-			iRule := &as3IRules{}
-			iRule.Class = "iRule"
-			iRule.IRule = v.Code
-			sharedApp[v.Name] = iRule
-		}
+	}
+	// Create irule declaration
+	for _, v := range rsCfg.IRulesMap {
+		iRule := &as3IRules{}
+		iRule.Class = "iRule"
+		iRule.IRule = v.Code
+		sharedApp[v.Name] = iRule
 	}
 }
 
-func (ap *AS3Parser) processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
-	for _, rsCfg := range rsMap {
-		// Skip processing DataGroup for "None" iRule value
-		for _, v := range rsCfg.Virtual.IRules {
-			if v == "none" {
-				continue
-			}
+func (ap *AS3Parser) processDataGroupForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
+	// Skip processing DataGroup for "None" iRule value
+	for _, v := range rsCfg.Virtual.IRules {
+		if v == "none" {
+			continue
 		}
-		for _, idg := range rsCfg.IntDgMap {
-			for _, dg := range idg {
-				dataGroupRecord, found := sharedApp[dg.Name]
-				if !found {
-					dgMap := &as3DataGroup{}
-					dgMap.Class = "Data_Group"
-					dgMap.KeyDataType = dg.Type
-					for _, record := range dg.Records {
-						dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
-					}
-					// sort above create dgMap records.
-					sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
-					sharedApp[dg.Name] = dgMap
-				} else {
-					for _, record := range dg.Records {
-						sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, as3Record{Key: record.Name, Value: record.Data})
-					}
-					// sort above created
-					sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
-						func(i, j int) bool {
-							return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
-								sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
-						})
+	}
+	for _, idg := range rsCfg.IntDgMap {
+		for _, dg := range idg {
+			dataGroupRecord, found := sharedApp[dg.Name]
+			if !found {
+				dgMap := &as3DataGroup{}
+				dgMap.Class = "Data_Group"
+				dgMap.KeyDataType = dg.Type
+				for _, record := range dg.Records {
+					dgMap.Records = append(dgMap.Records, as3Record{Key: record.Name, Value: record.Data})
 				}
+				// sort above create dgMap records.
+				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
+				sharedApp[dg.Name] = dgMap
+			} else {
+				for _, record := range dg.Records {
+					sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, as3Record{Key: record.Name, Value: record.Data})
+				}
+				// sort above created
+				sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
+					func(i, j int) bool {
+						return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
+							sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
+					})
 			}
 		}
 	}
 }
 
 // Process for AS3 Resource
-func (ap *AS3Parser) processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
-	for _, cfg := range rsMap {
-		//Create policies
-		ap.createPoliciesDecl(cfg, sharedApp)
+func (ap *AS3Parser) processResourcesForAS3(rsCfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string) {
+	//Create policies
+	ap.createPoliciesDecl(rsCfg, sharedApp)
 
-		//Create health monitor declaration
-		ap.createMonitorDecl(cfg, sharedApp)
+	//Create health monitor declaration
+	ap.createMonitorDecl(rsCfg, sharedApp)
 
-		//Create pools
-		ap.createPoolDecl(cfg, sharedApp, shareNodes, tenant, poolMemberType)
+	//Create pools
+	ap.createPoolDecl(rsCfg, sharedApp, shareNodes, tenant, poolMemberType)
 
-		switch cfg.MetaData.ResourceType {
-		case VirtualServer:
-			//Create AS3 Service for virtual server
-			ap.createServiceDecl(cfg, sharedApp, tenant, ap.bigIPAS3Version)
-		case TransportServer:
-			//Create AS3 Service for transport virtual server
-			ap.createTransportServiceDecl(cfg, sharedApp, tenant)
-		}
+	switch rsCfg.MetaData.ResourceType {
+	case VirtualServer:
+		//Create AS3 Service for virtual server
+		ap.createServiceDecl(rsCfg, sharedApp, tenant, ap.bigIPAS3Version)
+	case TransportServer:
+		//Create AS3 Service for transport virtual server
+		ap.createTransportServiceDecl(rsCfg, sharedApp, tenant)
 	}
 }
 
@@ -882,11 +876,9 @@ func (ap *AS3Parser) DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 	return reflect.DeepEqual(o1, o2)
 }
 
-func (ap *AS3Parser) processProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
-	for _, cfg := range rsMap {
-		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
-			ap.processTLSProfilesForAS3(cfg, svc, cfg.Virtual.Name)
-		}
+func (ap *AS3Parser) processProfilesForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
+	if svc, ok := sharedApp[rsCfg.Virtual.Name].(*as3Service); ok {
+		ap.processTLSProfilesForAS3(rsCfg, svc, rsCfg.Virtual.Name)
 	}
 }
 
@@ -942,41 +934,40 @@ func (ap *AS3Parser) processTLSProfilesForAS3(cfg *ResourceConfig, svc *as3Servi
 	}
 }
 
-func (ap *AS3Parser) processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
+func (ap *AS3Parser) processCustomProfilesForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
 	svcNameMap := make(map[string]struct{})
 	// TLS Certificates are available in CustomProfiles
-	for _, rsCfg := range rsMap {
-		// Sort customProfiles so that they are processed in orderly manner
-		keys := ap.getSortedCustomProfileKeys(rsCfg.customProfiles)
+	// Sort customProfiles so that they are processed in orderly manner
+	keys := ap.getSortedCustomProfileKeys(rsCfg.customProfiles)
 
-		for _, key := range keys {
-			prof := rsCfg.customProfiles[key]
-			// Create TLSServer and Certificate for each profile
-			svcName := key.ResourceName
-			if svcName == "" {
-				continue
+	for _, key := range keys {
+		prof := rsCfg.customProfiles[key]
+		// Create TLSServer and Certificate for each profile
+		svcName := key.ResourceName
+		if svcName == "" {
+			continue
+		}
+		if ok := ap.createUpdateTLSServer(rsCfg.MetaData.ResourceType, prof, svcName, sharedApp); ok {
+			// Create Certificate only if the corresponding TLSServer is created
+			ap.createCertificateDecl(prof, sharedApp)
+			svcNameMap[svcName] = struct{}{}
+		} else {
+			ap.createUpdateCABundle(prof, caBundleName, sharedApp)
+			tlsClient = ap.createTLSClient(rsCfg.MetaData.ResourceType, prof, svcName, caBundleName, sharedApp)
+
+			skey := SecretKey{
+				Name: prof.Name + "-ca",
 			}
-			if ok := ap.createUpdateTLSServer(rsCfg.MetaData.ResourceType, prof, svcName, sharedApp); ok {
-				// Create Certificate only if the corresponding TLSServer is created
-				ap.createCertificateDecl(prof, sharedApp)
-				svcNameMap[svcName] = struct{}{}
-			} else {
-				ap.createUpdateCABundle(prof, caBundleName, sharedApp)
-				tlsClient = ap.createTLSClient(rsCfg.MetaData.ResourceType, prof, svcName, caBundleName, sharedApp)
-
-				skey := SecretKey{
-					Name: prof.Name + "-ca",
-				}
-				if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
-					// If a profile exist in customProfiles with key as created above
-					// then it indicates that secure-serverssl needs to be added
-					tlsClient.ValidateCertificate = true
-				}
+			if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
+				// If a profile exist in customProfiles with key as created above
+				// then it indicates that secure-serverssl needs to be added
+				tlsClient.ValidateCertificate = true
 			}
 		}
 	}
+
 	// if AS3 version on bigIP is lower than 3.44 then don't enable sniDefault, as it's only supported from AS3 v3.44 onwards
 	if ap.AS3VersionInfo.as3Version < 3.44 {
 		return

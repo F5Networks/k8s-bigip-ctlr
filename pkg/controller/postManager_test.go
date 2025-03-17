@@ -21,12 +21,12 @@ var _ = Describe("PostManager Tests", func() {
 	})
 
 	Describe("Post Config and Handle Response", func() {
-		var agentCfg agentConfig
+		var agentCfg agentPostConfig
 		BeforeEach(func() {
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			agentCfg = agentConfig{
+			agentCfg = agentPostConfig{
 				data:      "{}",
 				as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
 				id:        0,

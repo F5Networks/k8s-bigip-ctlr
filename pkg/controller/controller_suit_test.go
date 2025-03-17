@@ -55,14 +55,14 @@ func (m *mockController) shutdown() error {
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &PostManager{
-			postChan:            make(chan ResourceConfigRequest, 1),
-			cachedTenantDeclMap: make(map[string]as3Tenant),
-			retryTenantDeclMap:  make(map[string]*tenantParams),
+			postChan: make(chan agentPostConfig, 1),
+			//cachedTenantDeclMap: make(map[string]as3Tenant),
+			//retryTenantDeclMap:  make(map[string]*tenantParams),
 		},
 		Responses: []int{},
 		RespIndex: 0,
 	}
-	mockPM.tenantResponseMap = make(map[string]tenantResponse)
+	//mockPM.tenantResponseMap = make(map[string]tenantResponse)
 	mockPM.firstPost = true
 	return mockPM
 }

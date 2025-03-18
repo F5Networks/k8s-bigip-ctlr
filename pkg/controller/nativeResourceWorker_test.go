@@ -24,34 +24,34 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
-		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		agentParams := AgentParams{
+			PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+			ApiType:       AS3,
+		}
+		appServicesChecker := func() error {
+			return nil
+		}
+		mockCtlr.RequestHandler = mockCtlr.NewRequestHandler(agentParams, appServicesChecker)
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -60,13 +60,6 @@ var _ = Describe("Routes", func() {
 				RouteGroups:  make(map[string]int),
 				NativeRoutes: make(map[string]int),
 				ExternalDNS:  make(map[string]int),
-			},
-		}
-		mockCtlr.Agent = &Agent{
-			PostManager: &PostManager{
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
 			},
 		}
 	})
@@ -143,7 +136,7 @@ var _ = Describe("Routes", func() {
 				"foo", "1", "node0", ns, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces = map[string]struct{}{ns: {}}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces = map[string]struct{}{ns: {}}
 
 			err := mockCtlr.processRoutes(ns, false)
 			mapKey := NameRef{
@@ -200,15 +193,15 @@ var _ = Describe("Routes", func() {
 				"pro": "asb",
 			}
 			mockCtlr.addRoute(route1)
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["test"] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces["test"] = struct{}{}
 			rskey := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			mockCtlr.updateRouteAdmitStatus(rskey, "Route Admitted", "", v1.ConditionTrue)
 			time.Sleep(1 * time.Second)
 			route := mockCtlr.fetchRoute(rskey)
 			Expect(len(route1.Status.Ingress)).To(BeEquivalentTo(1), "Incorrect route admit status")
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeLabel = " pro in (pro) "
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeLabel = " pro in (pro) "
 			mockCtlr.processedHostPath.processedHostPathMap["foo.com/foo"] = route1.ObjectMeta.CreationTimestamp
 			mockCtlr.eraseAllRouteAdmitStatus()
 			time.Sleep(1 * time.Second)
@@ -299,11 +292,11 @@ var _ = Describe("Routes", func() {
 			mockCtlr.addRoute(route4)
 			_, _ = mockCtlr.processConfigMap(cm, false)
 			mockCtlr.addRoute(route5)
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			Expect(mockCtlr.checkValidRoute(route1, rgPlcSSLProfiles{})).To(BeFalse())
@@ -474,7 +467,7 @@ extendedRouteSpec:
 			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", namespace1, spec1, annotation1)
 			mockCtlr.addRoute(route1)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces = map[string]struct{}{namespace1: {}}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces = map[string]struct{}{namespace1: {}}
 			err = mockCtlr.processRoutes(namespace1, false)
 
 			bar := test.NewService("bar", "1", namespace2, "NodePort", fooPorts)
@@ -491,7 +484,7 @@ extendedRouteSpec:
 			annotation2[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route2 := test.NewRoute("route2", "1", namespace2, spec2, annotation2)
 			mockCtlr.addRoute(route2)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace2] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[namespace2] = struct{}{}
 			err = mockCtlr.processRoutes(namespace2, false)
 
 			newEDNS := test.NewExternalDNS(
@@ -513,7 +506,7 @@ extendedRouteSpec:
 				})
 			//Process ENDS with non-matching domain
 			mockCtlr.addEDNS(newEDNS)
-			mockCtlr.processExternalDNS(newEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(newEDNS, false, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			DEFAULT_GTM_PARTITION = DEFAULT_GTM_PARTITION + "_gtm"
 			Expect(len(gtmConfig)).To(Equal(1))
@@ -523,14 +516,14 @@ extendedRouteSpec:
 
 			//delete EDNS
 			mockCtlr.deleteEDNS(newEDNS)
-			mockCtlr.processExternalDNS(newEDNS, true, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(newEDNS, true, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(0))
 
 			// Modify EDNS with matching domain and create again
 			mockCtlr.addEDNS(newEDNS)
 			newEDNS.Spec.DomainName = "pytest-foo-1.com"
-			mockCtlr.processExternalDNS(newEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(newEDNS, false, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -549,7 +542,7 @@ extendedRouteSpec:
 
 			// Recreate route
 			mockCtlr.addRoute(route1)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace1] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[namespace1] = struct{}{}
 			err = mockCtlr.processRoutes(namespace1, false)
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -595,7 +588,7 @@ extendedRouteSpec:
 				})
 			//Test with 2nd route with bigIpPartition
 			mockCtlr.addEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-bar-1.com"].Pools)).To(Equal(1))
@@ -603,7 +596,7 @@ extendedRouteSpec:
 			Expect(strings.Contains(gtmConfig["pytest-bar-1.com"].Pools[0].Members[0], "routes_10.8_3_12_dev"))
 
 			mockCtlr.deleteEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, true, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(barEDNS, true, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 
@@ -630,7 +623,7 @@ extendedRouteSpec:
 			// EDNS with Monitor type other than http/https
 			barEDNS.Spec.Pools[0].Monitor.Type = "tcp"
 			mockCtlr.addEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -647,7 +640,7 @@ extendedRouteSpec:
 				},
 			}
 			mockCtlr.addEDNS(barEDNS)
-			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.multiClusterHandler.LocalClusterName)
+			mockCtlr.processExternalDNS(barEDNS, false, mockCtlr.MultiClusterHandler.LocalClusterName)
 			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
@@ -844,7 +837,7 @@ extendedRouteSpec:
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route1)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err := mockCtlr.processRoutes(routeGroup, false)
 			parition := mockCtlr.resources.extdSpecMap[routeGroup].partition
 			vsName := frameRouteVSName(mockCtlr.resources.extdSpecMap[routeGroup].global.VServerName, mockCtlr.resources.extdSpecMap[routeGroup].global.VServerAddr, portStruct{protocol: "https", port: 443})
@@ -864,7 +857,7 @@ extendedRouteSpec:
 			route2 := test.NewRoute("route2", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route2)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
 			Expect(len(mockCtlr.resources.ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
@@ -1110,8 +1103,8 @@ extendedRouteSpec:
 				ObjectMeta: metav1.ObjectMeta{Name: "serverssl", Namespace: namespace},
 				Data:       data,
 			}
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clientssl)
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(serverssl)
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clientssl)
+			mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(serverssl)
 
 			annotation1 := make(map[string]string)
 			annotation1[resource.F5ServerSslProfileAnnotation] = "serverssl"
@@ -1341,7 +1334,7 @@ extendedRouteSpec:
 				"foo", "1", "node0", ns, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[ns] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[ns] = struct{}{}
 
 			err := mockCtlr.processRoutes(ns, false)
 			Expect(err).To(BeNil(), "Failed to process routes")
@@ -1625,14 +1618,14 @@ extendedRouteSpec:
       vserverName: latestserver
 `
 
-			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
-			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
-			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
+			_ = mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
+			_ = mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
+			_ = mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 
-			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
+			_ = mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
 			err, ok = mockCtlr.processConfigMap(localCm3, true)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
@@ -1808,7 +1801,7 @@ extendedRouteSpec:
 			annotations[resource.F5VsAppRootAnnotation] = "/foo"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err = mockCtlr.processRoutes(routeGroup, false)
 
 			Expect(err).To(BeNil())
@@ -1893,7 +1886,7 @@ extendedRouteSpec:
 			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
-			mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
+			mockCtlr.MultiClusterHandler.ClusterConfigs[mockCtlr.MultiClusterHandler.LocalClusterName].namespaces[routeGroup] = struct{}{}
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
 			zero := 0
@@ -1943,33 +1936,25 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
-		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1()}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaceLabel = "environment=dev"
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1()}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaceLabel = "environment=dev"
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -1987,13 +1972,14 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			cmName := "escm"
 			cmNamespace := "system"
 			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			agentParams := AgentParams{
+				PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				ApiType:       AS3,
 			}
+			appServicesChecker := func() error {
+				return nil
+			}
+			mockCtlr.RequestHandler = mockCtlr.NewRequestHandler(agentParams, appServicesChecker)
 
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
@@ -2042,21 +2028,13 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
-		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 	})
@@ -2087,7 +2065,7 @@ extendedRouteSpec:
       vserverAddr: 10.8.3.12
       allowOverride: true
 `
-			mockCtlr.multiClusterHandler.addInformerStore("", initInformerStore())
+			mockCtlr.MultiClusterHandler.addInformerStore("", initInformerStore())
 			err := mockCtlr.setNamespaceLabelMode(cm)
 			Expect(err).To(MatchError("--namespace-label deployment parameter is required with namespace-label in extended configmap"))
 		})
@@ -2102,39 +2080,31 @@ var _ = Describe("Multi Cluster with Routes", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
-		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
 			kubeClient:    k8sfake.NewSimpleClientset(),
 			routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
 		}
-		mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{
+		mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{
 			kubeClient:    k8sfake.NewSimpleClientset(),
 			InformerStore: initInformerStore()}
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
@@ -2150,14 +2120,14 @@ var _ = Describe("Multi Cluster with Routes", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.Agent = &Agent{
-			PostManager: &PostManager{
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
-			},
+		agentParams := AgentParams{
+			PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+			ApiType:       AS3,
 		}
-
+		appServicesChecker := func() error {
+			return nil
+		}
+		mockCtlr.RequestHandler = mockCtlr.NewRequestHandler(agentParams, appServicesChecker)
 		cmName := "ecm"
 		cmNamespace := "kube-system"
 		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
@@ -2279,18 +2249,18 @@ extendedRouteSpec:
 		It("Process Route with multi cluster annotation with multicluster config", func() {
 			mockCtlr.multiClusterMode = PrimaryCIS
 			mockCtlr.processGlobalExtendedConfigMap()
-			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
+			restClient := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
 			clusterName := "cluster3"
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
+			for namespace := range mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName]; !found {
+					mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 
@@ -2415,38 +2385,30 @@ var _ = Describe("Multi Cluster with CRD", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
-		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
 			kubeClient:    k8sfake.NewSimpleClientset(),
 			routeClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
 		}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
-		mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["kube-system"] = mockCtlr.newNamespacedCommonResourceInformer("kube-system", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(),
 			InformerStore: initInformerStore()}
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.clusterRatio = make(map[string]*int)
@@ -2460,14 +2422,14 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.Agent = &Agent{
-			PostManager: &PostManager{
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
-			},
+		agentParams := AgentParams{
+			PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+			ApiType:       AS3,
 		}
-
+		appServicesChecker := func() error {
+			return nil
+		}
+		mockCtlr.RequestHandler = mockCtlr.NewRequestHandler(agentParams, appServicesChecker)
 		cmName := "ecm"
 		cmNamespace := "kube-system"
 		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
@@ -2592,25 +2554,25 @@ externalClustersConfig:
 					},
 				},
 			)
-			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
-			restClient2 := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].kubeClient.CoreV1().RESTClient()
+			restClient := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
+			restClient2 := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster2"].kubeClient.CoreV1().RESTClient()
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"]; !found {
-					mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers = make(map[string]*CommonInformer)
+			for namespace := range mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces {
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster2"]; !found {
+					mockCtlr.MultiClusterHandler.ClusterConfigs["cluster2"].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace]; !found {
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, "cluster2", restClient2)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace] = poolInfr
+					mockCtlr.MultiClusterHandler.ClusterConfigs["cluster2"].comInformers[namespace] = poolInfr
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"]; !found {
-					mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"]; !found {
+					mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace]; !found {
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, "cluster3", restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace] = poolInfr
+					mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.discoveryMode = Ratio
@@ -2706,18 +2668,18 @@ externalClustersConfig:
 					},
 				},
 			)
-			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
+			restClient := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
 			clusterName := "cluster3"
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
+			for namespace := range mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName]; !found {
+					mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
@@ -2816,18 +2778,18 @@ externalClustersConfig:
 					},
 				},
 			)
-			restClient := mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
+			restClient := mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"].kubeClient.CoreV1().RESTClient()
 			clusterName := "cluster3"
 			// Setup informers with namespaces which are watched by CIS
-			for namespace := range mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces {
+			for namespace := range mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces {
 				// add common informers  in all modes
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName]; !found {
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName]; !found {
+					mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers = make(map[string]*CommonInformer)
 				}
-				if _, found := mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
+				if _, found := mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace]; !found {
 					poolInfr := mockCtlr.newMultiClusterNamespacedPoolInformer(namespace, clusterName, restClient)
 					mockCtlr.addMultiClusterPoolEventHandlers(poolInfr)
-					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
+					mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)

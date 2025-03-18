@@ -13,7 +13,6 @@ import (
 
 const (
 	as3SharedApplication = "Shared"
-	gtmPartition         = "Common"
 )
 
 var baseAS3Config = `{

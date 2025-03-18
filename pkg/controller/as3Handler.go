@@ -340,6 +340,9 @@ func (am *AS3Handler) getBigipRegKeyURL() string {
 }
 
 func (am *AS3Handler) UpdateApiVersion(version string, build string, schemaVersion string) {
+	if version == "" {
+		return
+	}
 	floatValue, err := strconv.ParseFloat(version, 64) // Use 64 for double precision
 	if err != nil {
 		fmt.Println("Error:", err)

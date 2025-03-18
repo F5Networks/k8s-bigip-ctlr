@@ -238,7 +238,7 @@ func (comInfr *CommonInformer) stop() {
 }
 
 func (ctlr *Controller) watchingAllNamespaces(clusterName string) bool {
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil {
 		return false
 	}
@@ -252,7 +252,7 @@ func (ctlr *Controller) watchingAllNamespaces(clusterName string) bool {
 	case CustomResourceMode:
 		// Check for CRInformer only in local cluster
 		watchingAll := false
-		if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+		if clusterName == ctlr.MultiClusterHandler.LocalClusterName {
 			if len(informerStore.crInformers) == 0 {
 				// Not watching any namespaces.
 				return false
@@ -274,10 +274,10 @@ func (ctlr *Controller) getNamespacedCRInformer(
 	namespace string,
 	clusterName string,
 ) (*CRInformer, bool) {
-	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
+	if ctlr.watchingAllNamespaces(ctlr.MultiClusterHandler.LocalClusterName) {
 		namespace = ""
 	}
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil || informerStore.crInformers == nil {
 		return nil, false
 	}
@@ -292,7 +292,7 @@ func (ctlr *Controller) getNamespacedCommonInformer(
 	if ctlr.watchingAllNamespaces(clusterName) {
 		namespaceKey = ""
 	}
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil || informerStore.comInformers == nil {
 		return nil, false
 	}
@@ -307,10 +307,10 @@ func (ctlr *Controller) getNamespacedCommonInformer(
 func (ctlr *Controller) getNamespacedNativeInformer(
 	namespace string,
 ) (*NRInformer, bool) {
-	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
+	if ctlr.watchingAllNamespaces(ctlr.MultiClusterHandler.LocalClusterName) {
 		namespace = ""
 	}
-	informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(ctlr.MultiClusterHandler.LocalClusterName)
 	if informerStore == nil || informerStore.nrInformers == nil {
 		return nil, false
 	}
@@ -320,7 +320,7 @@ func (ctlr *Controller) getNamespacedNativeInformer(
 
 func (ctlr *Controller) getWatchingNamespaces(clusterName string) []string {
 	var namespaces []string
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	if ctlr.watchingAllNamespaces(clusterName) {
 		// get the kubeclient from the clusterconfigs
 		nss, err := clusterConfig.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
@@ -348,7 +348,7 @@ func (ctlr *Controller) addNamespacedInformers(
 		return fmt.Errorf(
 			"Cannot add additional namespaces when already watching all.")
 	}
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(clusterName)
 	if informerStore == nil {
 		return fmt.Errorf("informerStore not found for cluster: %s , while creating namespaced informers", clusterName)
 	}
@@ -363,14 +363,14 @@ func (ctlr *Controller) addNamespacedInformers(
 		ctlr.addCommonResourceEventHandlers(comInf)
 		informerStore.comInformers[namespace] = comInf
 		if startInformer {
-			comInf.start(ctlr.multiClusterHandler.LocalClusterName, false)
+			comInf.start(ctlr.MultiClusterHandler.LocalClusterName, false)
 		}
 	}
 	// add multiCluster informers for the new namespace to watch resources from other clusters
 	if ctlr.multiClusterMode != "" {
 		ctlr.updateMultiClusterInformers(namespace, startInformer)
 	}
-	if clusterName == ctlr.multiClusterHandler.LocalClusterName {
+	if clusterName == ctlr.MultiClusterHandler.LocalClusterName {
 		switch ctlr.mode {
 		case OpenShiftMode, KubernetesMode:
 			// Create native resource informers in openshift mode only
@@ -396,7 +396,7 @@ func (ctlr *Controller) addNamespacedInformers(
 		}
 	}
 	// add informer store
-	// ctlr.multiClusterHandler.addInformerStore(clusterName, informerStore)
+	// ctlr.MultiClusterHandler.addInformerStore(clusterName, informerStore)
 	return nil
 }
 
@@ -405,7 +405,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformerForCluster(
 	clusterName string,
 ) *CRInformer {
 	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.customResourceSelector.String()
 	}
@@ -460,7 +460,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 	}
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 	switch ctlr.mode {
 	case OpenShiftMode:
 		// Ensure the default server cert is loaded
@@ -489,7 +489,7 @@ func (ctlr *Controller) setNodeInformer(clusterName string) NodeInformer {
 	resyncPeriod := 0 * time.Second
 	var restClientv1 rest.Interface
 	log.Debugf("Creating node informers for cluster: %v", clusterName)
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	nodeOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.nodeLabelSelector
 	}
@@ -539,7 +539,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	restClientv1 := clusterConfig.kubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = clusterConfig.customResourceSelector.String()
@@ -1538,7 +1538,7 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 		options.LabelSelector = selector.String()
 	}
 
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	if clusterConfig == nil {
 		return fmt.Errorf("no cluster config found in cache")
 	}
@@ -1548,7 +1548,7 @@ func (ctlr *Controller) createNamespaceLabeledInformerForCluster(label string, c
 	}
 
 	resyncPeriod := 0 * time.Second
-	restClient := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	restClient := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	restClientv1 := restClient.kubeClient.CoreV1().RESTClient()
 	clusterConfig.InformerStore.nsInformers[label] = &NSInformer{
 		clusterName: clusterName,
@@ -1647,7 +1647,7 @@ func (ctlr *Controller) getErrorHandlerFunc(rsType, clusterName string) func(r *
 
 func (ctlr *Controller) newDynamicInformersForCluster(client dynamic.Interface, clusterName string) *DynamicInformers {
 	log.Debugf("Creating dynamic Informers for cluster: %s", clusterName)
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	informers := &DynamicInformers{
 		clusterName: clusterName,
 		stopCh:      make(chan struct{}),

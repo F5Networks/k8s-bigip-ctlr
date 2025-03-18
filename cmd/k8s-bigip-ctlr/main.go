@@ -1000,7 +1000,8 @@ func initController(
 		},
 		true,
 	)
-	ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams)
+	agentParams.PrimaryClusterHealthProbeParams = ctlr.MultiClusterHandler.PrimaryClusterHealthProbeParams
+	ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams, nil)
 	return ctlr
 }
 

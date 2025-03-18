@@ -15,23 +15,15 @@ var _ = Describe("MultiClusterWorker", func() {
 	var clusterName2 string
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("cluster-1", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
-		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
+		mockCtlr.MultiClusterHandler = NewClusterHandler("cluster-1", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
 		clusterName = "cluster-1"
 		clusterName2 = "cluster-2"
-		mockCtlr.multiClusterHandler.HAPairClusterName = "cluster-2"
+		mockCtlr.MultiClusterHandler.HAPairClusterName = "cluster-2"
 		svc = test.NewService(
 			"svc1",
 			"1",
@@ -44,10 +36,10 @@ var _ = Describe("MultiClusterWorker", func() {
 				},
 			},
 		)
-		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
-		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
+		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 	It("Get service from HA cluster", func() {

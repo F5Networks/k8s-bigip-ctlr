@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -96,6 +97,8 @@ const (
 	SecondaryBigIP = "secondaryBigIP"
 	GTMBigIP       = "gtmBigIP"
 
+	AS3 = "as3"
+
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 
@@ -163,7 +166,6 @@ func NewController(params Params, startController bool) *Controller {
 		StaticRoutingMode:           params.StaticRoutingMode,
 		OrchestrationCNI:            params.OrchestrationCNI,
 		StaticRouteNodeCIDR:         params.StaticRouteNodeCIDR,
-		multiClusterHandler:         NewClusterHandler(params.LocalClusterName, params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams),
 		multiClusterResources:       newMultiClusterResourceStore(),
 		multiClusterMode:            params.MultiClusterMode,
 		loadBalancerClass:           params.LoadBalancerClass,
@@ -172,6 +174,9 @@ func NewController(params Params, startController bool) *Controller {
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
 		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
 		respChan:                    make(chan *agentPostConfig),
+		MultiClusterHandler: NewClusterHandler(params.LocalClusterName, params.MultiClusterMode, &PrimaryClusterHealthProbeParams{
+			paramLock: sync.RWMutex{},
+		}),
 	}
 
 	log.Debug("Controller Created")
@@ -201,23 +206,23 @@ func NewController(params Params, startController bool) *Controller {
 	if ctlr.PoolMemberType == NodePort || ctlr.PoolMemberType == NodePortLocal {
 		ctlr.shareNodes = true
 	}
-	if err := ctlr.setupClientsforCluster(params.Config, params.IPAM, ctlr.mode == OpenShiftMode, ctlr.multiClusterHandler.LocalClusterName, clusterConfig); err != nil {
+	if err := ctlr.setupClientsforCluster(params.Config, params.IPAM, ctlr.mode == OpenShiftMode, ctlr.MultiClusterHandler.LocalClusterName, clusterConfig); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 	// set the namespace label so it can be assigned for all clusters
-	ctlr.multiClusterHandler.namespaceLabel = params.NamespaceLabel
-	ctlr.multiClusterHandler.namespaces = params.Namespaces
-	ctlr.multiClusterHandler.nodeLabelSelector = params.NodeLabelSelector
-	ctlr.multiClusterHandler.routeLabel = params.RouteLabel
-	ctlr.multiClusterHandler.staticRoutingMode = params.StaticRoutingMode
-	ctlr.multiClusterHandler.orchestrationCNI = params.OrchestrationCNI
+	ctlr.MultiClusterHandler.namespaceLabel = params.NamespaceLabel
+	ctlr.MultiClusterHandler.namespaces = params.Namespaces
+	ctlr.MultiClusterHandler.nodeLabelSelector = params.NodeLabelSelector
+	ctlr.MultiClusterHandler.routeLabel = params.RouteLabel
+	ctlr.MultiClusterHandler.staticRoutingMode = params.StaticRoutingMode
+	ctlr.MultiClusterHandler.orchestrationCNI = params.OrchestrationCNI
 	// add the cluster config for local cluster
-	ctlr.multiClusterHandler.addClusterConfig(ctlr.multiClusterHandler.LocalClusterName, clusterConfig)
+	ctlr.MultiClusterHandler.addClusterConfig(ctlr.MultiClusterHandler.LocalClusterName, clusterConfig)
 
 	// handle namespace informers for cluster
-	ctlr.handleNsInformersforCluster(ctlr.multiClusterHandler.LocalClusterName, false)
+	ctlr.handleNsInformersforCluster(ctlr.MultiClusterHandler.LocalClusterName, false)
 
-	if err3 := ctlr.setupInformers(ctlr.multiClusterHandler.LocalClusterName); err3 != nil {
+	if err3 := ctlr.setupInformers(ctlr.MultiClusterHandler.LocalClusterName); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
 
@@ -273,9 +278,9 @@ func NewController(params Params, startController bool) *Controller {
 		// Start the CIS health check
 		go ctlr.CISHealthCheck()
 		// Start the Resource Event Watcher
-		go ctlr.multiClusterHandler.ResourceEventWatcher()
+		go ctlr.MultiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go ctlr.multiClusterHandler.ResourceStatusUpdater()
+		go ctlr.MultiClusterHandler.ResourceStatusUpdater()
 		// Initially cleanup all the unmonitored resource status, this will handle the edge cases when the resource label
 		//is changed during CIS restart
 		go ctlr.cleanupUnmonitoredResourceStatus()
@@ -289,7 +294,7 @@ func (ctlr *Controller) setOtherSDNType() {
 	ctlr.TeemData.Lock()
 	defer ctlr.TeemData.Unlock()
 	if ctlr.OrchestrationCNI == "" && (ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel") {
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 		kubePods, err := clusterConfig.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
 		if nil != err {
 			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
@@ -311,7 +316,7 @@ func (ctlr *Controller) setOtherSDNType() {
 // validate IPAM configuration
 func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 	// verify the ipam configuration
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 	for ns := range clusterConfig.namespaces {
 		if ns == "" {
 			return true
@@ -326,7 +331,7 @@ func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 
 // Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 	err := ipammachinery.RegisterCRD(clusterConfig.kubeIPAMClient)
 	if err != nil {
 		log.Errorf("[IPAM] error while registering CRD %v", err)
@@ -452,7 +457,7 @@ func (ctlr *Controller) setupClientsforCluster(config *rest.Config, ipamClient, 
 }
 
 func (ctlr *Controller) setupInformers(clusterName string) error {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	for n := range clusterConfig.namespaces {
 		if err := ctlr.addNamespacedInformers(n, false, clusterName); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v in cluster %s, Error:%v", n, clusterName, err)
@@ -475,14 +480,14 @@ func (ctlr *Controller) Start() {
 	defer utilruntime.HandleCrash()
 	defer ctlr.resourceQueue.ShutDown()
 
-	ctlr.StartInformers(ctlr.multiClusterHandler.LocalClusterName)
+	ctlr.StartInformers(ctlr.MultiClusterHandler.LocalClusterName)
 
 	if ctlr.ipamCli != nil {
 		go ctlr.ipamCli.Start()
 	}
 
 	if ctlr.vxlanMgr != nil {
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 		ctlr.vxlanMgr.ProcessAppmanagerEvents(clusterConfig.kubeClient)
 	}
 
@@ -496,7 +501,7 @@ func (ctlr *Controller) Start() {
 
 // Stop the Controller
 func (ctlr *Controller) Stop() {
-	ctlr.StopInformers(ctlr.multiClusterHandler.LocalClusterName)
+	ctlr.StopInformers(ctlr.MultiClusterHandler.LocalClusterName)
 	ctlr.RequestHandler.PrimaryBigIPWorker.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
@@ -507,7 +512,7 @@ func (ctlr *Controller) Stop() {
 }
 
 func (ctlr *Controller) StartInformers(clusterName string) {
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(clusterName)
 	// start nsinformer in all modes
 	for _, nsInf := range informerStore.nsInformers {
 		nsInf.start()
@@ -518,7 +523,7 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 
 	// start comInformers for all modes
 	for _, inf := range informerStore.comInformers {
-		inf.start(ctlr.multiClusterHandler.LocalClusterName, false)
+		inf.start(ctlr.MultiClusterHandler.LocalClusterName, false)
 	}
 
 	//start CNI informers if required
@@ -534,7 +539,7 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 				},
 			},
 		}
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 		if clusterConfig != nil {
 			resp, err := clusterConfig.kubeClient.AuthorizationV1().
 				SelfSubjectAccessReviews().
@@ -567,7 +572,7 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 }
 
 func (ctlr *Controller) StopInformers(clusterName string) {
-	informerStore := ctlr.multiClusterHandler.getInformerStore(clusterName)
+	informerStore := ctlr.MultiClusterHandler.getInformerStore(clusterName)
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
 		// stop native resource informers
@@ -603,7 +608,7 @@ func (ctlr *Controller) CISHealthCheck() {
 
 func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 		if clusterConfig.kubeClient != nil {
 			var response string
 			// Check if kube-api server is reachable
@@ -645,13 +650,13 @@ func newClusterConfig() *ClusterConfig {
 }
 
 func (ctlr *Controller) handleNsInformersforCluster(clusterName string, startInf bool) {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
 	if clusterConfig.namespaceLabel == "" {
-		if len(ctlr.multiClusterHandler.namespaces) == 0 {
+		if len(ctlr.MultiClusterHandler.namespaces) == 0 {
 			clusterConfig.namespaces[""] = struct{}{}
 			log.Debugf("No namespaces provided. Watching all namespaces for cluster %s", clusterName)
 		} else {
-			for _, ns := range ctlr.multiClusterHandler.namespaces {
+			for _, ns := range ctlr.MultiClusterHandler.namespaces {
 				clusterConfig.namespaces[ns] = struct{}{}
 			}
 		}

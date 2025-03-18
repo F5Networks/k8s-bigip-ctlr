@@ -390,7 +390,7 @@ func (ctlr *Controller) getServicePort(
 	log.Debugf("Finding port for route %v", route.Name)
 	var err error
 	var port int32
-	nrInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, route.Namespace)
+	nrInf, ok := ctlr.getNamespacedCommonInformer(ctlr.MultiClusterHandler.LocalClusterName, route.Namespace)
 	if !ok {
 		return fmt.Errorf("Informer not found for namespace: %v", route.Namespace), port
 	}
@@ -515,11 +515,11 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 					pool.MultiClusterServices = multiClusterServices
 				}
 				// update the multicluster resource serviceMap with local cluster services
-				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, ctlr.multiClusterHandler.LocalClusterName)
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort, ctlr.MultiClusterHandler.LocalClusterName)
 				// update the multicluster resource serviceMap with HA pair cluster services
-				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
+				if ctlr.discoveryMode == Active && ctlr.MultiClusterHandler.HAPairClusterName != "" {
 					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, bs.Name, route.Spec.Path, pool, servicePort,
-						ctlr.multiClusterHandler.HAPairClusterName)
+						ctlr.MultiClusterHandler.HAPairClusterName)
 				}
 			} else {
 				// Update the multiCluster resource service map for each pool which constitutes a service in case of ratio mode
@@ -913,7 +913,7 @@ func (ctlr *Controller) processGlobalExtendedConfigMap() {
 	var err error
 	var obj interface{}
 	var exist bool
-	cnInf, found := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ns)
+	cnInf, found := ctlr.getNamespacedCommonInformer(ctlr.MultiClusterHandler.LocalClusterName, ns)
 	if found {
 		obj, exist, err = cnInf.cmInformer.GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ns, cmName))
 		cm, _ = obj.(*v1.ConfigMap)
@@ -922,7 +922,7 @@ func (ctlr *Controller) processGlobalExtendedConfigMap() {
 		log.Warningf("Ensure Global Extended Configmap is created in CIS monitored namespace")
 		// If informer fails to fetch configmap which may occur if cis just started which means informers may not have
 		// synced properly then try to fetch using kubeClient
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 		cm, err = clusterConfig.kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), cmName, metav1.GetOptions{})
 	}
 	// Exit gracefully if Extended configmap is not found
@@ -974,7 +974,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 	if namespace && namespaceLabel {
 		return fmt.Errorf("can not specify both namespace and namespace-label in extended configmap %v/%v", cm.Namespace, cm.Name)
 	}
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 	if clusterConfig.namespaceLabel == "" && namespaceLabel {
 		return fmt.Errorf("--namespace-label deployment parameter is required with namespace-label in extended configmap")
 	}
@@ -989,10 +989,10 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 			// setting up the namespace nsLabel informer
 			nsLabel := fmt.Sprintf("%v,%v", clusterConfig.namespaceLabel, ergc.NamespaceLabel)
 			if _, ok := clusterConfig.nsInformers[nsLabel]; !ok {
-				err := ctlr.createNamespaceLabeledInformerForCluster(nsLabel, ctlr.multiClusterHandler.LocalClusterName)
+				err := ctlr.createNamespaceLabeledInformerForCluster(nsLabel, ctlr.MultiClusterHandler.LocalClusterName)
 				if err != nil {
 					log.Errorf("%v %v", ctlr.getMultiClusterLog(), err)
-					clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+					clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 					if clusterConfig != nil {
 						for _, nsInf := range clusterConfig.nsInformers {
 							for _, v := range nsInf.nsInformer.GetIndexer().List() {
@@ -1113,7 +1113,7 @@ func (ctlr *Controller) processRouteConfigFromGlobalCM(es extendedSpec, isDelete
 		if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
 			delete(ctlr.resources.extdSpecMap, routeGroupKey)
 			if ctlr.namespaceLabelMode {
-				clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+				clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 				// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
 				nsLabel := fmt.Sprintf("%v,%v", clusterConfig.namespaceLabel, routeGroupKey)
 				if nsInf, ok := clusterConfig.nsInformers[nsLabel]; ok {
@@ -1348,7 +1348,7 @@ func (ctlr *Controller) isGlobalExtendedCM(cm *v1.ConfigMap) bool {
 }
 
 func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
-	inf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ns)
+	inf, ok := ctlr.getNamespacedCommonInformer(ctlr.MultiClusterHandler.LocalClusterName, ns)
 
 	if !ok {
 		return nil
@@ -1763,7 +1763,7 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) map[st
 	namespaces := make(map[string]string)
 	//check for defaultRouteGroup
 	if namespaceGroup == defaultRouteGroupName {
-		watchedNs := ctlr.getWatchingNamespaces(ctlr.multiClusterHandler.LocalClusterName)
+		watchedNs := ctlr.getWatchingNamespaces(ctlr.MultiClusterHandler.LocalClusterName)
 		for _, ns := range watchedNs {
 			namespaces[ns] = namespaceGroup
 			ctlr.resources.routeGroupNamespaceMap[ns] = namespaceGroup
@@ -1773,7 +1773,7 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) map[st
 			namespaces[namespaceGroup] = namespaceGroup
 			ctlr.resources.routeGroupNamespaceMap[namespaceGroup] = namespaceGroup
 		} else {
-			clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+			clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 			nsLabel := fmt.Sprintf("%v,%v", clusterConfig.namespaceLabel, namespaceGroup)
 			nss, err := clusterConfig.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
 			if err != nil {
@@ -1860,7 +1860,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					one := 1
 					ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName] = &one
 				}
-				ctlr.clusterRatio[ctlr.multiClusterHandler.LocalClusterName] = ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName]
+				ctlr.clusterRatio[ctlr.MultiClusterHandler.LocalClusterName] = ctlr.clusterRatio[haClusterConfig.PrimaryCluster.ClusterName]
 			}
 			ctlr.readAndUpdateClusterAdminState(haClusterConfig.PrimaryCluster, ctlr.multiClusterMode == PrimaryCIS)
 		}
@@ -1924,7 +1924,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 					return err
 				}
 			}
-			ctlr.multiClusterHandler.HAPairClusterName = haClusterConfig.SecondaryCluster.ClusterName
+			ctlr.MultiClusterHandler.HAPairClusterName = haClusterConfig.SecondaryCluster.ClusterName
 		}
 		if ctlr.multiClusterMode == SecondaryCIS && haClusterConfig.PrimaryCluster != (ClusterDetails{}) {
 			// Both cluster name and secret are mandatory
@@ -1961,8 +1961,8 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				}
 			}
 
-			ctlr.multiClusterHandler.HAPairClusterName = haClusterConfig.PrimaryCluster.ClusterName
-			//ctlr.multiClusterHandler.LocalClusterName = secondaryClusterName
+			ctlr.MultiClusterHandler.HAPairClusterName = haClusterConfig.PrimaryCluster.ClusterName
+			//ctlr.MultiClusterHandler.LocalClusterName = secondaryClusterName
 		}
 		if ctlr.discoveryMode != DefaultMode {
 			// start the informers for external Cluster on the CIS start up
@@ -2002,10 +2002,10 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 	// specified externalClusterConfigs earlier and now removed those configs
 	if externalClusterConfigs == nil || len(externalClusterConfigs) == 0 {
 		// Clean up the clusterConfigs
-		ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
+		ctlr.MultiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
 		for clusterName := range ctlr.clusterRatio {
 			// Avoid deleting HA cluster related configs
-			if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == ctlr.multiClusterHandler.LocalClusterName {
+			if clusterName == primaryClusterName || clusterName == secondaryClusterName || clusterName == ctlr.MultiClusterHandler.LocalClusterName {
 				continue
 			}
 			// Delete cluster ratio
@@ -2028,7 +2028,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 		}
 
 		// Check and discard multiCluster config if an HA cluster is used as external cluster
-		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
+		if mcc.ClusterName == primaryClusterName || mcc.ClusterName == secondaryClusterName || mcc.ClusterName == ctlr.MultiClusterHandler.LocalClusterName {
 			log.Warningf("[MultiCluster] Discarding usage of cluster %s as external cluster, as HA/Local cluster can't be used as external cluster in externalClustersConfig section.", mcc.ClusterName)
 			continue
 		}
@@ -2043,7 +2043,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 			log.Warningf("[MultiCluster]  %v", err.Error())
 			continue
 		}
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(mcc.ClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(mcc.ClusterName)
 		// If cluster config has been processed already and kubeclient has been created then skip it
 		if clusterConfig != nil {
 			// Skip processing the cluster config as it's already processed
@@ -2102,7 +2102,7 @@ func (ctlr *Controller) readMultiClusterConfigFromGlobalCM(haClusterConfig HAClu
 				}
 			}
 			// Check if a cluster config has been removed then remove the data associated with it from the externalClustersConfig store
-			ctlr.multiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
+			ctlr.MultiClusterHandler.cleanClusterCache(primaryClusterName, secondaryClusterName, currentClusterSecretKeys)
 		default:
 			// Setup and start pool informers for external cluster in case of standalone and started in non-default mode.
 			// For all other modes except default mode implicit service discovery is required.
@@ -2140,7 +2140,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	if err != nil {
 		return err
 	}
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(mcc.ClusterName)
+	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(mcc.ClusterName)
 	if clusterConfig == nil {
 		clusterConfig = newClusterConfig()
 	}
@@ -2149,7 +2149,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	// update externalclusterconfig in clusterconfig
 	clusterConfig.clusterDetails = mcc
 	// Update the clusterConfig in the externalClustersConfig store
-	ctlr.multiClusterHandler.addClusterConfig(mcc.ClusterName, clusterConfig)
+	ctlr.MultiClusterHandler.addClusterConfig(mcc.ClusterName, clusterConfig)
 	if err != nil {
 		return fmt.Errorf("Failed to create clients for cluster %s with kube-config fetched from secret %s: %v", mcc.ClusterName, mcc.Secret, err)
 	}
@@ -2183,7 +2183,7 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	secretNamespace := splits[0]
 	secretName := splits[1]
 
-	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, secretNamespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.MultiClusterHandler.LocalClusterName, secretNamespace)
 	if !ok {
 		log.Warningf("[MultiCluster] informer not found for namespace: %v while fetching secret for cluster %v", secretNamespace, clusterName)
 	}
@@ -2201,7 +2201,7 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 	if !exist {
 		log.Debugf("[MultiCluster] Fetching secret: %s for cluster: %s using kubeclient", secretName, clusterName)
 		// During start up the informers may not be updated so, try to fetch secret using kubeClient
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+		clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
 		kubeConfigSecret, err = clusterConfig.kubeClient.CoreV1().Secrets(secretNamespace).Get(context.Background(), secretName,
 			metav1.GetOptions{})
 		if err != nil {
@@ -2221,9 +2221,9 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 // updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
 func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig) {
 	// Initialize PrimaryClusterHealthProbeParams if it's the first time
-	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams == (PrimaryClusterHealthProbeParams{}) {
-		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams = PrimaryClusterHealthProbeParams{
-			paramLock: &sync.RWMutex{},
+	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams == nil {
+		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams = &PrimaryClusterHealthProbeParams{
+			paramLock: sync.RWMutex{},
 		}
 	}
 	ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Lock()
@@ -2370,7 +2370,7 @@ func (ctlr *Controller) readAndUpdateClusterAdminState(cluster interface{}, loca
 	}
 	if clusterData, ok := cluster.(ClusterDetails); ok {
 		// For HA cluster config
-		clusterNameKey := ctlr.multiClusterHandler.LocalClusterName
+		clusterNameKey := ctlr.MultiClusterHandler.LocalClusterName
 		if !localCluster {
 			clusterNameKey = clusterData.ClusterName
 		}

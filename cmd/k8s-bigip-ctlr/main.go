@@ -969,17 +969,12 @@ func initController(
 	} else {
 		globalSpecConfigMap = routeSpecConfigmap
 	}
-
-	requestHandler := controller.NewRequestHandler(agentParams)
-
 	ctlr := controller.NewController(
 		controller.Params{
-			Config:         config,
-			Namespaces:     *namespaces,
-			NamespaceLabel: *namespaceLabel,
-			Partition:      (*bigIPPartitions)[0],
-			//Agent:                       agent,
-			RequestHandler:              requestHandler,
+			Config:                      config,
+			Namespaces:                  *namespaces,
+			NamespaceLabel:              *namespaceLabel,
+			Partition:                   (*bigIPPartitions)[0],
 			PoolMemberType:              *poolMemberType,
 			VXLANName:                   vxlanName,
 			VXLANMode:                   vxlanMode,
@@ -1005,6 +1000,7 @@ func initController(
 		},
 		true,
 	)
+	ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams)
 	return ctlr
 }
 
@@ -1129,7 +1125,7 @@ func main() {
 		ctlr := initController(config)
 		ctlr.TeemData = td
 		if !(*disableTeems) {
-			key, err := ctlr.RequestHandler.AgentWorkers[controller.PrimaryBigIP].LTM.GetBigipRegKey()
+			key, err := ctlr.RequestHandler.PrimaryBigIPWorker.LTM.GetBigipRegKey()
 			//key, err := ctlr.Agent.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)

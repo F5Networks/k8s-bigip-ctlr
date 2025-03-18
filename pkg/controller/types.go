@@ -100,7 +100,7 @@ type (
 		clusterRatio                map[string]*int
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
-		APIHandler                  ApiTypeHandlerInterface
+		respChan                    chan *agentPostConfig
 		resourceContext
 	}
 	resourceContext struct {
@@ -851,11 +851,15 @@ type (
 	}
 
 	RequestHandler struct {
-		AgentWorkers map[string]*AgentWorker
-		resources    *ResourceStore
-		reqChan      chan ResourceConfigRequest
-		userAgent    string
-		respChan     chan resourceStatusMeta
+		PrimaryBigIPWorker   *AgentWorker
+		SecondaryBigIPWorker *AgentWorker
+		GTMBigIPWorker       *AgentWorker
+		GTMPostManager       *GTMPostManager
+		resources            *ResourceStore
+		reqChan              chan ResourceConfigRequest
+		respChan             chan *agentPostConfig
+		agentParams          AgentParams
+		userAgent            string
 		//TokenManager                  *tokenmanager.TokenManager
 		ccclGTMAgent bool
 		disableARP   bool
@@ -879,6 +883,7 @@ type (
 		failedTenants         map[string]struct{}
 		incomingTenantDeclMap map[string]as3Tenant
 		deleted               bool
+		agentKind             string
 		reqMeta               requestMeta
 		reqStatusMeta         resourceStatusMeta
 	}
@@ -911,7 +916,6 @@ type (
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		ConfigWriter                    writer.Writer
 		EventChan                       chan interface{}
-		respChan                        chan *agentPostConfig
 		PythonDriverPID                 int
 		userAgent                       string
 		HttpAddress                     string
@@ -983,8 +987,6 @@ type (
 	}
 
 	AS3Parser struct {
-		// AS3Parser implements AS3ParserInterface
-		AS3ParserInterface
 		AS3VersionInfo     as3VersionInfo
 		bigIPAS3Version    float64
 		defaultPartition   string
@@ -1000,10 +1002,9 @@ type (
 		AS3VersionInfo                  as3VersionInfo
 		bigIPAS3Version                 float64
 		postManagerPrefix               string
-		postChan                        chan agentPostConfig
-		respChan                        chan resourceStatusMeta
+		postChan                        chan *agentPostConfig
+		respChan                        chan *agentPostConfig
 		httpClientMetrics               bool
-		retryChan                       chan struct{}
 		apiType                         string
 	}
 

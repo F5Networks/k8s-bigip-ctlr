@@ -33,92 +33,6 @@ var baseAS3Config = `{
   }
 `
 
-// NewAS3Parser creates a new AS3Parser instance
-func NewAS3Parser(params AgentParams) *AS3Parser {
-	return &AS3Parser{}
-}
-
-// AS3Parser interface defines methods for parsing AS3 declarations
-type AS3ParserInterface interface {
-	// Get deleted tenant declaration
-	getDeletedTenantDeclaration(defaultPartition, tenant, cisLabel string, config *ResourceConfigRequest) as3Tenant
-
-	// Process iRules for AS3
-	processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application)
-
-	// Process data group for AS3
-	processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application)
-
-	// Process resources for AS3
-	processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string, bigipAs3Version float64)
-
-	// Create policies declaration
-	createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application)
-
-	// Create pool declaration
-	createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool, tenant, poolMemberType string)
-
-	// Process iRules for CRD
-	processIrulesForCRD(cfg *ResourceConfig, svc *as3Service)
-
-	// Create service declaration
-	createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string, bigipAs3Version float64)
-
-	// Create transport service declaration
-	createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string)
-
-	// Process common declaration
-	processCommonDecl(cfg *ResourceConfig, svc *as3Service)
-
-	// Create service address declaration
-	createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, sharedApp as3Application) string
-
-	// Create rule condition
-	createRuleCondition(rl *Rule, rulesData *as3Rule, port int)
-
-	// Create rule action
-	createRuleAction(rl *Rule, rulesData *as3Rule)
-
-	// Extract virtual address and port
-	extractVirtualAddressAndPort(str string) (string, int)
-
-	// Deep equal JSON
-	DeepEqualJSON(decl1, decl2 as3Declaration) bool
-
-	// Process profiles for AS3
-	processProfilesForAS3(rsMap ResourceMap, sharedApp as3Application)
-
-	// Process TLS profiles for AS3
-	processTLSProfilesForAS3(cfg *ResourceConfig, svc *as3Service, profileName string)
-
-	// Process custom profiles for AS3
-	processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application, as3Version float64)
-
-	// Create/Update TLS server
-	createUpdateTLSServer(resourceType string, prof CustomProfile, svcName string, sharedApp as3Application) bool
-
-	// Create certificate declaration
-	createCertificateDecl(prof CustomProfile, sharedApp as3Application)
-
-	// Create/Update CA bundle
-	createUpdateCABundle(prof CustomProfile, sharedApp as3Application)
-
-	// Create/Update TLS profile
-	createUpdateTLSProfile(prof CustomProfile, sharedApp as3Application)
-
-	// Create/Update TLS client profile
-	createUpdateTLSClientProfile(prof CustomProfile, sharedApp as3Application)
-
-	// Create monitor declaration
-	createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application)
-
-	// Create TLS client
-	createTLSClient(resourceType string, prof CustomProfile, svcName, caBundleName string, sharedApp as3Application) *as3TLSClient
-
-	// Get sorted custom profile keys
-	getSortedCustomProfileKeys(customProfiles map[SecretKey]CustomProfile) []SecretKey
-}
-
 func (ap *AS3Parser) getDeletedTenantDeclaration(tenant, cisLabel string) as3Tenant {
 	if ap.defaultPartition == tenant {
 		// Flush Partition contents
@@ -211,7 +125,7 @@ func (ap *AS3Parser) processResourcesForAS3(rsCfg *ResourceConfig, sharedApp as3
 
 // Create policy declaration
 func (ap *AS3Parser) createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
-	_, port := ap.extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	for _, pl := range cfg.Policies {
 		//Create EndpointPolicy
 		ep := &as3EndpointPolicy{}
@@ -532,7 +446,7 @@ func (ap *AS3Parser) createServiceDecl(cfg *ResourceConfig, sharedApp as3Applica
 		}
 	}
 
-	virtualAddress, port := ap.extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
 		if len(cfg.ServiceAddress) == 0 {
@@ -835,26 +749,6 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 
 		rulesData.Actions = append(rulesData.Actions, action)
 	}
-}
-
-// Extract virtual address and port from host URL
-func (ap *AS3Parser) extractVirtualAddressAndPort(str string) (string, int) {
-
-	destination := strings.Split(str, "/")
-	// split separator is in accordance with SetVirtualAddress func (ap *AS3Parser)tion - ipv4/6 format
-	ipPort := strings.Split(destination[len(destination)-1], ":")
-	if len(ipPort) != 2 {
-		ipPort = strings.Split(destination[len(destination)-1], ".")
-	}
-	// verify that ip address and port exists else log error.
-	if len(ipPort) == 2 {
-		port, _ := strconv.Atoi(ipPort[1])
-		return ipPort[0], port
-	} else {
-		log.Error("Invalid Virtual Server Destination IP address/Port.")
-		return "", 0
-	}
-
 }
 
 func (ap *AS3Parser) DeepEqualJSON(decl1, decl2 as3Declaration) bool {
@@ -1268,7 +1162,7 @@ func (ap *AS3Parser) createTransportServiceDecl(cfg *ResourceConfig, sharedApp a
 	if cfg.Virtual.Source != "" {
 		svc.Source = cfg.Virtual.Source
 	}
-	virtualAddress, port := ap.extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
 		if len(cfg.ServiceAddress) == 0 {
@@ -1413,4 +1307,25 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 	}
 
 	return reflect.DeepEqual(o1, o2)
+}
+
+// addPersistenceMethod adds persistence methods in the service declaration
+func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
+	if len(persistenceProfile) == 0 {
+		return
+	}
+	switch persistenceProfile {
+	case "none":
+		svc.PersistenceMethods = &[]as3MultiTypeParam{}
+	case "cookie", "destination-address", "hash", "msrdp", "sip-info", "source-address", "tls-session-id", "universal":
+		svc.PersistenceMethods = &[]as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
+	default:
+		svc.PersistenceMethods = &[]as3MultiTypeParam{
+			as3MultiTypeParam(
+				as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", persistenceProfile),
+				},
+			),
+		}
+	}
 }

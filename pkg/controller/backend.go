@@ -18,83 +18,16 @@ package controller
 
 import (
 	"fmt"
-	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
-// const (
-//
-//	as3SharedApplication = "Shared"
-//	gtmPartition         = "Common"
-//
-// )
 var DEFAULT_PARTITION string
 var DEFAULT_GTM_PARTITION string
-
-func NewAgentWorker(params AgentParams, kind string) *AgentWorker {
-	aw := &AgentWorker{
-		stopChan: make(chan struct{}),
-	}
-	var err error
-	switch kind {
-	case GTMBigIP:
-		aw.Agent = NewAgent(params, GTMBigIP)
-		err = aw.GTM.IsBigIPAppServicesAvailable()
-		if err != nil {
-			log.Errorf("%v", err)
-			aw.Stop()
-			os.Exit(1)
-		}
-		go aw.gtmWorker()
-	case SecondaryBigIP:
-		aw.Agent = NewAgent(params, SecondaryBigIP)
-		err = aw.LTM.IsBigIPAppServicesAvailable()
-		if err != nil {
-			log.Errorf("%v", err)
-			aw.Stop()
-			os.Exit(1)
-		}
-		go aw.agentWorker()
-	case PrimaryBigIP:
-		aw.Agent = NewAgent(params, PrimaryBigIP)
-		err = aw.LTM.IsBigIPAppServicesAvailable()
-		if err != nil {
-			log.Errorf("%v", err)
-			aw.Stop()
-			os.Exit(1)
-		}
-		go aw.agentWorker()
-	default:
-		log.Errorf("Invalid Agent kind: %s", kind)
-		os.Exit(1)
-	}
-	return aw
-}
-
-func NewAgentWorkersMap(params AgentParams) map[string]*AgentWorker {
-	// Create workers based on configured BIG-IPs
-	workers := make(map[string]*AgentWorker)
-	if (params.PrimaryParams != PostParams{}) {
-		workers[PrimaryBigIP] = NewAgentWorker(params, PrimaryBigIP)
-	}
-	if (params.SecondaryParams != PostParams{}) {
-		workers[SecondaryBigIP] = NewAgentWorker(params, SecondaryBigIP)
-	}
-	if isGTMOnSeparateServer(params) && !params.CCCLGTMAgent {
-		workers[GTMBigIP] = NewAgentWorker(params, GTMBigIP)
-	}
-	return workers
-}
-
-// Stop stops the AgentWorker.
-func (aw *AgentWorker) Stop() {
-	close(aw.StopChan)
-}
 
 func (ps *PostToChannelStrategy) Post(agentConfig agentPostConfig) {
 	// Always push latest activeConfig to channel
@@ -162,6 +95,11 @@ func (aw *AgentWorker) PostConfig(config Configurable) {
 			// Convert ResourceConfigRequest to as3Config
 			agentConfig = aw.LTM.APIHandler.createAPIConfig(v)
 			agentConfig.as3APIURL = aw.LTM.APIHandler.getAPIURL([]string{})
+			if aw.postManagerPrefix == secondaryPostmanagerPrefix {
+				agentConfig.agentKind = SecondaryBigIP
+			} else {
+				agentConfig.agentKind = PrimaryBigIP
+			}
 			// add gtm config to the cccl worker if ccclGTMAgent is true
 			if aw.ccclGTMAgent {
 				aw.PostGTMConfig(v)
@@ -169,110 +107,12 @@ func (aw *AgentWorker) PostConfig(config Configurable) {
 		} else {
 			agentConfig = aw.GTM.APIHandler.createAPIConfig(v)
 			agentConfig.as3APIURL = aw.GTM.APIHandler.getAPIURL([]string{})
+			agentConfig.agentKind = GTMBigIP
 		}
 		aw.PostStrategy.Post(agentConfig)
 	default:
 		fmt.Println("Unknown config type, cannot post to channel")
 	}
-}
-
-func NewAgent(params AgentParams, kind string) *Agent {
-	agent := &Agent{
-		APIHandler:   &APIHandler{},
-		ccclGTMAgent: params.CCCLGTMAgent,
-		respChan:     make(chan *agentPostConfig),
-	}
-	switch kind {
-	case GTMBigIP:
-		DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
-		agent.APIHandler.GTM = NewGTMAPIHandler(params)
-	default:
-		DEFAULT_PARTITION = params.Partition
-		agent.APIHandler.LTM = NewLTMAPIHandler(params, kind)
-		agent.Partition = params.Partition
-		configWriter, err := writer.NewConfigWriter()
-		if nil != err {
-			log.Fatalf("Failed creating ConfigWriter tool: %v", err)
-		}
-		agent.ConfigWriter = configWriter
-		agent.EventChan = make(chan interface{})
-		agent.userAgent = params.UserAgent
-		agent.HttpAddress = params.HttpAddress
-		agent.disableARP = params.DisableARP
-
-		// If running in VXLAN mode, extract the partition name from the tunnel
-		// to be used in configuring a net instance of CCCL for that partition
-		var vxlanPartition string
-		if len(params.VXLANName) > 0 {
-			cleanPath := strings.TrimLeft(params.VXLANName, "/")
-			slashPos := strings.Index(cleanPath, "/")
-			if slashPos == -1 {
-				// No partition
-				vxlanPartition = "Common"
-			} else {
-				// Partition and name
-				vxlanPartition = cleanPath[:slashPos]
-			}
-		}
-		if params.StaticRoutingMode == true {
-			vxlanPartition = params.Partition
-			if params.SharedStaticRoutes == true {
-				vxlanPartition = "Common"
-			}
-		}
-		gs := globalSection{
-			LogLevel:          params.LogLevel,
-			VerifyInterval:    params.VerifyInterval,
-			VXLANPartition:    vxlanPartition,
-			DisableLTM:        true,
-			GTM:               params.CCCLGTMAgent,
-			DisableARP:        params.DisableARP,
-			StaticRoutingMode: params.StaticRoutingMode,
-			MultiClusterMode:  params.MultiClusterMode,
-		}
-
-		// If AS3DEBUG is set, set log level to DEBUG
-		if gs.LogLevel == "AS3DEBUG" {
-			gs.LogLevel = "DEBUG"
-		}
-
-		bs := bigIPSection{
-			BigIPUsername:   agent.APIHandler.LTM.PostManager.BIGIPUsername,
-			BigIPPassword:   agent.APIHandler.LTM.PostManager.BIGIPPassword,
-			BigIPURL:        agent.APIHandler.LTM.PostManager.BIGIPURL,
-			BigIPPartitions: []string{params.Partition},
-		}
-
-		var gtm gtmBigIPSection
-		if len(params.GTMParams.BIGIPURL) == 0 || len(params.GTMParams.BIGIPUsername) == 0 || len(params.GTMParams.BIGIPPassword) == 0 {
-			// gs.GTM = false
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: agent.APIHandler.LTM.PostManager.BIGIPUsername,
-				GtmBigIPPassword: agent.APIHandler.LTM.PostManager.BIGIPPassword,
-				GtmBigIPURL:      agent.APIHandler.LTM.PostManager.BIGIPURL,
-			}
-			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-		} else {
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: params.GTMParams.BIGIPUsername,
-				GtmBigIPPassword: params.GTMParams.BIGIPPassword,
-				GtmBigIPURL:      params.GTMParams.BIGIPURL,
-			}
-		}
-		//For IPV6 net config is not required. f5-sdk doesnt support ipv6
-		if !(params.EnableIPV6) {
-			agent.startPythonDriver(
-				gs,
-				bs,
-				gtm,
-				params.PythonBaseDir,
-			)
-		} else {
-			// we only enable metrics as pythondriver is not initialized for ipv6
-			go agent.enableMetrics()
-		}
-	}
-	return agent
 }
 
 func (agent *Agent) Stop() {
@@ -305,8 +145,8 @@ func (aw *AgentWorker) agentWorker() {
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
 			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(agentConfig.id))
-			// notify resourceStatusUpdate response handler for resourcestatus update
-			aw.notifyRscStatusHandler(agentConfig.id, false)
+			// notify resourceStatusUpdate response handler on successful tenant update
+			aw.respChan <- agentConfig
 			continue
 		}
 
@@ -326,41 +166,14 @@ func (aw *AgentWorker) agentWorker() {
 				}
 			}
 		}
-		aw.LTM.publishConfig(&agentConfig)
+		aw.LTM.publishConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		aw.LTM.APIHandler.pollTenantStatus(&agentConfig)
-	}
-}
-
-func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
-	rscUpdateMeta := resourceStatusMeta{
-		id,
-		make(map[string]tenantResponse),
-	}
-
-	agentPostConfig := agentPostConfig{
-		reqStatusMeta: rscUpdateMeta,
-	}
-
-	//for tenant := range agent.LTM.retryTenantDeclMap {
-	//	rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
-	//}
-	// If triggerred from retry block, process the previous successful request completely
-	if !overwriteCfg {
-		agent.respChan <- &agentPostConfig
-	} else {
-		// Always push latest id to channel
-		// Case1: Put latest id into the channel
-		// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
-		// Either Case1 or Case2 executes, which ensures the above
-		select {
-		case agent.respChan <- &agentPostConfig:
-		case <-agent.respChan:
-			agent.respChan <- &agentPostConfig
-		}
+		aw.LTM.APIHandler.pollTenantStatus(agentConfig)
+		// notify resourceStatusUpdate response handler on successful tenant update
+		aw.respChan <- agentConfig
 	}
 }
 
@@ -428,23 +241,21 @@ func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 	}
 }
 
-// addPersistenceMethod adds persistence methods in the service declaration
-func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
-	if len(persistenceProfile) == 0 {
-		return
+// Extract virtual address and port from host URL
+func extractVirtualAddressAndPort(str string) (string, int) {
+
+	destination := strings.Split(str, "/")
+	ipPort := strings.Split(destination[len(destination)-1], ":")
+	if len(ipPort) != 2 {
+		ipPort = strings.Split(destination[len(destination)-1], ".")
 	}
-	switch persistenceProfile {
-	case "none":
-		svc.PersistenceMethods = &[]as3MultiTypeParam{}
-	case "cookie", "destination-address", "hash", "msrdp", "sip-info", "source-address", "tls-session-id", "universal":
-		svc.PersistenceMethods = &[]as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
-	default:
-		svc.PersistenceMethods = &[]as3MultiTypeParam{
-			as3MultiTypeParam(
-				as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", persistenceProfile),
-				},
-			),
-		}
+	// verify that ip address and port exists else log error.
+	if len(ipPort) == 2 {
+		port, _ := strconv.Atoi(ipPort[1])
+		return ipPort[0], port
+	} else {
+		log.Error("Invalid Virtual Server Destination IP address/Port.")
+		return "", 0
 	}
+
 }

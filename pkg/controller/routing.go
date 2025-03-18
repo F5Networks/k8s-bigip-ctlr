@@ -983,7 +983,7 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 	`)
 
 	// TODO: need to handle the api version generically instead specifically mentioning the AS3 as shown below
-	if ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.APIHandler.getApiHandler().bigIPAS3Version >= 3.52 && passthroughVSGrp {
+	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.APIHandler.getApiHandler().bigIPAS3Version >= 3.52 && passthroughVSGrp {
 		clientSSL = ""
 		sslDisable = ""
 	}

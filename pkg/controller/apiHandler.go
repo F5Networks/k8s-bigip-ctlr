@@ -6,20 +6,23 @@ import (
 	"net/http"
 )
 
-const gtmPostmanagerPrefix = "[GTM]"
+const gtmPostmanagerPrefix = "[GTM BigIP]"
+const secondaryPostmanagerPrefix = "[Secondary BigIP]"
+const primaryPostmanagerPrefix = "[Primary BigIP]"
+const defaultPostmanagerPrefix = "[BigIP]"
 
 type PostManagerInterface interface {
 	setupBIGIPRESTClient()
 }
 
-func NewGTMAPIHandler(params AgentParams) *GTMAPIHandler {
+func NewGTMAPIHandler(params AgentParams, respChan chan *agentPostConfig) *GTMAPIHandler {
 	gtm := &GTMAPIHandler{
-		BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP),
+		BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP, respChan),
 		Partition:      DEFAULT_GTM_PARTITION,
 	}
 	switch params.ApiType {
 	case "as3":
-		gtm.APIHandler = NewAS3Handler(params, gtm.PostManager)
+		gtm.APIHandler = NewAS3Handler(gtm.PostManager)
 		if as3Handler, ok := gtm.APIHandler.(*AS3Handler); ok {
 			as3Handler.PostParams = gtm.PostManager.PostParams
 			as3Handler.postManagerPrefix = gtmPostmanagerPrefix
@@ -37,21 +40,21 @@ func NewGTMAPIHandler(params AgentParams) *GTMAPIHandler {
 	return gtm
 }
 
-func NewBaseAPIHandler(params AgentParams, kind string) *BaseAPIHandler {
+func NewBaseAPIHandler(params AgentParams, kind string, respChan chan *agentPostConfig) *BaseAPIHandler {
 	return &BaseAPIHandler{
 		apiType:     params.ApiType,
-		PostManager: NewPostManager(params, kind),
+		PostManager: NewPostManager(params, kind, respChan),
 	}
 }
 
-func NewLTMAPIHandler(params AgentParams, kind string) *LTMAPIHandler {
+func NewLTMAPIHandler(params AgentParams, kind string, respChan chan *agentPostConfig) *LTMAPIHandler {
 	ltm := &LTMAPIHandler{
-		BaseAPIHandler: NewBaseAPIHandler(params, kind),
+		BaseAPIHandler: NewBaseAPIHandler(params, kind, respChan),
 	}
 	// Initialize appropriate API handler based on type
 	switch params.ApiType {
 	case "as3":
-		ltm.APIHandler = NewAS3Handler(params, ltm.PostManager)
+		ltm.APIHandler = NewAS3Handler(ltm.PostManager)
 		if as3Handler, ok := ltm.APIHandler.(*AS3Handler); ok {
 			as3Handler.PostParams = ltm.PostManager.PostParams
 			ltm.PopulateAPIVersion()

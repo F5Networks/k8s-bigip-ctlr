@@ -3,12 +3,10 @@ package controller
 import (
 	"container/list"
 	"errors"
-	"strings"
-	"sync"
-	"time"
-
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
+	"sync"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
@@ -42,10 +40,10 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	return rm.id
 }
 
-func (ctlr *Controller) responseHandler(respChan chan *agentPostConfig, ltm *LTMAPIHandler) {
+func (ctlr *Controller) responseHandler() {
 	// todo: update only when there is a change(success to fail or vice versa) in tenant status
 	ctlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
-	for rscUpdateMeta := range respChan {
+	for rscUpdateMeta := range ctlr.respChan {
 
 		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
 		for partition, meta := range rm.partitionMap {
@@ -54,10 +52,10 @@ func (ctlr *Controller) responseHandler(respChan chan *agentPostConfig, ltm *LTM
 			if _, found := rscUpdateMeta.failedTenants[partition]; !found && len(meta) == 0 {
 				// updating the tenant priority back to zero if it's not in failed tenants
 				ctlr.resources.updatePartitionPriority(partition, 0)
-				ltm.PostManager.RLock()
-				<-time.After(timeoutMedium)
-				ltm.postChan <- *rscUpdateMeta
-				ltm.PostManager.RUnlock()
+				//ltm.PostManager.RLock()
+				//<-time.After(timeoutMedium)
+				//ltm.postChan <- rscUpdateMeta
+				//ltm.PostManager.RUnlock()
 				continue
 			}
 			for rscKey, kind := range meta {

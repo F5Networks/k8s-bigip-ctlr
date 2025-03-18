@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-func NewGTMPostManager(params AgentParams) *GTMPostManager {
-	gtmMgr := NewPostManager(params, GTMBigIP)
-	gtmPostMgr := &GTMPostManager{
-		PostManager: gtmMgr,
-		Partition:   DEFAULT_GTM_PARTITION,
-	}
-	return gtmPostMgr
-}
-
 // write a function which checks if the GTM is on a separate server under the agentworker object
 func (aw *AgentWorker) isGTMOnSeparateServer() bool {
 	if !aw.ccclGTMAgent && len(aw.GTM.PostManager.PostParams.BIGIPURL) != 0 &&
@@ -46,13 +37,14 @@ func (aw *AgentWorker) gtmWorker() {
 			continue
 		}
 
-		aw.GTM.publishConfig(&agentConfig)
+		aw.GTM.publishConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		aw.GTM.APIHandler.pollTenantStatus(&agentConfig)
-
+		aw.GTM.APIHandler.pollTenantStatus(agentConfig)
+		// notify resourceStatusUpdate response handler on successful tenant update
+		aw.respChan <- agentConfig
 	}
 }
 

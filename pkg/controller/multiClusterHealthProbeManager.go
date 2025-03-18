@@ -142,27 +142,27 @@ func (ctlr *Controller) probePrimaryClusterHealthStatus() {
 func (ctlr *Controller) getPrimaryClusterHealthStatus() {
 
 	// only process when the cis is initialized
-	status := ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.checkPrimaryClusterHealthStatus()
+	status := ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.checkPrimaryClusterHealthStatus()
 	// if status is changed i.e from up -> down / down -> up
-	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Lock()
-	if ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning != status {
-		ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusChanged = true
+	ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning != status {
+		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusChanged = true
 		// if primary cis id down then post the config
 		if !status {
-			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning = false
+			ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning = false
 			ctlr.enqueuePrimaryClusterProbeEvent()
 		} else {
-			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning = true
+			ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning = true
 		}
 		//update cccl global section with primary cluster running status
-		doneCh, errCh, err := ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].ConfigWriter.SendSection("primary-cluster-status", ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning)
+		doneCh, errCh, err := ctlr.RequestHandler.PrimaryBigIPWorker.ConfigWriter.SendSection("primary-cluster-status", ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning)
 
 		if nil != err {
 			log.Warningf("[MultiCluster] Failed to write primary-cluster-status section: %v", err)
 		} else {
 			select {
 			case <-doneCh:
-				log.Debugf("[MultiCluster] Wrote primary-cluster-status as %v", ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning)
+				log.Debugf("[MultiCluster] Wrote primary-cluster-status as %v", ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning)
 			case e := <-errCh:
 				log.Warningf("[MultiCluster] Failed to write primary-cluster-status config section: %v", e)
 			case <-time.After(time.Second):
@@ -170,14 +170,14 @@ func (ctlr *Controller) getPrimaryClusterHealthStatus() {
 			}
 		}
 	} else {
-		ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusChanged = false
+		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusChanged = false
 	}
-	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+	ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 	// wait for configured probeInterval
-	time.Sleep(time.Duration(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
+	time.Sleep(time.Duration(ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.probeInterval) * time.Second)
 }
 
 func (ctlr *Controller) firstPollPrimaryClusterHealthStatus() {
-	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning = ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.checkPrimaryClusterHealthStatus()
-	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.PrimaryClusterHealthProbeParams.statusChanged = true
+	ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusRunning = ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.checkPrimaryClusterHealthStatus()
+	ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.statusChanged = true
 }

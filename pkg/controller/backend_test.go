@@ -341,7 +341,7 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.17"] = rsCfg3
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.18"] = rsCfg4
 
-			decl := agent.createTenantAS3Declaration(config)
+			decl := createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
@@ -457,7 +457,7 @@ var _ = Describe("Backend Tests", func() {
 			}
 			adc := as3Config["declaration"].(map[string]interface{})
 
-			// Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
 		})
 		It("Handles Persistence Methods", func() {
@@ -683,8 +683,8 @@ var _ = Describe("Backend Tests", func() {
 			agentParams.EnableIPV6 = true
 			agentParams.Partition = "test"
 			agentParams.VXLANName = "vxlan500"
-			agentParams.PrimaryParams.BIGIPURL = "http://" + server.Addr()
-			agent := NewAgent(agentParams, PrimaryBigIP)
+			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
+			agent := NewAgent(agentParams)
 			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.52.0"))
 			agent.Stop()
 

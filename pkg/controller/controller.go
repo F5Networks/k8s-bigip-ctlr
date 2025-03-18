@@ -171,6 +171,7 @@ func NewController(params Params, startController bool) *Controller {
 		clusterRatio:                make(map[string]*int),
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
 		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
+		respChan:                    make(chan *agentPostConfig),
 	}
 
 	log.Debug("Controller Created")
@@ -253,8 +254,8 @@ func NewController(params Params, startController bool) *Controller {
 			tunnelName,
 			ctlr.ciliumTunnelName,
 			ctlr.UseNodeInternal,
-			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].ConfigWriter,
-			ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan,
+			ctlr.RequestHandler.PrimaryBigIPWorker.ConfigWriter,
+			ctlr.RequestHandler.PrimaryBigIPWorker.EventChan,
 		)
 		if nil != err {
 			log.Errorf("error creating vxlan manager: %v", err)
@@ -263,8 +264,8 @@ func NewController(params Params, startController bool) *Controller {
 	}
 
 	if startController {
-		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].respChan, ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].LTM)
-		go ctlr.responseHandler(ctlr.RequestHandler.AgentWorkers[SecondaryBigIP].respChan, ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].LTM)
+		go ctlr.responseHandler()
+		go ctlr.RequestHandler.requestHandler()
 
 		go ctlr.Start()
 
@@ -496,12 +497,12 @@ func (ctlr *Controller) Start() {
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	ctlr.StopInformers(ctlr.multiClusterHandler.LocalClusterName)
-	ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].Stop()
+	ctlr.RequestHandler.PrimaryBigIPWorker.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
 	}
-	if ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan != nil {
-		close(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].EventChan)
+	if ctlr.RequestHandler.PrimaryBigIPWorker.EventChan != nil {
+		close(ctlr.RequestHandler.PrimaryBigIPWorker.EventChan)
 	}
 }
 
@@ -612,7 +613,7 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 			}
 			// Check if big-ip server is reachable
 			//_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
-			_, _, _, err2 := ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].APIHandler.LTM.GetBigIPAPIVersion()
+			_, _, _, err2 := ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.GetBigIPAPIVersion()
 			if err2 != nil {
 				response = response + "big-ip server is not reachable."
 			}

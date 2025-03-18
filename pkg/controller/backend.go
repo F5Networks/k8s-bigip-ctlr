@@ -17,7 +17,6 @@
 package controller
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -29,15 +28,15 @@ import (
 var DEFAULT_PARTITION string
 var DEFAULT_GTM_PARTITION string
 
-func (ps *PostToChannelStrategy) Post(agentConfig agentPostConfig) {
+func (aw AgentWorker) Post(agentConfig *agentPostConfig) {
 	// Always push latest activeConfig to channel
 	// Case1: Put latest config into the channel
 	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
 	// Either Case1 or Case2 executes, which ensures the above
 	select {
-	case ps.postChan <- agentConfig:
-	case <-ps.postChan:
-		ps.postChan <- agentConfig
+	case aw.postChan <- agentConfig:
+	case <-aw.postChan:
+		aw.postChan <- agentConfig
 	}
 
 }
@@ -83,36 +82,28 @@ func (ps *PostToFileStrategy) Post(config ResourceConfigRequest) {
 }
 
 // function to the post the config to the respective bigip
-func (aw *AgentWorker) PostConfig(config Configurable) {
-	switch v := config.(type) {
-	case agentPostConfig:
-		fmt.Println("Posting As3Config:", v.data)
-		aw.PostStrategy.Post(v)
-	case ResourceConfigRequest:
-		fmt.Printf("Posting ResourceConfigRequest: %+v\n", v)
-		var agentConfig agentPostConfig
-		if aw.postManagerPrefix != gtmPostmanagerPrefix {
-			// Convert ResourceConfigRequest to as3Config
-			agentConfig = aw.LTM.APIHandler.createAPIConfig(v)
-			agentConfig.as3APIURL = aw.LTM.APIHandler.getAPIURL([]string{})
-			if aw.postManagerPrefix == secondaryPostmanagerPrefix {
-				agentConfig.agentKind = SecondaryBigIP
-			} else {
-				agentConfig.agentKind = PrimaryBigIP
-			}
-			// add gtm config to the cccl worker if ccclGTMAgent is true
-			if aw.ccclGTMAgent {
-				aw.PostGTMConfig(v)
-			}
+func (aw *AgentWorker) PostConfig(rsConfigRequest ResourceConfigRequest) {
+	log.Debugf("%v Posting ResourceConfigRequest: %+v\n", aw.postManagerPrefix, rsConfigRequest)
+	var agentConfig agentPostConfig
+	if aw.postManagerPrefix != gtmPostmanagerPrefix {
+		// Convert ResourceConfigRequest to as3Config
+		agentConfig = aw.LTM.APIHandler.createAPIConfig(rsConfigRequest)
+		agentConfig.as3APIURL = aw.LTM.APIHandler.getAPIURL([]string{})
+		if aw.postManagerPrefix == secondaryPostmanagerPrefix {
+			agentConfig.agentKind = SecondaryBigIP
 		} else {
-			agentConfig = aw.GTM.APIHandler.createAPIConfig(v)
-			agentConfig.as3APIURL = aw.GTM.APIHandler.getAPIURL([]string{})
-			agentConfig.agentKind = GTMBigIP
+			agentConfig.agentKind = PrimaryBigIP
 		}
-		aw.PostStrategy.Post(agentConfig)
-	default:
-		fmt.Println("Unknown config type, cannot post to channel")
+		// add gtm config to the cccl worker if ccclGTMAgent is true
+		if aw.ccclGTMAgent {
+			aw.PostGTMConfig(rsConfigRequest)
+		}
+	} else {
+		agentConfig = aw.GTM.APIHandler.createAPIConfig(rsConfigRequest)
+		agentConfig.as3APIURL = aw.GTM.APIHandler.getAPIURL([]string{})
+		agentConfig.agentKind = GTMBigIP
 	}
+	aw.Post(&agentConfig)
 }
 
 func (agent *Agent) Stop() {

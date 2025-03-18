@@ -3570,6 +3570,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 	for _, service := range svcItems {
 		var replicaSets map[string]struct{}
 		var targetDeployments []string
+		poolMemberPriorityGroupLabel, poolMemberPriorityGroupOk := service.ObjectMeta.Labels["cis.f5.com/as3-pool-member-priorityGroup"]
 		if len(appMgr.membersToDisable) > 0 {
 			targetDeployments, replicaSets = appMgr.getDeploysAndRsMatchingSvcLabel(&service)
 		}
@@ -3591,6 +3592,12 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 									Port:       int32(port),
 									SvcPort:    appMgr.getServicePortFromTargetPort(svcPorts, int32(port)),
 									AdminState: podDetails.status,
+								}
+								if poolMemberPriorityGroupOk {
+									member.PriorityGroup, err = strconv.Atoi(poolMemberPriorityGroupLabel)
+									if err != nil {
+										log.Warningf("Invalid pool member priority group %s for service: %v/%v", poolMemberPriorityGroupLabel, service.Name, service.Namespace)
+									}
 								}
 								if _, ok := uniqueMembersMap[member]; !ok {
 									uniqueMembersMap[member] = struct{}{}
@@ -3640,6 +3647,12 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 							SvcPort:    appMgr.getServicePortFromTargetPort(svcPorts, port.Port),
 							AdminState: adminState,
 						}
+						if poolMemberPriorityGroupOk {
+							member.PriorityGroup, err = strconv.Atoi(poolMemberPriorityGroupLabel)
+							if err != nil {
+								log.Warningf("Invalid pool member priority group %s for service: %v/%v", poolMemberPriorityGroupLabel, service.Name, service.Namespace)
+							}
+						}
 						if _, ok := uniqueMembersMap[member]; !ok {
 							uniqueMembersMap[member] = struct{}{}
 							members = append(members, member)
@@ -3656,6 +3669,12 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 				for _, portSpec := range service.Spec.Ports {
 					podPort := portSpec.TargetPort
 					for _, newMember := range appMgr.getEndpointsForNPL(podPort, pods) {
+						if poolMemberPriorityGroupOk {
+							newMember.PriorityGroup, err = strconv.Atoi(poolMemberPriorityGroupLabel)
+							if err != nil {
+								log.Warningf("Invalid pool member priority group %s for service: %v/%v", poolMemberPriorityGroupLabel, service.Name, service.Namespace)
+							}
+						}
 						if _, ok := uniqueMembersMap[newMember]; !ok {
 							uniqueMembersMap[newMember] = struct{}{}
 							members = append(members, newMember)
@@ -3668,6 +3687,12 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 				for _, port := range service.Spec.Ports {
 					endpointMembers := appMgr.getEndpointsForNodePort(port.NodePort, port.Port)
 					for _, newMember := range endpointMembers {
+						if poolMemberPriorityGroupOk {
+							newMember.PriorityGroup, err = strconv.Atoi(poolMemberPriorityGroupLabel)
+							if err != nil {
+								log.Warningf("Invalid pool member priority group %s for service: %v/%v", poolMemberPriorityGroupLabel, service.Name, service.Namespace)
+							}
+						}
 						if _, ok := uniqueMembersMap[newMember]; !ok {
 							uniqueMembersMap[newMember] = struct{}{}
 							members = append(members, newMember)

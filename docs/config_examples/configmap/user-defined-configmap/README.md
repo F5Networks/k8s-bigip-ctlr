@@ -104,7 +104,7 @@ data:
         f5type: virtual-server
         as3: "true"
     ```
-* Create and deploy the kuberenetes service discovery labels. CIS can dynamically discover and update load balancing pool members using service discovery. CIS maps each pool definition in the AS3 template to a Kubernetes Service resource using a label. To create this mapping, add the following labels to your Kubernetes Service.
+* Create and deploy the kubernetes service discovery labels. CIS can dynamically discover and update load balancing pool members using service discovery. CIS maps each pool definition in the AS3 template to a Kubernetes Service resource using a label. To create this mapping, add the following labels to your Kubernetes Service.
     ```
     labels:
         app: f5-hello-world-end-to-end-ssl
@@ -113,6 +113,75 @@ data:
         cis.f5.com/as3-pool: secure_ssl_waf_pool
     name: f5-hello-world-end-to-end-ssl-waf
     ```
+* Introduced a new optional label `cis.f5.com/as3-pool-member-priorityGroup` where it accepts the value of the priorityGroup. With this label, the pool member with the matching priorityGroup will be selected, which gives fine grained control over the creation of pools with the pool members. Sample service config:
+    ```
+    labels:
+        app: f5-hello-world-end-to-end-ssl
+        cis.f5.com/as3-tenant: AS3
+        cis.f5.com/as3-app: A5
+        cis.f5.com/as3-pool: secure_ssl_waf_pool
+        cis.f5.com/as3-pool-member-priorityGroup: 10
+    name: f5-hello-world-end-to-end-ssl-waf
+    ```
+    
+    ConfigMap:
+    ```
+    kind: ConfigMap
+    apiVersion: v1
+    metadata:
+    name: f5-as3-declaration
+    namespace: default
+    labels:
+        f5type: virtual-server
+        as3: "true"
+    data:
+    template: |
+        {
+            "class": "AS3",
+            "declaration": {
+                "class": "ADC",
+                "schemaVersion": "3.13.0",
+                "id": "urn:uuid:33045210-3ab8-4636-9b2a-c98d22ab915d",
+                "label": "http",
+                "remark": "A1 Template",
+                "k8s": {
+                    "class": "Tenant",
+                    "A1": {
+                        "class": "Application",
+                        "template": "generic",
+                        "a1_80_vs": {
+                            "class": "Service_HTTP",
+                            "remark": "a1",
+                            "virtualAddresses": [
+                                "10.192.75.101"
+                            ],
+                            "pool": "web_pool"
+                        },
+                        "web_pool": {
+                            "class": "Pool",
+                            "monitors": [
+                                "http"
+                            ],
+                            "members": [
+                                {
+                                    "servicePort": 8080,
+                                    "serverAddresses": [],
+                                    "priorityGroup": 0
+                                },
+                                {
+                                    "servicePort": 8080,
+                                    "serverAddresses": [],
+                                    "priorityGroup": 10
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ```
+    From the above sample configs, pool with priorityGroup from label will be selected.
+
 ## Using a configmap with AS3
 When using CIS with AS3 the behaviours are different The following needs to apply:
 

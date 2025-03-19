@@ -11,7 +11,7 @@ import (
 func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRef, clusterSvcs []cisapiv1.MultiClusterServiceReference) {
 
 	// if no external cluster is configured skip processing
-	if len(ctlr.MultiClusterHandler.ClusterConfigs) == 0 {
+	if len(ctlr.multiClusterHandler.ClusterConfigs) == 0 {
 		log.Debugf("[MultiCluster] There is no externalClustersConfig section or there are no clusters defined in it.")
 		return
 	}
@@ -24,17 +24,17 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 			// Skip processing invalid extended service
 			continue
 		}
-		if ctlr.MultiClusterHandler.getClusterConfig(svc.ClusterName) != nil {
+		if ctlr.multiClusterHandler.getClusterConfig(svc.ClusterName) != nil {
 			svcKey := MultiClusterServiceKey{
 				serviceName: svc.SvcName,
 				namespace:   svc.Namespace,
 				clusterName: svc.ClusterName,
 			}
 			// init informer store for cluster
-			informerStore := ctlr.MultiClusterHandler.getInformerStore(svc.ClusterName)
+			informerStore := ctlr.multiClusterHandler.getInformerStore(svc.ClusterName)
 			if informerStore == nil {
 				informerStore = initInformerStore()
-				ctlr.MultiClusterHandler.addInformerStore(svc.ClusterName, informerStore)
+				ctlr.multiClusterHandler.addInformerStore(svc.ClusterName, informerStore)
 			}
 			if ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] == nil {
 				ctlr.multiClusterResources.clusterSvcMap[svc.ClusterName] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
@@ -129,8 +129,8 @@ func (ctlr *Controller) deleteUnrefereedMultiClusterInformers() {
 		// If no services are referenced from this cluster and this isn't HA peer cluster in case of active-active/ratio
 		// then remove the clusterName key from the clusterSvcMap and stop the informers for this cluster
 		// Don't remove clusterSvcMap or stop the informers for local cluster as well
-		if len(svcs) == 0 && ctlr.discoveryMode == DefaultMode && clusterName != ctlr.MultiClusterHandler.LocalClusterName {
-			clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
+		if len(svcs) == 0 && ctlr.discoveryMode == DefaultMode && clusterName != ctlr.multiClusterHandler.LocalClusterName {
+			clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 			if clusterConfig != nil && !clusterConfig.clusterDetails.ServiceTypeLBDiscovery {
 				delete(ctlr.multiClusterResources.clusterSvcMap, clusterName)
 				ctlr.stopMultiClusterPoolInformers(clusterName, true)
@@ -162,22 +162,22 @@ func (ctlr *Controller) getSvcPortFromHACluster(svcNameSpace, svcName, portName,
 
 func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (interface{}, bool, error) {
 
-	if ctlr.discoveryMode != Active || ctlr.MultiClusterHandler.ClusterConfigs == nil {
+	if ctlr.discoveryMode != Active || ctlr.multiClusterHandler.ClusterConfigs == nil {
 		return nil, false, nil
 	}
 
 	key := svcNameSpace + "/" + svcName
-	informerStore := ctlr.MultiClusterHandler.getInformerStore(ctlr.MultiClusterHandler.HAPairClusterName)
+	informerStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.HAPairClusterName)
 	if informerStore == nil {
 		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster %s'",
-			ctlr.MultiClusterHandler.HAPairClusterName)
+			ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	if informerStore.comInformers == nil {
 		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster %s'",
-			ctlr.MultiClusterHandler.HAPairClusterName)
+			ctlr.multiClusterHandler.HAPairClusterName)
 	}
 	ns := svcNameSpace
-	if ctlr.watchingAllNamespaces(ctlr.MultiClusterHandler.LocalClusterName) {
+	if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
 		ns = ""
 	}
 
@@ -189,14 +189,14 @@ func (ctlr *Controller) getSvcFromHACluster(svcNameSpace, svcName string) (inter
 		}
 
 		if !exists {
-			return nil, false, fmt.Errorf("[MultiCluster] Could not find service %v in cluster %v", key, ctlr.MultiClusterHandler.HAPairClusterName)
+			return nil, false, fmt.Errorf("[MultiCluster] Could not find service %v in cluster %v", key, ctlr.multiClusterHandler.HAPairClusterName)
 		}
 
 		return obj, exists, nil
 
 	} else {
 		return nil, false, fmt.Errorf("[MultiCluster] Informer not found for cluster/namespace: %s/%s'",
-			ctlr.MultiClusterHandler.HAPairClusterName, svcNameSpace)
+			ctlr.multiClusterHandler.HAPairClusterName, svcNameSpace)
 	}
 }
 

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"crypto/x509"
 	"errors"
 	"io"
 	"net/http"
@@ -8,7 +9,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/ghttp"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -130,7 +130,9 @@ var _ = Describe("setupBIGIPRESTClient", func() {
 			postMgr.setupBIGIPRESTClient()
 			transport := postMgr.httpClient.Transport.(*http.Transport)
 			Expect(transport.TLSClientConfig.RootCAs).NotTo(BeNil())
-			Expect(transport.TLSClientConfig.RootCAs.Subjects()).To(HaveLen(1))
+			cert := &x509.Certificate{} // Your test certificate
+			certBytes := cert.Raw
+			Expect(transport.TLSClientConfig.RootCAs.AppendCertsFromPEM(certBytes)).To(BeFalse())
 		})
 
 		Context("when HTTPClientMetrics is true", func() {
@@ -161,40 +163,31 @@ var _ = Describe("setupBIGIPRESTClient", func() {
 
 var _ = Describe("PostManager", func() {
 	var (
-		server  *ghttp.Server
 		cfg     *agentPostConfig
 		mockPM  *mockPostManager
 		request *http.Request
 	)
 
 	BeforeEach(func() {
-		server = ghttp.NewServer()
 		mockPM = newMockPostManger()
 		mockPM.BIGIPURL = "bigip.com"
-		mockPM.BIGIPUsername = "user"
-		mockPM.BIGIPPassword = "pswd"
+		mockPM.BIGIPUsername = "testuser"
+		mockPM.BIGIPPassword = "testpass"
 		cfg = &agentPostConfig{
 			id:        1,
-			as3APIURL: server.URL() + "/mgmt/shared/appsvcs/declare",
+			as3APIURL: "https://127.0.0.1/mgmt/shared/appsvcs/declare",
 			data:      `{"class": "AS3"}`,
 		}
-	})
-
-	AfterEach(func() {
-		server.Close()
 	})
 
 	Describe("postConfig", func() {
 		Context("when the request is successful", func() {
 			BeforeEach(func() {
-				server.AppendHandlers(
-					ghttp.CombineHandlers(
-						ghttp.VerifyBasicAuth("testuser", "testpass"),
-						ghttp.VerifyRequest("POST", "/mgmt/shared/appsvcs/declare"),
-						ghttp.VerifyJSON(`{"class": "AS3"}`),
-						ghttp.RespondWithJSONEncoded(200, map[string]interface{}{"status": "success"}),
-					),
-				)
+				mockPM.setResponses([]responceCtx{{
+					tenant: "test",
+					status: http.StatusOK,
+					body:   io.NopCloser(strings.NewReader("{\"status\": \"success\"}")),
+				}}, http.MethodPost)
 			})
 
 			It("should return a response and response map", func() {

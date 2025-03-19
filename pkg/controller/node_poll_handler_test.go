@@ -13,27 +13,19 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		})
-		agentParams := AgentParams{
-			PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
-			ApiType:       AS3,
-		}
-		appServicesChecker := func() error {
-			return nil
-		}
-		mockCtlr.RequestHandler = mockCtlr.NewRequestHandler(agentParams, appServicesChecker)
-		writer := &test.MockWriter{
+		mockWriter := &test.MockWriter{
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),
 		}
-		mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter = writer
-		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset()}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 
@@ -69,7 +61,7 @@ var _ = Describe("Node Poller Handler", func() {
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node)
 		}
-		Expect(len(mockCtlr.MultiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
+		Expect(len(mockCtlr.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetIndexer().List())).To(Equal(3))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
 		//verify node with NotReady state not added to node list
 		Expect(len(nodes)).To(Equal(2))
@@ -84,7 +76,7 @@ var _ = Describe("Node Poller Handler", func() {
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].oldNodes = nodes
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].oldNodes = nodes
 
 		// Negative case
 		nodes, err = mockCtlr.getNodes([]interface{}{nodeAddr1, nodeAddr2})
@@ -103,12 +95,12 @@ var _ = Describe("Node Poller Handler", func() {
 
 	It("Nodes Update processing", func() {
 		mockCtlr.Partition = "test"
-		cisIdentifier := mockCtlr.Partition + "_0.0.0.0"
+		cisIdentifier := mockCtlr.Partition + "_127.0.0.1"
 		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		namespace := "default"
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces[namespace] = struct{}{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces[namespace] = struct{}{}
 		mockCtlr.addNamespacedInformers(namespace, false, "")
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -127,7 +119,7 @@ var _ = Describe("Node Poller Handler", func() {
 		}
 		mockCtlr.StaticRoutingMode = true
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok := mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok := mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -137,7 +129,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -152,7 +144,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateStatusNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		expectedRouteSection := routeSection{
 			Entries: []routeConfig{
@@ -172,7 +164,7 @@ var _ = Describe("Node Poller Handler", func() {
 		mockCtlr.OrchestrationCNI = OVN_K8S
 		mockCtlr.UseNodeInternal = true
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -186,7 +178,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -199,7 +191,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -213,7 +205,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -227,7 +219,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -241,7 +233,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -254,7 +246,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		expectedRouteSection = routeSection{
@@ -278,7 +270,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -291,7 +283,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		expectedRouteSection = routeSection{
@@ -316,7 +308,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		expectedRouteSection = routeSection{
@@ -335,7 +327,7 @@ var _ = Describe("Node Poller Handler", func() {
 		mockCtlr.OrchestrationCNI = CILIUM_K8S
 		mockCtlr.UseNodeInternal = true
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(routeSection{CISIdentifier: cisIdentifier}))
@@ -348,7 +340,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		expectedRouteSection = routeSection{
@@ -373,7 +365,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.updateNode(&nodeObjs[i], namespace)
 		}
 		mockCtlr.SetupNodeProcessing("")
-		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.Agent.ConfigWriter.(*test.MockWriter)
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))

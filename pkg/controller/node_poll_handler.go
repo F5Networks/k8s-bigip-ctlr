@@ -17,7 +17,7 @@ import (
 
 func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	var nodesIntfc []interface{}
-	if infStore, ok := ctlr.MultiClusterHandler.ClusterConfigs[clusterName]; ok {
+	if infStore, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 		nodesIntfc = infStore.nodeInformer.nodeInformer.GetIndexer().List()
 	}
 
@@ -30,7 +30,7 @@ func (ctlr *Controller) SetupNodeProcessing(clusterName string) error {
 	ctlr.ProcessNodeUpdate(nodesList, clusterName)
 	// adding the bigip_monitored_nodes	metrics
 	if nodesList != nil {
-		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.MultiClusterHandler.ClusterConfigs[clusterName].nodeLabelSelector).Set(float64(len(ctlr.MultiClusterHandler.ClusterConfigs[clusterName].oldNodes)))
+		bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.multiClusterHandler.ClusterConfigs[clusterName].nodeLabelSelector).Set(float64(len(ctlr.multiClusterHandler.ClusterConfigs[clusterName].oldNodes)))
 	}
 	if ctlr.PoolMemberType == NodePort {
 		return nil
@@ -59,7 +59,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	}
 	// process the node and update the all pool members for the cluster
 	if !ctlr.initState {
-		if config, ok := ctlr.MultiClusterHandler.ClusterConfigs[clusterName]; ok {
+		if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 			// Compare last set of nodes with new one
 			if !reflect.DeepEqual(newNodes, config.oldNodes) {
 				log.Debugf("[MultiCluster] Processing Node Updates for cluster: %s", clusterName)
@@ -71,7 +71,7 @@ func (ctlr *Controller) ProcessNodeUpdate(obj interface{}, clusterName string) {
 	} else {
 		// Initialize controller nodes on our first pass through
 		log.Debugf("%v Initialising controller monitored kubernetes nodes %v", ctlr.getMultiClusterLog(), getClusterLog(clusterName))
-		if config, ok := ctlr.MultiClusterHandler.ClusterConfigs[clusterName]; ok {
+		if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 			// Update node cache
 			config.oldNodes = newNodes
 		}
@@ -90,7 +90,7 @@ func (ctlr *Controller) UpdatePoolMembersForNodeUpdate(clusterName string) {
 // Return a copy of the node cache
 func (ctlr *Controller) getNodesFromCache(clusterName string) []Node {
 	var nodes []Node
-	if config, ok := ctlr.MultiClusterHandler.ClusterConfigs[clusterName]; ok {
+	if config, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 		nodes = make([]Node, len(config.oldNodes))
 		copy(nodes, config.oldNodes)
 	}
@@ -194,7 +194,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 	}
 	log.Debugf("Processing Node Updates for static routes")
 	routes := routeSection{}
-	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PostManager.BIGIPURL, "https://")
+	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.BIGIPURL, "https://")
 	nodePodCIDRMap := ctlr.GetNodePodCIDRMap()
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
@@ -429,7 +429,7 @@ func (ctlr *Controller) GetNodePodCIDRMap() []BlockAffinitycidr {
 	var bacidrs []BlockAffinitycidr
 	if ctlr.OrchestrationCNI == CALICO_K8S {
 		// Retrieve Calico Block Affinity
-		blockAffinitiesRaw, err := ctlr.MultiClusterHandler.ClusterConfigs[ctlr.MultiClusterHandler.LocalClusterName].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
+		blockAffinitiesRaw, err := ctlr.multiClusterHandler.ClusterConfigs[ctlr.multiClusterHandler.LocalClusterName].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
 		if err != nil {
 			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
 			return bacidrs
@@ -458,12 +458,12 @@ func (ctlr *Controller) GetNodePodCIDRMap() []BlockAffinitycidr {
 
 func (ctlr *Controller) processBlockAffinities(clusterName string) {
 	var baListInf []interface{}
-	if infStore, ok := ctlr.MultiClusterHandler.ClusterConfigs[clusterName]; ok {
+	if infStore, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
 		baListInf = infStore.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetIndexer().List()
 	}
 	routes := routeSection{}
-	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PostManager.BIGIPURL, "https://")
-	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(clusterName)
+	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.BIGIPURL, "https://")
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	for _, obj := range baListInf {
 		blockAffinity := obj.(*unstructured.Unstructured)
 		baJSON, found, err := unstructured.NestedStringMap(blockAffinity.UnstructuredContent(), "spec")

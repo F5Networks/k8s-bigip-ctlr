@@ -13,12 +13,12 @@ var _ = Describe("Profile", func() {
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.resources = NewResourceStore()
-		mockCtlr.MultiClusterHandler = NewClusterHandler("cluster-1", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+		mockCtlr.multiClusterHandler = NewClusterHandler("cluster-1", PrimaryCIS, &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		})
-		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
 			"1.2",

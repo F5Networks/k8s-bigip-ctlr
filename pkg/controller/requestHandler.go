@@ -10,24 +10,26 @@ import (
 
 var OsExit = os.Exit
 
-func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, appServicesChecker func() error) *RequestHandler {
+func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandler {
 	reqHandler := &RequestHandler{
 		reqChan:                         make(chan ResourceConfigRequest, 1),
 		userAgent:                       agentParams.UserAgent,
 		respChan:                        ctlr.respChan,
 		agentParams:                     agentParams,
-		PrimaryClusterHealthProbeParams: ctlr.PrimaryClusterHealthProbeParams,
+		PrimaryClusterHealthProbeParams: ctlr.multiClusterHandler.PrimaryClusterHealthProbeParams,
 	}
 	if (agentParams.PrimaryParams != PostParams{}) {
-		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, appServicesChecker)
+		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP)
+		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
-		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, appServicesChecker)
+		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP)
+		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	if isGTMOnSeparateServer(agentParams) && !agentParams.CCCLGTMAgent {
-		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, appServicesChecker)
+		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP)
 		go reqHandler.GTMBigIPWorker.gtmWorker()
 	}
 	return reqHandler
@@ -79,64 +81,131 @@ func (reqHandler *RequestHandler) requestHandler() {
 	}
 }
 
-func (reqHandler *RequestHandler) NewAgentWorker(kind string, appServicesChecker func() error) *AgentWorker {
-	aw := &AgentWorker{
-		stopChan: make(chan struct{}),
+func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
+	configWriter, err := writer.NewConfigWriter()
+	if nil != err {
+		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
+	agent.ConfigWriter = configWriter
+	agent.Partition = reqHandler.agentParams.Partition
+	agent.EventChan = make(chan interface{})
+	agent.userAgent = reqHandler.agentParams.UserAgent
+	agent.HttpAddress = reqHandler.agentParams.HttpAddress
+	agent.disableARP = reqHandler.agentParams.DisableARP
+
+	// If running in VXLAN mode, extract the partition name from the tunnel
+	// to be used in configuring a net instance of CCCL for that partition
+	var vxlanPartition string
+	if len(reqHandler.agentParams.VXLANName) > 0 {
+		cleanPath := strings.TrimLeft(reqHandler.agentParams.VXLANName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos == -1 {
+			// No partition
+			vxlanPartition = "Common"
+		} else {
+			// Partition and name
+			vxlanPartition = cleanPath[:slashPos]
+		}
+	}
+	if reqHandler.agentParams.StaticRoutingMode == true {
+		vxlanPartition = reqHandler.agentParams.Partition
+		if reqHandler.agentParams.SharedStaticRoutes == true {
+			vxlanPartition = "Common"
+		}
+	}
+	gs := globalSection{
+		LogLevel:          reqHandler.agentParams.LogLevel,
+		VerifyInterval:    reqHandler.agentParams.VerifyInterval,
+		VXLANPartition:    vxlanPartition,
+		DisableLTM:        true,
+		GTM:               reqHandler.agentParams.CCCLGTMAgent,
+		DisableARP:        reqHandler.agentParams.DisableARP,
+		StaticRoutingMode: reqHandler.agentParams.StaticRoutingMode,
+		MultiClusterMode:  reqHandler.agentParams.MultiClusterMode,
+	}
+
+	// If AS3DEBUG is set, set log level to DEBUG
+	if gs.LogLevel == "AS3DEBUG" {
+		gs.LogLevel = "DEBUG"
+	}
+
+	bs := bigIPSection{
+		BigIPUsername:   agent.APIHandler.LTM.PostManager.BIGIPUsername,
+		BigIPPassword:   agent.APIHandler.LTM.PostManager.BIGIPPassword,
+		BigIPURL:        agent.APIHandler.LTM.PostManager.BIGIPURL,
+		BigIPPartitions: []string{reqHandler.agentParams.Partition},
+	}
+
+	var gtm gtmBigIPSection
+	if len(reqHandler.agentParams.GTMParams.BIGIPURL) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPUsername) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPPassword) == 0 {
+		// gs.GTM = false
+		gtm = gtmBigIPSection{
+			GtmBigIPUsername: agent.APIHandler.LTM.PostManager.BIGIPUsername,
+			GtmBigIPPassword: agent.APIHandler.LTM.PostManager.BIGIPPassword,
+			GtmBigIPURL:      agent.APIHandler.LTM.PostManager.BIGIPURL,
+		}
+		log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
+	} else {
+		gtm = gtmBigIPSection{
+			GtmBigIPUsername: reqHandler.agentParams.GTMParams.BIGIPUsername,
+			GtmBigIPPassword: reqHandler.agentParams.GTMParams.BIGIPPassword,
+			GtmBigIPURL:      reqHandler.agentParams.GTMParams.BIGIPURL,
+		}
+	}
+	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
+	if !(reqHandler.agentParams.EnableIPV6) {
+		agent.startPythonDriver(
+			gs,
+			bs,
+			gtm,
+			reqHandler.agentParams.PythonBaseDir,
+		)
+	} else {
+		// we only enable metrics as pythondriver is not initialized for ipv6
+		go agent.enableMetrics()
+	}
+}
+
+func (reqHandler *RequestHandler) NewAgentWorker(kind string) *Agent {
 	var err error
+	var agent *Agent
 	switch kind {
 	case GTMBigIP:
-		aw.Agent = reqHandler.NewAgent(GTMBigIP)
-		if appServicesChecker == nil {
-			err = aw.GTM.IsBigIPAppServicesAvailable()
-		} else {
-			err = appServicesChecker()
-		}
+		agent = reqHandler.NewAgent(GTMBigIP)
+		err = agent.GTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
-			aw.Stop()
+			agent.Stop()
 			OsExit(1)
 		}
 	case SecondaryBigIP:
-		aw.Agent = reqHandler.NewAgent(SecondaryBigIP)
-		if appServicesChecker == nil {
-			err = aw.LTM.IsBigIPAppServicesAvailable()
-		} else {
-			err = appServicesChecker()
-		}
+		agent = reqHandler.NewAgent(SecondaryBigIP)
+		err = agent.LTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
-			aw.Stop()
+			agent.Stop()
 			OsExit(1)
 		}
 	case PrimaryBigIP:
-		aw.Agent = reqHandler.NewAgent(PrimaryBigIP)
-		if appServicesChecker == nil {
-			err = aw.LTM.IsBigIPAppServicesAvailable()
-		} else {
-			err = appServicesChecker()
-		}
+		agent = reqHandler.NewAgent(PrimaryBigIP)
+		err = agent.LTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
-			aw.Stop()
+			agent.Stop()
 			OsExit(1)
 		}
 	default:
 		log.Errorf("Invalid Agent kind: %s", kind)
 		OsExit(1)
 	}
-	return aw
-}
-
-// Stop stops the AgentWorker.
-func (aw *AgentWorker) Stop() {
-	close(aw.StopChan)
+	return agent
 }
 
 func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
 	agent := &Agent{
 		APIHandler:   &APIHandler{},
 		ccclGTMAgent: reqHandler.agentParams.CCCLGTMAgent,
+		stopChan:     make(chan struct{}),
 	}
 	switch kind {
 	case GTMBigIP:
@@ -145,88 +214,6 @@ func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
 	default:
 		DEFAULT_PARTITION = reqHandler.agentParams.Partition
 		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, reqHandler.respChan)
-		agent.Partition = reqHandler.agentParams.Partition
-		configWriter, err := writer.NewConfigWriter()
-		if nil != err {
-			log.Fatalf("Failed creating ConfigWriter tool: %v", err)
-		}
-		agent.ConfigWriter = configWriter
-		agent.EventChan = make(chan interface{})
-		agent.userAgent = reqHandler.agentParams.UserAgent
-		agent.HttpAddress = reqHandler.agentParams.HttpAddress
-		agent.disableARP = reqHandler.agentParams.DisableARP
-
-		// If running in VXLAN mode, extract the partition name from the tunnel
-		// to be used in configuring a net instance of CCCL for that partition
-		var vxlanPartition string
-		if len(reqHandler.agentParams.VXLANName) > 0 {
-			cleanPath := strings.TrimLeft(reqHandler.agentParams.VXLANName, "/")
-			slashPos := strings.Index(cleanPath, "/")
-			if slashPos == -1 {
-				// No partition
-				vxlanPartition = "Common"
-			} else {
-				// Partition and name
-				vxlanPartition = cleanPath[:slashPos]
-			}
-		}
-		if reqHandler.agentParams.StaticRoutingMode == true {
-			vxlanPartition = reqHandler.agentParams.Partition
-			if reqHandler.agentParams.SharedStaticRoutes == true {
-				vxlanPartition = "Common"
-			}
-		}
-		gs := globalSection{
-			LogLevel:          reqHandler.agentParams.LogLevel,
-			VerifyInterval:    reqHandler.agentParams.VerifyInterval,
-			VXLANPartition:    vxlanPartition,
-			DisableLTM:        true,
-			GTM:               reqHandler.agentParams.CCCLGTMAgent,
-			DisableARP:        reqHandler.agentParams.DisableARP,
-			StaticRoutingMode: reqHandler.agentParams.StaticRoutingMode,
-			MultiClusterMode:  reqHandler.agentParams.MultiClusterMode,
-		}
-
-		// If AS3DEBUG is set, set log level to DEBUG
-		if gs.LogLevel == "AS3DEBUG" {
-			gs.LogLevel = "DEBUG"
-		}
-
-		bs := bigIPSection{
-			BigIPUsername:   agent.APIHandler.LTM.PostManager.BIGIPUsername,
-			BigIPPassword:   agent.APIHandler.LTM.PostManager.BIGIPPassword,
-			BigIPURL:        agent.APIHandler.LTM.PostManager.BIGIPURL,
-			BigIPPartitions: []string{reqHandler.agentParams.Partition},
-		}
-
-		var gtm gtmBigIPSection
-		if len(reqHandler.agentParams.GTMParams.BIGIPURL) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPUsername) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPPassword) == 0 {
-			// gs.GTM = false
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: agent.APIHandler.LTM.PostManager.BIGIPUsername,
-				GtmBigIPPassword: agent.APIHandler.LTM.PostManager.BIGIPPassword,
-				GtmBigIPURL:      agent.APIHandler.LTM.PostManager.BIGIPURL,
-			}
-			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-		} else {
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: reqHandler.agentParams.GTMParams.BIGIPUsername,
-				GtmBigIPPassword: reqHandler.agentParams.GTMParams.BIGIPPassword,
-				GtmBigIPURL:      reqHandler.agentParams.GTMParams.BIGIPURL,
-			}
-		}
-		//For IPV6 net config is not required. f5-sdk doesnt support ipv6
-		if !(reqHandler.agentParams.EnableIPV6) {
-			agent.startPythonDriver(
-				gs,
-				bs,
-				gtm,
-				reqHandler.agentParams.PythonBaseDir,
-			)
-		} else {
-			// we only enable metrics as pythondriver is not initialized for ipv6
-			go agent.enableMetrics()
-		}
 	}
 	return agent
 }

@@ -15,15 +15,15 @@ var _ = Describe("MultiClusterWorker", func() {
 	var clusterName2 string
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.MultiClusterHandler = NewClusterHandler("cluster-1", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+		mockCtlr.multiClusterHandler = NewClusterHandler("cluster-1", PrimaryCIS, &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		})
-		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		clusterName = "cluster-1"
 		clusterName2 = "cluster-2"
-		mockCtlr.MultiClusterHandler.HAPairClusterName = "cluster-2"
+		mockCtlr.multiClusterHandler.HAPairClusterName = "cluster-2"
 		svc = test.NewService(
 			"svc1",
 			"1",
@@ -36,10 +36,10 @@ var _ = Describe("MultiClusterWorker", func() {
 				},
 			},
 		)
-		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
-		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
-		mockCtlr.MultiClusterHandler.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName2] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(svc)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[clusterName2].InformerStore = initInformerStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 	})
 	It("Get service from HA cluster", func() {

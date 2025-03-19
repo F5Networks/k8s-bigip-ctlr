@@ -489,7 +489,10 @@ var _ = Describe("Backend Tests", func() {
 			agentPostCfg := as3Handler.createAPIConfig(config)
 			decl := agentPostCfg.data
 			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(decl, "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"Tenant\"")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"AS3\"")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"ADC\"")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"Application\"")).To(BeTrue())
 		})
 	})
 

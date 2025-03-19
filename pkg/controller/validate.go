@@ -35,7 +35,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 	var err string
 
-	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace, ctlr.MultiClusterHandler.LocalClusterName)
+	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		log.Errorf(err)
@@ -175,7 +175,7 @@ func (ctlr *Controller) checkValidTransportServer(
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 	var err string
 
-	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace, ctlr.MultiClusterHandler.LocalClusterName)
+	crInf, ok := ctlr.getNamespacedCRInformer(vsNamespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), vsNamespace)
 		log.Errorf(err)
@@ -262,7 +262,7 @@ func (ctlr *Controller) checkValidIngressLink(
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
 	var err string
 
-	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace, ctlr.MultiClusterHandler.LocalClusterName)
+	crInf, ok := ctlr.getNamespacedCRInformer(ilNamespace, ctlr.multiClusterHandler.LocalClusterName)
 	if !ok {
 		err = fmt.Sprintf("%v Informer not found for namespace: %v", ctlr.getMultiClusterLog(), ilNamespace)
 		log.Errorf(err)
@@ -319,7 +319,7 @@ func (ctlr *Controller) checkValidMultiClusterService(mcs cisapiv1.MultiClusterS
 	}
 	if mcs.ClusterName != "" {
 		// Check if cluster config is provided for the cluster where the service is running
-		if _, ok := ctlr.MultiClusterHandler.ClusterConfigs[mcs.ClusterName]; !ok && mcs.ClusterName != ctlr.MultiClusterHandler.LocalClusterName {
+		if _, ok := ctlr.multiClusterHandler.ClusterConfigs[mcs.ClusterName]; !ok && mcs.ClusterName != ctlr.multiClusterHandler.LocalClusterName {
 			return fmt.Errorf("cluster config for the cluster %s is not provided in extended configmap", mcs.ClusterName)
 		}
 	}

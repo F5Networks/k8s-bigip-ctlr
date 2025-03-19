@@ -28,42 +28,42 @@ import (
 var DEFAULT_PARTITION string
 var DEFAULT_GTM_PARTITION string
 
-func (aw AgentWorker) Post(agentConfig *agentPostConfig) {
+func (agent *Agent) Post(agentConfig *agentPostConfig) {
 	// Always push latest activeConfig to channel
 	// Case1: Put latest config into the channel
 	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
 	// Either Case1 or Case2 executes, which ensures the above
 	select {
-	case aw.postChan <- agentConfig:
-	case <-aw.postChan:
-		aw.postChan <- agentConfig
+	case agent.postChan <- agentConfig:
+	case <-agent.postChan:
+		agent.postChan <- agentConfig
 	}
 
 }
 
 // function to the post the config to the respective bigip
-func (aw *AgentWorker) PostConfig(rsConfigRequest ResourceConfigRequest) {
-	log.Debugf("%v Posting ResourceConfigRequest: %+v\n", aw.postManagerPrefix, rsConfigRequest)
+func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
+	log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.postManagerPrefix, rsConfigRequest)
 	var agentConfig agentPostConfig
-	if aw.postManagerPrefix != gtmPostmanagerPrefix {
+	if agent.postManagerPrefix != gtmPostmanagerPrefix {
 		// Convert ResourceConfigRequest to as3Config
-		agentConfig = aw.LTM.APIHandler.createAPIConfig(rsConfigRequest)
-		agentConfig.as3APIURL = aw.LTM.APIHandler.getAPIURL([]string{})
-		if aw.postManagerPrefix == secondaryPostmanagerPrefix {
+		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest)
+		agentConfig.as3APIURL = agent.LTM.APIHandler.getAPIURL([]string{})
+		if agent.postManagerPrefix == secondaryPostmanagerPrefix {
 			agentConfig.agentKind = SecondaryBigIP
 		} else {
 			agentConfig.agentKind = PrimaryBigIP
 		}
 		// add gtm config to the cccl worker if ccclGTMAgent is true
-		if aw.ccclGTMAgent {
-			aw.PostGTMConfigWithCccl(rsConfigRequest)
+		if agent.ccclGTMAgent {
+			agent.PostGTMConfigWithCccl(rsConfigRequest)
 		}
 	} else {
-		agentConfig = aw.GTM.APIHandler.createAPIConfig(rsConfigRequest)
-		agentConfig.as3APIURL = aw.GTM.APIHandler.getAPIURL([]string{})
+		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest)
+		agentConfig.as3APIURL = agent.GTM.APIHandler.getAPIURL([]string{})
 		agentConfig.agentKind = GTMBigIP
 	}
-	aw.Post(&agentConfig)
+	agent.Post(&agentConfig)
 }
 
 func (agent *Agent) Stop() {
@@ -71,44 +71,45 @@ func (agent *Agent) Stop() {
 	if !(agent.EnableIPV6) {
 		agent.stopPythonDriver()
 	}
+	close(agent.StopChan)
 }
 
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
-func (aw *AgentWorker) agentWorker() {
-	for agentConfig := range aw.LTM.PostManager.postChan {
+func (agent *Agent) agentWorker() {
+	for agentConfig := range agent.LTM.PostManager.postChan {
 		// For the very first post after starting controller, need not wait to post
-		if !aw.LTM.PostManager.firstPost && aw.LTM.AS3PostDelay != 0 {
+		if !agent.LTM.PostManager.firstPost && agent.LTM.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", aw.LTM.AS3PostDelay)
-			_ = <-time.After(time.Duration(aw.LTM.AS3PostDelay) * time.Second)
+			log.Debugf("[%v] Delaying post to BIG-IP for %v seconds ", agent.apiType, agent.LTM.AS3PostDelay)
+			_ = <-time.After(time.Duration(agent.LTM.AS3PostDelay) * time.Second)
 		}
 
 		// Fetch the latest config from channel
 		select {
-		case agentConfig = <-aw.LTM.PostManager.postChan:
+		case agentConfig = <-agent.LTM.PostManager.postChan:
 
-			log.Infof("%v[AS3] Processing request", getRequestPrefix(agentConfig.id))
+			log.Infof("%v[%v] Processing request", getRequestPrefix(agentConfig.id), agent.apiType)
 
 		case <-time.After(1 * time.Microsecond):
 		}
 
-		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(agentConfig.id))
+		log.Infof("%v[%v] creating a new AS3 manifest", getRequestPrefix(agentConfig.id), agent.apiType)
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(agentConfig.id))
+			log.Infof("%v[%v] No tenants found in request", getRequestPrefix(agentConfig.id), agent.apiType)
 			// notify resourceStatusUpdate response handler on successful tenant update
-			aw.respChan <- agentConfig
+			agent.respChan <- agentConfig
 			continue
 		}
 
-		aw.LTM.publishConfig(agentConfig)
+		agent.LTM.publishConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests
 		*/
-		aw.LTM.APIHandler.pollTenantStatus(agentConfig)
+		agent.LTM.APIHandler.pollTenantStatus(agentConfig)
 		// notify resourceStatusUpdate response handler on successful tenant update
-		aw.respChan <- agentConfig
+		agent.respChan <- agentConfig
 	}
 }
 

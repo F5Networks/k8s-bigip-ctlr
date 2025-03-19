@@ -149,7 +149,7 @@ const (
 )
 
 // NewController creates a new Controller Instance.
-func NewController(params Params, startController bool) *Controller {
+func NewController(params Params, startController bool, agentParams AgentParams) *Controller {
 
 	ctlr := &Controller{
 		RequestHandler:              params.RequestHandler,
@@ -178,7 +178,7 @@ func NewController(params Params, startController bool) *Controller {
 			paramLock: sync.RWMutex{},
 		}),
 	}
-
+	ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams, nil)
 	log.Debug("Controller Created")
 
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(

@@ -2221,33 +2221,33 @@ func (ctlr *Controller) fetchKubeConfigSecret(secret string, clusterName string)
 // updateHealthProbeConfig checks for any healthProbe config update and updates the respective healthProbe parameters
 func (ctlr *Controller) updateHealthProbeConfig(haClusterConfig HAClusterConfig) {
 	// Initialize PrimaryClusterHealthProbeParams if it's the first time
-	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams == nil {
-		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams = &PrimaryClusterHealthProbeParams{
+	if ctlr.RequestHandler.PrimaryClusterHealthProbeParams == nil {
+		ctlr.RequestHandler.PrimaryClusterHealthProbeParams = &PrimaryClusterHealthProbeParams{
 			paramLock: sync.RWMutex{},
 		}
 	}
-	ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Lock()
-	defer ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.paramLock.Unlock()
+	ctlr.RequestHandler.PrimaryClusterHealthProbeParams.paramLock.Lock()
+	defer ctlr.RequestHandler.PrimaryClusterHealthProbeParams.paramLock.Unlock()
 	// Check if primary cluster health probe endpoint has been updated and set the endpoint type
-	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.EndPoint != haClusterConfig.PrimaryClusterEndPoint {
-		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.EndPoint = haClusterConfig.PrimaryClusterEndPoint
-		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.setPrimaryClusterHealthCheckEndPointType()
+	if ctlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint != haClusterConfig.PrimaryClusterEndPoint {
+		ctlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint = haClusterConfig.PrimaryClusterEndPoint
+		ctlr.RequestHandler.setPrimaryClusterHealthCheckEndPointType()
 	}
 	// Check if probe interval has been updated
 	if haClusterConfig.ProbeInterval == 0 {
-		if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.probeInterval != DefaultProbeInterval {
-			ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.probeInterval = DefaultProbeInterval
+		if ctlr.RequestHandler.PrimaryClusterHealthProbeParams.probeInterval != DefaultProbeInterval {
+			ctlr.RequestHandler.PrimaryClusterHealthProbeParams.probeInterval = DefaultProbeInterval
 		}
-	} else if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.probeInterval != haClusterConfig.ProbeInterval {
-		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.probeInterval = haClusterConfig.ProbeInterval
+	} else if ctlr.RequestHandler.PrimaryClusterHealthProbeParams.probeInterval != haClusterConfig.ProbeInterval {
+		ctlr.RequestHandler.PrimaryClusterHealthProbeParams.probeInterval = haClusterConfig.ProbeInterval
 	}
 	// Check if retry interval has been updated
 	if haClusterConfig.RetryInterval == 0 {
-		if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.retryInterval != DefaultRetryInterval {
-			ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.retryInterval = DefaultRetryInterval
+		if ctlr.RequestHandler.PrimaryClusterHealthProbeParams.retryInterval != DefaultRetryInterval {
+			ctlr.RequestHandler.PrimaryClusterHealthProbeParams.retryInterval = DefaultRetryInterval
 		}
-	} else if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.retryInterval != haClusterConfig.RetryInterval {
-		ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.PrimaryClusterHealthProbeParams.retryInterval = haClusterConfig.RetryInterval
+	} else if ctlr.RequestHandler.PrimaryClusterHealthProbeParams.retryInterval != haClusterConfig.RetryInterval {
+		ctlr.RequestHandler.PrimaryClusterHealthProbeParams.retryInterval = haClusterConfig.RetryInterval
 	}
 }
 

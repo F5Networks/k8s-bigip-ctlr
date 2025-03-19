@@ -56,7 +56,8 @@ var _ = Describe("OtherSDNType", func() {
 			NamespaceLabel: "ctlr=cis",
 			VXLANMode:      "multi-point",
 			VXLANName:      "vxlan0",
-		}, false)
+		}, false,
+			AgentParams{})
 		Expect(ctlrOpenShift.processedHostPath).NotTo(BeNil(), "processedHostPath object should not be nil")
 		Expect(ctlrOpenShift.shareNodes).To(BeFalse(), "shareNodes should not be enable")
 		Expect(ctlrOpenShift.vxlanMgr).To(BeNil(), "vxlanMgr should be created")
@@ -65,14 +66,16 @@ var _ = Describe("OtherSDNType", func() {
 			PoolMemberType: NodePort,
 			Config:         &rest.Config{},
 			IPAM:           true,
-		}, false)
+		}, false,
+			AgentParams{})
 		Expect(ctlrK8s.processedHostPath).To(BeNil(), "processedHostPath object should be nil")
 		Expect(ctlrK8s.shareNodes).To(BeTrue(), "shareNodes should be enable")
 	})
 	It("Validate the IPAM configuration", func() {
 		ctlr := NewController(Params{
 			Config: &rest.Config{},
-		}, false)
+		}, false,
+			AgentParams{})
 		ctlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		})

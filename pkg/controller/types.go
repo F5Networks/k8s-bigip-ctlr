@@ -846,14 +846,15 @@ type (
 
 type (
 	RequestHandler struct {
-		PrimaryBigIPWorker   *AgentWorker
-		SecondaryBigIPWorker *AgentWorker
-		GTMBigIPWorker       *AgentWorker
-		resources            *ResourceStore
-		reqChan              chan ResourceConfigRequest
-		respChan             chan *agentPostConfig
-		agentParams          AgentParams
-		userAgent            string
+		PrimaryBigIPWorker              *AgentWorker
+		SecondaryBigIPWorker            *AgentWorker
+		GTMBigIPWorker                  *AgentWorker
+		resources                       *ResourceStore
+		reqChan                         chan ResourceConfigRequest
+		respChan                        chan *agentPostConfig
+		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
+		agentParams                     AgentParams
+		userAgent                       string
 		//TokenManager                  *tokenmanager.TokenManager
 		ccclGTMAgent bool
 		disableARP   bool
@@ -897,17 +898,15 @@ type (
 	Agent struct {
 		*APIHandler
 		*PostManager
-		Partition                       string
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
-		ConfigWriter                    writer.Writer
-		EventChan                       chan interface{}
-		PythonDriverPID                 int
-		userAgent                       string
-		HttpAddress                     string
-		EnableIPV6                      bool
-		ccclGTMAgent                    bool
-		disableARP                      bool
-		HAMode                          bool
+		Partition       string
+		ConfigWriter    writer.Writer
+		EventChan       chan interface{}
+		PythonDriverPID int
+		userAgent       string
+		HttpAddress     string
+		EnableIPV6      bool
+		ccclGTMAgent    bool
+		disableARP      bool
 	}
 
 	BaseAPIHandler struct {
@@ -932,10 +931,9 @@ type (
 	}
 
 	AgentParams struct {
-		PrimaryParams                   PostParams
-		SecondaryParams                 PostParams
-		GTMParams                       PostParams
-		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
+		PrimaryParams   PostParams
+		SecondaryParams PostParams
+		GTMParams       PostParams
 		// VxlnParams      VXLANParams
 		Partition          string
 		LogLevel           string
@@ -975,15 +973,14 @@ type (
 		sync.RWMutex
 		httpClient *http.Client
 		PostParams
-		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
-		firstPost                       bool
-		AS3VersionInfo                  as3VersionInfo
-		bigIPAS3Version                 float64
-		postManagerPrefix               string
-		postChan                        chan *agentPostConfig
-		respChan                        chan *agentPostConfig
-		httpClientMetrics               bool
-		apiType                         string
+		firstPost         bool
+		AS3VersionInfo    as3VersionInfo
+		bigIPAS3Version   float64
+		postManagerPrefix string
+		postChan          chan *agentPostConfig
+		respChan          chan *agentPostConfig
+		httpClientMetrics bool
+		apiType           string
 	}
 
 	PrimaryClusterHealthProbeParams struct {

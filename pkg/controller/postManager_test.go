@@ -28,10 +28,6 @@ var _ = Describe("NewPostManager", func() {
 		respChan = make(chan *agentPostConfig, 1)
 		params = AgentParams{
 			ApiType: AS3,
-			PrimaryClusterHealthProbeParams: &PrimaryClusterHealthProbeParams{
-				probeInterval: 5,
-				retryInterval: 10,
-			},
 			GTMParams: PostParams{
 				BIGIPURL: "https://gtm.example.com",
 			},
@@ -53,7 +49,6 @@ var _ = Describe("NewPostManager", func() {
 			Expect(pm.PostParams).To(Equal(params.GTMParams))
 			Expect(pm.postManagerPrefix).To(Equal(gtmPostmanagerPrefix))
 			Expect(pm.apiType).To(Equal(AS3))
-			Expect(pm.PrimaryClusterHealthProbeParams).To(Equal(params.PrimaryClusterHealthProbeParams))
 		})
 	})
 

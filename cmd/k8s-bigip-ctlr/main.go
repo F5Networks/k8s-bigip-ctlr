@@ -999,9 +999,8 @@ func initController(
 			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
 		},
 		true,
+		agentParams,
 	)
-	agentParams.PrimaryClusterHealthProbeParams = ctlr.MultiClusterHandler.PrimaryClusterHealthProbeParams
-	ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams, nil)
 	return ctlr
 }
 

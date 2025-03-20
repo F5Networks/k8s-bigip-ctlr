@@ -43,10 +43,10 @@ type ApiTypeHandlerInterface interface {
 	//createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC
 }
 
-func NewAS3Handler(params AgentParams, postManager *PostManager) *AS3Handler {
+func NewAS3Handler(postManager *PostManager) *AS3Handler {
 	handler := &AS3Handler{
 		cachedTenantDeclMap: make(map[string]as3Tenant),
-		AS3Parser:           NewAS3Parser(params),
+		AS3Parser:           &AS3Parser{},
 		PostManager:         postManager,
 	}
 

@@ -3766,10 +3766,9 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	partitions := ctlr.resources.getLTMPartitions()
 
-	// TODO: Handle the BIGIP address properly
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.RequestHandler.AgentWorkers[PrimaryBigIP].BigIpAddress, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.BigIpAddress, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -4344,8 +4343,7 @@ func (ctlr *Controller) processIngressLink(
 					hostnames = rsCfg.MetaData.hosts
 				}
 				// delete the entry from the L4 app cache
-				as3 := ctlr.APIHandler.getApiHandler()
-				_, port := as3.extractVirtualAddressAndPort(rsCfg.Virtual.Destination)
+				_, port := extractVirtualAddressAndPort(rsCfg.Virtual.Destination)
 				appConfig := getL4AppConfig(ip, key, int32(port), ingLink.Spec.BigIPRouteDomain)
 				if appConfig != (l4AppConfig{}) {
 					delete(ctlr.resources.processedL4Apps, appConfig)

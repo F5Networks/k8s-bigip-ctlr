@@ -14,9 +14,10 @@ var _ = Describe("Backend Tests", func() {
 		BeforeEach(func() {
 			DEFAULT_GTM_PARTITION = "test_gtm"
 			agent = newMockAgent(nil)
-			agent.GTMPostManager = NewGTMPostManager(AgentParams{GTMParams: PostParams{
-				BIGIPURL: "192.168.1.1",
-			}})
+			//agent.GTMPostManager = NewGTMPostManager(AgentParams{GTMParams: PostParams{
+			//	BIGIPURL: "192.168.1.1",
+			//}},
+			//agent.respChan)
 		})
 		It("Test GTM on different server", func() {
 			var agentParams AgentParams

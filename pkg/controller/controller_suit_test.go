@@ -55,7 +55,7 @@ func (m *mockController) shutdown() error {
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &PostManager{
-			postChan: make(chan agentPostConfig, 1),
+			postChan: make(chan *agentPostConfig, 1),
 			//cachedTenantDeclMap: make(map[string]as3Tenant),
 			//retryTenantDeclMap:  make(map[string]*tenantParams),
 		},
@@ -103,7 +103,7 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
 		PostManager: &PostManager{
-			postChan: make(chan ResourceConfigRequest, 1),
+			postChan: make(chan *agentPostConfig, 1),
 			PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
 				statusRunning: true,
 			},

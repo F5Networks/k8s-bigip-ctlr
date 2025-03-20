@@ -96,16 +96,10 @@ var _ = Describe("Worker Tests", func() {
 				ServiceIPAddress: nil,
 			})
 		mockCtlr.Partition = "test"
-		mockCtlr.Agent = &Agent{
-			respChan: make(chan resourceStatusMeta, 1),
-			PostManager: &PostManager{
-				postChan: make(chan agentPostConfig, 1),
-				//cachedTenantDeclMap: make(map[string]as3Tenant),
-				//retryTenantDeclMap:  make(map[string]*tenantParams),
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
-			},
+		mockCtlr.RequestHandler = &RequestHandler{
+			PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+				PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+			}, PrimaryBigIP, nil),
 		}
 		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset(svc1)
@@ -211,12 +205,10 @@ var _ = Describe("Worker Tests", func() {
 	Describe("IPAM", func() {
 		DEFAULT_PARTITION = "test"
 		BeforeEach(func() {
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockCtlr.RequestHandler = &RequestHandler{
+				PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+					PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				}, PrimaryBigIP, nil),
 			}
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 		})
@@ -888,13 +880,10 @@ var _ = Describe("Worker Tests", func() {
 			// Service when IPAM is not available
 			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
-
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockCtlr.RequestHandler = &RequestHandler{
+				PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+					PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				}, PrimaryBigIP, nil),
 			}
 			mockCtlr.Partition = "default"
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
@@ -957,12 +946,10 @@ var _ = Describe("Worker Tests", func() {
 
 		It("Processing ServiceTypeLoadBalancer with Ipam and static ip", func() {
 			// Service when IPAM is not available
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockCtlr.RequestHandler = &RequestHandler{
+				PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+					PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				}, PrimaryBigIP, nil),
 			}
 			mockCtlr.Partition = "default"
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
@@ -1273,12 +1260,10 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				)
-				mockCtlr.Agent = &Agent{
-					PostManager: &PostManager{
-						PostParams: PostParams{
-							BIGIPURL: "10.10.10.1",
-						},
-					},
+				mockCtlr.RequestHandler = &RequestHandler{
+					PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+						PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+					}, PrimaryBigIP, nil),
 				}
 				mockCtlr.Partition = namespace
 				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
@@ -1608,16 +1593,17 @@ var _ = Describe("Worker Tests", func() {
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
-			mockCtlr.Agent = &Agent{
-				respChan: make(chan resourceStatusMeta, 1),
+			mockCtlr.RequestHandler = &RequestHandler{
+				PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+					PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				}, PrimaryBigIP, nil),
 			}
-
 			mockPM = newMockPostManger()
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			mockPM.LogAS3Response = true
+			//mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			//mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
@@ -1627,7 +1613,7 @@ var _ = Describe("Worker Tests", func() {
 				body:   "",
 			}}, http.MethodPost)
 			mockPM.firstPost = false
-			mockCtlr.Agent.PostManager = mockPM.PostManager
+			mockCtlr.RequestHandler.PrimaryBigIPWorker.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -2017,10 +2003,10 @@ var _ = Describe("Worker Tests", func() {
 			//})
 
 			It("Virtual Server with IPAM", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				//go mockCtlr.Agent.agentWorker()
+				//go mockCtlr.Agent.retryWorker()
 
-				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.responseHandler()
 				httpMrfRouterEnabled := true
 				httpMrfRouterDisabled := false
 				policy.Spec.Profiles.HttpMrfRoutingEnabled = &httpMrfRouterEnabled
@@ -2365,7 +2351,7 @@ var _ = Describe("Worker Tests", func() {
 				go mockCtlr.Agent.agentWorker()
 				go mockCtlr.Agent.retryWorker()
 				_ = mockCtlr.Agent.respChan
-				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.responseHandler()
 
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
@@ -2888,8 +2874,7 @@ var _ = Describe("Worker Tests", func() {
 
 			})
 			It("Ingress Link with partition", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.RequestHandler.PrimaryBigIPWorker.agentWorker()
 				mockCtlr.Partition = "test"
 				fooPorts := []v1.ServicePort{
 					{
@@ -3023,11 +3008,11 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
-
-			mockCtlr.Agent = &Agent{
-				respChan: make(chan resourceStatusMeta, 1),
+			mockCtlr.RequestHandler = &RequestHandler{
+				PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+					PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				}, PrimaryBigIP, nil),
 			}
-
 			mockPM = newMockPostManger()
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
@@ -3841,7 +3826,7 @@ extendedRouteSpec:
 
 			})
 			It("Process Pass-through Route", func() {
-				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.responseHandler()
 				go mockCtlr.Agent.agentWorker()
 				go mockCtlr.Agent.retryWorker()
 				mockCtlr.initState = true
@@ -3941,16 +3926,10 @@ extendedRouteSpec:
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.Partition = "test"
-			mockCtlr.Agent = &Agent{
-				respChan: make(chan resourceStatusMeta, 1),
-				PostManager: &PostManager{
-					//retryTenantDeclMap:  make(map[string]*tenantParams),
-					postChan: make(chan agentPostConfig, 1),
-					// cachedTenantDeclMap: make(map[string]as3Tenant),
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockCtlr.RequestHandler = &RequestHandler{
+				PrimaryBigIPWorker: NewAgentWorker(AgentParams{
+					PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
+				}, PrimaryBigIP, nil),
 			}
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
 				kubeClient:    k8sfake.NewSimpleClientset(),

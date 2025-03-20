@@ -275,7 +275,7 @@ func (am *AS3Handler) updateTenantConfigStatus(id string, httpResp *http.Respons
 						}
 						intId, err := strconv.Atoi(id)
 						if err == nil {
-							log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(intId), am.postManagerPrefix)
+							log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(int64(intId)), am.postManagerPrefix)
 						}
 					} else {
 						unknownResponse = true
@@ -396,7 +396,7 @@ func (am *AS3Handler) handleMultiStatus(responseMap map[string]interface{}, cfg 
 				if ok1 && ok2 {
 					if code != 200 {
 						am.updateTenantResponseCode(int(code), "", cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", v["code"]))
-						log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+						log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					} else {
 						am.updateTenantResponseCode(int(code), "", cfg, tenant, updateTenantDeletion(tenant, declaration), "")
 						log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", am.postManagerPrefix, v["code"], v["tenant"], v["message"])
@@ -429,7 +429,7 @@ func (am *AS3Handler) handleResponseStatusServiceUnavailable(responseMap map[str
 	var message string
 	var unknownResponse bool
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), am.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, err["code"])
 		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 		unknownResponse = true
 	}
@@ -442,7 +442,7 @@ func (am *AS3Handler) handleResponseStatusNotFound(responseMap map[string]interf
 	var unknownResponse bool
 	var message string
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), am.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, err["code"])
 		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 	} else {
 		unknownResponse = true
@@ -458,10 +458,10 @@ func (am *AS3Handler) handleResponseStatusUnAuthorized(responseMap map[string]in
 	if _, ok := responseMap["code"].(float64); ok {
 		if _, ok := responseMap["message"].(string); ok {
 			log.Errorf("%v[AS3]%v authentication failed,"+
-				" Error response from BIGIP with status code: 401 Message: %v", getRequestPrefix(cfg.id), am.postManagerPrefix, responseMap["message"])
+				" Error response from BIGIP with status code: 401 Message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, responseMap["message"])
 		} else {
 			log.Errorf("%v[AS3]%v authentication failed,"+
-				" Error response from BIGIP with status code: 401", getRequestPrefix(cfg.id), am.postManagerPrefix)
+				" Error response from BIGIP with status code: 401", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix)
 		}
 		message = "authentication failed, Error response from BIGIP with status code: 401 -- verify the logs for detailed error"
 	} else {
@@ -481,7 +481,7 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 				code, ok1 := v["code"].(float64)
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
-					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					am.updateTenantResponseCode(int(code), "", cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
 				} else {
 					unknownResponse = true
@@ -491,7 +491,7 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 			}
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.id), am.postManagerPrefix, err["code"])
+		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, err["code"])
 		if code, ok := err["code"].(float64); ok {
 			am.updateTenantResponseCode(int(code), "", cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"]))
 		} else {
@@ -523,9 +523,9 @@ func (am *AS3Handler) removeDeletedTenantsForBigIP(as3Config map[string]interfac
 // Creates AS3 adc only for tenants with updated configuration
 func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest) agentPostConfig {
 	as3cfg := agentPostConfig{
-		id:                    rsConfig.reqId,
+		reqMeta:               rsConfig.reqMeta,
 		tenantResponseMap:     make(map[string]tenantResponse),
-		failedTenants:         make(map[string]struct{}),
+		failedTenants:         make(map[string]tenantResponse),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 	}
 	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig) {
@@ -756,7 +756,7 @@ func (am *AS3Handler) updateTenantCache(cfg *agentPostConfig) {
 	 Locks to update the map will be acquired in the calling method
 	*/
 	// re-initialize the failed tenants map
-	cfg.failedTenants = make(map[string]struct{})
+	cfg.failedTenants = make(map[string]tenantResponse)
 	for tenant, resp := range cfg.tenantResponseMap {
 		if resp.agentResponseCode == 200 {
 			// update the post manager's tenant cache
@@ -768,7 +768,7 @@ func (am *AS3Handler) updateTenantCache(cfg *agentPostConfig) {
 			}
 		} else {
 			// update the failed tenants list
-			cfg.failedTenants[tenant] = struct{}{}
+			cfg.failedTenants[tenant] = resp
 		}
 	}
 }

@@ -17,7 +17,7 @@ func (agent *Agent) gtmWorker() {
 		}
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("%v[%v]%v No tenants found in request", agent.apiType, getRequestPrefix(agentConfig.id), agent.postManagerPrefix)
+			log.Infof("%v[%v]%v No tenants found in request", agent.apiType, getRequestPrefix(agentConfig.reqMeta.id), agent.postManagerPrefix)
 			continue
 		}
 

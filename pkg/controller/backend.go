@@ -88,15 +88,15 @@ func (agent *Agent) agentWorker() {
 		select {
 		case agentConfig = <-agent.LTM.PostManager.postChan:
 
-			log.Infof("%v[%v] Processing request", getRequestPrefix(agentConfig.id), agent.apiType)
+			log.Infof("%v[%v] Processing request", getRequestPrefix(agentConfig.reqMeta.id), agent.apiType)
 
 		case <-time.After(1 * time.Microsecond):
 		}
 
-		log.Infof("%v[%v] creating a new AS3 manifest", getRequestPrefix(agentConfig.id), agent.apiType)
+		log.Infof("%v[%v] creating a new AS3 manifest", getRequestPrefix(agentConfig.reqMeta.id), agent.apiType)
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("%v[%v] No tenants found in request", getRequestPrefix(agentConfig.id), agent.apiType)
+			log.Infof("%v[%v] No tenants found in request", getRequestPrefix(agentConfig.reqMeta.id), agent.apiType)
 			// notify resourceStatusUpdate response handler on successful tenant update
 			agent.respChan <- agentConfig
 			continue

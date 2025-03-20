@@ -174,7 +174,9 @@ var _ = Describe("PostManager", func() {
 		mockPM.BIGIPUsername = "testuser"
 		mockPM.BIGIPPassword = "testpass"
 		cfg = &agentPostConfig{
-			id:        1,
+			reqMeta: requestMeta{
+				id: 1,
+			},
 			as3APIURL: "https://127.0.0.1/mgmt/shared/appsvcs/declare",
 			data:      `{"class": "AS3"}`,
 		}

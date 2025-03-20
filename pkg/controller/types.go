@@ -882,7 +882,6 @@ type (
 		Type              string
 		httpClientMetrics bool
 		stopChan          chan struct{}
-		BigIpAddress      string
 		PythonDriverPID   int
 		StopChan          chan interface{}
 	}
@@ -930,8 +929,6 @@ type (
 	}
 
 	AS3Handler struct {
-		AS3VersionInfo      as3VersionInfo
-		bigIPAS3Version     float64
 		postManagerPrefix   string
 		cachedTenantDeclMap map[string]as3Tenant
 		userAgent           string
@@ -951,8 +948,6 @@ type (
 		httpClient *http.Client
 		PostParams
 		firstPost         bool
-		AS3VersionInfo    as3VersionInfo
-		bigIPAS3Version   float64
 		postManagerPrefix string
 		postChan          chan *agentPostConfig
 		respChan          chan *agentPostConfig
@@ -1030,9 +1025,10 @@ type (
 	// AS3 version struct
 
 	as3VersionInfo struct {
-		as3Version       float64
+		as3Version       string
 		as3SchemaVersion string
 		as3Release       string
+		bigIPAS3Version  float64
 	}
 
 	as3Declaration string

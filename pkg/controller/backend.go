@@ -19,7 +19,6 @@ package controller
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
@@ -150,29 +149,26 @@ func (ps *PostToFileStrategy) Post(config ResourceConfigRequest) {
 	}
 }
 
-func (aw *AgentWorker) PostGTMConfig(rsConfig ResourceConfigRequest) {
-	agentConfig := agentPostConfig{
-		data:      string(aw.createTenantDeclaration(rsConfig)),
-		id:        rsConfig.reqId,
-		as3APIURL: aw.LTM.APIHandler.getAPIURL([]string{}),
-	}
-	aw.PostStrategy.Post(agentConfig)
-}
-
-// can you write a function which converts the agentPostConfig to ResourceConfigRequest
-
-func (aw *AgentWorker) PostLTMConfig(config Configurable) {
+// function to the post the config to the respective bigip
+func (aw *AgentWorker) PostConfig(config Configurable) {
 	switch v := config.(type) {
 	case agentPostConfig:
 		fmt.Println("Posting As3Config:", v.data)
 		aw.PostStrategy.Post(v)
 	case ResourceConfigRequest:
 		fmt.Printf("Posting ResourceConfigRequest: %+v\n", v)
-		// Convert ResourceConfigRequest to as3Config
-		agentConfig := agentPostConfig{
-			data:      string(aw.createTenantDeclaration(v)),
-			id:        v.reqId,
-			as3APIURL: aw.LTM.APIHandler.getAPIURL([]string{}),
+		var agentConfig agentPostConfig
+		if aw.postManagerPrefix != gtmPostmanagerPrefix {
+			// Convert ResourceConfigRequest to as3Config
+			agentConfig = aw.LTM.APIHandler.createAPIConfig(v)
+			agentConfig.as3APIURL = aw.LTM.APIHandler.getAPIURL([]string{})
+			// add gtm config to the cccl worker if ccclGTMAgent is true
+			if aw.ccclGTMAgent {
+				aw.PostGTMConfig(v)
+			}
+		} else {
+			agentConfig = aw.GTM.APIHandler.createAPIConfig(v)
+			agentConfig.as3APIURL = aw.GTM.APIHandler.getAPIURL([]string{})
 		}
 		aw.PostStrategy.Post(agentConfig)
 	default:
@@ -296,10 +292,6 @@ func (aw *AgentWorker) agentWorker() {
 			_ = <-time.After(time.Duration(aw.LTM.AS3PostDelay) * time.Second)
 		}
 
-		// If there are no retries going on in parallel, acquiring lock will be straight forward.
-		// Otherwise, we will wait for other workers to complete its current iteration
-		aw.declUpdate.Lock()
-
 		// Fetch the latest config from channel
 		select {
 		case agentConfig = <-aw.LTM.PostManager.postChan:
@@ -311,11 +303,10 @@ func (aw *AgentWorker) agentWorker() {
 
 		log.Infof("%v[AS3] creating a new AS3 manifest", getRequestPrefix(agentConfig.id))
 
-		if len(aw.LTM.incomingTenantDeclMap) == 0 {
+		if len(agentConfig.incomingTenantDeclMap) == 0 {
 			log.Infof("%v[AS3] No tenants found in request", getRequestPrefix(agentConfig.id))
 			// notify resourceStatusUpdate response handler for resourcestatus update
 			aw.notifyRscStatusHandler(agentConfig.id, false)
-			aw.declUpdate.Unlock()
 			continue
 		}
 
@@ -325,7 +316,6 @@ func (aw *AgentWorker) agentWorker() {
 			if aw.LTM.PrimaryClusterHealthProbeParams.EndPointType != "" {
 				if aw.LTM.PrimaryClusterHealthProbeParams.statusRunning {
 					// dont post the declaration
-					aw.declUpdate.Unlock()
 					continue
 				} else {
 					if aw.LTM.PrimaryClusterHealthProbeParams.statusChanged {
@@ -336,78 +326,13 @@ func (aw *AgentWorker) agentWorker() {
 				}
 			}
 		}
-
-		var updatedTenants []string
-		// initializing the priority tenants
-		var priorityTenants []string
+		aw.LTM.publishConfig(&agentConfig)
 		/*
-			For every incoming post request, create a new tenantResponseMap.
-			tenantResponseMap will be updated with responses during postConfig.
-			It holds the updatedTenants in the current iteration's as keys.
-			This is needed to update response code in cases (202/404) when httpResponse body does not contain the tenant details.
+			If there are any tenants with 201 response code,
+			poll for its status continuously and block incoming requests
 		*/
-		aw.LTM.tenantResponseMap = make(map[string]tenantResponse)
-
-		for tenant := range aw.LTM.incomingTenantDeclMap {
-			// CIS with AS3 doesnt allow write to Common partition.So objects in common partition
-			// should not be updated or deleted by CIS. So removing from tenant map
-			if tenant != "Common" {
-				if _, ok := aw.LTM.tenantPriorityMap[tenant]; ok {
-					priorityTenants = append(priorityTenants, tenant)
-				} else {
-					updatedTenants = append(updatedTenants, tenant)
-				}
-				aw.LTM.tenantResponseMap[tenant] = tenantResponse{}
-			}
-		}
-
-		// Update the priority tenants first
-		if len(priorityTenants) > 0 {
-			aw.postTenantsDeclaration(as3Declaration(agentConfig.data), agentConfig.id, priorityTenants)
-		}
-		// Updating the remaining tenants
-		if len(updatedTenants) > 0 {
-			aw.postTenantsDeclaration(as3Declaration(agentConfig.data), agentConfig.id, updatedTenants)
-		}
-
-		aw.declUpdate.Unlock()
+		aw.LTM.APIHandler.pollTenantStatus(&agentConfig)
 	}
-}
-
-// Post the tenants declaration
-func (agent *Agent) postTenantsDeclaration(decl as3Declaration, reqId int, tenants []string) {
-	cfg := agentConfig{
-		data:      string(decl),
-		as3APIURL: agent.LTM.APIHandler.getAPIURL(tenants),
-		id:        reqId,
-	}
-
-	agent.LTM.publishConfig(cfg)
-
-	// Don't update ARPs if disableARP is set to true
-	//if !agent.disableARP {
-	//	go agent.updateARPsForPoolMembers(rsConfig)
-	//}
-
-	agent.LTM.updateTenantResponseMap(true)
-
-	//if len(agent.retryTenantDeclMap) > 0 {
-	//	// Activate retry
-	//	select {
-	//	case agent.retryChan <- struct{}{}:
-	//	case <-agent.retryChan:
-	//		agent.retryChan <- struct{}{}
-	//	}
-	//}
-
-	/*
-		If there are any tenants with 201 response code,
-		poll for its status continuously and block incoming requests
-	*/
-	agent.LTM.pollTenantStatus(true)
-
-	// notify resourceStatusUpdate response handler on successful tenant update
-	agent.notifyRscStatusHandler(cfg.id, true)
 }
 
 func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
@@ -463,62 +388,6 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	}
 }
 
-// retryWorker blocks on retryChan
-// whenever it gets unblocked, retries failed declarations and polls for accepted tenant statuses
-//func (agent *Agent) retryWorker() {
-//
-//	/*
-//		retryWorker runs as a goroutine. It is idle until an arrives at retryChan.
-//		retryTenantDeclMal holds all information about tenant adc configuration and response codes.
-//
-//		Once retryChan is signalled, retryWorker posts tenant declarations and/or polls for accepted tenants' statuses continuously until it succeeds
-//		Locks are used to block retries if an incoming request arrives at agentWorker.
-//
-//		For each iteration, retryWorker tries to acquire agent.declUpdate lock.
-//		During an ongoing agentWorker's activity, retryWorker tries to wait until agent.declUpdate lock is acquired
-//		Similarly, during an ongoing retry, agentWorker waits for graceful termination of ongoing iteration - i.e., until agent.declUpdate is unlocked
-//
-//	*/
-//
-//	for range agent.retryChan {
-//
-//		for len(agent.retryTenantDeclMap) != 0 {
-//			// Ignoring timeouts for custom errors
-//			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
-//			<-time.After(timeoutMedium)
-//			if agent.HAMode {
-//				// if endPoint is not empty -> cis is running in secondary mode
-//				// check if the primary cis is up and running
-//				if agent.PrimaryClusterHealthProbeParams.EndPointType != "" {
-//					if agent.PrimaryClusterHealthProbeParams.statusRunning {
-//						agent.retryTenantDeclMap = make(map[string]*tenantParams)
-//						// dont post the declaration
-//						continue
-//					}
-//				}
-//			}
-//
-//			agent.declUpdate.Lock()
-//
-//			// If we had a delay in acquiring lock, re-check if we have any tenants to be retried
-//			if len(agent.retryTenantDeclMap) == 0 {
-//				agent.declUpdate.Unlock()
-//				break
-//			}
-//
-//			//If there are any 201 tenants, poll for its status
-//			agent.pollTenantStatus(false)
-//
-//			//If there are any failed tenants, retry posting them
-//			agent.retryFailedTenant(agent.userAgent)
-//
-//			agent.notifyRscStatusHandler(0, false)
-//
-//			agent.declUpdate.Unlock()
-//		}
-//	}
-//}
-
 func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})
@@ -559,201 +428,6 @@ func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 	}
 }
 
-// Creates AS3 adc only for tenants with updated configuration
-func (agent *Agent) createTenantDeclaration(config ResourceConfigRequest) as3Declaration {
-	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
-	agent.LTM.incomingTenantDeclMap = make(map[string]as3Tenant)
-	agent.LTM.tenantPriorityMap = make(map[string]int)
-	for tenant, cfg := range agent.createLTMAndGTMConfigADC(config) {
-		if !reflect.DeepEqual(cfg, agent.LTM.cachedTenantDeclMap[tenant]) ||
-			(agent.LTM.PrimaryClusterHealthProbeParams.EndPoint != "" && agent.LTM.PrimaryClusterHealthProbeParams.statusChanged) {
-			agent.LTM.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
-		} else {
-			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
-			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
-			// delete entry from retryTenantDeclMap if any
-			delete(agent.LTM.retryTenantDeclMap, tenant)
-			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
-			if agent.LTM.PrimaryClusterHealthProbeParams.EndPoint == "" || !agent.LTM.PrimaryClusterHealthProbeParams.statusRunning {
-				log.Debugf("[AS3] No change in %v tenant configuration", tenant)
-			}
-		}
-	}
-
-	return agent.LTM.APIHandler.createAPIDeclaration(agent.LTM.incomingTenantDeclMap, agent.userAgent)
-}
-
-func (agent *Agent) createLTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
-	adc := agent.createLTMConfigADC(config)
-	if !agent.ccclGTMAgent && agent.GTM.PostManager == nil {
-		adc = agent.createGTMConfigADC(config, adc)
-	}
-	return adc
-}
-
-func (agent *Agent) createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
-	if len(config.gtmConfig) == 0 {
-		sharedApp := as3Application{}
-		sharedApp["class"] = "Application"
-		sharedApp["template"] = "shared"
-		cisLabel := agent.Partition
-		tenantDecl := as3Tenant{
-			"class":              "Tenant",
-			as3SharedApplication: sharedApp,
-			"label":              cisLabel,
-		}
-		adc[DEFAULT_GTM_PARTITION] = tenantDecl
-
-		return adc
-	}
-
-	for pn, gtmPartitionConfig := range config.gtmConfig {
-		var tenantDecl as3Tenant
-		var sharedApp as3Application
-
-		if obj, ok := adc[pn]; ok {
-			tenantDecl = obj.(as3Tenant)
-			sharedApp = tenantDecl[as3SharedApplication].(as3Application)
-		} else {
-			sharedApp = as3Application{}
-			sharedApp["class"] = "Application"
-			sharedApp["template"] = "shared"
-
-			tenantDecl = as3Tenant{
-				"class":              "Tenant",
-				as3SharedApplication: sharedApp,
-			}
-		}
-
-		for domainName, wideIP := range gtmPartitionConfig.WideIPs {
-
-			gslbDomain := as3GLSBDomain{
-				Class:              "GSLB_Domain",
-				DomainName:         wideIP.DomainName,
-				RecordType:         wideIP.RecordType,
-				LBMode:             wideIP.LBMethod,
-				PersistenceEnabled: wideIP.PersistenceEnabled,
-				PersistCidrIPv4:    wideIP.PersistCidrIPv4,
-				PersistCidrIPv6:    wideIP.PersistCidrIPv6,
-				TTLPersistence:     wideIP.TTLPersistence,
-				Pools:              make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
-			}
-			if wideIP.ClientSubnetPreferred != nil {
-				gslbDomain.ClientSubnetPreferred = wideIP.ClientSubnetPreferred
-			}
-			for _, pool := range wideIP.Pools {
-				gslbPool := as3GSLBPool{
-					Class:          "GSLB_Pool",
-					RecordType:     pool.RecordType,
-					LBMode:         pool.LBMethod,
-					LBModeFallback: pool.LBModeFallBack,
-					Members:        make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
-					Monitors:       make([]as3ResourcePointer, 0, len(pool.Monitors)),
-				}
-
-				for _, mem := range pool.Members {
-					gslbPool.Members = append(gslbPool.Members, as3GSLBPoolMemberA{
-						Enabled: true,
-						Server: as3ResourcePointer{
-							BigIP: pool.DataServer,
-						},
-						VirtualServer: mem,
-					})
-				}
-
-				for _, mon := range pool.Monitors {
-					gslbMon := as3GSLBMonitor{
-						Class:    "GSLB_Monitor",
-						Interval: mon.Interval,
-						Type:     mon.Type,
-						Send:     mon.Send,
-						Receive:  mon.Recv,
-						Timeout:  mon.Timeout,
-					}
-
-					gslbPool.Monitors = append(gslbPool.Monitors, as3ResourcePointer{
-						Use: mon.Name,
-					})
-
-					sharedApp[mon.Name] = gslbMon
-				}
-				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name, Ratio: pool.Ratio})
-				sharedApp[pool.Name] = gslbPool
-			}
-
-			sharedApp[strings.Replace(domainName, "*", "wildcard", -1)] = gslbDomain
-		}
-		adc[pn] = tenantDecl
-	}
-
-	return adc
-}
-
-func (agent *Agent) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
-	adc := as3ADC{}
-	cisLabel := agent.Partition
-
-	if agent.HAMode {
-		// Delete the tenant which is monitored by CIS and current request does not contain it, if it's the first post or
-		// if it's secondary CIS and primary CIS is down and statusChanged is true
-		if agent.LTM.firstPost ||
-			(agent.PrimaryClusterHealthProbeParams.EndPoint != "" && !agent.PrimaryClusterHealthProbeParams.statusRunning &&
-				agent.PrimaryClusterHealthProbeParams.statusChanged) {
-			agent.LTM.removeDeletedTenantsForBigIP(&config, cisLabel)
-			agent.LTM.firstPost = false
-		}
-	}
-
-	as3 := agent.LTM.APIHandler.getApiHandler()
-
-	for tenant := range agent.LTM.cachedTenantDeclMap {
-		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
-			// Remove partition
-			adc[tenant] = as3.getDeletedTenantDeclaration(agent.Partition, tenant, cisLabel, &config)
-		}
-	}
-	for tenantName, partitionConfig := range config.ltmConfig {
-		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
-		partitionConfig.PriorityMutex.RLock()
-		if *(partitionConfig.Priority) > 0 {
-			agent.LTM.tenantPriorityMap[tenantName] = *(partitionConfig.Priority)
-		}
-		partitionConfig.PriorityMutex.RUnlock()
-		if len(partitionConfig.ResourceMap) == 0 {
-			// Remove partition
-			adc[tenantName] = as3.getDeletedTenantDeclaration(agent.Partition, tenantName, cisLabel, &config)
-			continue
-		}
-		// Create Shared as3Application object
-		sharedApp := as3Application{}
-		sharedApp["class"] = "Application"
-		sharedApp["template"] = "shared"
-
-		as3.processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName,
-			config.poolMemberType)
-
-		// Process CustomProfiles
-		as3.processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		// Process Profiles
-		as3.processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		as3.processIRulesForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		as3.processDataGroupForAS3(partitionConfig.ResourceMap, sharedApp)
-
-		// Create AS3 Tenant
-		tenantDecl := as3Tenant{
-			"class":              "Tenant",
-			"defaultRouteDomain": config.defaultRouteDomain,
-			as3SharedApplication: sharedApp,
-			"label":              cisLabel,
-		}
-		adc[tenantName] = tenantDecl
-	}
-	return adc
-}
-
 // addPersistenceMethod adds persistence methods in the service declaration
 func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 	if len(persistenceProfile) == 0 {
@@ -773,8 +447,4 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 			),
 		}
 	}
-}
-
-func (agent *Agent) isGTMTenant(partition string) bool {
-	return partition == DEFAULT_GTM_PARTITION
 }

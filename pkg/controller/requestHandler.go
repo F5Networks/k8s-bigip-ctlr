@@ -43,19 +43,17 @@ func (req *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) 
 
 func (req *RequestHandler) requestHandler() {
 	for rsConfig := range req.reqChan {
-		worker := req.AgentWorkers[PrimaryBigIP]
 
-		// Post GTM config if enabled for either mode
-		if worker.ccclGTMAgent || worker.isGTMOnSeparateServer() {
-			worker.PostGTMConfig(rsConfig)
+		if gtmWorker, ok := req.AgentWorkers[GTMBigIP]; ok {
+			gtmWorker.PostConfig(rsConfig)
 		}
 
 		// Post LTM config based on HA mode
 		if req.HAMode {
-			req.AgentWorkers[PrimaryBigIP].PostLTMConfig(rsConfig)
-			req.AgentWorkers[SecondaryBigIP].PostLTMConfig(rsConfig)
+			req.AgentWorkers[PrimaryBigIP].PostConfig(rsConfig)
+			req.AgentWorkers[SecondaryBigIP].PostConfig(rsConfig)
 		} else {
-			worker.PostLTMConfig(rsConfig)
+			req.AgentWorkers[PrimaryBigIP].PostConfig(rsConfig)
 		}
 	}
 }

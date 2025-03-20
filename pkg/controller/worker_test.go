@@ -99,9 +99,9 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.Agent = &Agent{
 			respChan: make(chan resourceStatusMeta, 1),
 			PostManager: &PostManager{
-				postChan:            make(chan ResourceConfigRequest, 1),
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				retryTenantDeclMap:  make(map[string]*tenantParams),
+				postChan: make(chan agentPostConfig, 1),
+				//cachedTenantDeclMap: make(map[string]as3Tenant),
+				//retryTenantDeclMap:  make(map[string]*tenantParams),
 				PostParams: PostParams{
 					BIGIPURL: "10.10.10.1",
 				},
@@ -3944,9 +3944,9 @@ extendedRouteSpec:
 			mockCtlr.Agent = &Agent{
 				respChan: make(chan resourceStatusMeta, 1),
 				PostManager: &PostManager{
-					retryTenantDeclMap:  make(map[string]*tenantParams),
-					postChan:            make(chan ResourceConfigRequest, 1),
-					cachedTenantDeclMap: make(map[string]as3Tenant),
+					//retryTenantDeclMap:  make(map[string]*tenantParams),
+					postChan: make(chan agentPostConfig, 1),
+					// cachedTenantDeclMap: make(map[string]as3Tenant),
 					PostParams: PostParams{
 						BIGIPURL: "10.10.10.1",
 					},

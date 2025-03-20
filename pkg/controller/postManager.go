@@ -41,8 +41,6 @@ func NewPostManager(params AgentParams, kind string) *PostManager {
 	pm := &PostManager{
 		firstPost:                       true,
 		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
-		retryTenantDeclMap:              make(map[string]*tenantParams),
-		tenantPriorityMap:               make(map[string]int),
 		// fix this below the postChan
 
 		postChan: make(chan agentPostConfig),

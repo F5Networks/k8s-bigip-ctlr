@@ -345,9 +345,9 @@ func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 		reqStatusMeta: rscUpdateMeta,
 	}
 
-	for tenant := range agent.LTM.retryTenantDeclMap {
-		rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
-	}
+	//for tenant := range agent.LTM.retryTenantDeclMap {
+	//	rscUpdateMeta.failedTenants[tenant] = agent.retryTenantDeclMap[tenant].tenantResponse
+	//}
 	// If triggerred from retry block, process the previous successful request completely
 	if !overwriteCfg {
 		agent.respChan <- &agentPostConfig

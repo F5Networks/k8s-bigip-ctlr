@@ -1000,16 +1000,11 @@ type (
 		AS3VersionInfo                  as3VersionInfo
 		bigIPAS3Version                 float64
 		postManagerPrefix               string
-		// this map stores the tenant priority map
-		tenantPriorityMap map[string]int
-		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
-		retryTenantDeclMap map[string]*tenantParams
-		//postChan           chan ResourceConfigRequest
-		postChan          chan agentPostConfig
-		respChan          chan resourceStatusMeta
-		httpClientMetrics bool
-		retryChan         chan struct{}
-		apiType           string
+		postChan                        chan agentPostConfig
+		respChan                        chan resourceStatusMeta
+		httpClientMetrics               bool
+		retryChan                       chan struct{}
+		apiType                         string
 	}
 
 	PrimaryClusterHealthProbeParams struct {

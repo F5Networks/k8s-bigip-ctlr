@@ -19,6 +19,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 	}
 	if (agentParams.PrimaryParams != PostParams{}) {
 		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, nil)
+		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
 		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, nil)
@@ -61,7 +62,7 @@ func (req *RequestHandler) requestHandler() {
 
 		// Post LTM config based on HA mode
 		if req.HAMode {
-			req.SecondaryBigIPWorker.PostConfig(rsConfig)
+			req.PrimaryBigIPWorker.PostConfig(rsConfig)
 			req.SecondaryBigIPWorker.PostConfig(rsConfig)
 		} else {
 			req.PrimaryBigIPWorker.PostConfig(rsConfig)
@@ -111,7 +112,6 @@ func (req *RequestHandler) NewAgentWorker(kind string, appServicesChecker func()
 			aw.Stop()
 			OsExit(1)
 		}
-		go aw.agentWorker()
 	default:
 		log.Errorf("Invalid Agent kind: %s", kind)
 		OsExit(1)

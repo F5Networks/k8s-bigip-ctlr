@@ -845,16 +845,10 @@ type (
 )
 
 type (
-	GTMPostManager struct {
-		*PostManager
-		Partition string
-	}
-
 	RequestHandler struct {
 		PrimaryBigIPWorker   *AgentWorker
 		SecondaryBigIPWorker *AgentWorker
 		GTMBigIPWorker       *AgentWorker
-		GTMPostManager       *GTMPostManager
 		resources            *ResourceStore
 		reqChan              chan ResourceConfigRequest
 		respChan             chan *agentPostConfig
@@ -864,13 +858,6 @@ type (
 		ccclGTMAgent bool
 		disableARP   bool
 		HAMode       bool
-	}
-
-	// Define an interface for configuration types
-	Configurable interface{}
-
-	PostConfigStrategy interface {
-		Post(config agentPostConfig)
 	}
 
 	agentPostConfig struct {
@@ -900,8 +887,6 @@ type (
 		stopChan          chan struct{}
 		BigIpAddress      string
 		PythonDriverPID   int
-		postChan          chan agentPostConfig
-		PostStrategy      PostConfigStrategy
 		StopChan          chan interface{}
 	}
 
@@ -923,7 +908,6 @@ type (
 		ccclGTMAgent                    bool
 		disableARP                      bool
 		HAMode                          bool
-		GTMPostManager                  *GTMPostManager
 	}
 
 	BaseAPIHandler struct {
@@ -969,12 +953,6 @@ type (
 		ApiType            string
 		HAMode             bool
 	}
-	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
-	// other API types like GTM. The current hierarchy allows:
-	// 1. Common HTTP posting capabilities via PostManager
-	// 2. API-specific handling via apiHandler interface
-	// 3. Specialized GTM posting via GTMPostManager
-	// This separation of concerns is appropriate for the controller architecture.
 
 	AS3Handler struct {
 		AS3VersionInfo      as3VersionInfo

@@ -14,12 +14,12 @@ var _ = Describe("Validation Tests", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		})
-		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 	})
 
 	Describe("Validating ExtendedServiceReference", func() {
@@ -28,7 +28,7 @@ var _ = Describe("Validation Tests", func() {
 			clusterConfigs := make(map[string]*ClusterConfig)
 			clusterConfigs["cluster1"] = &ClusterConfig{}
 			clusterConfigs["cluster2"] = &ClusterConfig{}
-			mockCtlr.MultiClusterHandler = &ClusterHandler{
+			mockCtlr.multiClusterHandler = &ClusterHandler{
 				ClusterConfigs:    clusterConfigs,
 				HAPairClusterName: "cluster2",
 				LocalClusterName:  "cluster1",
@@ -75,7 +75,7 @@ var _ = Describe("Validation Tests", func() {
 				ServicePort: intstr.IntOrString{IntVal: 80},
 			}, true)).Error().To(Equal(fmt.Errorf("cluster config for the cluster cluster3 is not provided in extended configmap")))
 			// Service running in non HA cluster
-			mockCtlr.MultiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{}
+			mockCtlr.multiClusterHandler.ClusterConfigs["cluster3"] = &ClusterConfig{}
 			Expect(mockCtlr.checkValidMultiClusterService(cisapiv1.MultiClusterServiceReference{
 				ClusterName: "cluster3",
 				Namespace:   "namespace1",

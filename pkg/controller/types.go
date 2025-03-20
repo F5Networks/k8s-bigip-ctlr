@@ -90,7 +90,7 @@ type (
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		MultiClusterHandler         *ClusterHandler
+		multiClusterHandler         *ClusterHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
@@ -191,7 +191,6 @@ type (
 	Params struct {
 		Config         *rest.Config
 		Namespaces     []string
-		RequestHandler *RequestHandler
 		NamespaceLabel string
 		Partition      string
 		// Agent                       *Agent
@@ -846,9 +845,9 @@ type (
 
 type (
 	RequestHandler struct {
-		PrimaryBigIPWorker              *AgentWorker
-		SecondaryBigIPWorker            *AgentWorker
-		GTMBigIPWorker                  *AgentWorker
+		PrimaryBigIPWorker              *Agent
+		SecondaryBigIPWorker            *Agent
+		GTMBigIPWorker                  *Agent
 		resources                       *ResourceStore
 		reqChan                         chan ResourceConfigRequest
 		respChan                        chan *agentPostConfig
@@ -876,13 +875,17 @@ type (
 		reqStatusMeta         resourceStatusMeta
 	}
 
-	// PostToChannelStrategy posts config to a channel.
-	PostToChannelStrategy struct {
-		postChan chan agentPostConfig
-	}
-
-	AgentWorker struct {
-		*Agent
+	Agent struct {
+		*APIHandler
+		*PostManager
+		Partition         string
+		ConfigWriter      writer.Writer
+		EventChan         chan interface{}
+		userAgent         string
+		HttpAddress       string
+		EnableIPV6        bool
+		ccclGTMAgent      bool
+		disableARP        bool
 		Type              string
 		httpClientMetrics bool
 		stopChan          chan struct{}
@@ -891,28 +894,9 @@ type (
 		StopChan          chan interface{}
 	}
 
-	PostToFileStrategy struct {
-		ConfigWriter writer.Writer
-	}
-
-	Agent struct {
-		*APIHandler
-		*PostManager
-		Partition       string
-		ConfigWriter    writer.Writer
-		EventChan       chan interface{}
-		PythonDriverPID int
-		userAgent       string
-		HttpAddress     string
-		EnableIPV6      bool
-		ccclGTMAgent    bool
-		disableARP      bool
-	}
-
 	BaseAPIHandler struct {
 		apiType    string
 		APIHandler ApiTypeHandlerInterface
-		Partition  string
 		*PostManager
 	}
 

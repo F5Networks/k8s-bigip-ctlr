@@ -195,7 +195,7 @@ func getRequestPrefix(id int) string {
 // function for returning the tenants from URI
 func getTenantsFromUri(uri string) string {
 	res := strings.Split(uri, "declare/")
-	if len(res[0]) == 0 {
+	if len(res) < 2 {
 		return "all"
 	}
 	return res[1]

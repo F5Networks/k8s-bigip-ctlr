@@ -961,14 +961,13 @@ func initController(
 		agentParams.DisableARP = false
 	}
 
-	//agent := controller.NewAgent(agentParams)
-
 	var globalSpecConfigMap *string
 	if *extendedSpecConfigmap != "" {
 		globalSpecConfigMap = extendedSpecConfigmap
 	} else {
 		globalSpecConfigMap = routeSpecConfigmap
 	}
+
 	ctlr := controller.NewController(
 		controller.Params{
 			Config:                      config,
@@ -1000,6 +999,7 @@ func initController(
 		},
 		true,
 		agentParams,
+		nil,
 	)
 	return ctlr
 }
@@ -1126,7 +1126,6 @@ func main() {
 		ctlr.TeemData = td
 		if !(*disableTeems) {
 			key, err := ctlr.RequestHandler.PrimaryBigIPWorker.LTM.GetBigipRegKey()
-			//key, err := ctlr.Agent.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}

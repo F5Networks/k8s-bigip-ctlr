@@ -24,13 +24,13 @@ func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, st
 	} else {
 		vsStatus.Error = fmt.Sprintf("Missing label f5cr on VS %v/%v", vs.Namespace, vs.Name)
 	}
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: vsStatus,
 		ResourceKey: resourceRef{
 			kind:        VirtualServer,
 			name:        vs.Name,
 			namespace:   vs.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp: metav1.Now(),
 	}
@@ -49,13 +49,13 @@ func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, 
 	} else {
 		tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
 	}
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: tsStatus,
 		ResourceKey: resourceRef{
 			kind:        TransportServer,
 			name:        ts.Name,
 			namespace:   ts.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp: metav1.Now(),
 	}
@@ -74,13 +74,13 @@ func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, stat
 	} else {
 		ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
 	}
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: ilStatus,
 		ResourceKey: resourceRef{
 			kind:        IngressLink,
 			name:        il.Name,
 			namespace:   il.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp: metav1.Now(),
 	}
@@ -100,8 +100,8 @@ func (ctlr *Controller) updateLBServiceStatus(svc *v1.Service, ip string, cluste
 		} else if svc.Status.LoadBalancer.Ingress[0].IP != ip {
 			svc.Status.LoadBalancer.Ingress[0] = lbIngress
 		}
-		if config := ctlr.MultiClusterHandler.getClusterConfig(clusterName); config != nil {
-			ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+		if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
+			ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 				ResourceObj: svc.Status,
 				ResourceKey: resourceRef{
 					kind:        Service,
@@ -130,8 +130,8 @@ func (ctlr *Controller) updateLBServiceStatus(svc *v1.Service, ip string, cluste
 			// If status of LB needs to be cleaned then either the service LB's key fields have been updated for which
 			// CIS might have created delete and create events is  SvcLB resource for CIS, or it's been actually deleted
 			// In both the cases the case the status cache needs to be cleaned or else the stale entry will remain forever
-			if config := ctlr.MultiClusterHandler.getClusterConfig(clusterName); config != nil {
-				ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+			if config := ctlr.multiClusterHandler.getClusterConfig(clusterName); config != nil {
+				ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 					ResourceObj: svc.Status,
 					ResourceKey: resourceRef{
 						kind:        Service,
@@ -162,7 +162,7 @@ func (ctlr *Controller) updateLBServiceStatusForVSorTS(virtual interface{}, vsAd
 		var svcNamespace string
 		if ctlr.multiClusterMode == "" {
 			for _, pool := range vs.Spec.Pools {
-				if ctlr.isAddingPoolRestricted(ctlr.MultiClusterHandler.LocalClusterName) {
+				if ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
 					continue
 				}
 				if pool.ServiceNamespace != "" {
@@ -170,9 +170,9 @@ func (ctlr *Controller) updateLBServiceStatusForVSorTS(virtual interface{}, vsAd
 				} else {
 					svcNamespace = vs.Namespace
 				}
-				svc := ctlr.GetService(svcNamespace, pool.Service, ctlr.MultiClusterHandler.LocalClusterName)
+				svc := ctlr.GetService(svcNamespace, pool.Service, ctlr.multiClusterHandler.LocalClusterName)
 				if svc != nil {
-					ctlr.updateLBServiceStatus(svc, vsAddress, ctlr.MultiClusterHandler.LocalClusterName, setStatus)
+					ctlr.updateLBServiceStatus(svc, vsAddress, ctlr.multiClusterHandler.LocalClusterName, setStatus)
 				}
 			}
 			return
@@ -207,9 +207,9 @@ func (ctlr *Controller) updateLBServiceStatusForVSorTS(virtual interface{}, vsAd
 				} else {
 					svcNamespace = vs.Namespace
 				}
-				for cluster, _ := range ctlr.MultiClusterHandler.ClusterConfigs {
+				for cluster, _ := range ctlr.multiClusterHandler.ClusterConfigs {
 					if ctlr.isAddingPoolRestricted(cluster) ||
-						(isActiveStandByMode && cluster == ctlr.MultiClusterHandler.HAPairClusterName) {
+						(isActiveStandByMode && cluster == ctlr.multiClusterHandler.HAPairClusterName) {
 						continue
 					}
 					svc := ctlr.GetService(svcNamespace, pool.Service, cluster)
@@ -229,12 +229,12 @@ func (ctlr *Controller) updateLBServiceStatusForVSorTS(virtual interface{}, vsAd
 		}
 		// LB Service Status update for Non multiCluster mode
 		if ctlr.multiClusterMode == "" {
-			if ctlr.isAddingPoolRestricted(ctlr.MultiClusterHandler.LocalClusterName) {
+			if ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
 				return
 			}
-			svc := ctlr.GetService(svcNamespace, ts.Spec.Pool.Service, ctlr.MultiClusterHandler.LocalClusterName)
+			svc := ctlr.GetService(svcNamespace, ts.Spec.Pool.Service, ctlr.multiClusterHandler.LocalClusterName)
 			if svc != nil {
-				ctlr.updateLBServiceStatus(svc, vsAddress, ctlr.MultiClusterHandler.LocalClusterName, setStatus)
+				ctlr.updateLBServiceStatus(svc, vsAddress, ctlr.multiClusterHandler.LocalClusterName, setStatus)
 			}
 			return
 		}
@@ -255,9 +255,9 @@ func (ctlr *Controller) updateLBServiceStatusForVSorTS(virtual interface{}, vsAd
 		} else {
 			// LB Service Status update for MultiCluster Active-Active/Active-Standby/Ratio
 			isActiveStandByMode := ctlr.discoveryMode == StandBy
-			for cluster, _ := range ctlr.MultiClusterHandler.ClusterConfigs {
+			for cluster, _ := range ctlr.multiClusterHandler.ClusterConfigs {
 				if ctlr.isAddingPoolRestricted(cluster) ||
-					(isActiveStandByMode && cluster == ctlr.MultiClusterHandler.HAPairClusterName) {
+					(isActiveStandByMode && cluster == ctlr.multiClusterHandler.HAPairClusterName) {
 					continue
 				}
 				svc := ctlr.GetService(svcNamespace, ts.Spec.Pool.Service, cluster)
@@ -317,13 +317,13 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 	})
 	// updating to the new status
 	route.Status.Ingress = routeStatusIngress
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: route.Status,
 		ResourceKey: resourceRef{
 			kind:        Route,
 			name:        route.Name,
 			namespace:   route.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp: metav1.Now(),
 	}
@@ -332,10 +332,10 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 // remove the route admit status for routes which are not monitored by CIS anymore
 func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 	// Get the list of all unwatched Routes from all NS.
-	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	if clusterConfig == nil {
 		log.Errorf("Error while clearing status for all the unmonitored Routes: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.MultiClusterHandler.LocalClusterName)
+			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
 		return
 	}
 	unmonitoredOptions := metav1.ListOptions{
@@ -383,13 +383,13 @@ func (ctlr *Controller) eraseRouteAdmitStatus(route *routeapi.Route) {
 	for i := 0; i < len(route.Status.Ingress); i++ {
 		if route.Status.Ingress[i].RouterName == F5RouterName {
 			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
-			ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+			ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 				ResourceObj: route.Status,
 				ResourceKey: resourceRef{
 					kind:        Route,
 					name:        route.Name,
 					namespace:   route.Namespace,
-					clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+					clusterName: ctlr.multiClusterHandler.LocalClusterName,
 				},
 				Timestamp:         metav1.Now(),
 				ClearKeyFromCache: true,
@@ -401,10 +401,10 @@ func (ctlr *Controller) eraseRouteAdmitStatus(route *routeapi.Route) {
 
 // clearAllUnmonitoredVirtualServerStatus clears status for all the unmonitored Virtual Servers
 func (ctlr *Controller) clearAllUnmonitoredVirtualServerStatus() {
-	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	if clusterConfig == nil {
 		log.Errorf("Error while clearing status for all the unmonitored Virtual Server CRs: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.MultiClusterHandler.LocalClusterName)
+			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
 		return
 	}
 	unmonitoredOptions := metav1.ListOptions{
@@ -425,13 +425,13 @@ func (ctlr *Controller) clearVirtualServerStatus(virtualServer *cisapiv1.Virtual
 	vsStatus := cisapiv1.VirtualServerStatus{
 		Error: fmt.Sprintf("Missing label f5cr on VS %v/%v", virtualServer.Namespace, virtualServer.Name),
 	}
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: vsStatus,
 		ResourceKey: resourceRef{
 			kind:        VirtualServer,
 			name:        virtualServer.Name,
 			namespace:   virtualServer.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp:         metav1.Now(),
 		ClearKeyFromCache: true,
@@ -440,10 +440,10 @@ func (ctlr *Controller) clearVirtualServerStatus(virtualServer *cisapiv1.Virtual
 
 // updateAllUnmonitoredTransportServerStatus clears status for all the unmonitored Transport Servers
 func (ctlr *Controller) updateAllUnmonitoredTransportServerStatus() {
-	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	if clusterConfig == nil {
 		log.Errorf("Error while clearing status for all the unmonitored Transport Server CRs: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.MultiClusterHandler.LocalClusterName)
+			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
 		return
 	}
 	unmonitoredOptions := metav1.ListOptions{
@@ -464,13 +464,13 @@ func (ctlr *Controller) clearTransportServerStatus(transportServer *cisapiv1.Tra
 	tsStatus := cisapiv1.TransportServerStatus{
 		Error: fmt.Sprintf("Missing label f5cr on TS %v/%v", transportServer.Namespace, transportServer.Name),
 	}
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: tsStatus,
 		ResourceKey: resourceRef{
 			kind:        TransportServer,
 			name:        transportServer.Name,
 			namespace:   transportServer.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp:         metav1.Now(),
 		ClearKeyFromCache: true,
@@ -479,10 +479,10 @@ func (ctlr *Controller) clearTransportServerStatus(transportServer *cisapiv1.Tra
 
 // updateAllUnmonitoredIngressLinkStatus clears status for all the unmonitored IngressLink
 func (ctlr *Controller) updateAllUnmonitoredIngressLinkStatus() {
-	clusterConfig := ctlr.MultiClusterHandler.getClusterConfig(ctlr.MultiClusterHandler.LocalClusterName)
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
 	if clusterConfig == nil {
 		log.Errorf("Error while clearing status for all the unmonitored Transport Server CRs: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.MultiClusterHandler.LocalClusterName)
+			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
 		return
 	}
 	unmonitoredOptions := metav1.ListOptions{
@@ -503,13 +503,13 @@ func (ctlr *Controller) clearIngressLinkStatus(ingressLink *cisapiv1.IngressLink
 	ilStatus := cisapiv1.IngressLinkStatus{
 		Error: fmt.Sprintf("Missing label f5cr on IngressLink %v/%v", ingressLink.Namespace, ingressLink.Name),
 	}
-	ctlr.MultiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: ilStatus,
 		ResourceKey: resourceRef{
 			kind:        IngressLink,
 			name:        ingressLink.Name,
 			namespace:   ingressLink.Namespace,
-			clusterName: ctlr.MultiClusterHandler.LocalClusterName,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
 		},
 		Timestamp:         metav1.Now(),
 		ClearKeyFromCache: true,

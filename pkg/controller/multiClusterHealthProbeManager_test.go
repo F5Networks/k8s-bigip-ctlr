@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
@@ -18,36 +19,33 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.MultiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		})
-		agentParams := AgentParams{
-			PrimaryParams: PostParams{BIGIPURL: "10.10.10.1"},
-			ApiType:       AS3,
+		mockWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
 		}
-		appServicesChecker := func() error {
-			return nil
-		}
-		mockCtlr.RequestHandler = mockCtlr.NewRequestHandler(agentParams, appServicesChecker)
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 		mockCtlr.RequestHandler.PrimaryBigIPWorker.httpClient = &http.Client{
 			Timeout: 1,
 		}
-		go mockCtlr.MultiClusterHandler.ResourceEventWatcher()
+		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
-		go mockCtlr.MultiClusterHandler.ResourceStatusUpdater()
+		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = OpenShiftMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""] = newClusterConfig()
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 		var processedHostPath ProcessedHostPath
@@ -63,8 +61,8 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 		cmName := "ecm"
 		cmNamespace := "kube-system"
 		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace, "")
-		mockCtlr.MultiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[cmNamespace] = mockCtlr.newNamespacedCommonResourceInformer(cmNamespace, "")
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers[""] = mockCtlr.newNamespacedCommonResourceInformer("", "")
 		mockCtlr.resources = NewResourceStore()
 		data := make(map[string]string)
 

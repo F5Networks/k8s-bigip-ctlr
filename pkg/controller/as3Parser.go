@@ -115,7 +115,7 @@ func (ap *AS3Parser) processResourcesForAS3(rsCfg *ResourceConfig, sharedApp as3
 	switch rsCfg.MetaData.ResourceType {
 	case VirtualServer:
 		//Create AS3 Service for virtual server
-		ap.createServiceDecl(rsCfg, sharedApp, tenant, ap.bigIPAS3Version)
+		ap.createServiceDecl(rsCfg, sharedApp, tenant, ap.AS3VersionInfo.bigIPAS3Version)
 	case TransportServer:
 		//Create AS3 Service for transport virtual server
 		ap.createTransportServiceDecl(rsCfg, sharedApp, tenant)
@@ -862,7 +862,7 @@ func (ap *AS3Parser) processCustomProfilesForAS3(rsCfg *ResourceConfig, sharedAp
 	}
 
 	// if AS3 version on bigIP is lower than 3.44 then don't enable sniDefault, as it's only supported from AS3 v3.44 onwards
-	if ap.AS3VersionInfo.as3Version < 3.44 {
+	if ap.AS3VersionInfo.bigIPAS3Version < 3.44 {
 		return
 	}
 	for svcName, _ := range svcNameMap {

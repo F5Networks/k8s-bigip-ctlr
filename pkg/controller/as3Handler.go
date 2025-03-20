@@ -36,7 +36,6 @@ type ApiTypeHandlerInterface interface {
 	getBigipRegKeyURL() string
 	logResponse(responseMap map[string]interface{})
 	logRequest(cfg string)
-	createAPIDeclaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration
 	getApiHandler() *AS3Handler
 	createAPIConfig(rsConfig ResourceConfigRequest) agentPostConfig
 	//createLTMConfigADC(config ResourceConfigRequest) as3ADC
@@ -132,30 +131,6 @@ func (am *AS3Handler) logResponse(responseMap map[string]interface{}) {
 		responseMap["declaration"] = as3Declaration(decl)
 	}
 	log.Debugf("[AS3]%v Raw response from Big-IP: %v ", am.postManagerPrefix, responseMap)
-}
-
-func (am *AS3Handler) createAPIDeclaration(tenantDeclMap map[string]as3Tenant, userAgent string) as3Declaration {
-	var as3Config map[string]interface{}
-
-	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, am.AS3VersionInfo.as3Version, am.AS3VersionInfo.as3Release, am.AS3VersionInfo.as3SchemaVersion)
-	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
-
-	adc := as3Config["declaration"].(map[string]interface{})
-
-	controlObj := make(map[string]interface{})
-	controlObj["class"] = "Controls"
-	controlObj["userAgent"] = userAgent
-	adc["controls"] = controlObj
-
-	for tenant, decl := range tenantDeclMap {
-		adc[tenant] = decl
-	}
-	decl, err := json.Marshal(as3Config)
-	if err != nil {
-		log.Debugf("[AS3] Unified declaration: %v\n", err)
-	}
-
-	return as3Declaration(decl)
 }
 
 func (am *AS3Handler) getVersionsFromResponse(httpResp *http.Response, responseMap map[string]interface{}) (string, string, string, error) {
@@ -343,19 +318,19 @@ func (am *AS3Handler) UpdateApiVersion(version string, build string, schemaVersi
 	if version == "" {
 		return
 	}
-	floatValue, err := strconv.ParseFloat(version, 64) // Use 64 for double precision
+	aInfo := as3VersionInfo{
+		as3Version:       version,
+		as3SchemaVersion: schemaVersion,
+		as3Release:       version + "-" + build,
+	}
+	versionstr := version[:strings.LastIndex(version, ".")]
+	floatValue, err := strconv.ParseFloat(versionstr, 64) // Use 64 for double precision
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
-	aInfo := as3VersionInfo{
-		as3Version:       floatValue,
-		as3SchemaVersion: schemaVersion,
-		as3Release:       version + "-" + build,
-	}
+	aInfo.bigIPAS3Version = floatValue
 	am.AS3VersionInfo = aInfo
-	versionstr := version[:strings.LastIndex(version, ".")]
-	am.bigIPAS3Version, err = strconv.ParseFloat(versionstr, 64)
 }
 
 func (am *AS3Handler) handleResponseStatusOK(responseMap map[string]interface{}, cfg *agentPostConfig) bool {

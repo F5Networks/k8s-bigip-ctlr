@@ -945,7 +945,8 @@ type (
 	}
 
 	AgentParams struct {
-		PostParams                      PostParams
+		PrimaryParams                   PostParams
+		SecondaryParams                 PostParams
 		GTMParams                       PostParams
 		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
@@ -963,8 +964,6 @@ type (
 		SharedStaticRoutes bool
 		MultiClusterMode   string
 		ApiType            string
-		PrimaryBigIP       string
-		SecondaryBigIP     string
 		HAMode             bool
 	}
 	// PostManager functionality. Embedding PostManager in AS3Handler would limit reusability across
@@ -979,8 +978,6 @@ type (
 		AS3VersionInfo    as3VersionInfo
 		bigIPAS3Version   float64
 		postManagerPrefix string
-		LogResponse       bool
-		LogRequest        bool
 		*PostManager
 		*PostParams
 		*AS3Parser

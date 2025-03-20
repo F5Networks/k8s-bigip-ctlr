@@ -15,7 +15,7 @@ type PostManagerInterface interface {
 
 func NewGTMAPIHandler(params AgentParams) *GTMAPIHandler {
 	gtm := &GTMAPIHandler{
-		BaseAPIHandler: NewBaseAPIHandler(params, true),
+		BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP),
 		Partition:      DEFAULT_GTM_PARTITION,
 	}
 	switch params.ApiType {
@@ -38,16 +38,16 @@ func NewGTMAPIHandler(params AgentParams) *GTMAPIHandler {
 	return gtm
 }
 
-func NewBaseAPIHandler(params AgentParams, isGtm bool) *BaseAPIHandler {
+func NewBaseAPIHandler(params AgentParams, kind string) *BaseAPIHandler {
 	return &BaseAPIHandler{
 		apiType:     params.ApiType,
-		PostManager: NewPostManager(params, isGtm),
+		PostManager: NewPostManager(params, kind),
 	}
 }
 
-func NewLTMAPIHandler(params AgentParams) *LTMAPIHandler {
+func NewLTMAPIHandler(params AgentParams, kind string) *LTMAPIHandler {
 	ltm := &LTMAPIHandler{
-		BaseAPIHandler: NewBaseAPIHandler(params, false),
+		BaseAPIHandler: NewBaseAPIHandler(params, kind),
 	}
 	// Initialize appropriate API handler based on type
 	switch params.ApiType {
@@ -67,20 +67,6 @@ func NewLTMAPIHandler(params AgentParams) *LTMAPIHandler {
 	}
 
 	return ltm
-}
-
-// Function to create new API Manager based on API type
-func NewAPIHandler(params AgentParams) *APIHandler {
-	//func NewAPIHandler(apiType string) *APIHandler {
-	am := &APIHandler{
-		LTM: NewLTMAPIHandler(params),
-	}
-
-	if isGTMOnSeparateServer(params) {
-		am.GTM = NewGTMAPIHandler(params)
-	}
-
-	return am
 }
 
 // publishConfig posts incoming configuration to BIG-IP
@@ -118,7 +104,7 @@ func (api *BaseAPIHandler) postConfig(cfg *agentConfig) {
 		log.Infof("%v[%s]%v post resulted in FAILURE", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseOthers(responseMap, cfg.id)
 	}
-	if api.LogResponse || unknownResponse {
+	if api.PostManager.LogResponse || unknownResponse {
 		api.APIHandler.logResponse(responseMap)
 	}
 }
@@ -204,15 +190,12 @@ func (api *BaseAPIHandler) publishConfig(cfg agentConfig) {
 	api.postConfig(&cfg)
 }
 
-func (api *BaseAPIHandler) PopulateAPIVersion() error {
+func (api *BaseAPIHandler) PopulateAPIVersion() {
 	version, build, schemaVersion, err := api.GetBigIPAPIVersion()
 	if err != nil {
 		log.Errorf("[%s]%v %v ", api.apiType, api.postManagerPrefix, err)
-		return err
 	}
 	api.APIHandler.UpdateApiVersion(version, build, schemaVersion)
-	return nil
-
 }
 
 func (api *BaseAPIHandler) GetBigIPAPIVersion() (string, string, string, error) {
@@ -268,7 +251,7 @@ func (api *BaseAPIHandler) getTenantConfigStatus(id string) {
 		return
 	}
 
-	if api.LogResponse {
+	if api.PostManager.LogResponse {
 		api.APIHandler.logResponse(responseMap)
 	}
 

@@ -7,18 +7,10 @@ import (
 
 func NewRequestHandler(agentParams AgentParams) *RequestHandler {
 	reqHandler := &RequestHandler{
-		reqChan:   make(chan ResourceConfigRequest, 1),
-		userAgent: agentParams.UserAgent,
+		reqChan:      make(chan ResourceConfigRequest, 1),
+		userAgent:    agentParams.UserAgent,
+		AgentWorkers: NewAgentWorkersMap(agentParams),
 	}
-	if agentParams.HAMode {
-		reqHandler.AgentWorkers = NewAgentWorkersMap(agentParams)
-		reqHandler.AgentWorkers[PrimaryBigIP].LTM.PostParams.BIGIPType = PrimaryBigIP
-		reqHandler.AgentWorkers[SecondaryBigIP].LTM.PostParams.BIGIPType = SecondaryBigIP
-	} else {
-		reqHandler.AgentWorkers[PrimaryBigIP] = NewAgentWorker(agentParams)
-		reqHandler.AgentWorkers[PrimaryBigIP].LTM.PostParams.BIGIPType = PrimaryBigIP
-	}
-
 	return reqHandler
 }
 

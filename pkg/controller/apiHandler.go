@@ -85,25 +85,25 @@ func (api *BaseAPIHandler) postConfig(cfg *agentPostConfig) {
 	var unknownResponse = false
 	switch httpResp.StatusCode {
 	case http.StatusOK:
-		log.Infof("%v[%s]%v post resulted in SUCCESS", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in SUCCESS", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseStatusOK(responseMap, cfg)
 	case http.StatusCreated, http.StatusAccepted:
-		log.Infof("%v[%s]%v post resulted in ACCEPTED", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in ACCEPTED", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseAccepted(responseMap, cfg)
 	case http.StatusMultiStatus:
-		log.Infof("%v[%s]%v post resulted in MULTI-STATUS", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in MULTI-STATUS", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleMultiStatus(responseMap, cfg)
 	case http.StatusServiceUnavailable:
-		log.Infof("%v[%s]%v post resulted in RETRY", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in RETRY", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseStatusServiceUnavailable(responseMap, cfg)
 	case http.StatusNotFound:
-		log.Infof("%v[%s]%v post resulted in FAILURE", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in FAILURE", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseStatusNotFound(responseMap, cfg)
 	case http.StatusUnauthorized:
-		log.Infof("%v[%s]%v post resulted in UNAUTHORIZED FAILURE", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in UNAUTHORIZED FAILURE", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseStatusUnAuthorized(responseMap, cfg)
 	default:
-		log.Infof("%v[%s]%v post resulted in FAILURE", getRequestPrefix(cfg.id), api.apiType, api.postManagerPrefix)
+		log.Infof("%v[%s]%v post resulted in FAILURE", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)
 		unknownResponse = api.APIHandler.handleResponseOthers(responseMap, cfg)
 	}
 	if api.PostManager.LogResponse || unknownResponse {

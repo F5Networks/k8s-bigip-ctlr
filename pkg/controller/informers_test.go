@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"container/list"
 	"context"
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
@@ -16,7 +15,6 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"sync"
 )
 
 var _ = Describe("Informers Tests", func() {
@@ -75,7 +73,6 @@ var _ = Describe("Informers Tests", func() {
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.resources.ltmConfig = make(map[string]*PartitionConfig, 0)
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			mockCtlr.Partition = "test"
 
 		})
@@ -375,8 +372,6 @@ var _ = Describe("Informers Tests", func() {
 					ExternalDNS:  make(map[string]int),
 				},
 			}
-
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			mockWriter := &test.MockWriter{FailStyle: test.Success}
 			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockCtlr.Partition = "default"

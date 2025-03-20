@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"container/list"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
@@ -111,7 +109,6 @@ var _ = Describe("Worker Tests", func() {
 				VirtualServer: make(map[string]int),
 			},
 		}
-		mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
@@ -1583,7 +1580,6 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 			mockWriter := &test.MockWriter{
@@ -2121,8 +2117,10 @@ var _ = Describe("Worker Tests", func() {
 					To(BeTrue(), "http mrf route not processed correctly")
 
 				agentCfg := agentPostConfig{
-					id:            0,
-					failedTenants: make(map[string]struct{}),
+					reqMeta: requestMeta{
+						id: 0,
+					},
+					failedTenants: make(map[string]tenantResponse),
 				}
 
 				time.Sleep(10 * time.Millisecond)
@@ -2134,10 +2132,10 @@ var _ = Describe("Worker Tests", func() {
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
 				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
 				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
-				agentCfg.failedTenants["test"] = struct{}{}
+				agentCfg.failedTenants["test"] = tenantResponse{}
 				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
 				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
@@ -2374,8 +2372,10 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Transport Server not processed")
 
 				agentCfg := agentPostConfig{
-					id:            0,
-					failedTenants: make(map[string]struct{}),
+					reqMeta: requestMeta{
+						id: 0,
+					},
+					failedTenants: make(map[string]tenantResponse),
 				}
 
 				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
@@ -2385,16 +2385,16 @@ var _ = Describe("Worker Tests", func() {
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				agentCfg.id = 3
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				agentCfg.reqMeta.id = 3
 				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
 				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 
-				agentCfg.failedTenants["test"] = struct{}{}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				agentCfg.id = 3
+				agentCfg.failedTenants["test"] = tenantResponse{}
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				agentCfg.reqMeta.id = 3
 
 				delete(agentCfg.failedTenants, "test")
 				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
@@ -2996,7 +2996,6 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 			mockWriter := &test.MockWriter{
@@ -3868,8 +3867,10 @@ extendedRouteSpec:
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 				//Expect(len(mockCtlr.getOrderedRoutes(""))).To(Equal(1), "Invalid no of Routes")
 				agentCfg := agentPostConfig{
-					id:            0,
-					failedTenants: make(map[string]struct{}),
+					reqMeta: requestMeta{
+						id: 0,
+					},
+					failedTenants: make(map[string]tenantResponse),
 				}
 
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
@@ -3883,7 +3884,7 @@ extendedRouteSpec:
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
 				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
 				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
@@ -3926,7 +3927,7 @@ extendedRouteSpec:
 					TransportServer: make(map[string]int),
 				},
 			}
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient,

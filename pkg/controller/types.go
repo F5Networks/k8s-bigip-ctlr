@@ -84,7 +84,7 @@ type (
 		ipamCR                      string
 		defaultRouteDomain          int32
 		TeemData                    *teem.TeemsData
-		requestQueue                *requestQueue
+		requestCounter              int64
 		ipamHostSpecEmpty           bool
 		StaticRoutingMode           bool
 		OrchestrationCNI            string
@@ -505,13 +505,8 @@ type (
 		shareNodes         bool
 		gtmConfig          GTMConfig
 		defaultRouteDomain int32
-		reqId              int
+		reqMeta            requestMeta
 		poolMemberType     string
-	}
-
-	resourceStatusMeta struct {
-		id            int
-		failedTenants map[string]tenantResponse
 	}
 
 	resourceRef struct {
@@ -799,7 +794,7 @@ type (
 
 	requestMeta struct {
 		partitionMap map[string]map[string]string
-		id           int
+		id           int64
 	}
 
 	Node struct {
@@ -864,15 +859,13 @@ type (
 		data                  string
 		targetAddress         string
 		as3APIURL             string
-		id                    int
+		reqMeta               requestMeta
 		tenantResponseMap     map[string]tenantResponse
 		acceptedTaskId        string
-		failedTenants         map[string]struct{}
 		incomingTenantDeclMap map[string]as3Tenant
+		failedTenants         map[string]tenantResponse
 		deleted               bool
 		agentKind             string
-		reqMeta               requestMeta
-		reqStatusMeta         resourceStatusMeta
 	}
 
 	Agent struct {

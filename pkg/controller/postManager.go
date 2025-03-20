@@ -129,15 +129,6 @@ func (postMgr *PostManager) postConfig(cfg *agentPostConfig) (*http.Response, ma
 	return httpResp, responseMap
 }
 
-func updateTenantDeletion(tenant string, declaration map[string]interface{}) bool {
-	// We are finding the tenant is deleted based on the AS3 API response,
-	// if results contain the partition with status code of 200 and declaration does not contain the partition we assume that partition is deleted.
-	if _, ok := declaration[tenant]; !ok {
-		return true
-	}
-	return false
-}
-
 func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map[string]interface{}) {
 	httpResp, err := postMgr.httpClient.Do(request)
 	if err != nil {
@@ -209,4 +200,13 @@ func getTenantsFromUri(uri string) string {
 		return "all"
 	}
 	return res[1]
+}
+
+func updateTenantDeletion(tenant string, declaration map[string]interface{}) bool {
+	// We are finding the tenant is deleted based on the AS3 API response,
+	// if results contain the partition with status code of 200 and declaration does not contain the partition we assume that partition is deleted.
+	if _, ok := declaration[tenant]; !ok {
+		return true
+	}
+	return false
 }

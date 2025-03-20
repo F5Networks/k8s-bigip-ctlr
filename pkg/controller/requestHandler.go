@@ -10,7 +10,7 @@ import (
 
 var OsExit = os.Exit
 
-func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandler {
+func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, appServicesChecker func() error) *RequestHandler {
 	reqHandler := &RequestHandler{
 		reqChan:     make(chan ResourceConfigRequest, 1),
 		userAgent:   agentParams.UserAgent,
@@ -18,15 +18,15 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		agentParams: agentParams,
 	}
 	if (agentParams.PrimaryParams != PostParams{}) {
-		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, nil)
+		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, appServicesChecker)
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
-		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, nil)
+		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, appServicesChecker)
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	if isGTMOnSeparateServer(agentParams) && !agentParams.CCCLGTMAgent {
-		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, nil)
+		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, appServicesChecker)
 		go reqHandler.GTMBigIPWorker.gtmWorker()
 	}
 	return reqHandler

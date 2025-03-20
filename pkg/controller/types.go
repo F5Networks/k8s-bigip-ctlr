@@ -90,7 +90,7 @@ type (
 		OrchestrationCNI            string
 		StaticRouteNodeCIDR         string
 		cacheIPAMHostSpecs          CacheIPAM
-		multiClusterHandler         *ClusterHandler
+		MultiClusterHandler         *ClusterHandler
 		multiClusterResources       *MultiClusterResourceStore
 		multiClusterMode            string
 		loadBalancerClass           string
@@ -189,12 +189,12 @@ type (
 
 	// Params defines parameters
 	Params struct {
-		Config                      *rest.Config
-		Namespaces                  []string
-		RequestHandler              *RequestHandler
-		NamespaceLabel              string
-		Partition                   string
-		Agent                       *Agent
+		Config         *rest.Config
+		Namespaces     []string
+		RequestHandler *RequestHandler
+		NamespaceLabel string
+		Partition      string
+		// Agent                       *Agent
 		PoolMemberType              string
 		VXLANName                   string
 		VXLANMode                   string
@@ -935,7 +935,7 @@ type (
 		PrimaryParams                   PostParams
 		SecondaryParams                 PostParams
 		GTMParams                       PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		// VxlnParams      VXLANParams
 		Partition          string
 		LogLevel           string
@@ -975,7 +975,7 @@ type (
 		sync.RWMutex
 		httpClient *http.Client
 		PostParams
-		PrimaryClusterHealthProbeParams PrimaryClusterHealthProbeParams
+		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		firstPost                       bool
 		AS3VersionInfo                  as3VersionInfo
 		bigIPAS3Version                 float64
@@ -987,7 +987,7 @@ type (
 	}
 
 	PrimaryClusterHealthProbeParams struct {
-		paramLock     *sync.RWMutex
+		paramLock     sync.RWMutex
 		EndPoint      string
 		EndPointType  string
 		statusRunning bool

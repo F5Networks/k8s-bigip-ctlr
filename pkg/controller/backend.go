@@ -41,46 +41,6 @@ func (aw AgentWorker) Post(agentConfig *agentPostConfig) {
 
 }
 
-func (ps *PostToFileStrategy) Post(config ResourceConfigRequest) {
-
-	dnsConfig := make(map[string]interface{})
-	wideIPs := WideIPs{}
-
-	for _, gtmPartitionConfig := range config.gtmConfig {
-		for _, v := range gtmPartitionConfig.WideIPs {
-			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
-		}
-	}
-	deletedTenants := []string{}
-	activeTenants := []string{}
-	for tenant, partitionConfig := range config.ltmConfig {
-		if len(partitionConfig.ResourceMap) == 0 {
-			deletedTenants = append(deletedTenants, tenant)
-		} else {
-			activeTenants = append(activeTenants, tenant)
-		}
-	}
-	dnsConfig["deletedTenants"] = deletedTenants
-	dnsConfig["activeTenants"] = activeTenants
-	wideIpConfig := make(map[string]interface{})
-	wideIpConfig["Common"] = wideIPs
-	dnsConfig["config"] = wideIpConfig
-	doneCh, errCh, err := ps.ConfigWriter.SendSection("gtm", dnsConfig)
-
-	if nil != err {
-		log.Warningf("Failed to write gtm config section: %v", err)
-	} else {
-		select {
-		case <-doneCh:
-			log.Debugf("Wrote gtm config section: %v", config.gtmConfig)
-		case e := <-errCh:
-			log.Warningf("Failed to write gtm config section: %v", e)
-		case <-time.After(time.Second):
-			log.Warningf("Did not receive write response in 1s")
-		}
-	}
-}
-
 // function to the post the config to the respective bigip
 func (aw *AgentWorker) PostConfig(rsConfigRequest ResourceConfigRequest) {
 	log.Debugf("%v Posting ResourceConfigRequest: %+v\n", aw.postManagerPrefix, rsConfigRequest)
@@ -96,7 +56,7 @@ func (aw *AgentWorker) PostConfig(rsConfigRequest ResourceConfigRequest) {
 		}
 		// add gtm config to the cccl worker if ccclGTMAgent is true
 		if aw.ccclGTMAgent {
-			aw.PostGTMConfig(rsConfigRequest)
+			aw.PostGTMConfigWithCccl(rsConfigRequest)
 		}
 	} else {
 		agentConfig = aw.GTM.APIHandler.createAPIConfig(rsConfigRequest)
@@ -192,7 +152,7 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	}
 }
 
-func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
+func (agent *Agent) PostGTMConfigWithCccl(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})
 	wideIPs := WideIPs{}

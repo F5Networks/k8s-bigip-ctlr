@@ -1,17 +1,16 @@
 package controller
 
 import (
-	"bytes"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
-	"io/ioutil"
+	"io"
 	v1 "k8s.io/api/core/v1"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -19,8 +18,6 @@ func TestController(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "CR Manager Suite")
 }
-
-var configPath = "../../test/configs/"
 
 type (
 	mockController struct {
@@ -37,13 +34,15 @@ type (
 	responceCtx struct {
 		tenant string
 		status float64
-		body   string
+		body   io.ReadCloser
 	}
 )
 
 func newMockController() *mockController {
 	return &mockController{
-		Controller:    &Controller{},
+		Controller: &Controller{
+			respChan: make(chan *agentPostConfig, 1),
+		},
 		mockResources: make(map[string][]interface{}),
 	}
 }
@@ -56,39 +55,37 @@ func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &PostManager{
 			postChan: make(chan *agentPostConfig, 1),
-			//cachedTenantDeclMap: make(map[string]as3Tenant),
-			//retryTenantDeclMap:  make(map[string]*tenantParams),
 		},
 		Responses: []int{},
 		RespIndex: 0,
 	}
-	//mockPM.tenantResponseMap = make(map[string]tenantResponse)
 	mockPM.firstPost = true
 	return mockPM
 }
 
 func getMockHttpClient(responces []responceCtx, method string) (*http.Client, error) {
-	var body string
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
 
 	for _, resp := range responces {
-		if resp.body == "" {
+		var bodyContent string
+		if resp.body == nil {
 			if resp.status == http.StatusOK {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}], "declaration": {"%s": {"Shared": {"class": "application"}}}}`,
-					resp.status, resp.tenant, resp.tenant)
+				bodyContent = fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}], "declaration": {"%s": {"Shared": {"class": "application"}}}}`,
+					int(resp.status), resp.tenant, resp.tenant)
 			} else {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}],"error":{"code":%f}}`,
-					resp.status, resp.tenant, resp.status)
+				bodyContent = fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}],"error":{"code":%d}}`,
+					int(resp.status), resp.tenant, int(resp.status))
 			}
 		} else {
-			body = resp.body
+			bodyBytes, _ := io.ReadAll(resp.body)
+			bodyContent = string(bodyBytes)
 		}
 
 		responseMap[method].Responses = append(responseMap[method].Responses, &http.Response{
 			StatusCode: int(resp.status),
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte(body))),
+			Body:       io.NopCloser(strings.NewReader(bodyContent)),
 		})
 	}
 
@@ -100,36 +97,19 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	mockPM.httpClient = client
 }
 
-func newMockAgent(writer writer.Writer) *Agent {
-	return &Agent{
-		PostManager: &PostManager{
-			postChan: make(chan *agentPostConfig, 1),
-			PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			},
-		},
-		Partition:       "test",
-		ConfigWriter:    writer,
-		EventChan:       make(chan interface{}),
-		PythonDriverPID: 0,
-		//cachedTenantDeclMap:   make(map[string]interface{}),
-		//incomingTenantDeclMap: make(map[string]interface{}),
-		userAgent: "",
-	}
-}
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {
-	appInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
+	appInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Add(edns)
 	if m.resourceQueue != nil {
-		m.enqueueExternalDNS(edns, m.multiClusterHandler.LocalClusterName)
+		m.enqueueExternalDNS(edns, m.MultiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) deleteEDNS(edns *cisapiv1.ExternalDNS) {
-	appInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
+	appInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Delete(edns)
 	if m.resourceQueue != nil {
-		m.enqueueDeletedExternalDNS(edns, m.multiClusterHandler.LocalClusterName)
+		m.enqueueDeletedExternalDNS(edns, m.MultiClusterHandler.LocalClusterName)
 	}
 }
 
@@ -155,7 +135,7 @@ func (m *mockController) updateRoute(route *routeapi.Route) {
 }
 func (m *mockController) addService(svc *v1.Service, clusterName string) {
 	if clusterName == "" {
-		clusterName = m.multiClusterHandler.LocalClusterName
+		clusterName = m.MultiClusterHandler.LocalClusterName
 	}
 	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Add(svc)
@@ -167,7 +147,7 @@ func (m *mockController) addService(svc *v1.Service, clusterName string) {
 
 func (m *mockController) updateService(svc *v1.Service, clusterName string) {
 	if clusterName == "" {
-		clusterName = m.multiClusterHandler.LocalClusterName
+		clusterName = m.MultiClusterHandler.LocalClusterName
 	}
 	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Update(svc)
@@ -175,7 +155,7 @@ func (m *mockController) updateService(svc *v1.Service, clusterName string) {
 
 func (m *mockController) deleteService(svc *v1.Service, clusterName string) {
 	if clusterName == "" {
-		clusterName = m.multiClusterHandler.LocalClusterName
+		clusterName = m.MultiClusterHandler.LocalClusterName
 	}
 	comInf, _ := m.getNamespacedCommonInformer(clusterName, svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Delete(svc)
@@ -185,7 +165,7 @@ func (m *mockController) deleteService(svc *v1.Service, clusterName string) {
 }
 
 func (m *mockController) addEndpoints(ep *v1.Endpoints) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Add(ep)
 
 	if m.resourceQueue != nil {
@@ -194,12 +174,12 @@ func (m *mockController) addEndpoints(ep *v1.Endpoints) {
 }
 
 func (m *mockController) updateEndpoints(ep *v1.Endpoints) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Update(ep)
 }
 
 func (m *mockController) deleteEndpoints(ep *v1.Endpoints) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Delete(ep)
 	if m.resourceQueue != nil {
 		m.enqueueEndpoints(ep, Delete, "")
@@ -270,7 +250,7 @@ func (m *mockController) deleteTransportServer(vs *cisapiv1.TransportServer) {
 }
 
 func (m *mockController) addPolicy(plc *cisapiv1.Policy) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, plc.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, plc.ObjectMeta.Namespace)
 	cusInf.plcInformer.GetStore().Add(plc)
 
 	if m.resourceQueue != nil {
@@ -279,7 +259,7 @@ func (m *mockController) addPolicy(plc *cisapiv1.Policy) {
 }
 
 func (m *mockController) deletePolicy(plc *cisapiv1.Policy) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, plc.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, plc.ObjectMeta.Namespace)
 	cusInf.plcInformer.GetStore().Delete(plc)
 
 	if m.resourceQueue != nil {
@@ -297,11 +277,11 @@ func (m *mockController) addTLSProfile(prof *cisapiv1.TLSProfile) {
 }
 
 func (m *mockController) addSecret(secret *v1.Secret) {
-	comInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, secret.ObjectMeta.Namespace)
+	comInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, secret.ObjectMeta.Namespace)
 	comInf.secretsInformer.GetStore().Add(secret)
 
 	if m.resourceQueue != nil {
-		m.enqueueSecret(secret, Create, m.multiClusterHandler.LocalClusterName)
+		m.enqueueSecret(secret, Create, m.MultiClusterHandler.LocalClusterName)
 	}
 }
 
@@ -333,7 +313,7 @@ func (m *mockController) deleteIngressLink(il *cisapiv1.IngressLink) {
 }
 
 func (m *mockController) addPod(pod *v1.Pod) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Add(pod)
 
 	if m.resourceQueue != nil {
@@ -342,7 +322,7 @@ func (m *mockController) addPod(pod *v1.Pod) {
 }
 
 func (m *mockController) updatePod(pod *v1.Pod) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Update(pod)
 
 	if m.resourceQueue != nil {
@@ -351,7 +331,7 @@ func (m *mockController) updatePod(pod *v1.Pod) {
 }
 
 func (m *mockController) deletePod(pod v1.Pod) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, pod.ObjectMeta.Namespace)
 	cusInf.podInformer.GetStore().Delete(pod)
 
 	if m.resourceQueue != nil {
@@ -360,48 +340,48 @@ func (m *mockController) deletePod(pod v1.Pod) {
 }
 
 func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Add(cm)
 
 	if m.resourceQueue != nil {
-		m.enqueueConfigmap(cm, Create, m.multiClusterHandler.LocalClusterName)
+		m.enqueueConfigmap(cm, Create, m.MultiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) updateConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Update(cm)
 
 	if m.resourceQueue != nil {
-		m.enqueueConfigmap(cm, Update, m.multiClusterHandler.LocalClusterName)
+		m.enqueueConfigmap(cm, Update, m.MultiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
-	cusInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
+	cusInf, _ := m.getNamespacedCommonInformer(m.MultiClusterHandler.LocalClusterName, cm.ObjectMeta.Namespace)
 	cusInf.cmInformer.GetStore().Delete(cm)
 
 	if m.resourceQueue != nil {
-		m.enqueueDeletedConfigmap(cm, m.multiClusterHandler.LocalClusterName)
+		m.enqueueDeletedConfigmap(cm, m.MultiClusterHandler.LocalClusterName)
 	}
 }
 
 func (m *mockController) addNode(node *v1.Node) {
-	m.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Add(node)
+	m.MultiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Add(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateNode(node *v1.Node, ns string) {
-	m.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
+	m.MultiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
 }
 
 func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
-	m.multiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
+	m.MultiClusterHandler.ClusterConfigs[""].nodeInformer.nodeInformer.GetStore().Update(node)
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}

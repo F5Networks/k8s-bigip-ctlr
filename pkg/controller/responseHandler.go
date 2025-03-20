@@ -64,7 +64,7 @@ func (ctlr *Controller) responseHandler() {
 				switch kind {
 				case VirtualServer:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.MultiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("VirtualServer Informer not found for namespace: %v", ns)
 						continue
@@ -91,7 +91,7 @@ func (ctlr *Controller) responseHandler() {
 								kind:      VirtualServer,
 							}], StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
-							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
+							if !ctlr.isAddingPoolRestricted(ctlr.MultiClusterHandler.LocalClusterName) {
 								// set status of all the LB services associated with this VS
 								go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
 							}
@@ -100,7 +100,7 @@ func (ctlr *Controller) responseHandler() {
 
 				case TransportServer:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.MultiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("TransportServer Informer not found for namespace: %v", ns)
 						continue
@@ -133,7 +133,7 @@ func (ctlr *Controller) responseHandler() {
 
 				case IngressLink:
 					// update status
-					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.multiClusterHandler.LocalClusterName)
+					crInf, ok := ctlr.getNamespacedCRInformer(ns, ctlr.MultiClusterHandler.LocalClusterName)
 					if !ok {
 						log.Debugf("IngressLink Informer not found for namespace: %v", ns)
 						continue

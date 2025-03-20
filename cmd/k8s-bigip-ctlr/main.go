@@ -953,6 +953,7 @@ func initController(
 		StaticRoutingMode:  *staticRoutingMode,
 		SharedStaticRoutes: *sharedStaticRoutes,
 		MultiClusterMode:   *multiClusterMode,
+		ApiType:            controller.AS3,
 	}
 
 	agentParams.DisableARP = true

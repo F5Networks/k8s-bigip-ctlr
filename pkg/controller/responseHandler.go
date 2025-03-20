@@ -1,30 +1,22 @@
 package controller
 
 import (
-	"container/list"
 	"errors"
-	"strings"
-	"sync"
-
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
-
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
+	"time"
 )
 
-func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
+func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) requestMeta {
+	ctlr.requestCounter = ctlr.requestCounter + 1
 	rm := requestMeta{
 		partitionMap: make(map[string]map[string]string, len(config.ltmConfig)),
+		id:           ctlr.requestCounter,
 	}
-	if ctlr.requestQueue.Len() == 0 {
-		rm.id = 1
-	} else {
-		rm.id = ctlr.requestQueue.Back().Value.(requestMeta).id + 1
-	}
-
 	for partition, partitionConfig := range config.ltmConfig {
 		rm.partitionMap[partition] = make(map[string]string)
 		for _, cfg := range partitionConfig.ResourceMap {
@@ -33,28 +25,12 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 			}
 		}
 	}
-
-	ctlr.requestQueue.Lock()
-	ctlr.requestQueue.PushBack(rm)
-	ctlr.requestQueue.Unlock()
-
-	return rm.id
+	return rm
 }
 
-func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
-	// todo: update only when there is a change(success to fail or vice versa) in tenant status
-	ctlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
-	for rscUpdateMeta := range respChan {
-
-		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
-		for partition, meta := range rm.partitionMap {
-			// Check if it's a priority tenant and not in failedTenants map, if so then update the priority back to zero
-			// Priority tenant doesn't have any meta
-			if _, found := rscUpdateMeta.failedTenants[partition]; !found && len(meta) == 0 {
-				// updating the tenant priority back to zero if it's not in failed tenants
-				ctlr.resources.updatePartitionPriority(partition, 0)
-				continue
-			}
+func (ctlr *Controller) responseHandler() {
+	for agentConfig := range ctlr.respChan {
+		for partition, meta := range agentConfig.reqMeta.partitionMap {
 			for rscKey, kind := range meta {
 				ctlr.removeUnusedIPAMEntries(kind)
 				ns := strings.Split(rscKey, "/")[0]
@@ -77,7 +53,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					}
 					virtual := obj.(*cisapiv1.VirtualServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
-						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
@@ -113,7 +89,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					}
 					virtual := obj.(*cisapiv1.TransportServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
-						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
@@ -146,7 +122,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					}
 					il := obj.(*cisapiv1.IngressLink)
 					if il.Namespace+"/"+il.Name == rscKey {
-						if tenantResponse, found := rscUpdateMeta.failedTenants[partition]; found {
+						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
@@ -160,7 +136,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					}
 
 				case Route:
-					if _, found := rscUpdateMeta.failedTenants[partition]; found {
+					if _, found := agentConfig.failedTenants[partition]; found {
 						// TODO : distinguish between a 503 and an actual failure
 						go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
 					} else {
@@ -169,39 +145,19 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				}
 			}
 		}
-	}
-}
-
-func (ctlr *Controller) dequeueReq(id int, failedTenantsLen int) requestMeta {
-	var rm requestMeta
-	if id == 0 {
-		// request initiated from a retried tenant
-		ctlr.requestQueue.Lock()
-
-		if ctlr.requestQueue.Len() == 1 && failedTenantsLen > 0 {
-			// Retain the last request in the queue to update the config in later stages when retry is successful
-			rm = ctlr.requestQueue.Front().Value.(requestMeta)
-		} else if ctlr.requestQueue.Len() > 0 {
-			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
+		if len(agentConfig.failedTenants) > 0 && ctlr.requestCounter == agentConfig.reqMeta.id {
+			// Delay the retry of failed tenants
+			<-time.After(timeoutMedium)
+			switch agentConfig.agentKind {
+			case GTMBigIP:
+				ctlr.RequestHandler.GTMBigIPWorker.postChan <- agentConfig
+			case PrimaryBigIP:
+				ctlr.RequestHandler.PrimaryBigIPWorker.postChan <- agentConfig
+			case SecondaryBigIP:
+				ctlr.RequestHandler.SecondaryBigIPWorker.postChan <- agentConfig
+			}
 		}
-		ctlr.requestQueue.Unlock()
-		return rm
 	}
-
-	for ctlr.requestQueue.Len() > 0 && ctlr.requestQueue.Front().Value.(requestMeta).id <= id {
-		ctlr.requestQueue.Lock()
-		if ctlr.requestQueue.Len() == 1 && failedTenantsLen > 0 {
-			// Retain the last request in the queue to update the config in later stages when retry is successful
-			rm = ctlr.requestQueue.Front().Value.(requestMeta)
-			ctlr.requestQueue.Unlock()
-			break
-		} else {
-			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
-		}
-		ctlr.requestQueue.Unlock()
-	}
-
-	return rm
 }
 
 func (ctlr *Controller) removeUnusedIPAMEntries(kind string) {

@@ -2,31 +2,21 @@ package controller
 
 import (
 	"encoding/json"
-	"net/http"
-	"strings"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/ghttp"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"strings"
 )
 
 var _ = Describe("Backend Tests", func() {
 
 	Describe("Prepare AS3 Declaration", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
-		var agent *Agent
+		var as3Handler AS3Handler
 		BeforeEach(func() {
-			writer := &test.MockWriter{
-				FailStyle: test.Success,
-				Sections:  make(map[string]interface{}),
+			as3Handler = AS3Handler{
+				AS3Parser: &AS3Parser{},
 			}
-			agent = newMockAgent(writer)
-			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"}}
-			agent.Partition = "test"
-			agent.userAgent = "as3"
-
 			mem1 = PoolMember{
 				Address:         "1.2.3.5",
 				Port:            8080,
@@ -341,19 +331,19 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.17"] = rsCfg3
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.18"] = rsCfg4
 
-			decl := agent.createTenantAS3Declaration(config)
-
-			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "pool1")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "default_pool_svc2")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "default_pool_svc3")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "/Common/example-requestadapt")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "/Common/example-responseadapt")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "/Common/compressionProfile")).To(BeTrue())
+			agentPostCfg := as3Handler.createAPIConfig(config)
+			decl := agentPostCfg.data
+			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(decl, "pool1")).To(BeTrue())
+			Expect(strings.Contains(decl, "default_pool_svc2")).To(BeTrue())
+			Expect(strings.Contains(decl, "default_pool_svc3")).To(BeTrue())
+			Expect(strings.Contains(decl, "/Common/example-requestadapt")).To(BeTrue())
+			Expect(strings.Contains(decl, "/Common/example-responseadapt")).To(BeTrue())
+			Expect(strings.Contains(decl, "/Common/compressionProfile")).To(BeTrue())
 
 			sharedApp := as3Application{}
-			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
-			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
 			Expect(len(sharedApp)).To(Equal(1))
 			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(3))
 			rsCfg4.Pools[0].MonitorNames = []MonitorName{
@@ -363,8 +353,8 @@ var _ = Describe("Backend Tests", func() {
 				{Name: "default_pool_svc3_http_81"},
 			}
 			sharedApp = as3Application{}
-			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
-			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
 			Expect(len(sharedApp)).To(Equal(1))
 			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(3))
 			rsCfg4.Pools[0].MonitorNames = []MonitorName{
@@ -374,8 +364,8 @@ var _ = Describe("Backend Tests", func() {
 				{Name: "default_pool_svc3_http_81"},
 			}
 			sharedApp = as3Application{}
-			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
-			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
 			Expect(len(sharedApp)).To(Equal(1))
 			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(5))
 
@@ -385,15 +375,15 @@ var _ = Describe("Backend Tests", func() {
 				{Name: "default_pool_svc3_http_81"},
 			}
 			sharedApp = as3Application{}
-			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
-			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
 			Expect(len(sharedApp)).To(Equal(1))
 			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(4))
 
 			rsCfg3.Pools[0].MonitorNames = []MonitorName{}
 			sharedApp = as3Application{}
-			createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
-			createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg3, sharedApp, false, "test", Cluster)
+			as3Handler.createPoolDecl(rsCfg4, sharedApp, false, "test", Cluster)
 			Expect(len(sharedApp)).To(Equal(1))
 			Expect(len(sharedApp["pool1"].(*as3Pool).Monitors)).To(Equal(3))
 
@@ -430,12 +420,12 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
-			decl := agent.createTenantAS3Declaration(config)
-
-			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "adminState")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "connectionLimit")).To(BeTrue())
-			Expect(strings.Contains(string(decl), "profileFTP")).To(BeTrue())
+			agentPostCfg := as3Handler.createAPIConfig(config)
+			decl := agentPostCfg.data
+			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(decl, "adminState")).To(BeTrue())
+			Expect(strings.Contains(decl, "connectionLimit")).To(BeTrue())
+			Expect(strings.Contains(decl, "profileFTP")).To(BeTrue())
 
 		})
 		It("Delete partition", func() {
@@ -448,16 +438,16 @@ var _ = Describe("Backend Tests", func() {
 
 			zero := 0
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			agent.BIGIPURL = "https://192.168.1.1"
-			as3decl := agent.createTenantAS3Declaration(config)
+			agentPostCfg := as3Handler.createAPIConfig(config)
+			decl := agentPostCfg.data
 			var as3Config map[string]interface{}
-			_ = json.Unmarshal([]byte(as3decl), &as3Config)
+			_ = json.Unmarshal([]byte(decl), &as3Config)
 			deletedTenantDecl := as3Tenant{
 				"class": "Tenant",
 			}
 			adc := as3Config["declaration"].(map[string]interface{})
 
-			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(agentPostCfg.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
 		})
 		It("Handles Persistence Methods", func() {
@@ -486,39 +476,32 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Prepare AS3 Declaration with HAMode", func() {
-		var agent *Agent
-		tnt := "test"
+		var as3Handler AS3Handler
 		BeforeEach(func() {
-			writer := &test.MockWriter{
-				FailStyle: test.Success,
-				Sections:  make(map[string]interface{}),
+			as3Handler = AS3Handler{
+				AS3Parser: &AS3Parser{},
 			}
-			agent = newMockAgent(writer)
-			agent.HAMode = true
-			client, _ := getMockHttpClient([]responceCtx{{
-				tenant: tnt,
-				status: http.StatusOK,
-				body:   `{"declaration": {"label":"test",  "testRemove": {"Shared": {"class": "application"}}, "test": {"Shared": {"class": "application"}}}}`,
-			}}, http.MethodGet)
-			agent.PostManager = &PostManager{PostParams: PostParams{BIGIPURL: "https://192.168.1.1"},
-				httpClient: client, firstPost: true}
 		})
 		It("VirtualServer Declaration", func() {
 			config := ResourceConfigRequest{
 				ltmConfig: make(LTMConfig),
 			}
-
-			decl := agent.createTenantAS3Declaration(config)
-
-			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
-			Expect(strings.Contains(string(decl), "\"declaration\":{\"class\":\"Tenant\"}")).To(BeTrue())
+			agentPostCfg := as3Handler.createAPIConfig(config)
+			decl := agentPostCfg.data
+			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(decl, "\"class\":\"Tenant\"")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"AS3\"")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"ADC\"")).To(BeTrue())
+			Expect(strings.Contains(decl, "\"class\":\"Application\"")).To(BeTrue())
 		})
 	})
 
 	Describe("GTM Config", func() {
-		var agent *Agent
+		var as3Handler AS3Handler
 		BeforeEach(func() {
-			agent = newMockAgent(nil)
+			as3Handler = AS3Handler{
+				AS3Parser: &AS3Parser{},
+			}
 			DEFAULT_PARTITION = "default"
 		})
 		// Commenting this test case
@@ -533,12 +516,11 @@ var _ = Describe("Backend Tests", func() {
 		//})
 
 		It("Empty GTM Partition Config / Delete Case", func() {
-			adc := as3ADC{}
-			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+			adc := as3Handler.createLTMAndGTMConfigADC(ResourceConfigRequest{
 				gtmConfig: GTMConfig{
 					DEFAULT_PARTITION: GTMPartitionConfig{},
 				},
-			}, adc)
+			})
 			Expect(len(adc)).To(Equal(1), "Invalid GTM Config")
 
 			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
@@ -581,11 +563,7 @@ var _ = Describe("Backend Tests", func() {
 					},
 				},
 			}
-			adc := agent.createAS3GTMConfigADC(
-				ResourceConfigRequest{gtmConfig: gtmConfig},
-				as3ADC{},
-			)
-
+			adc := as3Handler.createLTMAndGTMConfigADC(ResourceConfigRequest{gtmConfig: gtmConfig})
 			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
 			tenant := adc[DEFAULT_PARTITION].(as3Tenant)
 
@@ -604,6 +582,12 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Misc", func() {
+		var as3Handler AS3Handler
+		BeforeEach(func() {
+			as3Handler = AS3Handler{
+				AS3Parser: &AS3Parser{},
+			}
+		})
 		It("Service Address declaration", func() {
 			rsCfg := &ResourceConfig{
 				ServiceAddress: []ServiceAddress{
@@ -613,23 +597,18 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 			app := as3Application{}
-			createServiceAddressDecl(rsCfg, "1.2.3.4", app)
+			as3Handler.createServiceAddressDecl(rsCfg, "1.2.3.4", app)
 
 			val, ok := app["crd_service_address_1_2_3_4"]
 			Expect(ok).To(BeTrue())
 			Expect(val).NotTo(BeNil())
 		})
 		It("Test Deleted Partition", func() {
-			config := ResourceConfigRequest{
-				ltmConfig:          make(LTMConfig),
-				shareNodes:         true,
-				gtmConfig:          GTMConfig{},
-				defaultRouteDomain: 1,
-			}
+			as3Handler.defaultPartition = "test"
 			cisLabel := "test"
-			deletedPartition := getDeletedTenantDeclaration("test", "test", cisLabel, &config)
+			deletedPartition := as3Handler.getDeletedTenantDeclaration("test", cisLabel)
 			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
-			deletedPartition = getDeletedTenantDeclaration("test", "default", cisLabel, &config)
+			deletedPartition = as3Handler.getDeletedTenantDeclaration("default", cisLabel)
 			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})
@@ -649,45 +628,6 @@ var _ = Describe("Backend Tests", func() {
 		It("Verify two equal JSONs", func() {
 			ok := DeepEqualJSON(`{"key": "value"}`, `{"key": "value"}`)
 			Expect(ok).To(BeTrue())
-		})
-	})
-
-	Describe("Agent", func() {
-		var (
-			server *ghttp.Server
-			//body   []byte
-		)
-		BeforeEach(func() {
-			map1 := map[string]string{
-				"version":       "3.98.0",
-				"release":       "1",
-				"schemaCurrent": "3.52.0",
-				"schemaMinimum": "3.18.0",
-			}
-			// start a test http server
-			server = ghttp.NewServer()
-
-			statusCode := 200
-
-			server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/mgmt/shared/appsvcs/info"),
-					ghttp.RespondWithJSONEncoded(statusCode, map1),
-				))
-		})
-		AfterEach(func() {
-			server.Close()
-		})
-		It("New Agent", func() {
-			var agentParams AgentParams
-			agentParams.EnableIPV6 = true
-			agentParams.Partition = "test"
-			agentParams.VXLANName = "vxlan500"
-			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
-			agent := NewAgent(agentParams)
-			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.52.0"))
-			agent.Stop()
-
 		})
 	})
 

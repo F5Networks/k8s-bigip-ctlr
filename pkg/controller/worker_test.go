@@ -1,15 +1,15 @@
 package controller
 
 import (
-	"container/list"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
@@ -43,17 +43,14 @@ var _ = Describe("Worker Tests", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		mockWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
 		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -96,17 +93,6 @@ var _ = Describe("Worker Tests", func() {
 				ServiceIPAddress: nil,
 			})
 		mockCtlr.Partition = "test"
-		mockCtlr.Agent = &Agent{
-			respChan: make(chan resourceStatusMeta, 1),
-			PostManager: &PostManager{
-				postChan:            make(chan ResourceConfigRequest, 1),
-				cachedTenantDeclMap: make(map[string]as3Tenant),
-				retryTenantDeclMap:  make(map[string]*tenantParams),
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
-			},
-		}
 		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset(svc1)
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(vrt1)
@@ -123,7 +109,6 @@ var _ = Describe("Worker Tests", func() {
 				VirtualServer: make(map[string]int),
 			},
 		}
-		mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
@@ -211,13 +196,11 @@ var _ = Describe("Worker Tests", func() {
 	Describe("IPAM", func() {
 		DEFAULT_PARTITION = "test"
 		BeforeEach(func() {
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
 			}
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 		})
 
@@ -888,14 +871,11 @@ var _ = Describe("Worker Tests", func() {
 			// Service when IPAM is not available
 			_ = mockCtlr.processLBServices(svc1, false, "")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
-
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
 			}
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockCtlr.Partition = "default"
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].eventNotifier = NewEventNotifier(nil)
@@ -957,13 +937,11 @@ var _ = Describe("Worker Tests", func() {
 
 		It("Processing ServiceTypeLoadBalancer with Ipam and static ip", func() {
 			// Service when IPAM is not available
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
 			}
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockCtlr.Partition = "default"
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].eventNotifier = NewEventNotifier(nil)
@@ -1273,13 +1251,11 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				)
-				mockCtlr.Agent = &Agent{
-					PostManager: &PostManager{
-						PostParams: PostParams{
-							BIGIPURL: "10.10.10.1",
-						},
-					},
+				mockWriter := &test.MockWriter{
+					FailStyle: test.Success,
+					Sections:  make(map[string]interface{}),
 				}
+				mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 				mockCtlr.Partition = namespace
 				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].eventNotifier = NewEventNotifier(nil)
@@ -1604,30 +1580,29 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
-
-			mockCtlr.Agent = &Agent{
-				respChan: make(chan resourceStatusMeta, 1),
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
 			}
-
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockPM = newMockPostManger()
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			mockPM.LogAS3Response = true
+			//mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			//mockPM.LogAS3Response = true
 			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
 			mockPM.setResponses([]responceCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
-				body:   "",
+				body:   io.NopCloser(strings.NewReader("")),
 			}}, http.MethodPost)
 			mockPM.firstPost = false
-			mockCtlr.Agent.PostManager = mockPM.PostManager
+			mockCtlr.RequestHandler.PrimaryBigIPWorker.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -2017,10 +1992,8 @@ var _ = Describe("Worker Tests", func() {
 			//})
 
 			It("Virtual Server with IPAM", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
-
-				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
+				go mockCtlr.responseHandler()
 				httpMrfRouterEnabled := true
 				httpMrfRouterDisabled := false
 				policy.Spec.Profiles.HttpMrfRoutingEnabled = &httpMrfRouterEnabled
@@ -2143,13 +2116,15 @@ var _ = Describe("Worker Tests", func() {
 				Expect(*mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_10_10_10_1_443"].Virtual.HttpMrfRoutingEnabled).
 					To(BeTrue(), "http mrf route not processed correctly")
 
-				rscUpdateMeta := resourceStatusMeta{
-					0,
-					make(map[string]tenantResponse),
+				agentCfg := agentPostConfig{
+					reqMeta: requestMeta{
+						id: 0,
+					},
+					failedTenants: make(map[string]tenantResponse),
 				}
 
 				time.Sleep(10 * time.Millisecond)
-				mockCtlr.Agent.respChan <- rscUpdateMeta
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
 
 				config := ResourceConfigRequest{
@@ -2157,12 +2132,12 @@ var _ = Describe("Worker Tests", func() {
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				mockCtlr.Agent.respChan <- rscUpdateMeta
-
-				rscUpdateMeta.failedTenants["test"] = tenantResponse{}
-				mockCtlr.Agent.respChan <- rscUpdateMeta
-
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				agentCfg.failedTenants["test"] = tenantResponse{}
+				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
 			})
 			It("Processing VS with partition", func() {
@@ -2362,10 +2337,8 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server Validation", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
-				_ = mockCtlr.Agent.respChan
-				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
@@ -2398,38 +2371,42 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Transport Server not processed")
 
-				rscUpdateMeta := resourceStatusMeta{
-					0,
-					make(map[string]tenantResponse),
+				agentCfg := agentPostConfig{
+					reqMeta: requestMeta{
+						id: 0,
+					},
+					failedTenants: make(map[string]tenantResponse),
 				}
 
-				mockCtlr.Agent.respChan <- rscUpdateMeta
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 
 				config := ResourceConfigRequest{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				rscUpdateMeta.id = 3
-				mockCtlr.Agent.respChan <- rscUpdateMeta
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				agentCfg.reqMeta.id = 3
+				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 
-				rscUpdateMeta.failedTenants["test"] = tenantResponse{}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				rscUpdateMeta.id = 3
+				agentCfg.failedTenants["test"] = tenantResponse{}
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				agentCfg.reqMeta.id = 3
 
-				delete(rscUpdateMeta.failedTenants, "test")
-				mockCtlr.Agent.respChan <- rscUpdateMeta
+				delete(agentCfg.failedTenants, "test")
+				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 
 				time.Sleep(10 * time.Millisecond)
 
 			})
 
 			It("Transport Server with IPAM", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
 				//Add Service
 				mockCtlr.addEndpoints(fooEndpts)
@@ -2543,8 +2520,8 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server with Partition", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 				mockCtlr.Partition = "test"
 				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
 				//Add Service
@@ -2785,8 +2762,8 @@ var _ = Describe("Worker Tests", func() {
 
 		Describe("Processing Ingress Link", func() {
 			It("Ingress Link", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 				fooPorts := []v1.ServicePort{
 					{
 						Port: 8080,
@@ -2888,8 +2865,7 @@ var _ = Describe("Worker Tests", func() {
 
 			})
 			It("Ingress Link with partition", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.RequestHandler.PrimaryBigIPWorker.agentWorker()
 				mockCtlr.Partition = "test"
 				fooPorts := []v1.ServicePort{
 					{
@@ -3020,30 +2996,27 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 			err := mockCtlr.addNamespacedInformers(namespace, false, "")
 			Expect(err).To(BeNil(), "Informers Creation Failed")
-
-			mockCtlr.Agent = &Agent{
-				respChan: make(chan resourceStatusMeta, 1),
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
 			}
-
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockPM = newMockPostManger()
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			mockPM.LogAS3Response = true
-			//					mockPM.AS3PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
 			mockPM.setResponses([]responceCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
-				body:   "",
+				body:   io.NopCloser(strings.NewReader("")),
 			}}, http.MethodPost)
 			mockPM.firstPost = false
-			mockCtlr.Agent.PostManager = mockPM.PostManager
+			mockCtlr.PrimaryBigIPWorker.LogResponse = true
+			mockCtlr.PrimaryBigIPWorker.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -3347,15 +3320,14 @@ extendedRouteSpec:
 				mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace] = struct{}{}
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
-				mockCtlr.Agent.ccclGTMAgent = true
+				mockCtlr.PrimaryBigIPWorker.ccclGTMAgent = true
 				writer := &test.MockWriter{
 					FailStyle: test.Success,
 					Sections:  make(map[string]interface{}),
 				}
-				mockCtlr.Agent.ConfigWriter = writer
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
-
+				mockCtlr.PrimaryBigIPWorker.ConfigWriter = writer
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 				routeGroup := "default"
 				httpMrfRoutingEnabled := true
 				policy.Spec.Profiles.HttpMrfRoutingEnabled = &httpMrfRoutingEnabled
@@ -3461,7 +3433,7 @@ extendedRouteSpec:
 
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
-				mockCtlr.Agent.ccclGTMAgent = false
+				mockCtlr.PrimaryBigIPWorker.ccclGTMAgent = false
 
 				routeGroup := "default"
 				policy.Spec.Profiles.AnalyticsProfiles = cisapiv1.AnalyticsProfiles{
@@ -3614,12 +3586,12 @@ extendedRouteSpec:
 
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
-				mockCtlr.Agent.ccclGTMAgent = true
+				mockCtlr.PrimaryBigIPWorker.ccclGTMAgent = true
 				writer := &test.MockWriter{
 					FailStyle: test.Success,
 					Sections:  make(map[string]interface{}),
 				}
-				mockCtlr.Agent.ConfigWriter = writer
+				mockCtlr.PrimaryBigIPWorker.ConfigWriter = writer
 
 				routeGroup := "default"
 				mockCtlr.addPolicy(policy)
@@ -3800,8 +3772,8 @@ extendedRouteSpec:
 				//time.Sleep(1 * time.Microsecond)
 			})
 			It("Process Edge Route", func() {
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 
 				mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace] = struct{}{}
 				mockCtlr.addConfigMap(cm)
@@ -3841,9 +3813,8 @@ extendedRouteSpec:
 
 			})
 			It("Process Pass-through Route", func() {
-				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
-				go mockCtlr.Agent.agentWorker()
-				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.responseHandler()
+				go mockCtlr.PrimaryBigIPWorker.agentWorker()
 				mockCtlr.initState = true
 				mockCtlr.multiClusterHandler.ClusterConfigs[mockCtlr.multiClusterHandler.LocalClusterName].namespaces[namespace] = struct{}{}
 				mockCtlr.addConfigMap(cm)
@@ -3895,27 +3866,27 @@ extendedRouteSpec:
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 				//Expect(len(mockCtlr.getOrderedRoutes(""))).To(Equal(1), "Invalid no of Routes")
-				rscUpdateMeta := resourceStatusMeta{
-					0,
-					make(map[string]tenantResponse),
+				agentCfg := agentPostConfig{
+					reqMeta: requestMeta{
+						id: 0,
+					},
+					failedTenants: make(map[string]tenantResponse),
 				}
 
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
 
 				//	This will fail the TC because we are updating route status
 				time.Sleep(10 * time.Millisecond)
-				mockCtlr.Agent.respChan <- rscUpdateMeta
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 
 				config := ResourceConfigRequest{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
 					shareNodes: mockCtlr.shareNodes,
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
-				config.reqId = mockCtlr.Controller.enqueueReq(config)
-				mockCtlr.Agent.respChan <- rscUpdateMeta
-
-				mockCtlr.Agent.respChan <- rscUpdateMeta
-
+				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
+				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
+				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
 
 			})
@@ -3925,33 +3896,19 @@ extendedRouteSpec:
 	Describe("Processing VS, TS, IL, SvcLB on pod update", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			params := Params{
-				MultiClusterMode: PrimaryCIS,
-				Agent: &Agent{
-					PostManager: &PostManager{
-						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-							statusRunning: true,
-						},
-					},
-				},
-			}
-			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+				statusRunning: true,
+			})
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
+			}
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 			mockCtlr.Partition = "test"
-			mockCtlr.Agent = &Agent{
-				respChan: make(chan resourceStatusMeta, 1),
-				PostManager: &PostManager{
-					retryTenantDeclMap:  make(map[string]*tenantParams),
-					postChan:            make(chan ResourceConfigRequest, 1),
-					cachedTenantDeclMap: make(map[string]as3Tenant),
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
-			}
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{
 				kubeClient:    k8sfake.NewSimpleClientset(),
 				kubeCRClient:  crdfake.NewSimpleClientset(),
@@ -3970,7 +3927,7 @@ extendedRouteSpec:
 					TransportServer: make(map[string]int),
 				},
 			}
-			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+
 			mockCtlr.resources = NewResourceStore()
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 				mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient,
@@ -4138,17 +4095,9 @@ extendedRouteSpec:
 	Describe("Verify helper functions", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			params := Params{
-				MultiClusterMode: PrimaryCIS,
-				Agent: &Agent{
-					PostManager: &PostManager{
-						PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-							statusRunning: true,
-						},
-					},
-				},
-			}
-			mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+				statusRunning: true,
+			})
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

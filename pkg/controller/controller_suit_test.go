@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"bytes"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
@@ -9,9 +8,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
-	"io/ioutil"
+	"io"
 	v1 "k8s.io/api/core/v1"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -19,8 +19,6 @@ func TestController(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "CR Manager Suite")
 }
-
-var configPath = "../../test/configs/"
 
 type (
 	mockController struct {
@@ -37,13 +35,15 @@ type (
 	responceCtx struct {
 		tenant string
 		status float64
-		body   string
+		body   io.ReadCloser
 	}
 )
 
 func newMockController() *mockController {
 	return &mockController{
-		Controller:    &Controller{},
+		Controller: &Controller{
+			respChan: make(chan *agentPostConfig, 1),
+		},
 		mockResources: make(map[string][]interface{}),
 	}
 }
@@ -55,40 +55,39 @@ func (m *mockController) shutdown() error {
 func newMockPostManger() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &PostManager{
-			postChan:            make(chan ResourceConfigRequest, 1),
-			cachedTenantDeclMap: make(map[string]as3Tenant),
-			retryTenantDeclMap:  make(map[string]*tenantParams),
+			postChan: make(chan *agentPostConfig, 1),
+			respChan: make(chan *agentPostConfig, 1),
 		},
 		Responses: []int{},
 		RespIndex: 0,
 	}
-	mockPM.tenantResponseMap = make(map[string]tenantResponse)
 	mockPM.firstPost = true
 	return mockPM
 }
 
 func getMockHttpClient(responces []responceCtx, method string) (*http.Client, error) {
-	var body string
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
 
 	for _, resp := range responces {
-		if resp.body == "" {
+		var bodyContent string
+		if resp.body == nil {
 			if resp.status == http.StatusOK {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}], "declaration": {"%s": {"Shared": {"class": "application"}}}}`,
-					resp.status, resp.tenant, resp.tenant)
+				bodyContent = fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}], "declaration": {"%s": {"Shared": {"class": "application"}}}}`,
+					int(resp.status), resp.tenant, resp.tenant)
 			} else {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}],"error":{"code":%f}}`,
-					resp.status, resp.tenant, resp.status)
+				bodyContent = fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}],"error":{"code":%d}}`,
+					int(resp.status), resp.tenant, int(resp.status))
 			}
 		} else {
-			body = resp.body
+			bodyBytes, _ := io.ReadAll(resp.body)
+			bodyContent = string(bodyBytes)
 		}
 
 		responseMap[method].Responses = append(responseMap[method].Responses, &http.Response{
 			StatusCode: int(resp.status),
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte(body))),
+			Body:       io.NopCloser(strings.NewReader(bodyContent)),
 		})
 	}
 
@@ -100,23 +99,35 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	mockPM.httpClient = client
 }
 
-func newMockAgent(writer writer.Writer) *Agent {
-	return &Agent{
-		PostManager: &PostManager{
-			postChan: make(chan ResourceConfigRequest, 1),
-			PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			},
+func newMockRequestHandler(writer writer.Writer) *RequestHandler {
+	pm := &PostManager{
+		postChan: make(chan *agentPostConfig, 1),
+		respChan: make(chan *agentPostConfig, 1),
+		PostParams: PostParams{
+			BIGIPURL: "https://127.0.0.1",
 		},
-		Partition:       "test",
-		ConfigWriter:    writer,
-		EventChan:       make(chan interface{}),
-		PythonDriverPID: 0,
-		//cachedTenantDeclMap:   make(map[string]interface{}),
-		//incomingTenantDeclMap: make(map[string]interface{}),
-		userAgent: "",
+	}
+	return &RequestHandler{
+		PrimaryBigIPWorker: &Agent{
+			APIHandler: &APIHandler{LTM: &LTMAPIHandler{
+				&BaseAPIHandler{
+					PostManager: pm,
+					APIHandler:  NewAS3Handler(pm),
+				},
+			}},
+			PostManager:     pm,
+			Partition:       "test",
+			ConfigWriter:    writer,
+			EventChan:       make(chan interface{}),
+			PythonDriverPID: 0,
+			userAgent:       "",
+		},
+		PrimaryClusterHealthProbeParams: &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		},
 	}
 }
+
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {
 	appInf, _ := m.getNamespacedCommonInformer(m.multiClusterHandler.LocalClusterName, edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Add(edns)

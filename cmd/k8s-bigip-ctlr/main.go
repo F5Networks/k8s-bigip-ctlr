@@ -175,7 +175,6 @@ var (
 	enableTLS                   *string
 	tls13CipherGroupReference   *string
 	ciphers                     *string
-	trustedCerts                *string
 	as3PostDelay                *int
 
 	trustedCertsCfgmap      *string
@@ -919,8 +918,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
-		LogAS3Response:    *logAS3Response,
-		LogAS3Request:     *logAS3Request,
+		LogResponse:       *logAS3Response,
+		LogRequest:        *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -931,8 +930,8 @@ func initController(
 		TrustedCerts:      "",
 		SSLInsecure:       *sslInsecure,
 		AS3PostDelay:      *as3PostDelay,
-		LogAS3Response:    *logAS3Response,
-		LogAS3Request:     *logAS3Request,
+		LogResponse:       *logAS3Response,
+		LogRequest:        *logAS3Request,
 		HTTPClientMetrics: *httpClientMetrics,
 	}
 
@@ -941,7 +940,7 @@ func initController(
 		GtmParams.TrustedCerts = getBIGIPTrustedCerts()
 	}
 	agentParams := controller.AgentParams{
-		PostParams:         postMgrParams,
+		PrimaryParams:      postMgrParams,
 		GTMParams:          GtmParams,
 		Partition:          (*bigIPPartitions)[0],
 		LogLevel:           *logLevel,
@@ -954,6 +953,7 @@ func initController(
 		StaticRoutingMode:  *staticRoutingMode,
 		SharedStaticRoutes: *sharedStaticRoutes,
 		MultiClusterMode:   *multiClusterMode,
+		ApiType:            controller.AS3,
 	}
 
 	agentParams.DisableARP = true
@@ -961,8 +961,6 @@ func initController(
 	if *flannelName != "" {
 		agentParams.DisableARP = false
 	}
-
-	agent := controller.NewAgent(agentParams)
 
 	var globalSpecConfigMap *string
 	if *extendedSpecConfigmap != "" {
@@ -977,7 +975,6 @@ func initController(
 			Namespaces:                  *namespaces,
 			NamespaceLabel:              *namespaceLabel,
 			Partition:                   (*bigIPPartitions)[0],
-			Agent:                       agent,
 			PoolMemberType:              *poolMemberType,
 			VXLANName:                   vxlanName,
 			VXLANMode:                   vxlanMode,
@@ -1002,6 +999,8 @@ func initController(
 			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
 		},
 		true,
+		agentParams,
+		nil,
 	)
 	return ctlr
 }
@@ -1127,7 +1126,7 @@ func main() {
 		ctlr := initController(config)
 		ctlr.TeemData = td
 		if !(*disableTeems) {
-			key, err := ctlr.Agent.GetBigipRegKey()
+			key, err := ctlr.RequestHandler.PrimaryBigIPWorker.LTM.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}

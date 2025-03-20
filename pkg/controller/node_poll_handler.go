@@ -194,7 +194,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 	}
 	log.Debugf("Processing Node Updates for static routes")
 	routes := routeSection{}
-	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.Agent.PostManager.BIGIPURL, "https://")
+	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.BIGIPURL, "https://")
 	nodePodCIDRMap := ctlr.GetNodePodCIDRMap()
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
@@ -336,7 +336,7 @@ func (ctlr *Controller) processStaticRouteUpdate(
 			}
 		}
 	}
-	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
+	doneCh, errCh, err := ctlr.RequestHandler.PrimaryBigIPWorker.ConfigWriter.SendSection("static-routes", routes)
 
 	if nil != err {
 		log.Warningf("Failed to write static routes config section: %v", err)
@@ -462,7 +462,7 @@ func (ctlr *Controller) processBlockAffinities(clusterName string) {
 		baListInf = infStore.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetIndexer().List()
 	}
 	routes := routeSection{}
-	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.Agent.PostManager.BIGIPURL, "https://")
+	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.BIGIPURL, "https://")
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	for _, obj := range baListInf {
 		blockAffinity := obj.(*unstructured.Unstructured)
@@ -490,7 +490,7 @@ func (ctlr *Controller) processBlockAffinities(clusterName string) {
 			}
 		}
 	}
-	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
+	doneCh, errCh, err := ctlr.RequestHandler.PrimaryBigIPWorker.ConfigWriter.SendSection("static-routes", routes)
 
 	if nil != err {
 		log.Warningf("Failed to write static routes config section: %v", err)

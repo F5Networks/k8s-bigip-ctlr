@@ -101,22 +101,6 @@ func (aw *AgentWorker) agentWorker() {
 			continue
 		}
 
-		if aw.HAMode {
-			// if endPoint is not empty means, cis is running in secondary mode
-			// check if the primary cis is up and running
-			if aw.LTM.PrimaryClusterHealthProbeParams.EndPointType != "" {
-				if aw.LTM.PrimaryClusterHealthProbeParams.statusRunning {
-					// dont post the declaration
-					continue
-				} else {
-					if aw.LTM.PrimaryClusterHealthProbeParams.statusChanged {
-						aw.LTM.PrimaryClusterHealthProbeParams.paramLock.Lock()
-						aw.LTM.PrimaryClusterHealthProbeParams.statusChanged = false
-						aw.LTM.PrimaryClusterHealthProbeParams.paramLock.Unlock()
-					}
-				}
-			}
-		}
 		aw.LTM.publishConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,

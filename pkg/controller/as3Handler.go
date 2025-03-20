@@ -529,24 +529,10 @@ func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest) agentPostC
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 	}
 	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig) {
-		if am.postManagerPrefix != gtmPostmanagerPrefix {
-			// this section is for primary/secondary agent
-			if !reflect.DeepEqual(cfg, am.cachedTenantDeclMap[tenant]) ||
-				(am.PrimaryClusterHealthProbeParams.EndPoint != "" && am.PrimaryClusterHealthProbeParams.statusChanged) {
-				as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
-				as3cfg.tenantResponseMap[tenant] = tenantResponse{}
-			} else {
-				// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
-				if am.PrimaryClusterHealthProbeParams.EndPoint == "" || !am.PrimaryClusterHealthProbeParams.statusRunning {
-					log.Debugf("[AS3] No change in %v tenant configuration", tenant)
-				}
-			}
-		} else {
-			// this section is for gtm agent
-			if !reflect.DeepEqual(cfg, am.cachedTenantDeclMap[tenant]) {
-				as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
-				as3cfg.tenantResponseMap[tenant] = tenantResponse{}
-			}
+		// this section is for gtm agent
+		if !reflect.DeepEqual(cfg, am.cachedTenantDeclMap[tenant]) {
+			as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
+			as3cfg.tenantResponseMap[tenant] = tenantResponse{}
 		}
 	}
 	as3cfg.data = string(am.createAS3Declaration(as3cfg.incomingTenantDeclMap, am.userAgent))

@@ -39,11 +39,10 @@ const (
 
 func NewPostManager(params AgentParams, kind string, respChan chan *agentPostConfig) *PostManager {
 	pm := &PostManager{
-		firstPost:                       true,
-		PrimaryClusterHealthProbeParams: params.PrimaryClusterHealthProbeParams,
-		respChan:                        respChan,
-		postChan:                        make(chan *agentPostConfig),
-		apiType:                         params.ApiType,
+		firstPost: true,
+		respChan:  respChan,
+		postChan:  make(chan *agentPostConfig),
+		apiType:   params.ApiType,
 	}
 	switch kind {
 	case GTMBigIP:

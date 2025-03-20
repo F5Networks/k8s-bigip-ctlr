@@ -106,28 +106,28 @@ extendedRouteSpec:
 	It("Check Primary Cluster HealthProbe config", func() {
 
 		mockCtlr.updateHealthProbeConfig(es.HAClusterConfig)
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.EndPointType).To(BeEquivalentTo("http"), "endpoint type not set properly")
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.probeInterval).To(BeEquivalentTo(5), "probe interval not set properly")
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.retryInterval).To(BeEquivalentTo(1), "retry interval not set properly")
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.checkPrimaryClusterHealthStatus()).To(BeFalse(), "incorrect primary cluster health status")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPointType).To(BeEquivalentTo("http"), "endpoint type not set properly")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.probeInterval).To(BeEquivalentTo(5), "probe interval not set properly")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.retryInterval).To(BeEquivalentTo(1), "retry interval not set properly")
+		Expect(mockCtlr.RequestHandler.checkPrimaryClusterHealthStatus()).To(BeFalse(), "incorrect primary cluster health status")
 		es.HAClusterConfig.ProbeInterval = 0
 		es.HAClusterConfig.RetryInterval = 0
 		mockCtlr.updateHealthProbeConfig(es.HAClusterConfig)
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.probeInterval).To(BeEquivalentTo(DefaultProbeInterval), "probe interval not set properly")
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.retryInterval).To(BeEquivalentTo(DefaultRetryInterval), "retry interval not set properly")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.probeInterval).To(BeEquivalentTo(DefaultProbeInterval), "probe interval not set properly")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.retryInterval).To(BeEquivalentTo(DefaultRetryInterval), "retry interval not set properly")
 		es.HAClusterConfig.PrimaryClusterEndPoint = "tcp://10.145.72.114"
 		es.HAClusterConfig.ProbeInterval = 1
 		es.HAClusterConfig.RetryInterval = 1
 		mockCtlr.updateHealthProbeConfig(es.HAClusterConfig)
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.EndPointType).To(BeEquivalentTo("tcp"), "endPoint type not set to tcp")
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.checkPrimaryClusterHealthStatus()).To(BeFalse(), "incorrect primary cluster health status")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPointType).To(BeEquivalentTo("tcp"), "endPoint type not set to tcp")
+		Expect(mockCtlr.RequestHandler.checkPrimaryClusterHealthStatus()).To(BeFalse(), "incorrect primary cluster health status")
 		// unsupported endpoint type
 		es.HAClusterConfig.PrimaryClusterEndPoint = "https://10.145.72.114:8001"
-		mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.EndPointType = ""
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPointType = ""
 		mockCtlr.firstPollPrimaryClusterHealthStatus()
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
 		mockCtlr.getPrimaryClusterHealthStatus()
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.PostManager.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
 
 	})
 	It("Check Primary Cluster HealthProbe with valid http endpoint", func() {
@@ -140,21 +140,21 @@ extendedRouteSpec:
 			))
 		es.HAClusterConfig.PrimaryClusterEndPoint = "http://" + server.Addr()
 		mockCtlr.updateHealthProbeConfig(es.HAClusterConfig)
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.checkPrimaryClusterHealthStatus()).To(BeTrue(), "incorrect primary cluster health status")
+		Expect(mockCtlr.RequestHandler.checkPrimaryClusterHealthStatus()).To(BeTrue(), "incorrect primary cluster health status")
 		server.Close()
 	})
 
 	It("Check Primary Cluster HealthProbe with invalid http endpoint", func() {
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.getPrimaryClusterHealthStatusFromHTTPEndPoint()).To(BeFalse())
-		mockCtlr.PrimaryBigIPWorker.Agent.PrimaryClusterHealthProbeParams.EndPoint = "https://0.0.0.0:80"
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.getPrimaryClusterHealthStatusFromHTTPEndPoint()).To(BeFalse())
-		mockCtlr.PrimaryBigIPWorker.Agent.PrimaryClusterHealthProbeParams.EndPoint = "http://"
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.getPrimaryClusterHealthStatusFromHTTPEndPoint()).To(BeFalse())
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromHTTPEndPoint()).To(BeFalse())
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint = "https://0.0.0.0:80"
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromHTTPEndPoint()).To(BeFalse())
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint = "http://"
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromHTTPEndPoint()).To(BeFalse())
 	})
 
 	It("Check Primary Cluster HealthProbe with invalid tcp endpoint", func() {
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.getPrimaryClusterHealthStatusFromTCPEndPoint()).To(BeFalse())
-		mockCtlr.PrimaryBigIPWorker.Agent.PrimaryClusterHealthProbeParams.EndPoint = "tcp:/"
-		Expect(mockCtlr.PrimaryBigIPWorker.Agent.getPrimaryClusterHealthStatusFromTCPEndPoint()).To(BeFalse())
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromTCPEndPoint()).To(BeFalse())
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint = "tcp:/"
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromTCPEndPoint()).To(BeFalse())
 	})
 })

@@ -115,7 +115,6 @@ func newMockRequestHandler(writer writer.Writer) *RequestHandler {
 					APIHandler:  NewAS3Handler(pm),
 				},
 			}},
-			PostManager:     pm,
 			Partition:       "test",
 			ConfigWriter:    writer,
 			EventChan:       make(chan interface{}),

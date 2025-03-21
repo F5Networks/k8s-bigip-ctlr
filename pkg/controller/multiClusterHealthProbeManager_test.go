@@ -27,7 +27,7 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 			Sections:  make(map[string]interface{}),
 		}
 		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
-		mockCtlr.RequestHandler.PrimaryBigIPWorker.httpClient = &http.Client{
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.getPostManager().httpClient = &http.Client{
 			Timeout: 1,
 		}
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()

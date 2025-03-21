@@ -238,3 +238,17 @@ func (api *BaseAPIHandler) GetBigipRegKey() (string, error) {
 	return api.APIHandler.getRegKeyFromResponse(httpResp, responseMap)
 
 }
+
+func (apiHandler *APIHandler) getPostManager() *PostManager {
+	if apiHandler.GTM != nil {
+		return apiHandler.GTM.PostManager
+	}
+	return apiHandler.LTM.PostManager
+}
+
+func (apiHandler *APIHandler) getAPIType() string {
+	if apiHandler.GTM != nil {
+		return apiHandler.GTM.PostManager.apiType
+	}
+	return apiHandler.LTM.PostManager.apiType
+}

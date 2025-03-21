@@ -12,12 +12,12 @@ func (agent *Agent) gtmWorker() {
 		// For the very first post after starting controller, need not wait to post
 		if !agent.GTM.PostManager.firstPost && agent.GTM.PostManager.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[%v]%v Delaying post to BIG-IP for %v seconds ", agent.apiType, agent.postManagerPrefix, agent.GTM.PostManager.AS3PostDelay)
+			log.Debugf("[%v]%v Delaying post to BIG-IP for %v seconds ", agent.getAPIType(), agent.GTM.postManagerPrefix, agent.GTM.PostManager.AS3PostDelay)
 			_ = <-time.After(time.Duration(agent.GTM.PostManager.AS3PostDelay) * time.Second)
 		}
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("%v[%v]%v No tenants found in request", agent.apiType, getRequestPrefix(agentConfig.reqMeta.id), agent.postManagerPrefix)
+			log.Infof("%v[%v]%v No tenants found in request", agent.getAPIType(), getRequestPrefix(agentConfig.reqMeta.id), agent.GTM.postManagerPrefix)
 			continue
 		}
 
@@ -28,7 +28,7 @@ func (agent *Agent) gtmWorker() {
 		*/
 		agent.GTM.APIHandler.pollTenantStatus(agentConfig)
 		// notify resourceStatusUpdate response handler on successful tenant update
-		agent.respChan <- agentConfig
+		agent.GTM.respChan <- agentConfig
 	}
 }
 

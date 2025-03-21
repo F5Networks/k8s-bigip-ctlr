@@ -66,14 +66,14 @@ func (reqHandler *RequestHandler) getPrimaryClusterHealthStatusFromHTTPEndPoint(
 		return false
 	}
 
-	timeOut := reqHandler.PrimaryBigIPWorker.httpClient.Timeout
+	timeOut := reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Timeout
 	defer func() {
-		reqHandler.PrimaryBigIPWorker.httpClient.Timeout = timeOut
+		reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Timeout = timeOut
 	}()
 	if reqHandler.PrimaryClusterHealthProbeParams.statusChanged {
 		log.Debugf("[MultiCluster] posting GET Check primaryEndPoint Health request on %v", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
 	}
-	reqHandler.PrimaryBigIPWorker.httpClient.Timeout = 10 * time.Second
+	reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Timeout = 10 * time.Second
 
 	httpResp := reqHandler.httpGetReq(req)
 	if httpResp == nil {
@@ -108,7 +108,7 @@ func (reqHandler *RequestHandler) getPrimaryClusterHealthStatusFromTCPEndPoint()
 }
 
 func (reqHandler *RequestHandler) httpGetReq(request *http.Request) *http.Response {
-	httpResp, err := reqHandler.PrimaryBigIPWorker.httpClient.Do(request)
+	httpResp, err := reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Do(request)
 
 	if err != nil {
 		if reqHandler.PrimaryClusterHealthProbeParams.statusChanged {

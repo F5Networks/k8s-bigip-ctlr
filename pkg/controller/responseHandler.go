@@ -150,11 +150,11 @@ func (ctlr *Controller) responseHandler() {
 			<-time.After(timeoutMedium)
 			switch agentConfig.agentKind {
 			case GTMBigIP:
-				ctlr.RequestHandler.GTMBigIPWorker.postChan <- agentConfig
+				ctlr.RequestHandler.GTMBigIPWorker.getPostManager().postChan <- agentConfig
 			case PrimaryBigIP:
-				ctlr.RequestHandler.PrimaryBigIPWorker.postChan <- agentConfig
+				ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().postChan <- agentConfig
 			case SecondaryBigIP:
-				ctlr.RequestHandler.SecondaryBigIPWorker.postChan <- agentConfig
+				ctlr.RequestHandler.SecondaryBigIPWorker.getPostManager().postChan <- agentConfig
 			}
 		}
 	}

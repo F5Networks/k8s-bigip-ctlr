@@ -870,7 +870,6 @@ type (
 
 	Agent struct {
 		*APIHandler
-		*PostManager
 		Partition         string
 		ConfigWriter      writer.Writer
 		EventChan         chan interface{}

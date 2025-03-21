@@ -1602,7 +1602,7 @@ var _ = Describe("Worker Tests", func() {
 				body:   io.NopCloser(strings.NewReader("")),
 			}}, http.MethodPost)
 			mockPM.firstPost = false
-			mockCtlr.RequestHandler.PrimaryBigIPWorker.PostManager = mockPM.PostManager
+			mockCtlr.RequestHandler.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -2124,7 +2124,7 @@ var _ = Describe("Worker Tests", func() {
 				}
 
 				time.Sleep(10 * time.Millisecond)
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
 
 				config := ResourceConfigRequest{
@@ -2133,11 +2133,11 @@ var _ = Describe("Worker Tests", func() {
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
 				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
-				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				_ = <-mockCtlr.PrimaryBigIPWorker.getPostManager().respChan
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 				agentCfg.failedTenants["test"] = tenantResponse{}
-				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				_ = <-mockCtlr.PrimaryBigIPWorker.getPostManager().respChan
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
 			})
 			It("Processing VS with partition", func() {
@@ -2378,7 +2378,7 @@ var _ = Describe("Worker Tests", func() {
 					failedTenants: make(map[string]tenantResponse),
 				}
 
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 
 				config := ResourceConfigRequest{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
@@ -2388,8 +2388,8 @@ var _ = Describe("Worker Tests", func() {
 				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
 				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
 				agentCfg.reqMeta.id = 3
-				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				_ = <-mockCtlr.PrimaryBigIPWorker.getPostManager().respChan
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 
 				agentCfg.failedTenants["test"] = tenantResponse{}
 				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
@@ -2397,8 +2397,8 @@ var _ = Describe("Worker Tests", func() {
 				agentCfg.reqMeta.id = 3
 
 				delete(agentCfg.failedTenants, "test")
-				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				_ = <-mockCtlr.PrimaryBigIPWorker.getPostManager().respChan
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 
 				time.Sleep(10 * time.Millisecond)
 
@@ -3015,8 +3015,8 @@ var _ = Describe("Worker Tests", func() {
 				body:   io.NopCloser(strings.NewReader("")),
 			}}, http.MethodPost)
 			mockPM.firstPost = false
-			mockCtlr.PrimaryBigIPWorker.LogResponse = true
-			mockCtlr.PrimaryBigIPWorker.PostManager = mockPM.PostManager
+			mockCtlr.PrimaryBigIPWorker.getPostManager().LogResponse = true
+			mockCtlr.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -3877,7 +3877,7 @@ extendedRouteSpec:
 
 				//	This will fail the TC because we are updating route status
 				time.Sleep(10 * time.Millisecond)
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 
 				config := ResourceConfigRequest{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
@@ -3885,8 +3885,8 @@ extendedRouteSpec:
 					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
 				}
 				config.reqMeta = mockCtlr.Controller.enqueueReq(config)
-				_ = <-mockCtlr.PrimaryBigIPWorker.respChan
-				mockCtlr.PrimaryBigIPWorker.respChan <- &agentCfg
+				_ = <-mockCtlr.PrimaryBigIPWorker.getPostManager().respChan
+				mockCtlr.PrimaryBigIPWorker.getPostManager().respChan <- &agentCfg
 				time.Sleep(10 * time.Millisecond)
 
 			})

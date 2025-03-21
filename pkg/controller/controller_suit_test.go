@@ -112,7 +112,7 @@ func newMockRequestHandler(writer writer.Writer) *RequestHandler {
 			APIHandler: &APIHandler{LTM: &LTMAPIHandler{
 				&BaseAPIHandler{
 					PostManager: pm,
-					APIHandler:  NewAS3Handler(pm),
+					APIHandler:  NewAS3Handler(pm, "test"),
 				},
 			}},
 			Partition:       "test",

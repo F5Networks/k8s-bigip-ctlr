@@ -13,7 +13,6 @@ var OsExit = os.Exit
 func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandler {
 	reqHandler := &RequestHandler{
 		reqChan:                         make(chan ResourceConfigRequest, 1),
-		userAgent:                       agentParams.UserAgent,
 		respChan:                        ctlr.respChan,
 		agentParams:                     agentParams,
 		PrimaryClusterHealthProbeParams: ctlr.multiClusterHandler.PrimaryClusterHealthProbeParams,
@@ -89,7 +88,6 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 	agent.ConfigWriter = configWriter
 	agent.Partition = reqHandler.agentParams.Partition
 	agent.EventChan = make(chan interface{})
-	agent.userAgent = reqHandler.agentParams.UserAgent
 	agent.HttpAddress = reqHandler.agentParams.HttpAddress
 	agent.disableARP = reqHandler.agentParams.DisableARP
 
@@ -206,6 +204,7 @@ func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
 		APIHandler:   &APIHandler{},
 		ccclGTMAgent: reqHandler.agentParams.CCCLGTMAgent,
 		stopChan:     make(chan struct{}),
+		userAgent:    reqHandler.agentParams.UserAgent,
 	}
 	switch kind {
 	case GTMBigIP:
@@ -213,6 +212,7 @@ func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
 		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, reqHandler.respChan)
 	default:
 		DEFAULT_PARTITION = reqHandler.agentParams.Partition
+		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"
 		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, reqHandler.respChan)
 	}
 	return agent

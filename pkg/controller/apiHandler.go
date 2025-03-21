@@ -22,7 +22,7 @@ func NewGTMAPIHandler(params AgentParams, respChan chan *agentPostConfig) *GTMAP
 	}
 	switch params.ApiType {
 	case AS3:
-		gtm.APIHandler = NewAS3Handler(gtm.PostManager)
+		gtm.APIHandler = NewAS3Handler(gtm.PostManager, params.Partition)
 		if as3Handler, ok := gtm.APIHandler.(*AS3Handler); ok {
 			as3Handler.PostParams = gtm.PostManager.PostParams
 			as3Handler.postManagerPrefix = gtmPostmanagerPrefix
@@ -54,7 +54,7 @@ func NewLTMAPIHandler(params AgentParams, kind string, respChan chan *agentPostC
 	// Initialize appropriate API handler based on type
 	switch params.ApiType {
 	case AS3:
-		ltm.APIHandler = NewAS3Handler(ltm.PostManager)
+		ltm.APIHandler = NewAS3Handler(ltm.PostManager, params.Partition)
 		if as3Handler, ok := ltm.APIHandler.(*AS3Handler); ok {
 			as3Handler.PostParams = ltm.PostManager.PostParams
 			ltm.PopulateAPIVersion()

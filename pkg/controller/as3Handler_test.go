@@ -331,7 +331,7 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.17"] = rsCfg3
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.18"] = rsCfg4
 
-			agentPostCfg := as3Handler.createAPIConfig(config)
+			agentPostCfg := as3Handler.createAPIConfig(config, true, "")
 			decl := agentPostCfg.data
 			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(decl, "pool1")).To(BeTrue())
@@ -420,7 +420,7 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
-			agentPostCfg := as3Handler.createAPIConfig(config)
+			agentPostCfg := as3Handler.createAPIConfig(config, false, "")
 			decl := agentPostCfg.data
 			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(decl, "adminState")).To(BeTrue())
@@ -438,7 +438,7 @@ var _ = Describe("Backend Tests", func() {
 
 			zero := 0
 			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			agentPostCfg := as3Handler.createAPIConfig(config)
+			agentPostCfg := as3Handler.createAPIConfig(config, false, "")
 			decl := agentPostCfg.data
 			var as3Config map[string]interface{}
 			_ = json.Unmarshal([]byte(decl), &as3Config)
@@ -486,7 +486,7 @@ var _ = Describe("Backend Tests", func() {
 			config := ResourceConfigRequest{
 				ltmConfig: make(LTMConfig),
 			}
-			agentPostCfg := as3Handler.createAPIConfig(config)
+			agentPostCfg := as3Handler.createAPIConfig(config, false, "")
 			decl := agentPostCfg.data
 			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 			Expect(strings.Contains(decl, "\"class\":\"Tenant\"")).To(BeTrue())
@@ -520,7 +520,7 @@ var _ = Describe("Backend Tests", func() {
 				gtmConfig: GTMConfig{
 					DEFAULT_PARTITION: GTMPartitionConfig{},
 				},
-			})
+			}, false)
 			Expect(len(adc)).To(Equal(1), "Invalid GTM Config")
 
 			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
@@ -563,7 +563,7 @@ var _ = Describe("Backend Tests", func() {
 					},
 				},
 			}
-			adc := as3Handler.createLTMAndGTMConfigADC(ResourceConfigRequest{gtmConfig: gtmConfig})
+			adc := as3Handler.createLTMAndGTMConfigADC(ResourceConfigRequest{gtmConfig: gtmConfig}, false)
 			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
 			tenant := adc[DEFAULT_PARTITION].(as3Tenant)
 
@@ -606,9 +606,9 @@ var _ = Describe("Backend Tests", func() {
 		It("Test Deleted Partition", func() {
 			as3Handler.defaultPartition = "test"
 			cisLabel := "test"
-			deletedPartition := as3Handler.getDeletedTenantDeclaration("test", cisLabel)
+			deletedPartition := as3Handler.getDeletedTenantDeclaration("test", cisLabel, 0)
 			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
-			deletedPartition = as3Handler.getDeletedTenantDeclaration("default", cisLabel)
+			deletedPartition = as3Handler.getDeletedTenantDeclaration("default", cisLabel, 0)
 			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
 		})
 	})

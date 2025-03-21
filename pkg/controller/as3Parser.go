@@ -32,7 +32,7 @@ var baseAS3Config = `{
   }
 `
 
-func (ap *AS3Parser) getDeletedTenantDeclaration(tenant, cisLabel string) as3Tenant {
+func (ap *AS3Parser) getDeletedTenantDeclaration(tenant, cisLabel string, defaultRouteDomain int32) as3Tenant {
 	if ap.defaultPartition == tenant {
 		// Flush Partition contents
 		sharedApp := as3Application{}
@@ -41,7 +41,7 @@ func (ap *AS3Parser) getDeletedTenantDeclaration(tenant, cisLabel string) as3Ten
 		return as3Tenant{
 			"class":              "Tenant",
 			as3SharedApplication: sharedApp,
-			"defaultRouteDomain": ap.defaultRouteDomain,
+			"defaultRouteDomain": defaultRouteDomain,
 			"label":              cisLabel,
 		}
 	}

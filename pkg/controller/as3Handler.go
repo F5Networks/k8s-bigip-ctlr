@@ -37,16 +37,18 @@ type ApiTypeHandlerInterface interface {
 	logResponse(responseMap map[string]interface{})
 	logRequest(cfg string)
 	getApiHandler() *AS3Handler
-	createAPIConfig(rsConfig ResourceConfigRequest) agentPostConfig
+	createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string) agentPostConfig
 	//createLTMConfigADC(config ResourceConfigRequest) as3ADC
 	//createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC
 }
 
-func NewAS3Handler(postManager *PostManager) *AS3Handler {
+func NewAS3Handler(postManager *PostManager, defaultPartition string) *AS3Handler {
 	handler := &AS3Handler{
 		cachedTenantDeclMap: make(map[string]as3Tenant),
-		AS3Parser:           &AS3Parser{},
-		PostManager:         postManager,
+		AS3Parser: &AS3Parser{
+			defaultPartition: defaultPartition,
+		},
+		PostManager: postManager,
 	}
 
 	return handler
@@ -496,21 +498,21 @@ func (am *AS3Handler) removeDeletedTenantsForBigIP(as3Config map[string]interfac
 }
 
 // Creates AS3 adc only for tenants with updated configuration
-func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest) agentPostConfig {
+func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string) agentPostConfig {
 	as3cfg := agentPostConfig{
 		reqMeta:               rsConfig.reqMeta,
 		tenantResponseMap:     make(map[string]tenantResponse),
 		failedTenants:         make(map[string]tenantResponse),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 	}
-	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig) {
+	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig, ccclGTMAgent) {
 		// this section is for gtm agent
 		if !reflect.DeepEqual(cfg, am.cachedTenantDeclMap[tenant]) {
 			as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 			as3cfg.tenantResponseMap[tenant] = tenantResponse{}
 		}
 	}
-	as3cfg.data = string(am.createAS3Declaration(as3cfg.incomingTenantDeclMap, am.userAgent))
+	as3cfg.data = string(am.createAS3Declaration(as3cfg.incomingTenantDeclMap, userAgent))
 	return as3cfg
 }
 
@@ -520,7 +522,7 @@ func (am *AS3Handler) createAS3Declaration(tenantDeclMap map[string]as3Tenant, u
 	var baseAS3ConfigTemplate string
 	// if !postMgr.AS3Config.DocumentAPI {
 	baseAS3ConfigTemplate = fmt.Sprintf(baseAS3Config, am.AS3VersionInfo.as3Version,
-		am.AS3VersionInfo.as3Release)
+		am.AS3VersionInfo.as3Release, am.AS3VersionInfo.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Config)
 	adc = as3Config["declaration"].(map[string]interface{})
 	// } else {
@@ -553,39 +555,40 @@ func (am *AS3Handler) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
 	for tenant := range am.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok {
 			// Remove partition
-			adc[tenant] = am.AS3Parser.getDeletedTenantDeclaration(tenant, cisLabel)
+			adc[tenant] = am.AS3Parser.getDeletedTenantDeclaration(tenant, cisLabel, config.defaultRouteDomain)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
 		if len(partitionConfig.ResourceMap) == 0 {
 			// Remove partition
-			adc[tenantName] = am.AS3Parser.getDeletedTenantDeclaration(tenantName, cisLabel)
+			adc[tenantName] = am.AS3Parser.getDeletedTenantDeclaration(tenantName, cisLabel, config.defaultRouteDomain)
 			continue
 		}
+		sharedApp := as3Application{}
 		// Create AS3 Tenant
-		tenantDecl := as3Tenant{
-			"class": "Tenant",
-			"label": cisLabel,
-		}
 		for _, resourceConfig := range partitionConfig.ResourceMap {
 			// Create Shared as3Application object
-			app := as3Application{}
-			app["class"] = "Application"
-			app["template"] = "shared"
+			sharedApp["class"] = "Application"
+			sharedApp["template"] = "shared"
 
 			// Process rscfg to create AS3 Resources
-			am.AS3Parser.processResourcesForAS3(resourceConfig, app, config.shareNodes, tenantName, config.poolMemberType)
+			am.AS3Parser.processResourcesForAS3(resourceConfig, sharedApp, config.shareNodes, tenantName, config.poolMemberType)
 
 			// Process CustomProfiles
-			am.AS3Parser.processCustomProfilesForAS3(resourceConfig, app)
+			am.AS3Parser.processCustomProfilesForAS3(resourceConfig, sharedApp)
 
 			// Process Profiles
-			am.AS3Parser.processProfilesForAS3(resourceConfig, app)
+			am.AS3Parser.processProfilesForAS3(resourceConfig, sharedApp)
 
-			am.AS3Parser.processIRulesForAS3(resourceConfig, app)
+			am.AS3Parser.processIRulesForAS3(resourceConfig, sharedApp)
 
-			am.AS3Parser.processDataGroupForAS3(resourceConfig, app)
-			tenantDecl[resourceConfig.Virtual.Name] = app
+			am.AS3Parser.processDataGroupForAS3(resourceConfig, sharedApp)
+		}
+		tenantDecl := as3Tenant{
+			"class":              "Tenant",
+			"defaultRouteDomain": config.defaultRouteDomain,
+			as3SharedApplication: sharedApp,
+			"label":              cisLabel,
 		}
 		adc[tenantName] = tenantDecl
 	}
@@ -690,7 +693,7 @@ func (am *AS3Handler) createGTMConfigADC(config ResourceConfigRequest, adc as3AD
 	return adc
 }
 
-func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
+func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest, ccclGTMAgent bool) as3ADC {
 	adc := as3ADC{}
 	if am.postManagerPrefix == gtmPostmanagerPrefix {
 		// this section is for gtm agent
@@ -698,7 +701,9 @@ func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest) as3
 	} else {
 		// this section is for primary/secondary agent
 		adc = am.createLTMConfigADC(config)
-		adc = am.createGTMConfigADC(config, adc)
+		if !ccclGTMAgent {
+			adc = am.createGTMConfigADC(config, adc)
+		}
 	}
 	return adc
 }

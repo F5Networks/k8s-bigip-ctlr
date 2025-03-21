@@ -848,7 +848,6 @@ type (
 		respChan                        chan *agentPostConfig
 		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		agentParams                     AgentParams
-		userAgent                       string
 		//TokenManager                  *tokenmanager.TokenManager
 		ccclGTMAgent bool
 		disableARP   bool
@@ -930,16 +929,14 @@ type (
 	AS3Handler struct {
 		postManagerPrefix   string
 		cachedTenantDeclMap map[string]as3Tenant
-		userAgent           string
 		*PostManager
 		*AS3Parser
 	}
 
 	AS3Parser struct {
-		AS3VersionInfo     as3VersionInfo
-		bigIPAS3Version    float64
-		defaultPartition   string
-		defaultRouteDomain interface{}
+		AS3VersionInfo   as3VersionInfo
+		bigIPAS3Version  float64
+		defaultPartition string
 	}
 
 	PostManager struct {

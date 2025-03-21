@@ -909,11 +909,11 @@ func (ctlr *Controller) processResources() bool {
 		config.reqMeta = ctlr.enqueueReq(config)
 		config.poolMemberType = ctlr.PoolMemberType
 		if rKey.kind == HACIS {
-			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqMeta, strings.ToTitle(Update))
+			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqMeta.id, strings.ToTitle(Update))
 		} else if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
-			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqMeta, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqMeta.id, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		} else {
-			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqMeta, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqMeta.id, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		}
 		ctlr.RequestHandler.EnqueueRequestConfig(config)
 		ctlr.initState = false

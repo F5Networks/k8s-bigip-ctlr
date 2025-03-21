@@ -47,7 +47,7 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 	var agentConfig agentPostConfig
 	if agent.APIHandler.GTM == nil {
 		// Convert ResourceConfigRequest to as3Config
-		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest)
+		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest, agent.ccclGTMAgent, agent.userAgent)
 		agentConfig.as3APIURL = agent.LTM.APIHandler.getAPIURL([]string{})
 		if agent.APIHandler.LTM.postManagerPrefix == secondaryPostmanagerPrefix {
 			agentConfig.agentKind = SecondaryBigIP
@@ -62,7 +62,7 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 		}
 	} else {
 		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
-		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest)
+		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent)
 		agentConfig.as3APIURL = agent.GTM.APIHandler.getAPIURL([]string{})
 		agentConfig.agentKind = GTMBigIP
 	}

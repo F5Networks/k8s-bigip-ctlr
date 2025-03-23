@@ -4270,7 +4270,8 @@ func (ctlr *Controller) processIngressLink(
 	var altErr string
 	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
 	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
-	svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
+	//fetch service backends for IngressLink with weights
+	svc, err := ctlr.getKICServiceOfIngressLink(ingLink.ObjectMeta.Namespace, ingLink.Spec.Selector, ctlr.multiClusterHandler.LocalClusterName)
 	if err != nil {
 		ctlr.updateILStatus(ingLink, "", StatusError, err)
 		return err
@@ -4377,7 +4378,6 @@ func (ctlr *Controller) processIngressLink(
 			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
 		}
 	}
-
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	for _, port := range svc.Spec.Ports {
 		//for nginx health monitor port skip vs creation
@@ -4433,43 +4433,35 @@ func (ctlr *Controller) processIngressLink(
 				port.Port,
 			)
 		}
-		svcPort := intstr.IntOrString{IntVal: port.Port}
-		pool := Pool{
-			Name: ctlr.formatPoolName(
-				svc.ObjectMeta.Namespace,
-				svc.ObjectMeta.Name,
-				svcPort,
-				"",
-				"",
-				"",
-			),
-			Partition:        rsCfg.Virtual.Partition,
-			ServiceName:      svc.ObjectMeta.Name,
-			ServicePort:      svcPort,
-			ServiceNamespace: svc.ObjectMeta.Namespace,
-			BigIPRouteDomain: rsCfg.Virtual.BigIPRouteDomain,
-		}
-		// udpating the service cache
-		rsRef := resourceRef{
-			name:      ingLink.Name,
-			namespace: ingLink.Namespace,
-			kind:      IngressLink,
-		}
-		// updating the service cache
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, svc.ObjectMeta.Name, "", pool, svcPort, "")
-		// Update the pool Members
-		ctlr.updatePoolMembersForResources(&pool)
-		if len(pool.Members) > 0 {
-			rsCfg.MetaData.Active = true
-		}
-		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
+		monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(ingLink.Namespace, ingLink.Name, intstr.IntOrString{IntVal: port.Port}, "", "", ""))
+		var monitorNames []MonitorName
+		monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
+		monitorNames = append(monitorNames, monitorRefName)
 		rsCfg.Monitors = append(
 			rsCfg.Monitors,
 			Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20,
 				Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: targetPort})
-		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName})
-		rsCfg.Virtual.PoolName = pool.Name
-		rsCfg.Pools = append(rsCfg.Pools, pool)
+		// For default mode read the il spec multiclusterservices and populate the svcName, Namespace and
+		// ServicePort from the ingresslink
+		var multiClusterServices []cisapiv1.MultiClusterServiceReference
+		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+			for _, backend := range ingLink.Spec.MultiClusterServices {
+				// get svc from selector
+				svc, err := ctlr.getKICServiceOfIngressLink(backend.Namespace, backend.Selector, backend.ClusterName)
+				if err != nil {
+					log.Warningf("Ingress link service not found in cluster %s with label %v", backend.ClusterName, backend.Selector.MatchLabels)
+					continue
+				}
+				msvc := cisapiv1.MultiClusterServiceReference{
+					ClusterName: backend.ClusterName,
+					SvcName:     svc.Name,
+					ServicePort: intstr.IntOrString{IntVal: port.Port},
+					Namespace:   svc.Namespace,
+				}
+				multiClusterServices = append(multiClusterServices, msvc)
+			}
+		}
+		_ = ctlr.prepareRSConfigFromIngressLink(rsCfg, ingLink, port, multiClusterServices, monitorNames)
 		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals
 		rsMap[rsName] = rsCfg
 		var hostnames []string
@@ -4556,19 +4548,19 @@ func (ctlr *Controller) getAllIngLinkFromMonitoredNamespaces() []*cisapiv1.Ingre
 	return allInglink
 }
 
-func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink) (*v1.Service, error) {
+func (ctlr *Controller) getKICServiceOfIngressLink(namespace string, labelSelector *metav1.LabelSelector, clusterName string) (*v1.Service, error) {
 	selector := ""
-	for k, v := range ingLink.Spec.Selector.MatchLabels {
+	for k, v := range labelSelector.MatchLabels {
 		selector += fmt.Sprintf("%v=%v,", k, v)
 	}
 	selector = selector[:len(selector)-1]
 
-	comInf, ok := ctlr.getNamespacedCommonInformer(ctlr.multiClusterHandler.LocalClusterName, ingLink.ObjectMeta.Namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(clusterName, namespace)
 	if !ok {
-		return nil, fmt.Errorf("informer not found for namepsace %v", ingLink.ObjectMeta.Namespace)
+		return nil, fmt.Errorf("informer not found for namepsace %v", namespace)
 	}
 	ls, _ := createLabel(selector)
-	serviceList, err := listerscorev1.NewServiceLister(comInf.svcInformer.GetIndexer()).Services(ingLink.ObjectMeta.Namespace).List(ls)
+	serviceList, err := listerscorev1.NewServiceLister(comInf.svcInformer.GetIndexer()).Services(namespace).List(ls)
 
 	if err != nil {
 		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
@@ -4576,7 +4568,7 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	}
 
 	if len(serviceList) == 0 {
-		log.Infof("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)
+		log.Infof("No services for with labels : %v", labelSelector.MatchLabels)
 		return nil, nil
 	}
 

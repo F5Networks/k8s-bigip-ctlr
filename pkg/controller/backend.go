@@ -796,6 +796,9 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 		case TransportServer:
 			//Create AS3 Service for transport virtual server
 			createTransportServiceDecl(cfg, sharedApp, tenant)
+		case IngressLink:
+			////Create AS3 Service for igresslink virtual server
+			createIngressLinkServiceDecl(cfg, sharedApp, tenant)
 		}
 	}
 }
@@ -1498,7 +1501,7 @@ func processTLSProfilesForAS3(cfg *ResourceConfig, svc *as3Service, profileName 
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
 				})
 			}
-			if cfg.MetaData.ResourceType == VirtualServer {
+			if cfg.MetaData.ResourceType == VirtualServer || cfg.MetaData.ResourceType == IngressLink {
 				updateVirtualToHTTPS(svc)
 			}
 		case CustomProfileServer:
@@ -1514,7 +1517,7 @@ func processTLSProfilesForAS3(cfg *ResourceConfig, svc *as3Service, profileName 
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
 				})
 			}
-			if cfg.MetaData.ResourceType == VirtualServer {
+			if cfg.MetaData.ResourceType == VirtualServer || cfg.MetaData.ResourceType == IngressLink {
 				updateVirtualToHTTPS(svc)
 			}
 		}
@@ -1614,7 +1617,7 @@ func createUpdateTLSServer(resourceType string, prof CustomProfile, svcName stri
 			}
 			sharedApp[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
-			if resourceType == VirtualServer {
+			if resourceType == VirtualServer || resourceType == IngressLink {
 				updateVirtualToHTTPS(svc)
 			}
 		}
@@ -1712,7 +1715,7 @@ func createTLSClient(
 		}
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
-		if resourceType == VirtualServer {
+		if resourceType == VirtualServer || resourceType == IngressLink {
 			updateVirtualToHTTPS(svc)
 		}
 		return tlsClient
@@ -1795,6 +1798,112 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application, t
 			svc.Layer4 = "tcp"
 		}
 	}
+
+	svc.ProfileL4 = "basic"
+	if len(cfg.Virtual.ProfileL4) > 0 {
+		svc.ProfileL4 = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileL4,
+		}
+	}
+
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
+
+	if len(cfg.Virtual.ProfileDOS) > 0 {
+		svc.ProfileDOS = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileDOS,
+		}
+	}
+
+	if len(cfg.Virtual.ProfileBotDefense) > 0 {
+		svc.ProfileBotDefense = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
+
+	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
+		if cfg.Virtual.TCP.Client == "" {
+			log.Errorf("[AS3] resetting ProfileTCP as client profile doesnt co-exist with TCP Server Profile, Please include client TCP Profile ")
+		}
+		if cfg.Virtual.TCP.Server == "" {
+			svc.ProfileTCP = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+			}
+		}
+		if cfg.Virtual.TCP.Client != "" && cfg.Virtual.TCP.Server != "" {
+			svc.ProfileTCP = as3ProfileTCP{
+				Ingress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+				},
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
+				},
+			}
+		}
+	}
+
+	// Attaching Profiles from Policy CRD
+	for _, profile := range cfg.Virtual.Profiles {
+		_, name := getPartitionAndName(profile.Name)
+		switch profile.Context {
+		case "udp":
+			if !profile.BigIPProfile {
+				svc.ProfileUDP = name
+			} else {
+				svc.ProfileUDP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		}
+	}
+
+	if cfg.Virtual.TranslateServerAddress == true {
+		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
+	}
+	if cfg.Virtual.TranslateServerPort == true {
+		svc.TranslateServerPort = cfg.Virtual.TranslateServerPort
+	}
+	if cfg.Virtual.Source != "" {
+		svc.Source = cfg.Virtual.Source
+	}
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else {
+			//Attach Service Address
+			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			svc.VirtualPort = port
+		}
+	}
+	if cfg.Virtual.PoolName != "" {
+		var poolPointer as3ResourcePointer
+		ps := strings.Split(cfg.Virtual.PoolName, "/")
+		poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+			tenant,
+			as3SharedApplication,
+			ps[len(ps)-1],
+		)
+		svc.Pool = &poolPointer
+	}
+	processCommonDecl(cfg, svc)
+	sharedApp[cfg.Virtual.Name] = svc
+}
+
+// Create AS3 Service for il multicluster CRD
+func createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
+	svc := &as3Service{}
+	svc.Layer4 = cfg.Virtual.IpProtocol
+	svc.Source = "0.0.0.0/0"
+	svc.TranslateServerAddress = true
+	svc.TranslateServerPort = true
+	svc.Class = "Service_HTTP"
 
 	svc.ProfileL4 = "basic"
 	if len(cfg.Virtual.ProfileL4) > 0 {

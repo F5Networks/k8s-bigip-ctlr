@@ -737,6 +737,153 @@ func (ctlr *Controller) getABDeployIruleForTS(rsVSName string, partition string,
 	}`, dgPath, rsVSName, strings.ToUpper(tsType))
 }
 
+func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string, tsType string, serviceport *v1.ServicePort) string {
+	dgPath := strings.Join([]string{partition, Shared}, "/")
+
+	irule := fmt.Sprintf(`when CLIENT_ACCEPTED {
+    	set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+		set ab_rule [class match -value "/" equals $ab_class]
+        set retries 0
+        set request_headers ""
+        set pool_list [list]
+        set tried_pool_list [list]
+        set active_pool ""
+        # Populate the pool list
+        if {$ab_rule != ""} then {
+            set service_rules [split $ab_rule ";"]
+            foreach service_rule $service_rules {
+                set fields [split $service_rule ","]
+                set pool_name [lindex $fields 0]
+                lappend pool_list $pool_name
+            }
+        }
+		if {$ab_rule != ""} then {
+	    	set weight_selection [expr {rand()}]
+			set service_rules [split $ab_rule ";"]
+        	set active_pool ""
+			foreach service_rule $service_rules {
+		    	set fields [split $service_rule ","]
+				set pool_name [lindex $fields 0]
+				if { [active_members $pool_name] >= 1 } {
+			    	set active_pool $pool_name
+				}
+				set weight [expr {double([lindex $fields 1])}]
+				if {$weight_selection <= $weight} then {
+			    	#check if active pool members are available
+					if { [active_members $pool_name] >= 1 } {
+				    	pool $pool_name
+						return
+					} else {
+                    	# select other pool with active members
+						if {$active_pool!= ""} then {
+					    	pool $active_pool
+							return
+						}
+					}
+				}	
+			}
+		}
+		# If we had a match, but all weights were 0 then
+		# retrun a 503 (Service Unavailable)
+		%[3]s::respond 503
+		return
+	}`, dgPath, rsVSName, strings.ToUpper(tsType))
+	irule += fmt.Sprintf(`
+		when HTTP_REQUEST {
+            set hostname [getfield [HTTP::host] ":" 1]
+			# Save the request headers if it is a GET request and not a retried request
+			if { [HTTP::method] eq "GET" && $retries == 0 } {
+				set request_headers [HTTP::request]
+			}
+	    }
+		when LB_FAILED {
+			# Select a new pool member from the next pool if we are retrying this request
+			if { $retries > 0 } {
+				log local0.debug "reloadbalancing to pool $next_pool with retry count $retries"
+				LB::reselect pool $next_pool
+			}
+		}
+
+		when HTTP_RESPONSE {
+			# Check if we got a 503 response
+			if { [HTTP::status] starts_with "5" } {
+				# Log the 503 response for debugging purposes
+				log local0. "Received response [HTTP::status], retrying request with next pool"
+		
+				# Increment the retry counter
+				incr retries
+		
+				# Get the current pool
+				set current_pool [LB::server pool]
+				set current_pool_name [lindex [split $current_pool "/"] end]
+				lappend tried_pool_list $current_pool_name
+				# Find the next pool in the list
+				set next_pool ""
+				foreach pool $pool_list {
+					if { $pool == $current_pool || [lsearch -glob $tried_pool_list $pool] != -1 } {
+						continue
+					}
+					if { [active_members $pool] >= 1 } {
+						set next_pool $pool
+						break
+					}
+				}
+		
+				# If a next pool is found, retry the request with the next pool
+				if { $next_pool != "" } {
+					pool $next_pool
+					lappend tried_pool_list $next_pool
+					HTTP::retry $request_headers
+					return
+				} else {
+					# If no next pool is found, return a 503 (Service Unavailable)
+					%[1]s::respond 503
+				}
+			}
+		}`, strings.ToUpper(tsType))
+	if serviceport.Port == DEFAULT_HTTPS_PORT {
+		irule += fmt.Sprintf(`
+			when SERVERSSL_CLIENTHELLO_SEND {
+				# SNI extension record as defined in RFC 3546/3.1
+				#
+				# - TLS Extension Type                =  int16( 0 = SNI ) 
+				# - TLS Extension Length              =  int16( $sni_length + 5 byte )
+				#    - SNI Record Length              =  int16( $sni_length + 3 byte)
+				#       - SNI Record Type             =   int8( 0 = HOST )
+				#          - SNI Record Value Length  =  int16( $sni_length )
+				#          - SNI Record Value         =    str( $sni_value )
+				#
+				
+				# Calculate the length of the SNI value, Compute the SNI Record / TLS extension fields and add the result to the SERVERSSL_CLIENTHELLO 
+				
+				SSL::extensions insert [binary format SSScSa* 0 [expr { [set sni_length [string length $hostname]] + 5 }] [expr { $sni_length + 3 }] 0 $sni_length $hostname]
+
+    		}
+        when SERVER_CONNECTED {
+			set reencryptssl_class "/%[1]s/%[2]s_ssl_reencrypt_serverssl_dg"
+			set sslpath $hostname
+			append sslpath "/"
+			set domain_length [llength [split $hostname "."]]
+			set domain_wc [domain $hostname [expr {$domain_length - 1}] ]
+			set wc_host ".$domain_wc"
+			set wc_routepath ""
+			append wc_routepath $wc_host "/"
+			if { [class exists $reencryptssl_class] } {
+				set reen [class match -value $sslpath equals $reencryptssl_class]
+				if { $reen equals "" } {
+					if { [class match $wc_routepath equals $reencryptssl_class] } {
+						set reen [class match -value $wc_routepath equals $reencryptssl_class]
+					}
+				}
+				if { not ($reen equals "") } {
+					SSL::profile $reen
+				}
+			}
+		}`, dgPath, rsVSName)
+	}
+	return irule
+}
+
 func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition string, multiPoolPersistence MultiPoolPersistence) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 

@@ -505,7 +505,6 @@ func (ctlr *Controller) processResources() bool {
 		}
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
 		log.Infof("Worker got IngressLink: %v\n", ingLink)
-		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
 		if rKey.event != Create {
 			rsRef := resourceRef{
 				name:      ingLink.Name,
@@ -4270,8 +4269,21 @@ func (ctlr *Controller) processIngressLink(
 	var altErr string
 	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
 	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
-	//fetch service backends for IngressLink with weights
-	svc, err := ctlr.getKICServiceOfIngressLink(ingLink.ObjectMeta.Namespace, ingLink.Spec.Selector, ctlr.multiClusterHandler.LocalClusterName)
+	var svc *v1.Service
+	var err error
+	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+		if len(ingLink.Spec.MultiClusterServices) > 0 {
+			selector := ingLink.Spec.MultiClusterServices[0].Selector
+			namespace := ingLink.Spec.MultiClusterServices[0].Namespace
+			clusterName := ingLink.Spec.MultiClusterServices[0].ClusterName
+			svc, err = ctlr.getKICServiceOfIngressLink(namespace, selector, clusterName)
+			log.Infof("IngressLink selector is %v", selector.String())
+		}
+	} else {
+		log.Infof("IngressLink selector is %v", ingLink.Spec.Selector.String())
+		//fetch service backends for IngressLink with weights
+		svc, err = ctlr.getKICServiceOfIngressLink(ingLink.ObjectMeta.Namespace, ingLink.Spec.Selector, ctlr.multiClusterHandler.LocalClusterName)
+	}
 	if err != nil {
 		ctlr.updateILStatus(ingLink, "", StatusError, err)
 		return err
@@ -4408,6 +4420,11 @@ func (ctlr *Controller) processIngressLink(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+		rsCfg.IntDgMap = make(InternalDataGroupMap)
+		rsCfg.IRulesMap = make(IRulesMap)
+		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+		rsCfg.MetaData.baseResources = make(map[string]string)
+		rsCfg.Virtual.IpProtocol = strings.ToLower(string(port.Protocol))
 		if len(ingLink.Spec.IRules) > 0 {
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
@@ -4433,7 +4450,7 @@ func (ctlr *Controller) processIngressLink(
 				port.Port,
 			)
 		}
-		monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(ingLink.Namespace, ingLink.Name, intstr.IntOrString{IntVal: port.Port}, "", "", ""))
+		monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, intstr.IntOrString{IntVal: port.Port}, "", "", ""))
 		var monitorNames []MonitorName
 		monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
 		monitorNames = append(monitorNames, monitorRefName)
@@ -4461,7 +4478,39 @@ func (ctlr *Controller) processIngressLink(
 				multiClusterServices = append(multiClusterServices, msvc)
 			}
 		}
+		log.Debugf("Processing IngressLink %s for port %v",
+			ingLink.Name, port.Port)
+		rsCfg.MetaData.baseResources[ingLink.ObjectMeta.Namespace+"/"+ingLink.ObjectMeta.Name] = IngressLink
 		_ = ctlr.prepareRSConfigFromIngressLink(rsCfg, ingLink, port, multiClusterServices, monitorNames)
+		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+			rsCfg.MetaData.ResourceType = IngressLink
+			if !reflect.DeepEqual(ingLink.Spec.TLS, cisapiv1.TLSTransportServer{}) {
+				bigIPSSLProfiles := BigIPSSLProfiles{}
+				if len(ingLink.Spec.TLS.ClientSSLs) > 0 {
+					bigIPSSLProfiles.clientSSLs = ingLink.Spec.TLS.ClientSSLs
+				}
+				if len(ingLink.Spec.TLS.ServerSSLs) > 0 {
+					bigIPSSLProfiles.serverSSLs = ingLink.Spec.TLS.ServerSSLs
+				}
+				processed := ctlr.handleTransportServerTLS(rsCfg, TLSContext{
+					name:             ingLink.ObjectMeta.Name,
+					namespace:        ingLink.ObjectMeta.Namespace,
+					resourceType:     IngressLink,
+					referenceType:    ingLink.Spec.TLS.Reference,
+					ipAddress:        ip,
+					bigIPSSLProfiles: bigIPSSLProfiles,
+					tlsCipher:        TLSCipher{},
+					poolPathRefs:     []poolPathRef{},
+					httpsPort:        DEFAULT_HTTPS_PORT,
+					vsHostname:       ingLink.Spec.Host,
+				})
+				if !processed {
+					// Processing failed
+					ctlr.updateILStatus(ingLink, "", StatusError, errors.New("error while handling TLS IngressLink"))
+					return nil
+				}
+			}
+		}
 		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals
 		rsMap[rsName] = rsCfg
 		var hostnames []string

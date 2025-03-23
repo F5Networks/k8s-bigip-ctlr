@@ -1063,7 +1063,7 @@ spec:
                     properties:
                       clusterName:
                         type: string
-                      serviceLabelSelector:
+                      selector:
                         properties:
                           matchLabels:
                             additionalProperties:
@@ -1078,7 +1078,7 @@ spec:
                         maximum: 256
                     required:
                       - clusterName
-                      - serviceLabelSelector
+                      - selector
                       - namespace
                 selector:
                   properties:

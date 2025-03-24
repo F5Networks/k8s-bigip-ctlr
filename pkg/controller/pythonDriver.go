@@ -224,13 +224,13 @@ func (agent *Agent) healthCheckPythonDriver() {
 		SubPID: agent.PythonDriverPID,
 	}
 	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics(agent.PostManager.HTTPClientMetrics)
+	bigIPPrometheus.RegisterMetrics(agent.APIHandler.LTM.HTTPClientMetrics)
 	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
 }
 
 func (agent *Agent) enableMetrics() {
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
-	bigIPPrometheus.RegisterMetrics(agent.PostManager.HTTPClientMetrics)
+	bigIPPrometheus.RegisterMetrics(agent.APIHandler.LTM.HTTPClientMetrics)
 	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
 }

@@ -906,16 +906,16 @@ func (ctlr *Controller) processResources() bool {
 			// In non multi-cluster mode, we should post the teems data
 			go ctlr.TeemData.PostTeemsData()
 		}
-		config.reqId = ctlr.enqueueReq(config)
+		config.reqMeta = ctlr.enqueueReq(config)
 		config.poolMemberType = ctlr.PoolMemberType
 		if rKey.kind == HACIS {
-			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqId, strings.ToTitle(Update))
+			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqMeta.id, strings.ToTitle(Update))
 		} else if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
-			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqId, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqMeta.id, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		} else {
-			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqId, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
+			log.Infof("[Request: %v] cluster %v requested %v in %v %v/%v", config.reqMeta.id, rKey.clusterName, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		}
-		ctlr.Agent.PostConfig(config)
+		ctlr.RequestHandler.EnqueueRequestConfig(config)
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
 	}
@@ -3768,7 +3768,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := strings.Replace(edns.Spec.DomainName, "*", "wildcard", -1) + "_" +
-			AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
+			AS3NameFormatter(strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -3807,9 +3807,6 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 						continue
 					}
 					preGTMServerName := ""
-					if ctlr.Agent.ccclGTMAgent {
-						preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
-					}
 					// add only one VS member to pool.
 					if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 						if strings.HasSuffix(vsName, "_443") {
@@ -4968,7 +4965,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if es.HAMode != "" {
 			if es.HAMode == Active || es.HAMode == StandBy || es.HAMode == Ratio || es.HAMode == DefaultMode {
 				ctlr.discoveryMode = es.HAMode
-				ctlr.Agent.HAMode = true
+				ctlr.RequestHandler.HAMode = true
 			} else {
 				log.Errorf("[MultiCluster] Invalid Type of high availability mode specified, supported values (active-active, " +
 					"active-standby, ratio, default)")

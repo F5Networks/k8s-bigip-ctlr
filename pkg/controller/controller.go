@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -91,6 +92,13 @@ const (
 	StandAloneCIS = "standalone"
 	SecondaryCIS  = "secondary"
 	PrimaryCIS    = "primary"
+
+	PrimaryBigIP   = "primaryBigIP"
+	SecondaryBigIP = "secondaryBigIP"
+	GTMBigIP       = "gtmBigIP"
+
+	AS3 = "AS3"
+
 	// Namespace is k8s namespace
 	HACIS = "HACIS"
 
@@ -141,11 +149,10 @@ const (
 )
 
 // NewController creates a new Controller Instance.
-func NewController(params Params, startController bool) *Controller {
+func NewController(params Params, startController bool, agentParams AgentParams, handler *RequestHandler) *Controller {
 
 	ctlr := &Controller{
 		resources:                   NewResourceStore(),
-		Agent:                       params.Agent,
 		PoolMemberType:              params.PoolMemberType,
 		UseNodeInternal:             params.UseNodeInternal,
 		Partition:                   params.Partition,
@@ -158,7 +165,6 @@ func NewController(params Params, startController bool) *Controller {
 		StaticRoutingMode:           params.StaticRoutingMode,
 		OrchestrationCNI:            params.OrchestrationCNI,
 		StaticRouteNodeCIDR:         params.StaticRouteNodeCIDR,
-		multiClusterHandler:         NewClusterHandler(params.LocalClusterName, params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams),
 		multiClusterResources:       newMultiClusterResourceStore(),
 		multiClusterMode:            params.MultiClusterMode,
 		loadBalancerClass:           params.LoadBalancerClass,
@@ -166,8 +172,16 @@ func NewController(params Params, startController bool) *Controller {
 		clusterRatio:                make(map[string]*int),
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
 		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
+		respChan:                    make(chan *agentPostConfig),
+		multiClusterHandler: NewClusterHandler(params.LocalClusterName, params.MultiClusterMode, &PrimaryClusterHealthProbeParams{
+			paramLock: sync.RWMutex{},
+		}),
 	}
-
+	if handler == nil {
+		ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams)
+	} else {
+		ctlr.RequestHandler = handler
+	}
 	log.Debug("Controller Created")
 
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
@@ -248,8 +262,8 @@ func NewController(params Params, startController bool) *Controller {
 			tunnelName,
 			ctlr.ciliumTunnelName,
 			ctlr.UseNodeInternal,
-			ctlr.Agent.ConfigWriter,
-			ctlr.Agent.EventChan,
+			ctlr.RequestHandler.PrimaryBigIPWorker.ConfigWriter,
+			ctlr.RequestHandler.PrimaryBigIPWorker.EventChan,
 		)
 		if nil != err {
 			log.Errorf("error creating vxlan manager: %v", err)
@@ -258,7 +272,8 @@ func NewController(params Params, startController bool) *Controller {
 	}
 
 	if startController {
-		go ctlr.responseHandler(ctlr.Agent.respChan)
+		go ctlr.responseHandler()
+		go ctlr.RequestHandler.requestHandler()
 
 		go ctlr.Start()
 
@@ -305,7 +320,7 @@ func (ctlr *Controller) setOtherSDNType() {
 func (ctlr *Controller) validateIPAMConfig(ipamNamespace string) bool {
 	// verify the ipam configuration
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	for ns, _ := range clusterConfig.namespaces {
+	for ns := range clusterConfig.namespaces {
 		if ns == "" {
 			return true
 		} else {
@@ -490,12 +505,12 @@ func (ctlr *Controller) Start() {
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	ctlr.StopInformers(ctlr.multiClusterHandler.LocalClusterName)
-	ctlr.Agent.Stop()
+	ctlr.RequestHandler.PrimaryBigIPWorker.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()
 	}
-	if ctlr.Agent.EventChan != nil {
-		close(ctlr.Agent.EventChan)
+	if ctlr.RequestHandler.PrimaryBigIPWorker.EventChan != nil {
+		close(ctlr.RequestHandler.PrimaryBigIPWorker.EventChan)
 	}
 }
 
@@ -605,7 +620,7 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 				response = "kube-api server is not reachable."
 			}
 			// Check if big-ip server is reachable
-			_, _, _, err2 := ctlr.Agent.GetBigipAS3Version()
+			_, _, _, err2 := ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.GetBigIPAPIVersion()
 			if err2 != nil {
 				response = response + "big-ip server is not reachable."
 			}

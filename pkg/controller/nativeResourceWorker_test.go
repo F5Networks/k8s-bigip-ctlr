@@ -24,17 +24,9 @@ var _ = Describe("Routes", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -52,6 +44,11 @@ var _ = Describe("Routes", func() {
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default", "")
 		mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		mockWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -60,13 +57,6 @@ var _ = Describe("Routes", func() {
 				RouteGroups:  make(map[string]int),
 				NativeRoutes: make(map[string]int),
 				ExternalDNS:  make(map[string]int),
-			},
-		}
-		mockCtlr.Agent = &Agent{
-			PostManager: &PostManager{
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
 			},
 		}
 	})
@@ -1943,17 +1933,9 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -1987,13 +1969,11 @@ var _ = Describe("With NamespaceLabel parameter in deployment", func() {
 			cmName := "escm"
 			cmNamespace := "system"
 			mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
-			mockCtlr.Agent = &Agent{
-				PostManager: &PostManager{
-					PostParams: PostParams{
-						BIGIPURL: "10.10.10.1",
-					},
-				},
+			mockWriter := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
 			}
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
@@ -2042,17 +2022,9 @@ var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -2102,17 +2074,9 @@ var _ = Describe("Multi Cluster with Routes", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -2150,14 +2114,11 @@ var _ = Describe("Multi Cluster with Routes", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.Agent = &Agent{
-			PostManager: &PostManager{
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
-			},
+		mockWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
 		}
-
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 		cmName := "ecm"
 		cmNamespace := "kube-system"
 		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName
@@ -2415,17 +2376,9 @@ var _ = Describe("Multi Cluster with CRD", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -2460,14 +2413,11 @@ var _ = Describe("Multi Cluster with CRD", func() {
 				ExternalDNS:  make(map[string]int),
 			},
 		}
-		mockCtlr.Agent = &Agent{
-			PostManager: &PostManager{
-				PostParams: PostParams{
-					BIGIPURL: "10.10.10.1",
-				},
-			},
+		mockWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
 		}
-
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 		cmName := "ecm"
 		cmNamespace := "kube-system"
 		mockCtlr.globalExtendedCMKey = cmNamespace + "/" + cmName

@@ -13,9 +13,7 @@ var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-			statusRunning: true,
-		})
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		mockWriter := &test.MockWriter{
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),

@@ -1533,7 +1533,6 @@ type HAModeType string
 const (
 	StatusOk      = "OK"
 	StatusError   = "ERROR"
-	StatusStandby = "STANDBY"
 )
 
 type discoveryMode string

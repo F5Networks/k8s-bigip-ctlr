@@ -19,9 +19,7 @@ var _ = Describe("Multi Cluster Health Probe", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-			statusRunning: true,
-		})
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		mockWriter := &test.MockWriter{
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),

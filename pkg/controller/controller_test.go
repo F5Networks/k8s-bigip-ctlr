@@ -16,9 +16,7 @@ var _ = Describe("OtherSDNType", func() {
 	var pod *v1.Pod
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-			statusRunning: true,
-		})
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -95,9 +93,7 @@ var _ = Describe("OtherSDNType", func() {
 				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},
 			},
 			mockRequestHandler)
-		ctlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-			statusRunning: true,
-		})
+		ctlr.multiClusterHandler = NewClusterHandler("")
 		ctlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore(),
 			namespaces: make(map[string]struct{})}
 		Expect(ctlr.validateIPAMConfig("kube-system")).To(BeFalse(), "ipam namespace should not be valid")

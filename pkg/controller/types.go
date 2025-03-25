@@ -1331,6 +1331,7 @@ type (
 		AdminState      string `json:"adminState,omitempty"`
 		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
 		Ratio           int    `json:"ratio,omitempty"`
+		PriorityGroup   int    `json:"priorityGroup,omitempty"`
 	}
 )
 

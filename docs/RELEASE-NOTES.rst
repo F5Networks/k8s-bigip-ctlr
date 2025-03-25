@@ -9,6 +9,7 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+    * `Issue 3374 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3374>`_: RFE: Target discrete Pool_Member entities with ConfigMap
 
 Bug Fixes
 ````````````

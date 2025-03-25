@@ -106,6 +106,7 @@ metadata:
     cis.f5.com/as3-tenant: vzn
     cis.f5.com/as3-app: CNF_VS_132
     cis.f5.com/as3-pool: cnf_pool_132
+    cis.f5.com/as3-pool-member-priorityGroup: "10"
   name: f5-hello-world-sctp
   namespace: default
 spec:

@@ -1593,7 +1593,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.BIGIPPassword = "pswd"
 			//mockPM.tenantResponseMap = make(map[string]tenantResponse)
 			//mockPM.LogAS3Response = true
-			//					mockPM.AS3PostDelay =
+			//					mockPM.PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
 			mockPM.setResponses([]responceCtx{{

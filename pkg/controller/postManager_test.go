@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto/x509"
 	"errors"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	"io"
 	"net/http"
 	"strings"
@@ -278,6 +279,109 @@ var _ = Describe("PostManager", func() {
 				resp, respMap := mockPM.httpPOST(request)
 				Expect(resp).To(BeNil())
 				Expect(respMap).To(BeNil())
+			})
+		})
+	})
+})
+
+var _ = Describe("PostManager with TokenManager", func() {
+	var (
+		mockPM *mockPostManager
+	)
+
+	BeforeEach(func() {
+		mockPM = newMockPostManger()
+		mockPM.BIGIPURL = "bigip.com"
+		mockPM.BIGIPUsername = "testuser"
+		mockPM.BIGIPPassword = "testpass"
+		mockPM.TokenManagerInterface = test.NewMockTokenManager("test-token")
+		mockPM.setResponses([]responceCtx{{
+			tenant: "test",
+			status: http.StatusOK,
+			body:   io.NopCloser(strings.NewReader("{\"status\": \"success\"}")),
+		}}, http.MethodPost)
+	})
+
+	Describe("TokenManager Integration", func() {
+		Context("postConfig", func() {
+			It("should use token authentication when token is available", func() {
+				// Force token to be fetched
+				token := mockPM.GetToken()
+				Expect(token).To(Equal("test-token"))
+
+				// Create a test config
+				cfg := &agentPostConfig{
+					as3APIURL: "http://example.com/mgmt/shared/appsvcs/declare/test",
+					data:      `{"class":"AS3","declaration":{"class":"ADC"}}`,
+					reqMeta: requestMeta{
+						id: 12345,
+					},
+				}
+				// Post the config
+				resp, respMap := mockPM.postConfig(cfg)
+				Expect(resp).NotTo(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
+				Expect(respMap).NotTo(BeNil())
+			})
+
+			It("should fall back to basic auth when token is not available", func() {
+				// Create a new PostManager with a nil TokenManager
+				mockPM.TokenManagerInterface = nil
+				// Create a test config
+				cfg := &agentPostConfig{
+					as3APIURL: "http://example.com/mgmt/shared/appsvcs/declare/test",
+					data:      `{"class":"AS3","declaration":{"class":"ADC"}}`,
+					reqMeta: requestMeta{
+						id: 12345,
+					},
+				}
+				// Post the config
+				resp, respMap := mockPM.postConfig(cfg)
+				Expect(resp).NotTo(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
+				Expect(respMap).NotTo(BeNil())
+			})
+		})
+
+		Context("httpReq", func() {
+			It("should use token authentication for GET requests", func() {
+				// Force token to be fetched
+				token := mockPM.GetToken()
+				Expect(token).To(Equal("test-token"))
+				mockPM.setResponses([]responceCtx{{
+					tenant: "test",
+					status: http.StatusOK,
+					body:   io.NopCloser(strings.NewReader("{\"version\": \"3.36.0\"}")),
+				}}, http.MethodGet)
+				// Create a test request
+				req, err := http.NewRequest("GET", "http://example.com/mgmt/shared/appsvcs/info", nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Send the request
+				resp, respMap := mockPM.httpReq(req)
+				Expect(resp).NotTo(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
+				Expect(respMap).NotTo(BeNil())
+				Expect(respMap["version"]).To(Equal("3.36.0"))
+			})
+		})
+
+		Context("token refresh on 401", func() {
+			It("should attempt to refresh token when receiving 401 response", func() {
+				mockPM.setResponses([]responceCtx{{
+					tenant: "test",
+					status: http.StatusUnauthorized,
+					body:   io.NopCloser(strings.NewReader("{\"version\": \"3.36.0\"}")),
+				}}, http.MethodGet)
+				// Create a test request
+				req, err := http.NewRequest("GET", "http://example.com/mgmt/shared/appsvcs/info", nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Send the request - this will fail with 401
+				mockPM.httpReq(req)
+				// Verify the token was refreshed
+				token := mockPM.GetToken()
+				Expect(token).To(Equal("refreshed-token"))
 			})
 		})
 	})

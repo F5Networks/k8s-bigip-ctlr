@@ -10,10 +10,10 @@ func (agent *Agent) gtmWorker() {
 
 	for agentConfig := range agent.GTM.PostManager.postChan {
 		// For the very first post after starting controller, need not wait to post
-		if !agent.GTM.PostManager.firstPost && agent.GTM.PostManager.AS3PostDelay != 0 {
+		if !agent.GTM.PostManager.firstPost && agent.GTM.PostManager.PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[%v]%v Delaying post to BIG-IP for %v seconds ", agent.getAPIType(), agent.GTM.postManagerPrefix, agent.GTM.PostManager.AS3PostDelay)
-			_ = <-time.After(time.Duration(agent.GTM.PostManager.AS3PostDelay) * time.Second)
+			log.Debugf("[%v]%v Delaying post to BIG-IP for %v seconds ", agent.getAPIType(), agent.GTM.postManagerPrefix, agent.GTM.PostManager.PostDelay)
+			_ = <-time.After(time.Duration(agent.GTM.PostManager.PostDelay) * time.Second)
 		}
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {

@@ -1531,8 +1531,8 @@ const (
 type HAModeType string
 
 const (
-	StatusOk      = "OK"
-	StatusError   = "ERROR"
+	StatusOk    = "OK"
+	StatusError = "ERROR"
 )
 
 type discoveryMode string

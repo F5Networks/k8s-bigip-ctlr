@@ -16,21 +16,14 @@ var _ = Describe("OtherSDNType", func() {
 	var pod *v1.Pod
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		params := Params{
-			MultiClusterMode: PrimaryCIS,
-			Agent: &Agent{
-				PostManager: &PostManager{
-					PrimaryClusterHealthProbeParams: PrimaryClusterHealthProbeParams{
-						statusRunning: true,
-					},
-				},
-			},
-		}
-		mockCtlr.multiClusterHandler = NewClusterHandler("", params.MultiClusterMode, &params.Agent.PrimaryClusterHealthProbeParams)
+		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore(),
+			namespaces: make(map[string]struct{})}
 		mockCtlr.TeemData = &teem.TeemsData{SDNType: "other"}
 		selectors = make(map[string]string)
 
@@ -57,6 +50,8 @@ var _ = Describe("OtherSDNType", func() {
 		Expect(mockCtlr.TeemData.SDNType).To(Equal("other"), "SDNType should be other")
 	})
 	It("Create a new controller object", func() {
+		mockWriter := &test.MockWriter{FailStyle: test.Success}
+		mockRequestHandler := newMockRequestHandler(mockWriter)
 		ctlrOpenShift := NewController(Params{
 			Mode:           OpenShiftMode,
 			PoolMemberType: Cluster,
@@ -64,27 +59,47 @@ var _ = Describe("OtherSDNType", func() {
 			NamespaceLabel: "ctlr=cis",
 			VXLANMode:      "multi-point",
 			VXLANName:      "vxlan0",
-			Agent:          newMockAgent(&test.MockWriter{FailStyle: test.Success}),
-		}, false)
+		}, false,
+			AgentParams{
+				ApiType: AS3,
+				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080",
+					BIGIPPassword: "password",
+					BIGIPUsername: "username"},
+				Partition: "default",
+			},
+			mockRequestHandler)
 		Expect(ctlrOpenShift.processedHostPath).NotTo(BeNil(), "processedHostPath object should not be nil")
 		Expect(ctlrOpenShift.shareNodes).To(BeFalse(), "shareNodes should not be enable")
 		Expect(ctlrOpenShift.vxlanMgr).To(BeNil(), "vxlanMgr should be created")
+		DEFAULT_PARTITION = "test"
 		ctlrK8s := NewController(Params{
 			Mode:           CustomResourceMode,
 			PoolMemberType: NodePort,
 			Config:         &rest.Config{},
 			IPAM:           true,
-			Agent:          newMockAgent(&test.MockWriter{FailStyle: test.Success}),
-		}, false)
+		}, false,
+			AgentParams{
+				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},
+			},
+			mockRequestHandler)
 		Expect(ctlrK8s.processedHostPath).To(BeNil(), "processedHostPath object should be nil")
 		Expect(ctlrK8s.shareNodes).To(BeTrue(), "shareNodes should be enable")
 	})
 	It("Validate the IPAM configuration", func() {
+		mockWriter := &test.MockWriter{FailStyle: test.Success}
+		mockRequestHandler := newMockRequestHandler(mockWriter)
 		ctlr := NewController(Params{
 			Config: &rest.Config{},
-			Agent:  newMockAgent(&test.MockWriter{FailStyle: test.Success}),
-		}, false)
-		delete(ctlr.multiClusterHandler.ClusterConfigs[""].namespaces, "")
+		}, false,
+			AgentParams{
+				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},
+			},
+			mockRequestHandler)
+		ctlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
+			statusRunning: true,
+		})
+		ctlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore(),
+			namespaces: make(map[string]struct{})}
 		Expect(ctlr.validateIPAMConfig("kube-system")).To(BeFalse(), "ipam namespace should not be valid")
 		ctlr.multiClusterHandler.ClusterConfigs[""].namespaces["kube-system"] = struct{}{}
 		Expect(ctlr.validateIPAMConfig("kube-system")).To(BeTrue(), "ipam namespace should be valid")

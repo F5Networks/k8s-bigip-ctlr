@@ -1375,10 +1375,12 @@ var _ = Describe("Resource Config Tests", func() {
 				poolPathRefs: []poolPathRef{},
 			})
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Expected profiles are not created")
-			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("foo-back-secret"), "Profile name not matched")
+			profileName := "foo-back-secret" + "-" + CustomProfileServer + "-" + rsCfg.Virtual.Name
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal(profileName), "Profile name not matched")
 			Expect(rsCfg.Virtual.Profiles[0].Context).To(Equal(CustomProfileServer), "Expected serverside profile")
 			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeFalse(), "Big IP Profile should be false")
-			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("foo-secret"), "Profile name not matched")
+			profileName = "foo-secret" + "-" + CustomProfileClient + "-" + rsCfg.Virtual.Name
+			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal(profileName), "Profile name not matched")
 			Expect(rsCfg.Virtual.Profiles[1].Context).To(Equal(CustomProfileClient), "Expected clientside profile")
 			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeFalse(), "Big IP Profile should be false")
 			Expect(ok).To(BeTrue(), "Failed to Validate TLS Reference")
@@ -1693,7 +1695,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].secretsInformer.GetStore().Add(clSecret)
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip, false)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientsecret"), "profile name is not set properly")
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("clientsecret"+"-"+CustomProfileClient+"-"+rsCfg.Virtual.Name), "profile name is not set properly")
 			Expect(rsCfg.Virtual.Profiles[0].BigIPProfile).To(BeFalse(), "profile context is not set properly")
 			Expect(rsCfg.Virtual.Profiles[1].Name).To(Equal("serverssl"), "profile name is not set properly")
 			Expect(rsCfg.Virtual.Profiles[1].BigIPProfile).To(BeTrue(), "profile context is not set properly")

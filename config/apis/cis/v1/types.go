@@ -163,6 +163,13 @@ type MultiClusterServiceReference struct {
 	Weight      *int               `json:"weight,omitempty"`
 }
 
+type MultiClusterServiceReferenceIL struct {
+	ClusterName string                `json:"clusterName"`
+	Namespace   string                `json:"namespace"`
+	Weight      *int                  `json:"weight,omitempty"`
+	Selector    *metav1.LabelSelector `json:"selector"`
+}
+
 // Monitor defines a monitor object in BIG-IP.
 type Monitor struct {
 	Type       string `json:"type"`
@@ -274,13 +281,15 @@ type IngressLinkStatus struct {
 
 // IngressLinkSpec is Spec for IngressLink
 type IngressLinkSpec struct {
-	VirtualServerAddress string                `json:"virtualServerAddress,omitempty"`
-	Host                 string                `json:"host,omitempty"`
-	Selector             *metav1.LabelSelector `json:"selector"`
-	IRules               []string              `json:"iRules,omitempty"`
-	IPAMLabel            string                `json:"ipamLabel"`
-	BigIPRouteDomain     int32                 `json:"bigipRouteDomain,omitempty"`
-	Partition            string                `json:"partition,omitempty"`
+	VirtualServerAddress string                           `json:"virtualServerAddress,omitempty"`
+	Host                 string                           `json:"host,omitempty"`
+	Selector             *metav1.LabelSelector            `json:"selector"`
+	IRules               []string                         `json:"iRules,omitempty"`
+	IPAMLabel            string                           `json:"ipamLabel"`
+	BigIPRouteDomain     int32                            `json:"bigipRouteDomain,omitempty"`
+	Partition            string                           `json:"partition,omitempty"`
+	MultiClusterServices []MultiClusterServiceReferenceIL `json:"multiClusterServices,omitempty"`
+	TLS                  TLSTransportServer               `json:"tls,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

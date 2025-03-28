@@ -279,6 +279,13 @@ func (ctlr *Controller) checkValidIngressLink(
 		return false
 	}
 
+	// Check if Selector is empty
+	if il.Spec.Selector == nil {
+		err = fmt.Sprintf("Selector is not provided for IngressLink %s", ilName)
+		log.Errorf(err)
+		ctlr.updateILStatus(il, "", StatusError, errors.New(err))
+		return false
+	}
 	bindAddr := il.Spec.VirtualServerAddress
 
 	if ctlr.ipamCli == nil {

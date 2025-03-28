@@ -1117,88 +1117,102 @@ func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules
 
 func (ctlr *Controller) handleTransportServerTLS(rsCfg *ResourceConfig, tlsContext TLSContext) bool {
 	infStore := ctlr.multiClusterHandler.getInformerStore(ctlr.multiClusterHandler.LocalClusterName)
-	clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
-	serverSSL := tlsContext.bigIPSSLProfiles.serverSSLs
-	// Process Profile
-	switch tlsContext.referenceType {
-	case BIGIP:
-		log.Debugf("Processing  BIGIP referenced profiles for '%s' '%s'/'%s'",
-			tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-		// Process referenced BIG-IP clientSSL
-		if len(clientSSL) > 0 {
-			for _, profile := range clientSSL {
-				clientProfRef := ConvertStringToProfileRef(
-					profile, CustomProfileClient, tlsContext.namespace)
-				rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
-			}
-		}
-		// Process referenced BIG-IP serverSSL
-		if len(serverSSL) > 0 {
-			for _, profile := range serverSSL {
-				serverProfRef := ConvertStringToProfileRef(
-					profile, CustomProfileServer, tlsContext.namespace)
-				rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
-			}
-		}
-		log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
-			tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-	case Secret:
-		// Process ClientSSL stored as kubernetes secret
-		var namespace string
-		if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
-			namespace = ""
-		} else {
-			namespace = tlsContext.namespace
-		}
-		if len(clientSSL) > 0 {
-			var secrets []*v1.Secret
-			for _, secretName := range clientSSL {
-				secretKey := tlsContext.namespace + "/" + secretName
-				if _, ok := infStore.comInformers[namespace]; !ok {
-					return false
+	if tlsContext.resourceType == TransportServer || (tlsContext.resourceType == IngressLink && rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort) {
+		clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
+		serverSSL := tlsContext.bigIPSSLProfiles.serverSSLs
+		// Process Profile
+		switch tlsContext.referenceType {
+		case BIGIP:
+			log.Debugf("Processing  BIGIP referenced profiles for '%s' '%s'/'%s'",
+				tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+			// Process referenced BIG-IP clientSSL
+			if len(clientSSL) > 0 {
+				for _, profile := range clientSSL {
+					clientProfRef := ConvertStringToProfileRef(
+						profile, CustomProfileClient, tlsContext.namespace)
+					rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
 				}
-				obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
-				if err != nil || !found {
-					log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-						clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-					return false
-				}
-				secrets = append(secrets, obj.(*v1.Secret))
 			}
-			err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, tlsContext.tlsCipher, CustomProfileClient, tlsContext.bigIPSSLProfiles.clientSSlParams.RenegotiationEnabled)
-			if err != nil {
-				log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
-					err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-				return false
+			// Process referenced BIG-IP serverSSL
+			if len(serverSSL) > 0 {
+				for _, profile := range serverSSL {
+					serverProfRef := ConvertStringToProfileRef(
+						profile, CustomProfileServer, tlsContext.namespace)
+					rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+					if tlsContext.resourceType == IngressLink {
+						sslPath := tlsContext.vsHostname + "/"
+						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profile, DataGroupType)
+					}
+				}
 			}
-		}
-		// Process ServerSSL stored as kubernetes secret
-		if len(serverSSL) > 0 {
-			var secrets []*v1.Secret
-			for _, secret := range serverSSL {
-				secretKey := tlsContext.namespace + "/" + secret
-				if _, ok := infStore.comInformers[namespace]; !ok {
-					return false
+			log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
+				tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+		case Secret:
+			// Process ClientSSL stored as kubernetes secret
+			var namespace string
+			if ctlr.watchingAllNamespaces(ctlr.multiClusterHandler.LocalClusterName) {
+				namespace = ""
+			} else {
+				namespace = tlsContext.namespace
+			}
+			if len(clientSSL) > 0 {
+				var secrets []*v1.Secret
+				for _, secretName := range clientSSL {
+					secretKey := tlsContext.namespace + "/" + secretName
+					if _, ok := infStore.comInformers[namespace]; !ok {
+						return false
+					}
+					obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					if err != nil || !found {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					secrets = append(secrets, obj.(*v1.Secret))
 				}
-				obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
-				if err != nil || !found {
-					log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-						serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-					return false
-				}
-				secrets = append(secrets, obj.(*v1.Secret))
-				err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, tlsContext.tlsCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
+				err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, tlsContext.tlsCipher, CustomProfileClient, tlsContext.bigIPSSLProfiles.clientSSlParams.RenegotiationEnabled)
 				if err != nil {
-					log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+					log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
 						err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 					return false
 				}
 			}
+			// Process ServerSSL stored as kubernetes secret
+			if len(serverSSL) > 0 {
+				var secrets []*v1.Secret
+				for _, secret := range serverSSL {
+					secretKey := tlsContext.namespace + "/" + secret
+					if _, ok := infStore.comInformers[namespace]; !ok {
+						return false
+					}
+					obj, found, err := infStore.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					if err != nil || !found {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					secrets = append(secrets, obj.(*v1.Secret))
+					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, tlsContext.tlsCipher, CustomProfileServer, tlsContext.bigIPSSLProfiles.serverSSlParams.RenegotiationEnabled)
+					if err != nil {
+						log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+				}
+				if tlsContext.resourceType == IngressLink {
+					sslPath := tlsContext.vsHostname + "/"
+					// for secrets all the ca certificates will be bundle within a single profile
+					profileName := AS3NameFormatter(rsCfg.Virtual.Name + "_tls_client")
+					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+						rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
+				}
+			}
+		default:
+			log.Errorf("Invalid reference type provided for  '%s' '%s'/'%s'",
+				tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+			return false
 		}
-	default:
-		log.Errorf("Invalid reference type provided for  '%s' '%s'/'%s'",
-			tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-		return false
 	}
 	return true
 }
@@ -2320,6 +2334,14 @@ func (ctlr *Controller) HandlePathBasedABIRuleTS(rsCfg *ResourceConfig) {
 	rsCfg.Virtual.AddIRule(ruleName)
 }
 
+func (ctlr *Controller) HandlePathBasedABIRuleIL(rsCfg *ResourceConfig, servicePort *v1.ServicePort) {
+	ruleName := getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName)
+	rsCfg.addIRule(
+		ruleName, rsCfg.Virtual.Partition,
+		ctlr.getABDeployIruleForIL(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.IpProtocol, servicePort))
+	rsCfg.Virtual.AddIRule(ruleName)
+}
+
 func (ctlr *Controller) HandlePathBasedABIRule(
 	rsCfg *ResourceConfig,
 	vsHost string,
@@ -2552,6 +2574,136 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
 	}
 	return nil
+}
+
+// Prepares resource config based on IngressLink resource config
+func (ctlr *Controller) prepareRSConfigFromIngressLink(
+	rsCfg *ResourceConfig,
+	il *cisapiv1.IngressLink,
+	serviceport v1.ServicePort,
+	multiClusterServices []cisapiv1.MultiClusterServiceReference,
+	monitorNames []MonitorName,
+) error {
+	var pools Pools
+	var backendSvcs []SvcBackendCxt
+	rsRef := resourceRef{
+		name:      il.Name,
+		namespace: il.Namespace,
+		kind:      IngressLink,
+	}
+	framedPools := make(map[string]struct{})
+	backendSvcs = ctlr.GetPoolBackendsForIL(&il.Spec, serviceport, il.Namespace, multiClusterServices)
+	for _, SvcBackend := range backendSvcs {
+		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, intstr.IntOrString{IntVal: serviceport.Port}, SvcBackend.Cluster)
+		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
+		if (intstr.IntOrString{}) == SvcBackend.SvcPort {
+			SvcBackend.SvcPort = intstr.IntOrString{IntVal: serviceport.Port}
+			svcPortUsed = true
+		}
+		poolName := ctlr.formatPoolName(
+			SvcBackend.SvcNamespace,
+			SvcBackend.Name,
+			SvcBackend.SvcPort, // It's the target port of the service
+			"", "", SvcBackend.Cluster)
+		if _, ok := framedPools[poolName]; ok {
+			// Pool with same name framed earlier, so skipping this pool
+			log.Debugf("Duplicate pool name: %v in ingressLink service: %v/%v", poolName, SvcBackend.SvcNamespace, SvcBackend.Name)
+			continue
+		}
+		framedPools[poolName] = struct{}{}
+		svcNamespace := il.Namespace
+		if SvcBackend.SvcNamespace != "" {
+			svcNamespace = SvcBackend.SvcNamespace
+		}
+		pool := Pool{
+			Name:                     poolName,
+			Partition:                rsCfg.Virtual.Partition,
+			ServiceName:              SvcBackend.Name,
+			ServiceNamespace:         svcNamespace,
+			ServicePort:              SvcBackend.SvcPort,
+			ServicePortUsed:          svcPortUsed,
+			NodeMemberLabel:          "",
+			Cluster:                  SvcBackend.Cluster,
+			ImplicitSvcSearchEnabled: true,
+			MonitorNames:             monitorNames,
+		}
+
+		if ctlr.multiClusterMode != "" {
+			// check for external service reference
+			if len(multiClusterServices) > 0 {
+				if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
+					// only process if il key is not present. else skip the processing
+					// on il update we are clearing the resource service
+					// if event comes from il then we will read and populate data, else we will skip processing
+					ctlr.processResourceExternalClusterServices(rsRef, multiClusterServices)
+				} else {
+					// prepare one of extended services key from pool
+					// to check if pool is processed before and svckey exists in rscSvcMap
+					// If not external cluster services for this pool will be added to rscSvcMap
+					externalSvcKey := MultiClusterServiceKey{
+						clusterName: multiClusterServices[0].ClusterName,
+						serviceName: multiClusterServices[0].SvcName,
+						namespace:   multiClusterServices[0].Namespace,
+					}
+					// for multiple pools scenario vs resource reference exists after first pool is processed
+					// we still need to process if svckey doesnt exist in multicluster cluster rsMap
+					if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef][externalSvcKey]; !ok {
+						ctlr.processResourceExternalClusterServices(rsRef, multiClusterServices)
+					}
+				}
+			}
+			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
+				for svc, config := range svcs {
+					// update the clusterSvcMap
+					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+				}
+			}
+			pool.MultiClusterServices = multiClusterServices
+
+			if ctlr.discoveryMode != DefaultMode {
+				// update the multicluster resource serviceMap with local cluster services
+				ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, SvcBackend.Name, "", pool, intstr.IntOrString{IntVal: serviceport.Port}, ctlr.multiClusterHandler.LocalClusterName)
+				// update the multicluster resource serviceMap with HA pair cluster services
+				if ctlr.discoveryMode == Active && ctlr.multiClusterHandler.HAPairClusterName != "" {
+					ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, SvcBackend.Name, "", pool, intstr.IntOrString{IntVal: serviceport.Port},
+						ctlr.multiClusterHandler.HAPairClusterName)
+				}
+			}
+		}
+		// update the pool identifier for service
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pool.ServiceName, "", pool, pool.ServicePort, ctlr.multiClusterHandler.LocalClusterName)
+
+		// Update the pool Members
+		ctlr.updatePoolMembersForResources(&pool)
+		if len(pool.Members) > 0 {
+			rsCfg.MetaData.Active = true
+		}
+		pools = append(pools, pool)
+		if multiClusterServices == nil {
+			rsCfg.Virtual.PoolName = pool.Name
+		} else {
+			// Handle AB datagroup for ingressLink
+			ctlr.updateDataGroupForIngressLink(il, multiClusterServices,
+				getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+				rsCfg.Virtual.Partition,
+				SvcBackend.SvcNamespace,
+				rsCfg.IntDgMap,
+				serviceport,
+				SvcBackend.Cluster,
+			)
+			// Handle AB path based IRules for IngressLink
+			ctlr.HandlePathBasedABIRuleIL(rsCfg, &serviceport)
+		}
+	}
+	rsCfg.Pools = append(rsCfg.Pools, pools...)
+	rsCfg.Virtual.Mode = "standard"
+	// Use default SNAT if not provided by user
+	if rsCfg.Virtual.SNAT == "" {
+		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	}
+
+	return nil
+
 }
 
 func (ctlr *Controller) isSinglePoolRatioEnabled(ts *cisapiv1.TransportServer) bool {
@@ -3188,6 +3340,47 @@ func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route, plcSSLProfile
 		sslProfileOption = InvalidSSLOption
 	}
 	return sslProfileOption
+}
+
+// return the service associated with il
+func (ctlr *Controller) GetPoolBackendsForIL(spec *cisapiv1.IngressLinkSpec, servicePort v1.ServicePort, rscNamespace string, multiClusterServices []cisapiv1.MultiClusterServiceReference) []SvcBackendCxt {
+	var sbcs []SvcBackendCxt
+	defaultWeight := 100
+	switch ctlr.discoveryMode {
+	case DefaultMode:
+		if spec.MultiClusterServices != nil {
+			for _, msvc := range multiClusterServices {
+				if ctlr.checkValidMultiClusterService(msvc, false) != nil || ctlr.isAddingPoolRestricted(msvc.ClusterName) {
+					continue
+				}
+				sbc := SvcBackendCxt{}
+				sbc.Cluster = msvc.ClusterName
+				sbc.Name = msvc.SvcName
+				sbc.SvcPort = msvc.ServicePort
+				if msvc.Weight != nil {
+					sbc.Weight = float64(*msvc.Weight)
+				} else {
+					sbc.Weight = float64(defaultWeight)
+				}
+				sbc.SvcNamespace = msvc.Namespace
+				sbcs = append(sbcs, sbc)
+			}
+		}
+	case "":
+		sbc := SvcBackendCxt{}
+		// get svc from selector
+		svc, err := ctlr.getKICServiceOfIngressLink(rscNamespace, spec.Selector, ctlr.multiClusterHandler.LocalClusterName)
+		if err != nil {
+			log.Warningf("Ingress link service not found with label %v", spec.Selector.MatchLabels)
+			return sbcs
+		}
+		sbc.Name = svc.Name
+		sbc.Cluster = ctlr.multiClusterHandler.LocalClusterName
+		sbc.SvcNamespace = rscNamespace
+		sbc.SvcPort = intstr.IntOrString{IntVal: servicePort.Port}
+		sbcs = append(sbcs, sbc)
+	}
+	return sbcs
 }
 
 // return the services associated with a virtualserver pool (svc names + weight)

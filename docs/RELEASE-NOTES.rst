@@ -9,10 +9,12 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+    * `Issue 3374 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3374>`_: RFE: Target discrete Pool_Member entities with ConfigMap
 
 Bug Fixes
 ````````````
 * `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Loadbalancer doesn't work in 2.19.0 and 2.19.1
+* `Issue 3755 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3755>`_: Upgrade to 2.19 - Unexpected error: 'config'
 
 2.19.1
 -------------

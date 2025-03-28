@@ -121,6 +121,7 @@ type (
 		AdminState      string `json:"adminState,omitempty"`
 		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
 		Ratio           int    `json:"Ratio,omitempty"`
+		PriorityGroup   int    `json:"priorityGroup,omitempty"`
 	}
 
 	// Pool config

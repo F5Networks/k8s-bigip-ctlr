@@ -208,6 +208,12 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					continue
 				}
 				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
+				for _, mem := range (poolObj["members"]).([]interface{}) {
+					poolMemPriorityGroup := mem.(map[string]interface{})["priorityGroup"]
+					if poolMemPriorityGroup != nil && eps[0].PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+						poolMem = mem.(map[string]interface{})
+					}
+				}
 				var poolMembers []map[string]interface{}
 				if am.poolMemberType == NodePortLocal {
 					for _, v := range eps {

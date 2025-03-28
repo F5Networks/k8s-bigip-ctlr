@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
@@ -454,4 +455,43 @@ func NewServicewithselectors(id, rv, namespace string, selector map[string]strin
 			Selector: selector,
 		},
 	}
+}
+
+func NewMockTokenManager(token string) *MockTokenManager {
+	return &MockTokenManager{
+		tokenmanager.TokenManager{
+			Token: token,
+		},
+	}
+}
+
+// Mock implementation of TokenManagerInterface for testing
+type MockTokenManager struct {
+	tokenmanager.TokenManager
+}
+
+func (m *MockTokenManager) GetToken() string {
+	return m.Token
+}
+
+func (m *MockTokenManager) RefreshToken() error {
+	m.Token = "refreshed-token"
+	return nil
+}
+
+func (m *MockTokenManager) SyncToken() error {
+	m.Token = "synced-token"
+	return nil
+}
+
+func (m *MockTokenManager) SyncTokenWithoutRetry() (error, bool) {
+	m.Token = "synced-token"
+	return nil, false
+}
+
+func (m *MockTokenManager) SetToken(token string, expirationMicros int64) {
+	m.Token = token
+}
+
+func (m *MockTokenManager) Start(stopCh chan struct{}, duration time.Duration) {
 }

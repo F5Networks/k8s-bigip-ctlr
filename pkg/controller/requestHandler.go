@@ -20,15 +20,24 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 	if (agentParams.PrimaryParams != PostParams{}) {
 		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP)
 		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
+		// start the token manager
+		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), 10*time.Hour)
+		// start the worker
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
 		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP)
 		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
+		// start the token manager
+		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), 10*time.Hour)
+		// start the worker
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	if isGTMOnSeparateServer(agentParams) && !agentParams.CCCLGTMAgent {
 		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP)
+		// start the token manager
+		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), 10*time.Hour)
+		// start the worker
 		go reqHandler.GTMBigIPWorker.gtmWorker()
 	}
 	return reqHandler

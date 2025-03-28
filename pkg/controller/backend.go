@@ -81,10 +81,10 @@ func (agent *Agent) Stop() {
 func (agent *Agent) agentWorker() {
 	for agentConfig := range agent.LTM.PostManager.postChan {
 		// For the very first post after starting controller, need not wait to post
-		if !agent.LTM.PostManager.firstPost && agent.LTM.AS3PostDelay != 0 {
+		if !agent.LTM.PostManager.firstPost && agent.LTM.PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[%v] Delaying post to BIG-IP for %v seconds ", agent.getAPIType(), agent.LTM.AS3PostDelay)
-			_ = <-time.After(time.Duration(agent.LTM.AS3PostDelay) * time.Second)
+			log.Debugf("[%v] Delaying post to BIG-IP for %v seconds ", agent.getAPIType(), agent.LTM.PostDelay)
+			_ = <-time.After(time.Duration(agent.LTM.PostDelay) * time.Second)
 		}
 
 		// Fetch the latest config from channel

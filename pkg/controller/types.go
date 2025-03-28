@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	"net/http"
 	"sync"
 
@@ -848,10 +849,9 @@ type (
 		respChan                        chan *agentPostConfig
 		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		agentParams                     AgentParams
-		//TokenManager                  *tokenmanager.TokenManager
-		ccclGTMAgent bool
-		disableARP   bool
-		HAMode       bool
+		ccclGTMAgent                    bool
+		disableARP                      bool
+		HAMode                          bool
 	}
 
 	agentPostConfig struct {
@@ -940,6 +940,7 @@ type (
 	}
 
 	PostManager struct {
+		tokenmanager.TokenManagerInterface
 		sync.RWMutex
 		httpClient *http.Client
 		PostParams
@@ -968,8 +969,8 @@ type (
 		BIGIPType     string
 		TrustedCerts  string
 		SSLInsecure   bool
-		AS3PostDelay  int
-		// Log the AS3 response body in Controller logs
+		PostDelay     int
+		// Log the response body in Controller logs
 		LogResponse       bool
 		LogRequest        bool
 		HTTPClientMetrics bool

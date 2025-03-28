@@ -164,10 +164,9 @@ type MultiClusterServiceReference struct {
 }
 
 type MultiClusterServiceReferenceIL struct {
-	ClusterName string                `json:"clusterName"`
-	Namespace   string                `json:"namespace"`
-	Weight      *int                  `json:"weight,omitempty"`
-	Selector    *metav1.LabelSelector `json:"selector"`
+	ClusterName string `json:"clusterName"`
+	Namespace   string `json:"namespace"`
+	Weight      *int   `json:"weight,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.
@@ -290,6 +289,7 @@ type IngressLinkSpec struct {
 	Partition            string                           `json:"partition,omitempty"`
 	MultiClusterServices []MultiClusterServiceReferenceIL `json:"multiClusterServices,omitempty"`
 	TLS                  TLSTransportServer               `json:"tls,omitempty"`
+	Monitors             []Monitor                        `json:"monitors,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

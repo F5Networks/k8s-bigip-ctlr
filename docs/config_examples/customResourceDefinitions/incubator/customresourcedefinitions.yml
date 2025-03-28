@@ -1056,6 +1056,17 @@ spec:
                   items:
                     type: string
                     pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                monitors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                      reference:
+                        type: string
+                        enum: [ bigip ]
                 tls:
                   type: object
                   properties:
@@ -1079,13 +1090,6 @@ spec:
                     properties:
                       clusterName:
                         type: string
-                      selector:
-                        properties:
-                          matchLabels:
-                            additionalProperties:
-                              type: string
-                            type: object
-                        type: object
                       namespace:
                         type: string
                       weight:
@@ -1094,7 +1098,6 @@ spec:
                         maximum: 256
                     required:
                       - clusterName
-                      - selector
                       - namespace
                 selector:
                   properties:
@@ -1103,6 +1106,8 @@ spec:
                         type: string
                       type: object
                   type: object
+              required:
+                - selector
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."

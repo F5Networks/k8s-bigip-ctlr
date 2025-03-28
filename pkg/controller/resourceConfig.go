@@ -907,6 +907,20 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, r
 	return monitorRefName
 }
 
+func (ctlr *Controller) CreateIngressLinkMonitor(monitor cisapiv1.Monitor, ilNamespace string, ilName string) MonitorName {
+	var monitorRefName MonitorName
+	if !reflect.DeepEqual(monitor, Monitor{}) {
+		if monitor.Reference == BIGIP {
+			if monitor.Name != "" {
+				monitorRefName = MonitorName{Name: monitor.Name, Reference: monitor.Reference}
+			} else {
+				log.Errorf("missing monitor name with bigip reference in ingressLink: %v", ilNamespace+"/"+ilName)
+			}
+		}
+	}
+	return monitorRefName
+}
+
 // Handle the default pool for virtual server
 func (ctlr *Controller) handleDefaultPool(
 	rsCfg *ResourceConfig,

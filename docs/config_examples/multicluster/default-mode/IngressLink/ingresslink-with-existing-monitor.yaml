@@ -5,6 +5,9 @@ metadata:
   namespace: nginx-ingress
 spec:
   host: '*.example.com'
+  monitors:
+  - name: /Common/nginx-ingresslink-monitor
+    reference: bigip
   multiClusterServices:
   - clusterName: cluster1
     namespace: nginx-ingress

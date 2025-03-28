@@ -4447,14 +4447,21 @@ func (ctlr *Controller) processIngressLink(
 				port.Port,
 			)
 		}
-		monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, intstr.IntOrString{IntVal: port.Port}, "", "", ""))
 		var monitorNames []MonitorName
-		monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
-		monitorNames = append(monitorNames, monitorRefName)
-		rsCfg.Monitors = append(
-			rsCfg.Monitors,
-			Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20,
-				Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: targetPort})
+		if ingLink.Spec.Monitors != nil {
+			for _, monitor := range ingLink.Spec.Monitors {
+				monitorName := ctlr.CreateIngressLinkMonitor(monitor, ingLink.Namespace, ingLink.Name)
+				monitorNames = append(monitorNames, monitorName)
+			}
+		} else {
+			monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, intstr.IntOrString{IntVal: port.Port}, "", "", ""))
+			monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
+			monitorNames = append(monitorNames, monitorRefName)
+			rsCfg.Monitors = append(
+				rsCfg.Monitors,
+				Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 10,
+					Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 31, TargetPort: targetPort})
+		}
 		// For default mode read the il spec multiclusterservices and populate the svcName, Namespace and
 		// ServicePort from the ingresslink
 		var multiClusterServices []cisapiv1.MultiClusterServiceReference

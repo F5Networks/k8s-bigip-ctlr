@@ -164,10 +164,9 @@ type MultiClusterServiceReference struct {
 }
 
 type MultiClusterServiceReferenceIL struct {
-	ClusterName string                `json:"clusterName"`
-	Namespace   string                `json:"namespace"`
-	Weight      *int                  `json:"weight,omitempty"`
-	Selector    *metav1.LabelSelector `json:"selector"`
+	ClusterName string `json:"clusterName"`
+	Namespace   string `json:"namespace"`
+	Weight      *int   `json:"weight,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

@@ -4268,19 +4268,18 @@ func (ctlr *Controller) processIngressLink(
 	key = ctlr.ipamClusterLabel + ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
 	var svc *v1.Service
 	var err error
+	namespace := ingLink.ObjectMeta.Namespace
+	clusterName := ctlr.multiClusterHandler.LocalClusterName
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		if len(ingLink.Spec.MultiClusterServices) > 0 {
-			selector := ingLink.Spec.MultiClusterServices[0].Selector
-			namespace := ingLink.Spec.MultiClusterServices[0].Namespace
-			clusterName := ingLink.Spec.MultiClusterServices[0].ClusterName
-			svc, err = ctlr.getKICServiceOfIngressLink(namespace, selector, clusterName)
-			log.Infof("IngressLink selector is %v", selector.String())
+			namespace = ingLink.Spec.MultiClusterServices[0].Namespace
+			clusterName = ingLink.Spec.MultiClusterServices[0].ClusterName
 		}
-	} else {
-		log.Infof("IngressLink selector is %v", ingLink.Spec.Selector.String())
-		//fetch service backends for IngressLink with weights
-		svc, err = ctlr.getKICServiceOfIngressLink(ingLink.ObjectMeta.Namespace, ingLink.Spec.Selector, ctlr.multiClusterHandler.LocalClusterName)
 	}
+	log.Infof("IngressLink selector is %v", ingLink.Spec.Selector.String())
+	//fetch service backends for IngressLink with weights
+	svc, err = ctlr.getKICServiceOfIngressLink(namespace, ingLink.Spec.Selector, clusterName)
+
 	if err != nil {
 		ctlr.updateILStatus(ingLink, "", StatusError, err)
 		return err
@@ -4468,9 +4467,9 @@ func (ctlr *Controller) processIngressLink(
 		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 			for _, backend := range ingLink.Spec.MultiClusterServices {
 				// get svc from selector
-				svc, err := ctlr.getKICServiceOfIngressLink(backend.Namespace, backend.Selector, backend.ClusterName)
+				svc, err := ctlr.getKICServiceOfIngressLink(backend.Namespace, ingLink.Spec.Selector, backend.ClusterName)
 				if err != nil {
-					log.Warningf("Ingress link service not found in cluster %s with label %v", backend.ClusterName, backend.Selector.MatchLabels)
+					log.Warningf("Ingress link service not found in cluster %s with label %v", backend.ClusterName, ingLink.Spec.Selector.MatchLabels)
 					continue
 				}
 				msvc := cisapiv1.MultiClusterServiceReference{

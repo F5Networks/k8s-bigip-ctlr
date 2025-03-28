@@ -1090,13 +1090,6 @@ spec:
                     properties:
                       clusterName:
                         type: string
-                      selector:
-                        properties:
-                          matchLabels:
-                            additionalProperties:
-                              type: string
-                            type: object
-                        type: object
                       namespace:
                         type: string
                       weight:
@@ -1105,7 +1098,6 @@ spec:
                         maximum: 256
                     required:
                       - clusterName
-                      - selector
                       - namespace
                 selector:
                   properties:
@@ -1114,6 +1106,8 @@ spec:
                         type: string
                       type: object
                   type: object
+              required:
+                - selector
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."

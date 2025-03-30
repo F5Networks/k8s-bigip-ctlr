@@ -10,6 +10,10 @@ Added Functionality
     * Multi Cluster
     * CRD
     * `Issue 3374 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3374>`_: RFE: Target discrete Pool_Member entities with ConfigMap
+    * `Issue 3779 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3779>`_: ServiceTypeLB health monitor enhancements. See `Example <./config_examples/customResource/ServiceTypeLB/>`_
+        * Shared monitor support for LB type service
+        * Support to reference existing monitors from BigIP
+        * Support to define multiple health monitors
 
 Bug Fixes
 ````````````

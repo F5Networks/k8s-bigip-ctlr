@@ -34,6 +34,7 @@ func (ctlr *Controller) responseHandler() {
 			for rscKey, kind := range meta {
 				ctlr.removeUnusedIPAMEntries(kind)
 				ns := strings.Split(rscKey, "/")[0]
+				var resourceStatus string
 				switch kind {
 				case VirtualServer:
 					// update status
@@ -55,9 +56,11 @@ func (ctlr *Controller) responseHandler() {
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
+							resourceStatus = StatusError
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
+							resourceStatus = StatusOk
 							ctlr.updateVSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
 								namespace: virtual.Namespace,
@@ -90,9 +93,11 @@ func (ctlr *Controller) responseHandler() {
 					virtual := obj.(*cisapiv1.TransportServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
+							resourceStatus = StatusError
 							// update the status for transport server as tenant posting is failed
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
+							resourceStatus = StatusOk
 							// update the status for transport server as tenant posting is success
 							ctlr.updateTSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
@@ -123,9 +128,11 @@ func (ctlr *Controller) responseHandler() {
 					il := obj.(*cisapiv1.IngressLink)
 					if il.Namespace+"/"+il.Name == rscKey {
 						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
+							resourceStatus = StatusError
 							// update the status for ingresslink as tenant posting is failed
 							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
 						} else {
+							resourceStatus = StatusOk
 							// update the status for ingresslink as tenant posting is success
 							ctlr.updateILStatus(il, ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      il.Name,
@@ -137,10 +144,43 @@ func (ctlr *Controller) responseHandler() {
 
 				case Route:
 					if _, found := agentConfig.failedTenants[partition]; found {
+						resourceStatus = StatusError
 						// TODO : distinguish between a 503 and an actual failure
 						go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
 					} else {
+						resourceStatus = StatusOk
 						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
+					}
+				}
+				if resourceStatus == StatusOk {
+					switch agentConfig.agentKind {
+					case GTMBigIP:
+						// add gtm config to the cccl worker if ccclGTMAgent is true for GTMBigIPWorker
+						if ctlr.RequestHandler.GTMBigIPWorker.ccclGTMAgent {
+							log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.GTMBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+							ctlr.RequestHandler.GTMBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
+						}
+						if !ctlr.RequestHandler.GTMBigIPWorker.disableARP {
+							go ctlr.RequestHandler.GTMBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+						}
+					case PrimaryBigIP:
+						// add gtm config to the cccl worker if ccclGTMAgent is true for GTMBigIPWorker
+						if ctlr.RequestHandler.PrimaryBigIPWorker.ccclGTMAgent {
+							log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+							ctlr.RequestHandler.PrimaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
+						}
+						if !ctlr.RequestHandler.PrimaryBigIPWorker.disableARP {
+							go ctlr.RequestHandler.PrimaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+						}
+					case SecondaryBigIP:
+						// add gtm config to the cccl worker if ccclGTMAgent is true for SecondaryBigIPWorker
+						if ctlr.RequestHandler.SecondaryBigIPWorker.ccclGTMAgent {
+							log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.SecondaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+							ctlr.RequestHandler.SecondaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
+						}
+						if !ctlr.RequestHandler.SecondaryBigIPWorker.disableARP {
+							go ctlr.RequestHandler.SecondaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+						}
 					}
 				}
 			}

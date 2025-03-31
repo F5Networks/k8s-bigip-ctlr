@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
@@ -55,11 +54,6 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 			agentConfig.agentKind = PrimaryBigIP
 		}
 		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
-		// add gtm config to the cccl worker if ccclGTMAgent is true
-		if agent.ccclGTMAgent {
-			log.Debugf("%v Posting GTM config to cccl agent: %+v\n", agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
-			agent.PostGTMConfigWithCccl(rsConfigRequest)
-		}
 	} else {
 		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
 		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent)
@@ -120,14 +114,14 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
-	var allPoolMems []rsc.Member
+	var allPoolMems []PoolMember
 
 	for _, poolMem := range allPoolMembers {
 		if rsConfig.poolMemberType != Auto ||
 			(rsConfig.poolMemberType == Auto && poolMem.MemberType != NodePort) {
 			allPoolMems = append(
 				allPoolMems,
-				rsc.Member(poolMem),
+				poolMem,
 			)
 		}
 	}

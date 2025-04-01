@@ -865,6 +865,7 @@ type (
 		failedTenants         map[string]tenantResponse
 		deleted               bool
 		agentKind             string
+		rscConfigRequest      ResourceConfigRequest
 	}
 
 	Agent struct {
@@ -1332,7 +1333,6 @@ type (
 		AdminState      string `json:"adminState,omitempty"`
 		ConnectionLimit int32  `json:"connectionLimit,omitempty"`
 		Ratio           int    `json:"ratio,omitempty"`
-		PriorityGroup   int    `json:"priorityGroup,omitempty"`
 	}
 )
 
@@ -1531,9 +1531,8 @@ const (
 type HAModeType string
 
 const (
-	StatusOk      = "OK"
-	StatusError   = "ERROR"
-	StatusStandby = "STANDBY"
+	StatusOk    = "OK"
+	StatusError = "ERROR"
 )
 
 type discoveryMode string

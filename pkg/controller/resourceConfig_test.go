@@ -24,9 +24,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -106,9 +104,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -168,9 +164,7 @@ var _ = Describe("Resource Config Tests", func() {
 			// Standalone, no ratio and monitor for local cluster pool
 			mockCtlr.multiClusterMode = StandAloneCIS
 			mockCtlr.clusterRatio = make(map[string]*int)
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -296,9 +290,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -1085,9 +1077,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -1254,9 +1244,7 @@ var _ = Describe("Resource Config Tests", func() {
 		BeforeEach(func() {
 			ip = "10.8.0.22"
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -1394,9 +1382,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -1840,9 +1826,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -1986,9 +1970,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
@@ -2223,9 +2205,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),

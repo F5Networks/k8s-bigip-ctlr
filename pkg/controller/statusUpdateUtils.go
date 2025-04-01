@@ -13,7 +13,7 @@ import (
 
 // updateVSStatus prepares the status update VS
 func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, status string, err error) {
-	vsStatus := cisapiv1.VirtualServerStatus{
+	vsStatus := cisapiv1.CustomResourceStatus{
 		Status:      status,
 		LastUpdated: metav1.Now(),
 	}
@@ -38,7 +38,7 @@ func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, st
 
 // updateTSStatus prepares the status update TS
 func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, status string, err error) {
-	tsStatus := cisapiv1.TransportServerStatus{
+	tsStatus := cisapiv1.CustomResourceStatus{
 		Status:      status,
 		LastUpdated: metav1.Now(),
 	}
@@ -63,7 +63,7 @@ func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, 
 
 // updateILStatus prepares the status update IL
 func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, status string, err error) {
-	ilStatus := cisapiv1.IngressLinkStatus{
+	ilStatus := cisapiv1.CustomResourceStatus{
 		Status:      status,
 		LastUpdated: metav1.Now(),
 	}
@@ -422,7 +422,7 @@ func (ctlr *Controller) clearAllUnmonitoredVirtualServerStatus() {
 
 // clearVirtualServerStatus clears status for the Virtual Server
 func (ctlr *Controller) clearVirtualServerStatus(virtualServer *cisapiv1.VirtualServer) {
-	vsStatus := cisapiv1.VirtualServerStatus{
+	vsStatus := cisapiv1.CustomResourceStatus{
 		Error: fmt.Sprintf("Missing label f5cr on VS %v/%v", virtualServer.Namespace, virtualServer.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
@@ -461,7 +461,7 @@ func (ctlr *Controller) updateAllUnmonitoredTransportServerStatus() {
 
 // clearTransportServerStatus clears status for the Transport Server
 func (ctlr *Controller) clearTransportServerStatus(transportServer *cisapiv1.TransportServer) {
-	tsStatus := cisapiv1.TransportServerStatus{
+	tsStatus := cisapiv1.CustomResourceStatus{
 		Error: fmt.Sprintf("Missing label f5cr on TS %v/%v", transportServer.Namespace, transportServer.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
@@ -500,7 +500,7 @@ func (ctlr *Controller) updateAllUnmonitoredIngressLinkStatus() {
 
 // clearIngressLinkStatus clears status for the IngressLink
 func (ctlr *Controller) clearIngressLinkStatus(ingressLink *cisapiv1.IngressLink) {
-	ilStatus := cisapiv1.IngressLinkStatus{
+	ilStatus := cisapiv1.CustomResourceStatus{
 		Error: fmt.Sprintf("Missing label f5cr on IngressLink %v/%v", ingressLink.Namespace, ingressLink.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{

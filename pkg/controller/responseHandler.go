@@ -2,13 +2,14 @@ package controller
 
 import (
 	"errors"
+	"strings"
+	"time"
+
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
-	"time"
 )
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) requestMeta {
@@ -143,6 +144,35 @@ func (ctlr *Controller) responseHandler() {
 						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 					}
 				}
+			}
+		}
+		switch agentConfig.agentKind {
+		case GTMBigIP:
+			// add gtm config to the cccl worker if ccclGTMAgent is true for GTMBigIPWorker
+			if ctlr.RequestHandler.GTMBigIPWorker.ccclGTMAgent {
+				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.GTMBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+				ctlr.RequestHandler.GTMBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
+			}
+			if !ctlr.RequestHandler.GTMBigIPWorker.disableARP {
+				go ctlr.RequestHandler.GTMBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+			}
+		case PrimaryBigIP:
+			// add gtm config to the cccl worker if ccclGTMAgent is true for GTMBigIPWorker
+			if ctlr.RequestHandler.PrimaryBigIPWorker.ccclGTMAgent {
+				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+				ctlr.RequestHandler.PrimaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
+			}
+			if !ctlr.RequestHandler.PrimaryBigIPWorker.disableARP {
+				go ctlr.RequestHandler.PrimaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+			}
+		case SecondaryBigIP:
+			// add gtm config to the cccl worker if ccclGTMAgent is true for SecondaryBigIPWorker
+			if ctlr.RequestHandler.SecondaryBigIPWorker.ccclGTMAgent {
+				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.SecondaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+				ctlr.RequestHandler.SecondaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
+			}
+			if !ctlr.RequestHandler.SecondaryBigIPWorker.disableARP {
+				go ctlr.RequestHandler.SecondaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
 			}
 		}
 		if len(agentConfig.failedTenants) > 0 && ctlr.requestCounter == agentConfig.reqMeta.id {

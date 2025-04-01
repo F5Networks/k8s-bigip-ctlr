@@ -3,12 +3,13 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 // write a function for NewAS3Handler, rewrite
@@ -504,6 +505,7 @@ func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAge
 		tenantResponseMap:     make(map[string]tenantResponse),
 		failedTenants:         make(map[string]tenantResponse),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
+		rscConfigRequest:      rsConfig,
 	}
 	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig, ccclGTMAgent) {
 		// this section is for gtm agent

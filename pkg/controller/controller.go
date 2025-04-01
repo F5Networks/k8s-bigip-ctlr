@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
@@ -173,9 +172,7 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
 		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
 		respChan:                    make(chan *agentPostConfig),
-		multiClusterHandler: NewClusterHandler(params.LocalClusterName, params.MultiClusterMode, &PrimaryClusterHealthProbeParams{
-			paramLock: sync.RWMutex{},
-		}),
+		multiClusterHandler:         NewClusterHandler(params.LocalClusterName),
 	}
 	if handler == nil {
 		ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams)

@@ -43,9 +43,7 @@ var _ = Describe("Worker Tests", func() {
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
-		mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-			statusRunning: true,
-		})
+		mockCtlr.multiClusterHandler = NewClusterHandler("")
 		mockWriter := &test.MockWriter{
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),
@@ -3896,9 +3894,7 @@ extendedRouteSpec:
 	Describe("Processing VS, TS, IL, SvcLB on pod update", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore()}
 			mockWriter := &test.MockWriter{
 				FailStyle: test.Success,
@@ -4095,9 +4091,7 @@ extendedRouteSpec:
 	Describe("Verify helper functions", func() {
 		BeforeEach(func() {
 			mockCtlr = newMockController()
-			mockCtlr.multiClusterHandler = NewClusterHandler("", PrimaryCIS, &PrimaryClusterHealthProbeParams{
-				statusRunning: true,
-			})
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 			// Handles the resource status updates
 			go mockCtlr.multiClusterHandler.ResourceStatusUpdater()

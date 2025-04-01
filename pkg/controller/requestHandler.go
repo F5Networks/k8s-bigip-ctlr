@@ -70,7 +70,7 @@ func (reqHandler *RequestHandler) requestHandler() {
 		// If CIS is running in non multi-cluster mode or the Primary CIS status is changed
 		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && reqHandler.PrimaryClusterHealthProbeParams.statusChanged) {
 			// Post LTM config based on HA mode
-			if reqHandler.HAMode {
+			if reqHandler.HAMode && reqHandler.SecondaryBigIPWorker != nil {
 				reqHandler.PrimaryBigIPWorker.PostConfig(rsConfig)
 				reqHandler.SecondaryBigIPWorker.PostConfig(rsConfig)
 			} else {

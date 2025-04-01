@@ -18,6 +18,8 @@ func (reqHandler *RequestHandler) checkPrimaryClusterHealthStatus() bool {
 			status = reqHandler.getPrimaryClusterHealthStatusFromHTTPEndPoint()
 		case "tcp":
 			status = reqHandler.getPrimaryClusterHealthStatusFromTCPEndPoint()
+		case "https":
+			status = reqHandler.getPrimaryClusterHealthStatusFromHTTPSEndPoint()
 		case "", "default":
 			log.Debugf("[MultiCluster] unsupported primaryEndPoint specified under highAvailabilityCIS section: %v", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
 			return false
@@ -39,11 +41,13 @@ func (reqHandler *RequestHandler) setPrimaryClusterHealthCheckEndPointType() {
 	if reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" {
 		if strings.HasPrefix(reqHandler.PrimaryClusterHealthProbeParams.EndPoint, "tcp://") {
 			reqHandler.PrimaryClusterHealthProbeParams.EndPointType = "tcp"
+		} else if strings.HasPrefix(reqHandler.PrimaryClusterHealthProbeParams.EndPoint, "https://") {
+			reqHandler.PrimaryClusterHealthProbeParams.EndPointType = "https"
 		} else if strings.HasPrefix(reqHandler.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
 			reqHandler.PrimaryClusterHealthProbeParams.EndPointType = "http"
 		} else {
-			log.Debugf("[MultiCluster] unsupported primaryEndPoint protocol type configured under highAvailabilityCIS section. EndPoint: %v \n "+
-				"supported protocols:[http, tcp] ", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
+			log.Warningf("[MultiCluster] unsupported primaryEndPoint protocol type configured under highAvailabilityCIS section. EndPoint: %v \n "+
+				"supported protocols:[https, http, tcp] ", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
 			os.Exit(1)
 		}
 	}
@@ -56,6 +60,46 @@ func (reqHandler *RequestHandler) getPrimaryClusterHealthStatusFromHTTPEndPoint(
 		return false
 	}
 	if !strings.HasPrefix(reqHandler.PrimaryClusterHealthProbeParams.EndPoint, "http://") {
+		log.Debugf("[MultiCluster] Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
+		return false
+	}
+
+	req, err := http.NewRequest("GET", reqHandler.PrimaryClusterHealthProbeParams.EndPoint, nil)
+	if err != nil {
+		log.Errorf("[MultiCluster] Creating new HTTP request error: %v ", err)
+		return false
+	}
+
+	timeOut := reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Timeout
+	defer func() {
+		reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Timeout = timeOut
+	}()
+	if reqHandler.PrimaryClusterHealthProbeParams.statusChanged {
+		log.Debugf("[MultiCluster] posting GET Check primaryEndPoint Health request on %v", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
+	}
+	reqHandler.PrimaryBigIPWorker.getPostManager().httpClient.Timeout = 10 * time.Second
+
+	httpResp := reqHandler.httpGetReq(req)
+	if httpResp == nil {
+		return false
+	}
+	switch httpResp.StatusCode {
+	case http.StatusOK:
+		return true
+	case http.StatusNotFound, http.StatusInternalServerError:
+		log.Debugf("[MultiCluster] error fetching primaryEndPoint health status. endPoint:%v, statusCode: %v, error:%v",
+			reqHandler.PrimaryClusterHealthProbeParams.EndPoint, httpResp.StatusCode, httpResp.Request.Response)
+	}
+	return false
+}
+
+// getPrimaryClusterHealthStatusFromHTTPSEndPoint check the primary cluster health using https endPoint
+func (reqHandler *RequestHandler) getPrimaryClusterHealthStatusFromHTTPSEndPoint() bool {
+
+	if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" {
+		return false
+	}
+	if !strings.HasPrefix(reqHandler.PrimaryClusterHealthProbeParams.EndPoint, "https://") {
 		log.Debugf("[MultiCluster] Error: invalid primaryEndPoint detected under highAvailabilityCIS section: %v", reqHandler.PrimaryClusterHealthProbeParams.EndPoint)
 		return false
 	}
@@ -152,6 +196,7 @@ func (ctlr *Controller) getPrimaryClusterHealthStatus() {
 			ctlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning = false
 			ctlr.enqueuePrimaryClusterProbeEvent()
 		} else {
+			log.Infof("[MultiCluster] Primary CIS is active and secondary CIS is moving to inactive state")
 			ctlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning = true
 		}
 		//update cccl global section with primary cluster running status

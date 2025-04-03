@@ -1,6 +1,21 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * Multi Cluster
+       `Issue 3739 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3739>`_: IngressLink multicluster support for default mode.See `Documentation <./config_examples/multicluster/default-mode/IngressLink>`_
+    * CRD
+
+
+Bug Fixes
+````````````
+
+
 2.19.1
 -------------
 

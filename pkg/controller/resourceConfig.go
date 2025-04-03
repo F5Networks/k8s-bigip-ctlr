@@ -2553,7 +2553,7 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 	il *cisapiv1.IngressLink,
 	serviceport v1.ServicePort,
 	multiClusterServices []cisapiv1.MultiClusterServiceReference,
-	monitorNames []MonitorName,
+	svc *v1.Service,
 ) error {
 	var pools Pools
 	var backendSvcs []SvcBackendCxt
@@ -2565,7 +2565,39 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 	framedPools := make(map[string]struct{})
 	backendSvcs = ctlr.GetPoolBackendsForIL(&il.Spec, serviceport, il.Namespace, multiClusterServices)
 	for _, SvcBackend := range backendSvcs {
+		targetPort := nginxMonitorPort
+		if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
+			//fetch monitor port for nodeport
+			svc := ctlr.GetService(SvcBackend.SvcNamespace, SvcBackend.Name, SvcBackend.Cluster)
+			if svc != nil {
+				targetPort = getNodeport(svc, nginxMonitorPort)
+			}
+			if targetPort == 0 {
+				log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
+			}
+		} else if ctlr.PoolMemberType == NodePortLocal {
+			targetPort = ctlr.getNodeportForNPL(nginxMonitorPort, SvcBackend.Name, SvcBackend.SvcNamespace, SvcBackend.Cluster)
+			if targetPort == 0 {
+				log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
+			}
+		}
+		var monitorNames []MonitorName
+		if il.Spec.Monitors != nil {
+			for _, monitor := range il.Spec.Monitors {
+				monitorName := ctlr.CreateIngressLinkMonitor(monitor, il.Namespace, il.Name)
+				monitorNames = append(monitorNames, monitorName)
+			}
+		} else {
+			monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, intstr.IntOrString{IntVal: serviceport.Port}, "", "", SvcBackend.Cluster))
+			monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
+			monitorNames = append(monitorNames, monitorRefName)
+			rsCfg.Monitors = append(
+				rsCfg.Monitors,
+				Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 10,
+					Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 31, TargetPort: targetPort})
+		}
 		SvcBackend.SvcPort = ctlr.fetchTargetPort(SvcBackend.SvcNamespace, SvcBackend.Name, intstr.IntOrString{IntVal: serviceport.Port}, SvcBackend.Cluster)
+
 		svcPortUsed := false // svcPortUsed is true only when the target port could not be fetched
 		if (intstr.IntOrString{}) == SvcBackend.SvcPort {
 			SvcBackend.SvcPort = intstr.IntOrString{IntVal: serviceport.Port}

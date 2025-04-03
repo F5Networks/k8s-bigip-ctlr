@@ -10,6 +10,10 @@ Added Functionality
     * Multi Cluster
        `Issue 3739 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3739>`_: IngressLink multicluster support for default mode.See `Documentation <./config_examples/multicluster/default-mode/IngressLink>`_
     * CRD
+        * `Issue 3779 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3779>`_: ServiceTypeLB health monitor enhancements. See `Example <./config_examples/customResource/ServiceTypeLB/>`_
+            * Shared monitor support for LB type service
+            * Support to reference existing monitors from BigIP
+            * Support to define multiple health monitors
 
 
 Bug Fixes

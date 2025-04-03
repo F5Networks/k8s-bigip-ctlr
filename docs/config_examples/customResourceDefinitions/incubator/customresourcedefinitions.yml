@@ -1092,6 +1092,8 @@ spec:
                         type: string
                       namespace:
                         type: string
+                      service:
+                        type: string
                       weight:
                         type: integer
                         minimum: 0
@@ -1099,6 +1101,7 @@ spec:
                     required:
                       - clusterName
                       - namespace
+                      - service
                 selector:
                   properties:
                     matchLabels:
@@ -1106,8 +1109,6 @@ spec:
                         type: string
                       type: object
                   type: object
-              required:
-                - selector
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."

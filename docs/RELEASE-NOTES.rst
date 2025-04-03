@@ -8,6 +8,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
+      * `Issue 3739 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3739>`_: IngressLink multicluster support for default mode.See `Documentation <./config_examples/multicluster/default-mode/IngressLink>`_
     * CRD
     * `Issue 3374 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3374>`_: RFE: Target discrete Pool_Member entities with ConfigMap
     * `Issue 3779 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3779>`_: ServiceTypeLB health monitor enhancements. See `Example <./config_examples/customResource/ServiceTypeLB/>`_

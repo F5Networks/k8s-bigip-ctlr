@@ -1056,30 +1056,6 @@ spec:
                   items:
                     type: string
                     pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-                multiClusterServices:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      clusterName:
-                        type: string
-                      selector:
-                        properties:
-                          matchLabels:
-                            additionalProperties:
-                              type: string
-                            type: object
-                        type: object
-                      namespace:
-                        type: string
-                      weight:
-                        type: integer
-                        minimum: 0
-                        maximum: 256
-                    required:
-                      - clusterName
-                      - selector
-                      - namespace
                 selector:
                   properties:
                     matchLabels:

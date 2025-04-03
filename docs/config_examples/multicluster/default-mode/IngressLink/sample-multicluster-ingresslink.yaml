@@ -8,11 +8,10 @@ spec:
   multiClusterServices:
   - clusterName: cluster1
     namespace: nginx-ingress
+    service: nginx-ingress
   - clusterName: cluster2
     namespace: nginx-ingress
-  selector:
-    matchLabels:
-      app: ingresslink
+    service: nginx-ingress
   tls:
     clientSSLs:
     - wc-example-secret

@@ -104,13 +104,10 @@ In the ConfigMap resource enable the proxy protocol, which the BIG-IP system wil
           targetPort: 8081
           protocol: TCP
           name: readiness-port
-          nodePort: 32418
       selector:
         app: nginx-ingress
       type: NodePort
     ```
-    **Note**:
-    Use fixed nodePort in nginx-ingress service for monitor port 8081 in all the clusters. This is required to use same monitor across multiple cluster pools per ingresslink resource.
 
 5. Install the helm chart
    ```
@@ -132,14 +129,13 @@ spec:
   multiClusterServices:
   - clusterName: cluster1
     namespace: nginx-ingress
+    service: nginx-ingress
   - clusterName: cluster2
     namespace: nginx-ingress
+    service: nginx-ingress
   monitors:
   - name: /Common/nginx-ingresslink-monitor
     reference: bigip 
-  selector:
-    matchLabels:
-      app: ingresslink
   tls:
     clientSSLs:
     - wc-example-secret
@@ -149,8 +145,8 @@ spec:
   virtualServerAddress: 10.8.3.11
 ```
 ##### Note:
-1. The name of the app label selector in IngressLink resource should match the labels of the service which exposes the NGINX Ingress Controller.
-2. The service which exposes the NGINX Ingress Controller should be of type ``nodeport``.
+
+The service which exposes the NGINX Ingress Controller should be of type ``nodeport``.
 
 ### 6. Test the Integration.
 

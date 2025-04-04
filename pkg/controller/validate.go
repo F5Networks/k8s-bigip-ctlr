@@ -279,8 +279,8 @@ func (ctlr *Controller) checkValidIngressLink(
 		return false
 	}
 
-	// Check if Selector is empty
-	if il.Spec.Selector == nil {
+	// Check if Selector is empty for non-multicluster mode
+	if il.Spec.Selector == nil && ctlr.multiClusterMode == "" {
 		err = fmt.Sprintf("Selector is not provided for IngressLink %s", ilName)
 		log.Errorf(err)
 		ctlr.updateILStatus(il, "", StatusError, errors.New(err))

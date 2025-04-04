@@ -463,6 +463,16 @@ func (ctlr *Controller) processResources() bool {
 					}
 				}
 			}
+			//process affected ingresslink resources with secret
+			ingressLinks := ctlr.getIngressLinkForSecret(secret)
+			for _, ingLink := range ingressLinks {
+				err := ctlr.processIngressLink(ingLink, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+					isRetryableError = true
+				}
+			}
 		}
 
 	case TransportServer:
@@ -655,9 +665,7 @@ func (ctlr *Controller) processResources() bool {
 			log.Debugf("Skipping service '%v' as it's not used by any CIS monitored resource", svcKey)
 			break
 		}
-
 		_ = ctlr.processService(svc, rKey.clusterName)
-
 		// Update the poolMembers for affected resources
 		ctlr.updatePoolMembersForService(svcKey, rKey.svcPortUpdated, newPool)
 
@@ -4275,21 +4283,25 @@ func (ctlr *Controller) processIngressLink(
 	clusterName := ctlr.multiClusterHandler.LocalClusterName
 	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 		if len(ingLink.Spec.MultiClusterServices) > 0 {
-			namespace = ingLink.Spec.MultiClusterServices[0].Namespace
-			clusterName = ingLink.Spec.MultiClusterServices[0].ClusterName
+			svc = ctlr.GetService(ingLink.Spec.MultiClusterServices[0].Namespace, ingLink.Spec.MultiClusterServices[0].SvcName, ingLink.Spec.MultiClusterServices[0].ClusterName)
+			if svc == nil {
+				ctlr.updateILStatus(ingLink, "", StatusError, errors.New("ingress service not found"))
+				return nil
+			}
 		}
-	}
-	log.Infof("IngressLink selector is %v", ingLink.Spec.Selector.String())
-	//fetch service backends for IngressLink with weights
-	svc, err = ctlr.getKICServiceOfIngressLink(namespace, ingLink.Spec.Selector, clusterName)
+	} else {
+		log.Infof("IngressLink selector is %v", ingLink.Spec.Selector.String())
+		//fetch service backends for IngressLink with weights
+		svc, err = ctlr.getKICServiceOfIngressLink(namespace, ingLink.Spec.Selector, clusterName)
 
-	if err != nil {
-		ctlr.updateILStatus(ingLink, "", StatusError, err)
-		return err
-	}
-	if svc == nil {
-		ctlr.updateILStatus(ingLink, "", StatusError, errors.New("ingress service not found"))
-		return nil
+		if err != nil {
+			ctlr.updateILStatus(ingLink, "", StatusError, err)
+			return err
+		}
+		if svc == nil {
+			ctlr.updateILStatus(ingLink, "", StatusError, errors.New("ingress service not found"))
+			return nil
+		}
 	}
 
 	if ctlr.ipamCli != nil {
@@ -4377,18 +4389,6 @@ func (ctlr *Controller) processIngressLink(
 	ctlr.TeemData.Lock()
 	ctlr.TeemData.ResourceType.IngressLink[ingLink.Namespace] = len(ctlr.getAllIngressLinks(ingLink.Namespace))
 	ctlr.TeemData.Unlock()
-	targetPort := nginxMonitorPort
-	if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
-		targetPort = getNodeport(svc, nginxMonitorPort)
-		if targetPort == 0 {
-			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
-		}
-	} else if ctlr.PoolMemberType == NodePortLocal {
-		targetPort = ctlr.getNodeportForNPL(nginxMonitorPort, svc.Name, svc.Namespace)
-		if targetPort == 0 {
-			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
-		}
-	}
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	for _, port := range svc.Spec.Ports {
 		//for nginx health monitor port skip vs creation
@@ -4449,45 +4449,16 @@ func (ctlr *Controller) processIngressLink(
 				port.Port,
 			)
 		}
-		var monitorNames []MonitorName
-		if ingLink.Spec.Monitors != nil {
-			for _, monitor := range ingLink.Spec.Monitors {
-				monitorName := ctlr.CreateIngressLinkMonitor(monitor, ingLink.Namespace, ingLink.Name)
-				monitorNames = append(monitorNames, monitorName)
-			}
-		} else {
-			monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, intstr.IntOrString{IntVal: port.Port}, "", "", ""))
-			monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
-			monitorNames = append(monitorNames, monitorRefName)
-			rsCfg.Monitors = append(
-				rsCfg.Monitors,
-				Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 10,
-					Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 31, TargetPort: targetPort})
-		}
-		// For default mode read the il spec multiclusterservices and populate the svcName, Namespace and
-		// ServicePort from the ingresslink
-		var multiClusterServices []cisapiv1.MultiClusterServiceReference
-		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-			for _, backend := range ingLink.Spec.MultiClusterServices {
-				// get svc from selector
-				svc, err := ctlr.getKICServiceOfIngressLink(backend.Namespace, ingLink.Spec.Selector, backend.ClusterName)
-				if err != nil {
-					log.Warningf("Ingress link service not found in cluster %s with label %v", backend.ClusterName, ingLink.Spec.Selector.MatchLabels)
-					continue
-				}
-				msvc := cisapiv1.MultiClusterServiceReference{
-					ClusterName: backend.ClusterName,
-					SvcName:     svc.Name,
-					ServicePort: intstr.IntOrString{IntVal: port.Port},
-					Namespace:   svc.Namespace,
-				}
-				multiClusterServices = append(multiClusterServices, msvc)
-			}
-		}
 		log.Debugf("Processing IngressLink %s for port %v",
 			ingLink.Name, port.Port)
 		rsCfg.MetaData.baseResources[ingLink.ObjectMeta.Namespace+"/"+ingLink.ObjectMeta.Name] = IngressLink
-		_ = ctlr.prepareRSConfigFromIngressLink(rsCfg, ingLink, port, multiClusterServices, monitorNames)
+		//update serviceport for multiclusterservices
+		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
+			for i := range ingLink.Spec.MultiClusterServices {
+				ingLink.Spec.MultiClusterServices[i].ServicePort = intstr.IntOrString{IntVal: port.Port}
+			}
+		}
+		_ = ctlr.prepareRSConfigFromIngressLink(rsCfg, ingLink, port, ingLink.Spec.MultiClusterServices, svc)
 		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 			rsCfg.MetaData.ResourceType = IngressLink
 			if !reflect.DeepEqual(ingLink.Spec.TLS, cisapiv1.TLSTransportServer{}) {
@@ -5284,6 +5255,51 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 	return allTLSProfiles
 }
 
+// fetch list of IngressLinks for given secret.
+func (ctlr *Controller) getIngressLinkForSecret(secret *v1.Secret) []*cisapiv1.IngressLink {
+	var allIngLInk []*cisapiv1.IngressLink
+	uniqueIngLinks := make(map[string]*cisapiv1.IngressLink)
+	crInf, ok := ctlr.getNamespacedCRInformer(secret.Namespace, ctlr.multiClusterHandler.LocalClusterName)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", secret.Namespace)
+		return nil
+	}
+
+	var orderedIL []interface{}
+	var err error
+	orderedIL, err = crInf.ilInformer.GetIndexer().ByIndex("namespace", secret.Namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of IngressLinks for namespace '%v': %v",
+			secret.Namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedIL {
+		ingLink := obj.(*cisapiv1.IngressLink)
+		if ingLink.Spec.TLS.Reference == Secret {
+			key := fmt.Sprintf("%s/%s", ingLink.Namespace, ingLink.Name)
+			if len(ingLink.Spec.TLS.ClientSSLs) > 0 {
+				for _, name := range ingLink.Spec.TLS.ClientSSLs {
+					if name == secret.Name {
+						uniqueIngLinks[key] = ingLink
+					}
+				}
+			}
+			if len(ingLink.Spec.TLS.ServerSSLs) > 0 {
+				for _, name := range ingLink.Spec.TLS.ServerSSLs {
+					if name == secret.Name {
+						uniqueIngLinks[key] = ingLink
+					}
+				}
+			}
+		}
+	}
+	for _, ingLink := range uniqueIngLinks {
+		allIngLInk = append(allIngLInk, ingLink)
+	}
+	return allIngLInk
+}
+
 func createLabel(label string) (labels.Selector, error) {
 	var l labels.Selector
 	var err error
@@ -5309,9 +5325,9 @@ func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 	return nodes
 }
 
-func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace string) int32 {
+func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace string, clusterName string) int32 {
 	var nodePort int32
-	pods := ctlr.GetPodsForService(namespace, svcName, "", true)
+	pods := ctlr.GetPodsForService(namespace, svcName, clusterName, true)
 	if pods != nil {
 		for _, pod := range pods {
 			anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]

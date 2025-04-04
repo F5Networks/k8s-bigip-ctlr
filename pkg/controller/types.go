@@ -608,13 +608,6 @@ type (
 		partition  string
 	}
 
-	// This is the format for each item in the health monitor annotation used
-	// in the ServiceType LB objects.
-	ServiceTypeLBHealthMonitor struct {
-		Interval int `json:"interval"`
-		Timeout  int `json:"timeout"`
-	}
-
 	// Rule config for a Policy
 	Rule struct {
 		Name       string       `json:"name"`

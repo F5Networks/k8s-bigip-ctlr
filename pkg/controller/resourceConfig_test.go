@@ -744,6 +744,57 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 		})
 
+		Describe("Verify health monitors for LB service", func() {
+			svcPort := v1.ServicePort{
+				Name:     "port1",
+				Port:     8080,
+				Protocol: "http",
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort},
+			)
+			It("Verifies multiple monitors support in LB Service", func() {
+				svc.Annotations = make(map[string]string)
+				svc.Annotations[HealthMonitorAnnotation] = `[{"interval": 5, "name": "mon1", "timeout": 10, "targetPort": 80},{"name": "mon2", "interval": 15, "timeout": 20, "targetPort": 8080}]`
+				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
+				Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
+				Expect(len(rsCfg.Monitors)).To(Equal(2), "Failed to Prepare Resource Config from Service")
+				Expect(rsCfg.Monitors[0]).To(Equal(Monitor{Name: "mon1", Interval: 5, Type: "http", Timeout: 10, TargetPort: 80}), "Failed to process monitors in LB service")
+				Expect(rsCfg.Monitors[1]).To(Equal(Monitor{Name: "mon2", Interval: 15, Type: "http", Timeout: 20, TargetPort: 8080}), "Failed to process monitors in LB service")
+
+			})
+			It("Verifies support for bigip reference monitor in health annotation in LB Service", func() {
+				svc.Annotations = make(map[string]string)
+				svc.Annotations[HealthMonitorAnnotation] = `{"name": "/Common/tcp", "reference": "bigip"}`
+				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
+				Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
+				Expect(rsCfg.Monitors).To(BeNil(), "Failed to Prepare Resource Config from Service")
+				Expect(len(rsCfg.Pools)).To(Equal(1), "")
+				Expect(len(rsCfg.Pools[0].MonitorNames)).To(Equal(1), "Failed to process monitors in LB service")
+				Expect(rsCfg.Pools[0].MonitorNames[0]).To(Equal(MonitorName{Name: "/Common/tcp", Reference: BIGIP}), "Failed to process monitors in LB service")
+			})
+			It("Verifies support a combination of bigip reference monitor and non bigip reference monitors in "+
+				"annotation in LB Service", func() {
+				svc.Annotations = make(map[string]string)
+				svc.Annotations[HealthMonitorAnnotation] = `[{"interval": 5, "name": "mon1", "timeout": 10, "targetPort": 80},{"name": "/Common/udp", "reference": "bigip"}]`
+				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
+				Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
+				Expect(rsCfg.Monitors).NotTo(BeNil(), "Failed to Prepare Resource Config from Service")
+				Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to process monitors in LB service")
+				Expect(len(rsCfg.Pools[0].MonitorNames)).To(Equal(2), "Failed to process monitors in LB service")
+				Expect(rsCfg.Monitors[0]).To(Equal(Monitor{Name: "mon1", Interval: 5, Type: "http", Timeout: 10, TargetPort: 80}), "Failed to process monitors in LB service")
+				Expect(rsCfg.Pools[0].MonitorNames[0]).To(Equal(MonitorName{Name: "mon1", Reference: ""}), "Failed to process monitors in LB service")
+				Expect(rsCfg.Pools[0].MonitorNames[1]).To(Equal(MonitorName{Name: "/Common/udp", Reference: BIGIP}), "Failed to process monitors in LB service")
+			})
+		})
+
 		It("Get Pool Members from Resource Configs", func() {
 			mem1 := PoolMember{
 				Address: "1.2.3.5",

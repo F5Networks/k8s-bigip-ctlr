@@ -78,11 +78,19 @@ func (api *BaseAPIHandler) postConfig(cfg *agentPostConfig) {
 	}
 
 	httpResp, responseMap := api.PostManager.postConfig(cfg)
-	if httpResp == nil || responseMap == nil {
+	if httpResp == nil {
+		return
+	}
+
+	if responseMap == nil {
+		// handle the cases where we are not able to unmarshall the response
+		// BIG IP sometime responds with error hence we are unable to marshall the response
+		api.APIHandler.handleNilResponseMap(httpResp.StatusCode, cfg)
 		return
 	}
 
 	var unknownResponse = false
+
 	switch httpResp.StatusCode {
 	case http.StatusOK:
 		log.Infof("%v[%s]%v post resulted in SUCCESS", getRequestPrefix(cfg.reqMeta.id), api.apiType, api.postManagerPrefix)

@@ -28,6 +28,7 @@ type ApiTypeHandlerInterface interface {
 	handleResponseStatusNotFound(responseMap map[string]interface{}, cfg *agentPostConfig) bool
 	handleResponseStatusUnAuthorized(responseMap map[string]interface{}, cfg *agentPostConfig) bool
 	handleResponseOthers(responseMap map[string]interface{}, cfg *agentPostConfig) bool
+	handleNilResponseMap(code int, cfg *agentPostConfig) bool
 	getRegKeyFromResponse(httpResp *http.Response, responseMap map[string]interface{}) (string, error)
 	getVersionsFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) error
 	getDeclarationFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) (map[string]interface{}, error)
@@ -147,9 +148,9 @@ func (am *AS3Handler) getVersionsFromResponse(httpResp *http.Response, responseM
 					return version, release, schemaVersion, nil
 				}
 			}
-			return "", "", "", fmt.Errorf("Invalid response format from version check")
+			return "", "", "", fmt.Errorf("invalid response format from version check")
 		}
-		return "", "", "", fmt.Errorf("Version information not found in response")
+		return "", "", "", fmt.Errorf("version information not found in response")
 
 	case http.StatusNotFound:
 		if code, ok := responseMap["code"].(float64); ok {
@@ -158,7 +159,7 @@ func (am *AS3Handler) getVersionsFromResponse(httpResp *http.Response, responseM
 					" Error response from BIGIP with status code %v", httpResp.StatusCode)
 			}
 		}
-		return "", "", "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return "", "", "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 
 	case http.StatusUnauthorized:
 		if code, ok := responseMap["code"].(float64); ok {
@@ -171,10 +172,10 @@ func (am *AS3Handler) getVersionsFromResponse(httpResp *http.Response, responseM
 					" Error response from BIGIP with status code %v", httpResp.StatusCode)
 			}
 		}
-		return "", "", "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return "", "", "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 
 	default:
-		return "", "", "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return "", "", "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 	}
 }
 
@@ -207,7 +208,7 @@ func (am *AS3Handler) getDeclarationFromBigIPResponse(httpResp *http.Response, r
 			am.logResponse(responseMap)
 		}
 	}
-	return nil, fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+	return nil, fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 }
 
 func (am *AS3Handler) getVersionsFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) error {
@@ -216,16 +217,16 @@ func (am *AS3Handler) getVersionsFromBigIPResponse(httpResp *http.Response, resp
 		if responseMap["version"] != nil {
 			return nil
 		}
-		return fmt.Errorf("Invalid response format from AS3 version check")
+		return fmt.Errorf("invalid response format from AS3 version check")
 
 	case http.StatusNotFound:
 		return fmt.Errorf("AS3 RPM is not installed on BIGIP")
 
 	case http.StatusUnauthorized:
-		return fmt.Errorf("Authentication failed for AS3 version check")
+		return fmt.Errorf("authentication failed for AS3 version check")
 
 	default:
-		return fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 	}
 }
 
@@ -245,7 +246,7 @@ func (am *AS3Handler) updateTenantConfigStatus(id string, httpResp *http.Respons
 							return
 						}
 						// reset task id, so that any unknownResponse failed will go to post call in the next retry
-						am.updateTenantResponseCode(int(code), "", cfg, tenant, updateTenantDeletion(tenant, declaration), "")
+						am.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration), "")
 						if _, ok := v["response"]; ok {
 							log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v %v", am.postManagerPrefix, v["code"], v["tenant"], v["message"], v["response"])
 						} else {
@@ -255,6 +256,8 @@ func (am *AS3Handler) updateTenantConfigStatus(id string, httpResp *http.Respons
 						if err == nil {
 							log.Infof("%v[AS3]%v post resulted in SUCCESS", getRequestPrefix(int64(intId)), am.postManagerPrefix)
 						}
+						// reset the accepted task id
+						cfg.acceptedTaskId = ""
 					} else {
 						unknownResponse = true
 					}
@@ -267,7 +270,8 @@ func (am *AS3Handler) updateTenantConfigStatus(id string, httpResp *http.Respons
 		}
 	} else if httpResp.StatusCode != http.StatusServiceUnavailable {
 		// reset task id, so that any failed tenants will go to post call in the next retry
-		am.updateTenantResponseCode(httpResp.StatusCode, "", cfg, "", false, "")
+		cfg.acceptedTaskId = ""
+		am.updateTenantResponseCode(httpResp.StatusCode, cfg, "", false, "")
 	}
 	if !am.PostManager.LogResponse && unknownResponse {
 		am.logResponse(responseMap)
@@ -281,9 +285,9 @@ func (am *AS3Handler) getRegKeyFromResponse(httpResp *http.Response, responseMap
 			if registrationKey, ok := regKey.(string); ok {
 				return registrationKey, nil
 			}
-			return "", fmt.Errorf("Invalid registration key format")
+			return "", fmt.Errorf("invalid registration key format")
 		}
-		return "", fmt.Errorf("Registration key not found in response")
+		return "", fmt.Errorf("registration key not found in response")
 
 	case http.StatusNotFound:
 		if code, ok := responseMap["code"].(float64); ok {
@@ -292,7 +296,7 @@ func (am *AS3Handler) getRegKeyFromResponse(httpResp *http.Response, responseMap
 					" Error response from BIGIP with status code %v", httpResp.StatusCode)
 			}
 		}
-		return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 
 	case http.StatusUnauthorized:
 		if code, ok := responseMap["code"].(float64); ok {
@@ -305,10 +309,10 @@ func (am *AS3Handler) getRegKeyFromResponse(httpResp *http.Response, responseMap
 					" Error response from BIGIP with status code %v", httpResp.StatusCode)
 			}
 		}
-		return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 
 	default:
-		return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+		return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 	}
 }
 
@@ -348,7 +352,7 @@ func (am *AS3Handler) handleResponseStatusOK(responseMap map[string]interface{},
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", am.postManagerPrefix, v["code"], v["tenant"], v["message"])
-					am.updateTenantResponseCode(int(code), "", cfg, tenant, updateTenantDeletion(tenant, declaration), "")
+					am.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration), "")
 				} else {
 					unknownResponse = true
 				}
@@ -373,10 +377,10 @@ func (am *AS3Handler) handleMultiStatus(responseMap map[string]interface{}, cfg 
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					if code != 200 {
-						am.updateTenantResponseCode(int(code), "", cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", v["code"]))
+						am.updateTenantResponseCode(int(code), cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", v["code"]))
 						log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					} else {
-						am.updateTenantResponseCode(int(code), "", cfg, tenant, updateTenantDeletion(tenant, declaration), "")
+						am.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration), "")
 						log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", am.postManagerPrefix, v["code"], v["tenant"], v["message"])
 					}
 				} else {
@@ -397,7 +401,7 @@ func (am *AS3Handler) handleResponseAccepted(responseMap map[string]interface{},
 	var unknownResponse bool
 	if respId, ok := (responseMap["id"]).(string); ok {
 		cfg.acceptedTaskId = respId
-		log.Debugf("[AS3]%v Response from BIG-IP: code 201/202 id %v, waiting %v seconds to poll response", am.postManagerPrefix, respId, timeoutMedium)
+		log.Debugf("[AS3]%v Response from BIG-IP: code 201/202 id %v, waiting %v to poll response", am.postManagerPrefix, respId, cfg.timeout)
 		unknownResponse = true
 	}
 	return unknownResponse
@@ -411,8 +415,10 @@ func (am *AS3Handler) handleResponseStatusServiceUnavailable(responseMap map[str
 		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 		unknownResponse = true
 	}
-	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", am.postManagerPrefix, timeoutMedium)
-	am.updateTenantResponseCode(http.StatusServiceUnavailable, "", cfg, "", false, message)
+	// increase the timeout to recover the BigIP
+	cfg.increaseTimeout()
+	log.Debugf("[AS3]%v Response from BIG-IP: BIG-IP is busy, waiting %v and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
+	am.updateTenantResponseCode(http.StatusServiceUnavailable, cfg, "", false, message)
 	return unknownResponse
 }
 
@@ -426,7 +432,7 @@ func (am *AS3Handler) handleResponseStatusNotFound(responseMap map[string]interf
 		unknownResponse = true
 		message = "Big-IP Responded with error -- verify the logs for detailed error"
 	}
-	am.updateTenantResponseCode(http.StatusNotFound, "", cfg, "", false, message)
+	am.updateTenantResponseCode(http.StatusNotFound, cfg, "", false, message)
 	return unknownResponse
 }
 
@@ -446,9 +452,19 @@ func (am *AS3Handler) handleResponseStatusUnAuthorized(responseMap map[string]in
 		unknownResponse = true
 		message = "Big-IP Responded with error -- verify the logs for detailed error"
 	}
-
-	am.updateTenantResponseCode(http.StatusUnauthorized, "", cfg, "", false, message)
+	// increase the timeout to recover the BigIP
+	cfg.increaseTimeout()
+	log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
+	am.updateTenantResponseCode(http.StatusUnauthorized, cfg, "", false, message)
 	return unknownResponse
+}
+
+func (am *AS3Handler) handleNilResponseMap(code int, cfg *agentPostConfig) bool {
+	// increase the timeout to recover the BigIP
+	cfg.increaseTimeout()
+	log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
+	am.updateTenantResponseCode(code, cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
+	return true
 }
 
 func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, cfg *agentPostConfig) bool {
@@ -460,7 +476,10 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
-					am.updateTenantResponseCode(int(code), "", cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
+					// increase the timeout to recover the BigIP
+					cfg.increaseTimeout()
+					log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
+					am.updateTenantResponseCode(int(code), cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
 				} else {
 					unknownResponse = true
 				}
@@ -471,14 +490,20 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, err["code"])
 		if code, ok := err["code"].(float64); ok {
-			am.updateTenantResponseCode(int(code), "", cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"]))
+			// increase the timeout to recover the BigIP
+			cfg.increaseTimeout()
+			log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
+			am.updateTenantResponseCode(int(code), cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"]))
 		} else {
 			unknownResponse = true
 		}
 	} else {
 		unknownResponse = true
 		if code, ok := responseMap["code"].(float64); ok {
-			am.updateTenantResponseCode(int(code), "", cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
+			// increase the timeout to recover the BigIP
+			cfg.increaseTimeout()
+			log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
+			am.updateTenantResponseCode(int(code), cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", code))
 		}
 	}
 	return unknownResponse
@@ -506,6 +531,7 @@ func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAge
 		failedTenants:         make(map[string]tenantResponse),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 		rscConfigRequest:      rsConfig,
+		timeout:               timeoutMedium,
 	}
 	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig, ccclGTMAgent) {
 		// this section is for gtm agent
@@ -710,24 +736,13 @@ func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest, ccc
 	return adc
 }
 
-func (am *AS3Handler) updateTenantResponseCode(code int, id string, cfg *agentPostConfig, tenant string, isDeleted bool, message string) {
+func (am *AS3Handler) updateTenantResponseCode(code int, cfg *agentPostConfig, tenant string, isDeleted bool, message string) {
 	// Update status for a specific tenant if mentioned, else update the response for all tenants
 	if tenant != "" {
-		cfg.tenantResponseMap[tenant] = tenantResponse{code, id, isDeleted, message}
+		cfg.tenantResponseMap[tenant] = tenantResponse{code, isDeleted, message}
 	} else {
 		for tenant := range cfg.tenantResponseMap {
-			cfg.tenantResponseMap[tenant] = tenantResponse{code, id, false, message}
-		}
-	}
-}
-
-func (am *AS3Handler) updateTenantResponseMap(agentCfg *agentPostConfig) {
-	for tenant, resp := range agentCfg.tenantResponseMap {
-		if resp.agentResponseCode == 200 {
-			if resp.isDeleted {
-				// Update the cache tenant map if tenant is deleted.
-				delete(am.cachedTenantDeclMap, tenant)
-			}
+			cfg.tenantResponseMap[tenant] = tenantResponse{code, false, message}
 		}
 	}
 }
@@ -759,14 +774,10 @@ func (am *AS3Handler) pollTenantStatus(cfg *agentPostConfig) {
 	// Keep retrying until accepted tenant statuses are updated
 	// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
 	for cfg.acceptedTaskId != "" {
-		//if !postMgr.AS3Config.DocumentAPI {
-		<-time.After(timeoutMedium)
-		//} else {
-		//	<-time.After(timeoutSmall)
-		//}
+		log.Debugf("[%s]%v waiting for %v before checking taskId %v", am.apiType, am.postManagerPrefix, cfg.timeout, cfg.acceptedTaskId)
+		<-time.After(cfg.timeout)
 		cfg.tenantResponseMap = make(map[string]tenantResponse)
 		am.verifyTenantConfigStatus(cfg.acceptedTaskId, cfg)
-		am.updateTenantCache(cfg)
 	}
 }
 
@@ -781,7 +792,7 @@ func (am *AS3Handler) verifyTenantConfigStatus(id string, agentCfg *agentPostCon
 	req.SetBasicAuth(am.BIGIPUsername, am.BIGIPPassword)
 
 	httpResp, responseMap := am.httpPOST(req)
-	if httpResp == nil || responseMap == nil {
+	if httpResp == nil {
 		return
 	}
 

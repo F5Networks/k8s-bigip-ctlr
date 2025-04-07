@@ -15,6 +15,8 @@ Bug Fixes
 ````````````
 * `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Loadbalancer doesn't work in 2.19.0 and 2.19.1
 * `Issue 3755 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3755>`_: Upgrade to 2.19 - Unexpected error: 'config'
+* `Issue 3767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3767>`_: HTTPS support for primaryEndPoint url
+* `Issue 3768 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3768>`_: INFO logging for CIS HA secondary when primary CIS is down
 
 2.19.1
 -------------

@@ -425,3 +425,8 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
 * CRD
   * You cannot add or delete the serviceAddress property for VS and TS CR after creating the CR.
 
+### **Upgrading from 2.19.0 to 2.20.0:**
+
+**_Functionality Changes:_**
+* Multi Cluster CRD
+  * HTTPS protocol is supported for primaryEndPoint url. We recommend configuring the required certificates in the "trusted-certs-cfgmap" deployment parameter to ensure secure communication. 

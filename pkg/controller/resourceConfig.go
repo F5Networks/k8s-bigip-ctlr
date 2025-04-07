@@ -907,6 +907,49 @@ func (ctlr *Controller) createTransportServerMonitor(monitor cisapiv1.Monitor, r
 	return monitorRefName
 }
 
+// createServiceTypeLBMonitor creates health monitor for the serviceTypeLB
+func (ctlr *Controller) createServiceTypeLBMonitor(monitor cisapiv1.Monitor, rsCfg *ResourceConfig,
+	svcPort v1.ServicePort, svc *v1.Service) MonitorName {
+	var monitorRefName MonitorName
+	var formatPort intstr.IntOrString
+	monitorType := strings.ToLower(string(svcPort.Protocol))
+	if monitor.Type != "" {
+		monitorType = monitor.Type
+	}
+	if monitor.TargetPort != 0 {
+		formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
+	} else {
+		formatPort = svcPort.TargetPort
+	}
+	vsNamespace := svc.Namespace
+	vsName := svc.Name
+	if !reflect.DeepEqual(monitor, cisapiv1.Monitor{}) {
+		if monitor.Reference == BIGIP {
+			if monitor.Name != "" {
+				monitorRefName = MonitorName{Name: monitor.Name, Reference: monitor.Reference}
+			} else {
+				log.Errorf("missing monitor name with bigip reference in serviceTypeLB: %v", vsNamespace+"/"+vsName)
+			}
+		} else {
+			monitorName := monitor.Name
+			if monitorName == "" {
+				monitorName = formatMonitorName(svc.Namespace, svc.Name, monitorType, formatPort, "", "")
+			}
+			monitorRefName = MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
+			monitor := Monitor{
+				Name:       monitorName,
+				Partition:  rsCfg.Virtual.Partition,
+				Type:       monitorType,
+				Interval:   monitor.Interval,
+				Timeout:    monitor.Timeout,
+				TargetPort: monitor.TargetPort,
+			}
+			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+		}
+	}
+	return monitorRefName
+}
+
 // Handle the default pool for virtual server
 func (ctlr *Controller) handleDefaultPool(
 	rsCfg *ResourceConfig,
@@ -2546,6 +2589,52 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		clusterName: clusterName,
 		timestamp:   svc.CreationTimestamp,
 	}
+	var monitorNames []MonitorName
+	// Health Monitor Annotation
+	hmStr, monitorFound := svc.Annotations[HealthMonitorAnnotation]
+	if monitorFound {
+		var hm interface{}
+		err := json.Unmarshal([]byte(hmStr), &hm)
+		if err != nil {
+			msg := fmt.Sprintf(
+				"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+			log.Errorf("[CORE] %s", msg)
+		}
+		val := reflect.ValueOf(hm)
+		switch val.Kind() {
+		case reflect.Map:
+			var mon cisapiv1.Monitor
+			err = json.Unmarshal([]byte(hmStr), &mon)
+			if err != nil {
+				msg := fmt.Sprintf(
+					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+				log.Errorf("[CORE] %s", msg)
+			}
+			monitorName := ctlr.createServiceTypeLBMonitor(mon, rsCfg, svcPort, svc)
+			if monitorName != (MonitorName{}) {
+				monitorNames = append(monitorNames, monitorName)
+			}
+
+		case reflect.Slice:
+			var mons []cisapiv1.Monitor
+			err = json.Unmarshal([]byte(hmStr), &mons)
+			if err != nil {
+				msg := fmt.Sprintf(
+					"Unable to parse health monitors JSON array '%v': %v", hmStr, err)
+				log.Errorf("[CORE] %s", msg)
+			}
+			for _, mon := range mons {
+				monitorName := ctlr.createServiceTypeLBMonitor(mon, rsCfg, svcPort, svc)
+				if monitorName != (MonitorName{}) {
+					monitorNames = append(monitorNames, monitorName)
+				}
+			}
+
+		default:
+			log.Errorf("[CORE] Unknown health monitor format %s for ServiceTypeLB: %s/%s", hmStr, svc.Namespace, svc.Name)
+		}
+	}
+
 	framedPools := make(map[string]struct{})
 	backendSvcs = ctlr.GetPoolBackendsForSvcTypeLB(svc, svcPort, clusterName, multiClusterServices)
 
@@ -2581,6 +2670,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			NodeMemberLabel:          "",
 			Cluster:                  SvcBackend.Cluster,
 			ImplicitSvcSearchEnabled: true,
+			MonitorNames:             monitorNames,
 		}
 
 		if ctlr.multiClusterMode != "" {
@@ -2632,31 +2722,6 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		ctlr.updatePoolMembersForResources(&pool)
 		if len(pool.Members) > 0 {
 			rsCfg.MetaData.Active = true
-		}
-		// Health Monitor Annotation
-		hmStr, found := svc.Annotations[HealthMonitorAnnotation]
-		var monitor Monitor
-		if found {
-			monitorType := strings.ToLower(string(svcPort.Protocol))
-			var mon ServiceTypeLBHealthMonitor
-			err := json.Unmarshal([]byte(hmStr), &mon)
-			if err != nil {
-				msg := fmt.Sprintf(
-					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
-				log.Errorf("[CORE] %s", msg)
-			}
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-				formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
-			monitor = Monitor{
-				Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
-				Partition: rsCfg.Virtual.Partition,
-				Type:      monitorType,
-				Interval:  mon.Interval,
-				Send:      "",
-				Recv:      "",
-				Timeout:   mon.Timeout,
-			}
-			rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 		}
 		pools = append(pools, pool)
 		if multiClusterServices == nil {

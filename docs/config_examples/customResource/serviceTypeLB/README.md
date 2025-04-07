@@ -35,18 +35,54 @@ kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${
 
 Annotation supported for service type LoadBalancer:
 
-| Annotation            | REQUIRED  | DESCRIPTION                                                                                               | EXAMPLE  FILE                         |
-|-----------------------|-----------|-----------------------------------------------------------------------------------------------------------|---------------------------------------|
-| cis.f5.com/ipamLabel  | Mandatory | Specify the ipamLabel if you are using the FIC controller to configure the ip addresses.                  | example-service-type-lb.yaml          |
-| cis.f5.com/health     | Optional  | It configures the health monitor for pools in ltm virtual server.                                         | healthMonitor-serviceTypeLB.yaml      |
-| cis.f5.com/policyName | Optional  | Name of Policy CR to attach profiles/policies defined in it.                                              | service-type-lb-with-policyname.yaml  |
-| cis.f5.com/ip         | Mandatory | Specify the ip address for the ltm virtual server.                                                        | example-service-type-lb-staic-ip.yaml |
-| cis.f5.com/host       | Optional  | Specify the hostname for configuring the WideIP pools on the GTM server, It works along with the EDNS CR. | service-type-lb-with-hostname.yaml    |
-| cis.f5.com/partition  | Optional  | The BIG-IP partition in which the Controller should create/update/delete objects for this ServiceTypeLB.  | service-type-lb-with-custom-partition.yaml    |
+| Annotation             | REQUIRED   | DESCRIPTION                                                                                                    | EXAMPLE  FILE                                                                |
+|------------------------|------------|----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| cis.f5.com/ipamLabel   | Mandatory  | Specify the ipamLabel if you are using the FIC controller to configure the ip addresses.                       | example-service-type-lb.yaml                                                 |
+| cis.f5.com/health      | Optional   | It configures either single or multiple health monitors for pools in ltm virtual server.                       | healthMonitor-serviceTypeLB.yaml, multiple-healthMonitors-serviceTypeLB.yaml |
+| cis.f5.com/policyName  | Optional   | Name of Policy CR to attach profiles/policies defined in it.                                                   | service-type-lb-with-policyname.yaml                                         |
+| cis.f5.com/ip          | Mandatory  | Specify the ip address for the ltm virtual server.                                                             | example-service-type-lb-staic-ip.yaml                                        |
+| cis.f5.com/host        | Optional   | Specify the hostname for configuring the WideIP pools on the GTM server, It works along with the EDNS CR.      | service-type-lb-with-hostname.yaml                                           |
+| cis.f5.com/partition   | Optional   | The BIG-IP partition in which the Controller should create/update/delete objects for this ServiceTypeLB.       | service-type-lb-with-custom-partition.yaml                                   |
 
 Note:-
 
-If cis.f5.com/ipamLabel and cis.f5.com/ip both annotations are provided then cis.f5.com/ip will be given priority and LTM virtual will be created using the IP address provided by cis.f5.com/ip.
+- If cis.f5.com/ipamLabel and cis.f5.com/ip both annotations are provided then cis.f5.com/ip will be given priority and LTM virtual will be created using the IP address provided by cis.f5.com/ip.
+- cis.f5.com/health annotation supports both single and multiple health monitors used to configure health monitor for pools in ltm virtual server.
+
+**Health Monitor Components**
+
+| PARAMETER  | TYPE   | REQUIRED | DEFAULT   | DESCRIPTION                                                                                     |
+|------------|--------|----------|-----------|-------------------------------------------------------------------------------------------------|
+| type       | String | Optional | NA        | Protocol type for health monitor. Defaults to LB service protocol type. Example TCP or UDP.     |
+| interval   | Int    | Required | 5         | Seconds between health queries                                                                  |
+| timeout    | Int    | Optional | 16        | Seconds before query fails                                                                      |
+| targetPort | Int    | Optional | 0         | port (if any) monitor should probe ,if nothing is provided then target port of Service is used. |
+| name       | String | Required | NA        | Reference to health monitor name existing on bigip                                              |
+| reference  | String | Required | NA        | Value should be bigip for referencing custom monitor on bigip                                   |
+
+***Annotation cis.f5.com/health***
+Examples:
+```
+cis.f5.com/health: '{"interval": 5, "timeout": 10}'
+```
+```
+cis.f5.com/health: '{"name": "/Common/tcp", "reference": "bigip"}'
+```
+```
+cis.f5.com/health: |-
+  [
+    {"interval": 5, "timeout": 10},
+    {"name": "/Common/tcp", "reference": "bigip"}
+  ]
+```
+```
+cis.f5.com/health: |-
+  [
+    {"name": "hm1", "interval": 5, "timeout": 10, "targetPort": 80},
+    {"name": "/Common/customMonitor", "reference": "bigip"}
+  ]
+```
+
 
 ## FIC Integration:
 

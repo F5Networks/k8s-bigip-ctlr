@@ -99,6 +99,7 @@ var _ = Describe("Node Poller Handler", func() {
 		namespace := "default"
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces[namespace] = struct{}{}
+		mockCtlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		mockCtlr.addNamespacedInformers(namespace, false, "")
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")

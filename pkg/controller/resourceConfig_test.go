@@ -303,6 +303,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(), kubeCRClient: crdfake.NewSimpleClientset()}
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 			_ = mockCtlr.addNamespacedInformers(namespace, false, "")
 

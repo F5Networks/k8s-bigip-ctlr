@@ -22,7 +22,8 @@ func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, st
 	} else if ip != "" {
 		vsStatus.VSAddress = ip
 	} else {
-		vsStatus.Error = fmt.Sprintf("Missing label f5cr on VS %v/%v", vs.Namespace, vs.Name)
+		vsStatus.Error = fmt.Sprintf("Missing label %s on VS %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
+			vs.Namespace, vs.Name)
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: vsStatus,
@@ -47,7 +48,8 @@ func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, 
 	} else if ip != "" {
 		tsStatus.VSAddress = ip
 	} else {
-		tsStatus.Error = fmt.Sprintf("Missing label f5cr on TS %v/%v", ts.Namespace, ts.Name)
+		tsStatus.Error = fmt.Sprintf("Missing label %s on TS %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
+			ts.Namespace, ts.Name)
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: tsStatus,
@@ -72,7 +74,8 @@ func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, stat
 	} else if ip != "" {
 		ilStatus.VSAddress = ip
 	} else {
-		ilStatus.Error = fmt.Sprintf("Missing label f5cr on il %v/%v", il.Namespace, il.Name)
+		ilStatus.Error = fmt.Sprintf("Missing label %s on il %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
+			il.Namespace, il.Name)
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: ilStatus,
@@ -399,31 +402,11 @@ func (ctlr *Controller) eraseRouteAdmitStatus(route *routeapi.Route) {
 	}
 }
 
-// clearAllUnmonitoredVirtualServerStatus clears status for all the unmonitored Virtual Servers
-func (ctlr *Controller) clearAllUnmonitoredVirtualServerStatus() {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	if clusterConfig == nil {
-		log.Errorf("Error while clearing status for all the unmonitored Virtual Server CRs: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
-		return
-	}
-	unmonitoredOptions := metav1.ListOptions{
-		LabelSelector: strings.ReplaceAll(clusterConfig.customResourceSelector.String(), " in ", " notin "),
-	}
-	unmonitoredVS, err := clusterConfig.kubeCRClient.CisV1().VirtualServers("").List(context.TODO(), unmonitoredOptions)
-	if err != nil {
-		log.Errorf("Error while fetching unmonitored virtual servers: %v %v", err, unmonitoredVS)
-	}
-
-	for _, virtualServer := range unmonitoredVS.Items {
-		ctlr.clearVirtualServerStatus(&virtualServer)
-	}
-}
-
 // clearVirtualServerStatus clears status for the Virtual Server
 func (ctlr *Controller) clearVirtualServerStatus(virtualServer *cisapiv1.VirtualServer) {
 	vsStatus := cisapiv1.CustomResourceStatus{
-		Error: fmt.Sprintf("Missing label f5cr on VS %v/%v", virtualServer.Namespace, virtualServer.Name),
+		Error: fmt.Sprintf("Missing label %s on VS %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
+			virtualServer.Namespace, virtualServer.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: vsStatus,
@@ -438,31 +421,11 @@ func (ctlr *Controller) clearVirtualServerStatus(virtualServer *cisapiv1.Virtual
 	}
 }
 
-// updateAllUnmonitoredTransportServerStatus clears status for all the unmonitored Transport Servers
-func (ctlr *Controller) updateAllUnmonitoredTransportServerStatus() {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	if clusterConfig == nil {
-		log.Errorf("Error while clearing status for all the unmonitored Transport Server CRs: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
-		return
-	}
-	unmonitoredOptions := metav1.ListOptions{
-		LabelSelector: strings.ReplaceAll(clusterConfig.customResourceSelector.String(), " in ", " notin "),
-	}
-	unmonitoredTS, err := clusterConfig.kubeCRClient.CisV1().TransportServers("").List(context.TODO(), unmonitoredOptions)
-	if err != nil {
-		log.Errorf("Error while fetching unmonitored transport servers: %v %v", err, unmonitoredTS)
-	}
-
-	for _, transportServer := range unmonitoredTS.Items {
-		ctlr.clearTransportServerStatus(&transportServer)
-	}
-}
-
 // clearTransportServerStatus clears status for the Transport Server
 func (ctlr *Controller) clearTransportServerStatus(transportServer *cisapiv1.TransportServer) {
 	tsStatus := cisapiv1.CustomResourceStatus{
-		Error: fmt.Sprintf("Missing label f5cr on TS %v/%v", transportServer.Namespace, transportServer.Name),
+		Error: fmt.Sprintf("Missing label %s on TS %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
+			transportServer.Namespace, transportServer.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: tsStatus,
@@ -477,31 +440,11 @@ func (ctlr *Controller) clearTransportServerStatus(transportServer *cisapiv1.Tra
 	}
 }
 
-// updateAllUnmonitoredIngressLinkStatus clears status for all the unmonitored IngressLink
-func (ctlr *Controller) updateAllUnmonitoredIngressLinkStatus() {
-	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-	if clusterConfig == nil {
-		log.Errorf("Error while clearing status for all the unmonitored Transport Server CRs: Error: clusterConfig "+
-			"could not found for the cluster:%v", ctlr.multiClusterHandler.LocalClusterName)
-		return
-	}
-	unmonitoredOptions := metav1.ListOptions{
-		LabelSelector: strings.ReplaceAll(clusterConfig.customResourceSelector.String(), " in ", " notin "),
-	}
-	unmonitoredIL, err := clusterConfig.kubeCRClient.CisV1().IngressLinks("").List(context.TODO(), unmonitoredOptions)
-	if err != nil {
-		log.Errorf("Error while fetching unmonitored transport servers: %v %v", err, unmonitoredIL)
-	}
-
-	for _, ingressLink := range unmonitoredIL.Items {
-		ctlr.clearIngressLinkStatus(&ingressLink)
-	}
-}
-
 // clearIngressLinkStatus clears status for the IngressLink
 func (ctlr *Controller) clearIngressLinkStatus(ingressLink *cisapiv1.IngressLink) {
 	ilStatus := cisapiv1.CustomResourceStatus{
-		Error: fmt.Sprintf("Missing label f5cr on IngressLink %v/%v", ingressLink.Namespace, ingressLink.Name),
+		Error: fmt.Sprintf("Missing label %s on IngressLink %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
+			ingressLink.Namespace, ingressLink.Name),
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: ilStatus,
@@ -519,8 +462,6 @@ func (ctlr *Controller) clearIngressLinkStatus(ingressLink *cisapiv1.IngressLink
 // cleanupUnmonitoredResourceStatus clears status for all the unmonitored resources
 func (ctlr *Controller) cleanupUnmonitoredResourceStatus() {
 	log.Debugf("Cleaning up unmonitored resource status")
-	ctlr.clearAllUnmonitoredVirtualServerStatus()
-	ctlr.updateAllUnmonitoredTransportServerStatus()
 	if ctlr.mode == OpenShiftMode {
 		ctlr.eraseAllRouteAdmitStatus()
 	}

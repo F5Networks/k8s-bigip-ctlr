@@ -187,7 +187,16 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 	clusterConfig.InformerStore = initInformerStore()
 	clusterConfig.nodeLabelSelector = params.NodeLabelSelector
 	clusterConfig.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-	clusterConfig.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	var err error
+	ctlr.multiClusterHandler.customResourceSelector, err = createLabelSelector(params.CustomResourceLabel)
+	// Log the error if parsing the custom resource label fails
+	if err != nil {
+		log.Errorf("Error creating label selector from custom-resource-label %s, Error: %v", params.CustomResourceLabel, err)
+		log.Warningf("CIS is watching custom resources with default label: %s", DefaultCustomResourceLabel)
+		ctlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	} else {
+		log.Debugf("CIS is watching custom resources with label: %s", params.CustomResourceLabel)
+	}
 	clusterConfig.orchestrationCNI = params.OrchestrationCNI
 	clusterConfig.staticRoutingMode = params.StaticRoutingMode
 	switch ctlr.mode {

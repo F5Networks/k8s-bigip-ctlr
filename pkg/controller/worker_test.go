@@ -98,7 +98,7 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		mockCtlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default", false, "")
 		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -1559,7 +1559,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
@@ -3912,7 +3912,7 @@ extendedRouteSpec:
 			}
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			_ = mockCtlr.addNamespacedInformers("default", false, "")
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")

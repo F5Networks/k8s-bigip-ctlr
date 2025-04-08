@@ -16,6 +16,8 @@ Added Functionality
         * Support to reference existing monitors from BigIP
         * Support to define multiple health monitors
     * Support for configuring refresh token interval for bigip token authentication.
+    * `Issue 3559 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3559>`_: Support for CIS to watch Custom Resources with custom label
+
 Bug Fixes
 ````````````
 * `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Loadbalancer doesn't work in 2.19.0 and 2.19.1
@@ -24,6 +26,13 @@ Bug Fixes
 * `Issue 3767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3767>`_: HTTPS support for primaryEndPoint url
 * `Issue 3768 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3768>`_: INFO logging for CIS HA secondary when primary CIS is down
 * `Issue 3791 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3791>`_: Name mapping between VS and pools
+
+Upgrade notes
+``````````````
+* CIS 2.20 and above will no longer update the status of custom resources it's not monitoring (those with non-matching labels).
+  This prevents conflicts when running multiple CIS deployments in the same k8s cluster, as each deployment can now watch a
+  different set of custom resources with unique labels without interfering with resources managed by other CIS instances.
+
 
 2.19.1
 -------------

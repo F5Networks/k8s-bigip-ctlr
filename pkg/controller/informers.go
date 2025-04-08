@@ -387,6 +387,9 @@ func (ctlr *Controller) addNamespacedInformers(
 			// Enabling CRInformers only for custom resource mode
 			if _, found := informerStore.crInformers[namespace]; !found {
 				crInf := ctlr.newNamespacedCustomResourceInformerForCluster(namespace, clusterName)
+				if crInf == nil {
+					return fmt.Errorf("unable to create CRInformer for namespace %v in cluster %s", namespace, clusterName)
+				}
 				ctlr.addCustomResourceEventHandlers(crInf)
 				informerStore.crInformers[namespace] = crInf
 				if startInformer {
@@ -407,10 +410,17 @@ func (ctlr *Controller) newNamespacedCustomResourceInformerForCluster(
 	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = clusterConfig.customResourceSelector.String()
+		options.LabelSelector = ctlr.multiClusterHandler.customResourceSelector.String()
 	}
-	everything := func(options *metav1.ListOptions) {
+	// Check if the selector created out of custom-resource-label is not same as the default selector, then use the
+	// filter option with user defined selector, otherwise use the filterOptions for matching all the IngressLink
+	// resources. This is intentionally done to avoid any breaking changes as CIS used to watch all the ingressLink
+	// resources from the very beginning.
+	ingressLinkFilterOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
+	}
+	if ctlr.multiClusterHandler.customResourceSelector.String() != DefaultCustomResourceLabel {
+		ingressLinkFilterOptions = crOptions
 	}
 	resyncPeriod := 0 * time.Second
 
@@ -424,7 +434,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformerForCluster(
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		everything,
+		ingressLinkFilterOptions,
 	)
 
 	crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
@@ -542,7 +552,7 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	restClientv1 := clusterConfig.kubeClient.CoreV1().RESTClient()
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = clusterConfig.customResourceSelector.String()
+		options.LabelSelector = ctlr.multiClusterHandler.customResourceSelector.String()
 	}
 	comInf := &CommonInformer{
 		namespace:   namespace,

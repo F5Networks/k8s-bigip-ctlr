@@ -105,6 +105,10 @@ func (agent *Agent) agentWorker() {
 			poll for its status continuously and block incoming requests
 		*/
 		agent.LTM.APIHandler.pollTenantStatus(agentConfig)
+
+		// update the tenant cache
+		agent.LTM.APIHandler.getApiHandler().updateTenantCache(agentConfig)
+
 		// notify resourceStatusUpdate response handler on successful tenant update
 		agent.LTM.PostManager.respChan <- agentConfig
 	}
@@ -191,4 +195,13 @@ func extractVirtualAddressAndPort(str string) (string, int) {
 		return "", 0
 	}
 
+}
+
+func (agentConfig *agentPostConfig) increaseTimeout() {
+	// Increase the timeout exponential till timeoutMax
+	if agentConfig.timeout < timeoutMax {
+		agentConfig.timeout = agentConfig.timeout * 2
+	} else {
+		agentConfig.timeout = timeoutMax
+	}
 }

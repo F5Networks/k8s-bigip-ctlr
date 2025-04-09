@@ -225,7 +225,7 @@ var _ = Describe("PostManager", func() {
 
 			It("should return nil response and nil map", func() {
 				resp, respMap := mockPM.postConfig(cfg)
-				Expect(resp).To(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 				Expect(respMap).To(BeNil())
 			})
 		})
@@ -243,7 +243,7 @@ var _ = Describe("PostManager", func() {
 
 			It("should return nil response and nil map", func() {
 				resp, respMap := mockPM.httpPOST(request)
-				Expect(resp).To(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 				Expect(respMap).To(BeNil())
 			})
 		})
@@ -260,7 +260,7 @@ var _ = Describe("PostManager", func() {
 
 			It("should return nil response and nil map", func() {
 				resp, respMap := mockPM.httpPOST(request)
-				Expect(resp).To(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 				Expect(respMap).To(BeNil())
 			})
 		})
@@ -277,7 +277,7 @@ var _ = Describe("PostManager", func() {
 
 			It("should return nil response and nil map", func() {
 				resp, respMap := mockPM.httpPOST(request)
-				Expect(resp).To(BeNil())
+				Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized))
 				Expect(respMap).To(BeNil())
 			})
 		})

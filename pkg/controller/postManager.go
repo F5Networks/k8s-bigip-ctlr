@@ -37,13 +37,14 @@ const (
 	timeoutMedium     = 30 * time.Second
 	timeoutLarge      = 180 * time.Second
 	loginProviderName = "tmos"
+	timeoutMax        = 240 * time.Second
 )
 
 func NewPostManager(params AgentParams, kind string, respChan chan *agentPostConfig) *PostManager {
 	pm := &PostManager{
 		firstPost: true,
 		respChan:  respChan,
-		postChan:  make(chan *agentPostConfig),
+		postChan:  make(chan *agentPostConfig, 1),
 		apiType:   params.ApiType,
 	}
 	switch kind {
@@ -139,7 +140,7 @@ func (postMgr *PostManager) postConfig(cfg *agentPostConfig) (*http.Response, ma
 	}
 
 	httpResp, responseMap := postMgr.httpPOST(req)
-	if httpResp == nil || responseMap == nil {
+	if httpResp == nil && responseMap == nil {
 		return nil, nil
 	}
 
@@ -171,23 +172,10 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[%s]%v Response body unmarshal failed: %v\n", postMgr.apiType, postMgr.postManagerPrefix, err)
-		if httpResp.StatusCode == http.StatusUnauthorized {
-			log.Errorf("[%s]%v Unauthorized access to BIG-IP, please check the credentials, message: %v", postMgr.apiType, postMgr.postManagerPrefix, string(body))
-			// Try to refresh the token on 401
-			if postMgr.TokenManagerInterface != nil {
-				log.Debugf("[%s]%v Attempting to refresh token after unauthorized response", postMgr.apiType, postMgr.postManagerPrefix)
-				err = postMgr.TokenManagerInterface.RefreshToken()
-				if err != nil {
-					log.Errorf("[%s]%v Failed to refresh token after unauthorized response, error: %v", postMgr.apiType, postMgr.postManagerPrefix, err)
-					// Return error
-					return nil, nil
-				}
-			}
-		}
 		if postMgr.LogResponse {
-			log.Errorf("[%s]%v Raw response from Big-IP: %v", postMgr.apiType, postMgr.postManagerPrefix, string(body))
+			log.Debugf("[%s]%v Raw response from Big-IP: %v", postMgr.apiType, postMgr.postManagerPrefix, string(body))
 		}
-		return nil, nil
+		return httpResp, nil
 	}
 	return httpResp, response
 }
@@ -244,7 +232,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 		return nil, nil
 	}
 	if postMgr.LogResponse {
-		log.Errorf("[%s]%v Raw response from Big-IP: %v", postMgr.apiType, postMgr.postManagerPrefix, string(body))
+		log.Debugf("[%s]%v Raw response from Big-IP: %v", postMgr.apiType, postMgr.postManagerPrefix, string(body))
 	}
 	return httpResp, response
 }

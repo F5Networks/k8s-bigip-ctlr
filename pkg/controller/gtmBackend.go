@@ -27,6 +27,10 @@ func (agent *Agent) gtmWorker() {
 			poll for its status continuously and block incoming requests
 		*/
 		agent.GTM.APIHandler.pollTenantStatus(agentConfig)
+
+		// update the tenant cache
+		agent.GTM.APIHandler.getApiHandler().updateTenantCache(agentConfig)
+
 		// notify resourceStatusUpdate response handler on successful tenant update
 		agent.GTM.respChan <- agentConfig
 	}

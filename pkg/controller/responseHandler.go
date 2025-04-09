@@ -2,14 +2,13 @@ package controller
 
 import (
 	"errors"
-	"strings"
-	"time"
-
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
+	"time"
 )
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) requestMeta {
@@ -175,18 +174,24 @@ func (ctlr *Controller) responseHandler() {
 				go ctlr.RequestHandler.SecondaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
 			}
 		}
-		if len(agentConfig.failedTenants) > 0 && ctlr.requestCounter == agentConfig.reqMeta.id {
-			// Delay the retry of failed tenants
-			<-time.After(timeoutMedium)
-			switch agentConfig.agentKind {
-			case GTMBigIP:
-				ctlr.RequestHandler.GTMBigIPWorker.getPostManager().postChan <- agentConfig
-			case PrimaryBigIP:
-				ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().postChan <- agentConfig
-			case SecondaryBigIP:
-				ctlr.RequestHandler.SecondaryBigIPWorker.getPostManager().postChan <- agentConfig
-			}
+		// anonymous function to handle the failure timeouts
+		if len(agentConfig.failedTenants) > 0 {
+			go func(agentConfig *agentPostConfig) {
+				// Delay the retry of failed tenants
+				<-time.After(agentConfig.timeout)
+				if ctlr.requestCounter == agentConfig.reqMeta.id {
+					switch agentConfig.agentKind {
+					case GTMBigIP:
+						ctlr.RequestHandler.GTMBigIPWorker.getPostManager().postChan <- agentConfig
+					case PrimaryBigIP:
+						ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().postChan <- agentConfig
+					case SecondaryBigIP:
+						ctlr.RequestHandler.SecondaryBigIPWorker.getPostManager().postChan <- agentConfig
+					}
+				}
+			}(agentConfig)
 		}
+
 	}
 }
 

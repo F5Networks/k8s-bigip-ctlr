@@ -21,6 +21,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	"net/http"
 	"sync"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -859,6 +860,8 @@ type (
 		deleted               bool
 		agentKind             string
 		rscConfigRequest      ResourceConfigRequest
+		// timeout is used in BIG IP API is busy
+		timeout time.Duration
 	}
 
 	Agent struct {
@@ -978,7 +981,6 @@ type (
 
 	tenantResponse struct {
 		agentResponseCode int
-		taskId            string
 		isDeleted         bool
 		message           string
 	}

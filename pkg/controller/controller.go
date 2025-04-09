@@ -171,7 +171,7 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		clusterRatio:                make(map[string]*int),
 		clusterAdminState:           make(map[string]clustermanager.AdminState),
 		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
-		respChan:                    make(chan *agentPostConfig),
+		respChan:                    make(chan *agentPostConfig, 1),
 		multiClusterHandler:         NewClusterHandler(params.LocalClusterName),
 	}
 	if handler == nil {

@@ -250,13 +250,6 @@ func (ctlr *Controller) checkValidTransportServer(
 func (ctlr *Controller) checkValidIngressLink(
 	il *cisapiv1.IngressLink,
 ) bool {
-	// Validate IL for default mode
-	if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-		err := fmt.Sprintf("%v Default mode is currently not supported for IngressLink CRs, please use active-active/active-standby/ratio mode", ctlr.getMultiClusterLog())
-		log.Errorf(err)
-		ctlr.updateILStatus(il, "", "", errors.New(err))
-		return false
-	}
 	ilNamespace := il.ObjectMeta.Namespace
 	ilName := il.ObjectMeta.Name
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
@@ -286,6 +279,13 @@ func (ctlr *Controller) checkValidIngressLink(
 		return false
 	}
 
+	// Check if Selector is empty for non-multicluster mode
+	if il.Spec.Selector == nil && ctlr.multiClusterMode == "" {
+		err = fmt.Sprintf("Selector is not provided for IngressLink %s", ilName)
+		log.Errorf(err)
+		ctlr.updateILStatus(il, "", StatusError, errors.New(err))
+		return false
+	}
 	bindAddr := il.Spec.VirtualServerAddress
 
 	if ctlr.ipamCli == nil {

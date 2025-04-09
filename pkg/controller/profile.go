@@ -35,7 +35,6 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 		}
 		certificates = append(certificates, cert)
 	}
-
 	return ctlr.createClientSSLProfile(rsCfg, certificates, secrets[0].ObjectMeta.Name, secrets[0].ObjectMeta.Namespace, tlsCipher, context, renegotiationEnabled)
 }
 
@@ -71,7 +70,7 @@ func (ctlr *Controller) createClientSSLProfile(
 
 	// Now add the resource profile
 	profRef := ProfileRef{
-		Name:      name,
+		Name:      fmt.Sprintf("%s-%s-%s", name, context, rsCfg.GetName()),
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
 		Namespace: namespace,
@@ -162,7 +161,7 @@ func (ctlr *Controller) createServerSSLProfile(
 
 	// Now add the resource profile
 	profRef := ProfileRef{
-		Name:      name,
+		Name:      fmt.Sprintf("%s-%s-%s", name, context, rsCfg.GetName()),
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
 		Namespace: namespace,

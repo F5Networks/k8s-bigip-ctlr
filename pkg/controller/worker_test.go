@@ -1229,7 +1229,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.GetService("default", "svc1", mockCtlr.multiClusterHandler.LocalClusterName)).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc", mockCtlr.multiClusterHandler.LocalClusterName)).ToNot(BeNil())
 			Expect(getNodeport(svc, 81)).To(BeEquivalentTo(0))
-			Expect(mockCtlr.getNodeportForNPL(81, "default", "svc")).To(BeEquivalentTo(0))
+			Expect(mockCtlr.getNodeportForNPL(81, "default", "svc", mockCtlr.multiClusterHandler.LocalClusterName)).To(BeEquivalentTo(0))
 		})
 
 		Describe("Processing Service of type LB with policy", func() {

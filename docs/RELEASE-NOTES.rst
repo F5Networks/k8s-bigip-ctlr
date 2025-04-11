@@ -15,7 +15,7 @@ Added Functionality
         * Shared monitor support for LB type service
         * Support to reference existing monitors from BigIP
         * Support to define multiple health monitors
-
+    * Support for configuring refresh token interval for bigip token authentication.
 Bug Fixes
 ````````````
 * `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Loadbalancer doesn't work in 2.19.0 and 2.19.1

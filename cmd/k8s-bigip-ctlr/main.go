@@ -135,18 +135,19 @@ var (
 	controllerMode     *string
 	defaultRouteDomain *int
 
-	pythonBaseDir    *string
-	logLevel         *string
-	ccclLogLevel     *string
-	logFile          *string
-	verifyInterval   *int
-	nodePollInterval *int
-	syncInterval     *int
-	printVersion     *bool
-	httpAddress      *string
-	dgPath           string
-	disableTeems     *bool
-	enableIPV6       *bool
+	pythonBaseDir        *string
+	logLevel             *string
+	ccclLogLevel         *string
+	logFile              *string
+	verifyInterval       *int
+	refreshTokenInterval *int
+	nodePollInterval     *int
+	syncInterval         *int
+	printVersion         *bool
+	httpAddress          *string
+	dgPath               string
+	disableTeems         *bool
+	enableIPV6           *bool
 
 	namespaces                  *[]string
 	useNodeInternal             *bool
@@ -268,6 +269,8 @@ func _init() {
 		"Optional, filepath to store the CIS logs")
 	verifyInterval = globalFlags.Int("verify-interval", 30,
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
+	refreshTokenInterval = globalFlags.Int("refresh-token-interval", 10,
+		"Optional, interval (in hrs) for refreshing and fetching new authentication token from bigip.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
 	syncInterval = globalFlags.Int("periodic-sync-interval", 30,
@@ -947,21 +950,22 @@ func initController(
 		GtmParams.TrustedCerts = getBIGIPTrustedCerts()
 	}
 	agentParams := controller.AgentParams{
-		PrimaryParams:      postMgrParams,
-		GTMParams:          GtmParams,
-		Partition:          (*bigIPPartitions)[0],
-		LogLevel:           *logLevel,
-		VerifyInterval:     *verifyInterval,
-		VXLANName:          vxlanName,
-		PythonBaseDir:      *pythonBaseDir,
-		HttpAddress:        *httpAddress,
-		EnableIPV6:         *enableIPV6,
-		CCCLGTMAgent:       *ccclGtmAgent,
-		StaticRoutingMode:  *staticRoutingMode,
-		SharedStaticRoutes: *sharedStaticRoutes,
-		MultiClusterMode:   *multiClusterMode,
-		ApiType:            controller.AS3,
-		UserAgent:          getUserAgentInfo(),
+		PrimaryParams:        postMgrParams,
+		GTMParams:            GtmParams,
+		Partition:            (*bigIPPartitions)[0],
+		LogLevel:             *logLevel,
+		VerifyInterval:       *verifyInterval,
+		VXLANName:            vxlanName,
+		PythonBaseDir:        *pythonBaseDir,
+		HttpAddress:          *httpAddress,
+		EnableIPV6:           *enableIPV6,
+		CCCLGTMAgent:         *ccclGtmAgent,
+		StaticRoutingMode:    *staticRoutingMode,
+		SharedStaticRoutes:   *sharedStaticRoutes,
+		MultiClusterMode:     *multiClusterMode,
+		ApiType:              controller.AS3,
+		UserAgent:            getUserAgentInfo(),
+		RefreshTokenInterval: *refreshTokenInterval,
 	}
 
 	agentParams.DisableARP = true

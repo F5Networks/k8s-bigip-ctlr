@@ -11,6 +11,12 @@ import (
 var OsExit = os.Exit
 
 func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandler {
+	var refreshTokenInterval time.Duration
+	if agentParams.RefreshTokenInterval != 0 {
+		refreshTokenInterval = time.Duration(agentParams.RefreshTokenInterval) * time.Hour
+	} else {
+		refreshTokenInterval = 10 * time.Hour
+	}
 	reqHandler := &RequestHandler{
 		reqChan:                         make(chan ResourceConfigRequest, 1),
 		respChan:                        ctlr.respChan,
@@ -21,7 +27,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP)
 		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
 		// start the token manager
-		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), 10*time.Hour)
+		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
@@ -29,14 +35,14 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP)
 		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
 		// start the token manager
-		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), 10*time.Hour)
+		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	if isGTMOnSeparateServer(agentParams) && !agentParams.CCCLGTMAgent {
 		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP)
 		// start the token manager
-		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), 10*time.Hour)
+		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.GTMBigIPWorker.gtmWorker()
 	}

@@ -1150,6 +1150,7 @@ type (
 		ServiceDownAction string               `json:"serviceDownAction,omitempty"`
 		ReselectTries     int32                `json:"reselectTries,omitempty"`
 		SlowRampTime      int32                `json:"slowRampTime,omitempty"`
+		Remark            string               `json:"remark,omitempty"`
 	}
 
 	// as3PoolMember maps to Pool_Member in AS3 Resources

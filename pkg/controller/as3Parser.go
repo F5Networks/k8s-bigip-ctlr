@@ -162,6 +162,7 @@ func (ap *AS3Parser) createPoolDecl(cfg *ResourceConfig, sharedApp as3Applicatio
 		pool.ReselectTries = v.ReselectTries
 		pool.ServiceDownAction = v.ServiceDownAction
 		pool.SlowRampTime = v.SlowRampTime
+		pool.Remark = fmt.Sprintf("%s loadbalances this pool", cfg.Virtual.Name)
 		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
 			// Skip duplicate pool members

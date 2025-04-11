@@ -906,21 +906,22 @@ type (
 		SecondaryParams PostParams
 		GTMParams       PostParams
 		// VxlnParams      VXLANParams
-		Partition          string
-		LogLevel           string
-		VerifyInterval     int
-		VXLANName          string
-		PythonBaseDir      string
-		UserAgent          string
-		HttpAddress        string
-		EnableIPV6         bool
-		DisableARP         bool
-		CCCLGTMAgent       bool
-		StaticRoutingMode  bool
-		SharedStaticRoutes bool
-		MultiClusterMode   string
-		ApiType            string
-		HAMode             bool
+		Partition            string
+		LogLevel             string
+		VerifyInterval       int
+		VXLANName            string
+		PythonBaseDir        string
+		UserAgent            string
+		HttpAddress          string
+		EnableIPV6           bool
+		DisableARP           bool
+		CCCLGTMAgent         bool
+		StaticRoutingMode    bool
+		SharedStaticRoutes   bool
+		MultiClusterMode     string
+		ApiType              string
+		HAMode               bool
+		RefreshTokenInterval int
 	}
 
 	AS3Handler struct {

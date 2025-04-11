@@ -169,6 +169,7 @@ var (
 	manageIngressClassOnly      *bool
 	ingressClass                *string
 	loadBalancerClass           *string
+	customResourceLabel         *string
 	manageLoadBalancerClassOnly *bool
 	bigIPURL                    *string
 	bigIPUsername               *string
@@ -424,6 +425,9 @@ func _init() {
 	manageLoadBalancerClassOnly = kubeFlags.Bool("manage-load-balancer-class-only", false,
 		"Optional, default `false`. Process all load balancer services with loadBalancerClass only."+
 			"If set to false, CIS process all the load balancer service without loadBalancerClass and service that have the loadBalancerClass specified by the load-balancer-class parameter")
+	customResourceLabel = kubeFlags.String("custom-resource-label", controller.DefaultCustomResourceLabel,
+		"Optional, If you specify custom-resource-label, CIS only considers custom resources those match the specified label."+
+			"All other custom resources will be ignored")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsagesWrapped(width))
@@ -1009,6 +1013,7 @@ func initController(
 			LocalClusterName:            *localClusterName,
 			LoadBalancerClass:           *loadBalancerClass,
 			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
+			CustomResourceLabel:         *customResourceLabel,
 		},
 		true,
 		agentParams,

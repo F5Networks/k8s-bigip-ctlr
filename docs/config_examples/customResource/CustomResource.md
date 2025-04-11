@@ -20,10 +20,23 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 
 ## Label
-* CIS will only process custom resources with f5cr Label as true. 
+* CIS only processes custom resources with f5cr label as true, unless a different label is set for `custom-resource-label` deployment parameter. 
 ```
    labels:
      f5cr: "true"  
+```
+**Notes**
+- default value of `custom-resource-label` deployment parameter is f5cr=true. 
+- If `custom-resource-label` deployment parameter is set with some custom label then CIS will watch only those custom resources which have this label.
+- If `custom-resource-label` deployment parameter is set to empty value then CIS will watch all custom resources.
+#### Deployment argument examples:
+```
+    --custom-resource-label=backend-cr=true
+```
+#### Custom Resource label example:
+```
+   labels:
+     backend-cr: "true"  
 ```
 
 ## Contents

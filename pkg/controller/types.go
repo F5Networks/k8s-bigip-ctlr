@@ -123,19 +123,20 @@ type (
 
 	ClusterHandler struct {
 		*PrimaryClusterHealthProbeParams
-		MultiClusterMode    string
-		ClusterConfigs      map[string]*ClusterConfig
-		HAPairClusterName   string
-		LocalClusterName    string
-		uniqueAppIdentifier map[string]struct{}
-		namespaceLabel      string
-		namespaces          []string
-		nodeLabelSelector   string
-		routeLabel          string
-		orchestrationCNI    string
-		staticRoutingMode   bool
-		eventQueue          workqueue.RateLimitingInterface
-		statusUpdate        *StatusUpdate
+		MultiClusterMode       string
+		ClusterConfigs         map[string]*ClusterConfig
+		HAPairClusterName      string
+		LocalClusterName       string
+		uniqueAppIdentifier    map[string]struct{}
+		namespaceLabel         string
+		namespaces             []string
+		nodeLabelSelector      string
+		customResourceSelector labels.Selector
+		routeLabel             string
+		orchestrationCNI       string
+		staticRoutingMode      bool
+		eventQueue             workqueue.RateLimitingInterface
+		statusUpdate           *StatusUpdate
 		sync.RWMutex
 	}
 
@@ -149,7 +150,6 @@ type (
 		dynamicClient          dynamic.Interface
 		routeLabel             string
 		nativeResourceSelector labels.Selector
-		customResourceSelector labels.Selector
 		namespaces             map[string]struct{}
 		namespaceLabel         string
 		nodeLabelSelector      string
@@ -218,6 +218,7 @@ type (
 		ManageLoadBalancerClassOnly bool
 		IpamNamespace               string
 		LocalClusterName            string
+		CustomResourceLabel         string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer

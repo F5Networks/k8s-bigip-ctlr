@@ -114,7 +114,7 @@ func (ctlr *Controller) newMultiClusterNamespacedPoolInformer(
 	}
 	clusterConfigs := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = clusterConfigs.customResourceSelector.String()
+		options.LabelSelector = ctlr.multiClusterHandler.customResourceSelector.String()
 	}
 	//Enable policy informer if serviceTypeLB is enabled.
 	if ctlr.discoveryMode == DefaultMode && clusterConfigs.clusterDetails.ServiceTypeLBDiscovery {

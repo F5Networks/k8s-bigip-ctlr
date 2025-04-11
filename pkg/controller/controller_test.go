@@ -51,12 +51,13 @@ var _ = Describe("OtherSDNType", func() {
 		mockWriter := &test.MockWriter{FailStyle: test.Success}
 		mockRequestHandler := newMockRequestHandler(mockWriter)
 		ctlrOpenShift := NewController(Params{
-			Mode:           OpenShiftMode,
-			PoolMemberType: Cluster,
-			Config:         &rest.Config{},
-			NamespaceLabel: "ctlr=cis",
-			VXLANMode:      "multi-point",
-			VXLANName:      "vxlan0",
+			Mode:                OpenShiftMode,
+			PoolMemberType:      Cluster,
+			Config:              &rest.Config{},
+			NamespaceLabel:      "ctlr=cis",
+			VXLANMode:           "multi-point",
+			VXLANName:           "vxlan0",
+			CustomResourceLabel: DefaultCustomResourceLabel,
 		}, false,
 			AgentParams{
 				ApiType: AS3,
@@ -71,10 +72,11 @@ var _ = Describe("OtherSDNType", func() {
 		Expect(ctlrOpenShift.vxlanMgr).To(BeNil(), "vxlanMgr should be created")
 		DEFAULT_PARTITION = "test"
 		ctlrK8s := NewController(Params{
-			Mode:           CustomResourceMode,
-			PoolMemberType: NodePort,
-			Config:         &rest.Config{},
-			IPAM:           true,
+			Mode:                CustomResourceMode,
+			PoolMemberType:      NodePort,
+			Config:              &rest.Config{},
+			IPAM:                true,
+			CustomResourceLabel: DefaultCustomResourceLabel,
 		}, false,
 			AgentParams{
 				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},
@@ -87,7 +89,8 @@ var _ = Describe("OtherSDNType", func() {
 		mockWriter := &test.MockWriter{FailStyle: test.Success}
 		mockRequestHandler := newMockRequestHandler(mockWriter)
 		ctlr := NewController(Params{
-			Config: &rest.Config{},
+			Config:              &rest.Config{},
+			CustomResourceLabel: DefaultCustomResourceLabel,
 		}, false,
 			AgentParams{
 				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},

@@ -2383,6 +2383,7 @@ var _ = Describe("Multi Cluster with CRD", func() {
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces["default"] = struct{}{}
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.multiClusterHandler.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test", "")

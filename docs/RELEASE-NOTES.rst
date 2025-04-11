@@ -23,6 +23,7 @@ Bug Fixes
 * `Issue 3766 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3766>`_: CIS doesn't gracefully handle 503 error from F5
 * `Issue 3767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3767>`_: HTTPS support for primaryEndPoint url
 * `Issue 3768 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3768>`_: INFO logging for CIS HA secondary when primary CIS is down
+* `Issue 3791 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3791>`_: Name mapping between VS and pools
 
 2.19.1
 -------------

@@ -186,8 +186,8 @@ stages:
         git clone --single-branch --branch gh-pages https://$(PAT)@github.com/$(chartOrganization)/$(chartRepoName).git /tmp/$(chartRepoName)
         cp -rf .deploy/*.tgz /tmp/$(chartRepoName)/$(chartPath)/
         pushd /tmp/$(chartRepoName)
-        git config user.email "v.lohiya@f5.com"
-        git config user.name "cisbotctlr"
+        git config user.email "cisctlrbot@f5.com"
+        git config user.name "cisctlrbot"
         helm repo index --url https://$(chartOrganization).github.io/$(chartRepoName)/$(chartPath) $(chartPath)
         git add --all
         git commit -m 'Updating charts for CIS Release v$(cat next-version.txt) and Build Info azure-$(Build.BuildId)-$(Build.SourceVersion) in $(chartPath)'

@@ -17,11 +17,11 @@
 package controller
 
 import (
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"strconv"
 	"strings"
 	"time"
-
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 var DEFAULT_PARTITION string
@@ -90,7 +90,7 @@ func (agent *Agent) agentWorker() {
 		case <-time.After(1 * time.Microsecond):
 		}
 
-		log.Infof("%v[%v] creating a new AS3 manifest", getRequestPrefix(agentConfig.reqMeta.id), agent.getAPIType())
+		log.Infof("%v[%v] creating a new %v manifest", getRequestPrefix(agentConfig.reqMeta.id), agent.getAPIType(), agent.getAPIType())
 
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
 			log.Infof("%v[%v] No tenants found in request", getRequestPrefix(agentConfig.reqMeta.id), agent.getAPIType())
@@ -118,14 +118,14 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
-	var allPoolMems []PoolMember
+	var allPoolMems []rsc.Member
 
 	for _, poolMem := range allPoolMembers {
 		if rsConfig.poolMemberType != Auto ||
 			(rsConfig.poolMemberType == Auto && poolMem.MemberType != NodePort) {
 			allPoolMems = append(
 				allPoolMems,
-				poolMem,
+				rsc.Member(poolMem),
 			)
 		}
 	}
@@ -137,7 +137,6 @@ func (agent *Agent) updateARPsForPoolMembers(rsConfig ResourceConfigRequest) {
 		}
 	}
 }
-
 func (agent *Agent) PostGTMConfigWithCccl(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})

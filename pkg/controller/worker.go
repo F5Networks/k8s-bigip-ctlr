@@ -3814,6 +3814,9 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 						continue
 					}
 					preGTMServerName := ""
+					if ctlr.RequestHandler.agentParams.CCCLGTMAgent {
+						preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
+					}
 					// add only one VS member to pool.
 					if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 						if strings.HasSuffix(vsName, "_443") {

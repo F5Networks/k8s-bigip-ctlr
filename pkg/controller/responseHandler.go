@@ -146,32 +146,26 @@ func (ctlr *Controller) responseHandler() {
 			}
 		}
 		switch agentConfig.agentKind {
-		case GTMBigIP:
-			// add gtm config to the cccl worker if ccclGTMAgent is true for GTMBigIPWorker
-			if ctlr.RequestHandler.GTMBigIPWorker.ccclGTMAgent {
-				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.GTMBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
-				ctlr.RequestHandler.GTMBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
-			}
-			if !ctlr.RequestHandler.GTMBigIPWorker.disableARP {
-				go ctlr.RequestHandler.GTMBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
-			}
 		case PrimaryBigIP:
-			// add gtm config to the cccl worker if ccclGTMAgent is true for GTMBigIPWorker
+			if !ctlr.RequestHandler.PrimaryBigIPWorker.disableARP {
+				go ctlr.RequestHandler.PrimaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+			}
+			// If GTM is running on separate server with CCCLGTMAgent set as true, then Primary worker will post the GTM config on the GTM server.
+			// post to the BIGIP if CCCLGTMAgent is set to true. It will only update GTM config on the GTM server wheather running on same server or different server.
 			if ctlr.RequestHandler.PrimaryBigIPWorker.ccclGTMAgent {
 				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
 				ctlr.RequestHandler.PrimaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
 			}
-			if !ctlr.RequestHandler.PrimaryBigIPWorker.disableARP {
-				go ctlr.RequestHandler.PrimaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
-			}
 		case SecondaryBigIP:
-			// add gtm config to the cccl worker if ccclGTMAgent is true for SecondaryBigIPWorker
-			if ctlr.RequestHandler.SecondaryBigIPWorker.ccclGTMAgent {
-				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.SecondaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
-				ctlr.RequestHandler.SecondaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
-			}
 			if !ctlr.RequestHandler.SecondaryBigIPWorker.disableARP {
 				go ctlr.RequestHandler.SecondaryBigIPWorker.updateARPsForPoolMembers(agentConfig.rscConfigRequest)
+			}
+			// If GTM is running on separate server with CCCLGTMAgent set as true, then Primary worker will post the GTM config on the GTM server.
+			// We don't want to send the duplicate requests on separate GTM server using both agents.
+			// post to the BIGIP if CCCLGTMAgent is set to true and GTM is not running on same server. It will only update GTM config when GTM running on same server.
+			if ctlr.RequestHandler.SecondaryBigIPWorker.ccclGTMAgent && !isGTMOnSeparateServer(ctlr.RequestHandler.agentParams) {
+				log.Debugf("%v Posting GTM config to cccl agent: %+v\n", ctlr.RequestHandler.SecondaryBigIPWorker.APIHandler.LTM.postManagerPrefix, agentConfig.rscConfigRequest)
+				ctlr.RequestHandler.SecondaryBigIPWorker.PostGTMConfigWithCccl(agentConfig.rscConfigRequest)
 			}
 		}
 		// anonymous function to handle the failure timeouts

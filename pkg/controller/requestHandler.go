@@ -39,6 +39,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		// start the worker
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
+	// Run the GTM Agent only in case of separate server and not in cccl mode
 	if isGTMOnSeparateServer(agentParams) && !agentParams.CCCLGTMAgent {
 		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP)
 		// start the token manager

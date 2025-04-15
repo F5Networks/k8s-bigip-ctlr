@@ -77,16 +77,8 @@ type globalSection struct {
 }
 
 type bigIPSection struct {
-	BigIPUsername   string   `json:"username,omitempty"`
-	BigIPPassword   string   `json:"password,omitempty"`
 	BigIPURL        string   `json:"url,omitempty"`
 	BigIPPartitions []string `json:"partitions,omitempty"`
-}
-
-type gtmBigIPSection struct {
-	GtmBigIPUsername string `json:"username,omitempty"`
-	GtmBigIPPassword string `json:"password,omitempty"`
-	GtmBigIPURL      string `json:"url,omitempty"`
 }
 
 // OCP4 Version for TEEM
@@ -832,7 +824,7 @@ func getGTMCredentials() {
 	}
 
 	// Verify URL is valid
-	if !strings.HasPrefix(*gtmBigIPURL, "https://") {
+	if *gtmBigIPURL != "" && !strings.HasPrefix(*gtmBigIPURL, "https://") {
 		log.Debug("[DEBUG] Adding https at the beginning of the GTM BIG IP URL as it does not start with https.")
 		*gtmBigIPURL = "https://" + *gtmBigIPURL
 	}
@@ -1188,29 +1180,10 @@ func main() {
 			gs.LogLevel = *ccclLogLevel
 		}
 		bs := bigIPSection{
-			BigIPUsername:   *bigIPUsername,
-			BigIPPassword:   *bigIPPassword,
 			BigIPURL:        *bigIPURL,
 			BigIPPartitions: *bigIPPartitions,
 		}
-		var gtm gtmBigIPSection
-		if len(*gtmBigIPURL) == 0 || len(*gtmBigIPUsername) == 0 || len(*gtmBigIPPassword) == 0 {
-			// gs.GTM = false
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: *bigIPUsername,
-				GtmBigIPPassword: *bigIPPassword,
-				GtmBigIPURL:      *bigIPURL,
-			}
-			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-		} else {
-			gtm = gtmBigIPSection{
-				GtmBigIPUsername: *gtmBigIPUsername,
-				GtmBigIPPassword: *gtmBigIPPassword,
-				GtmBigIPURL:      *gtmBigIPURL,
-			}
-		}
-
-		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, gtm, *pythonBaseDir)
+		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *bigIPUsername, *bigIPPassword, *pythonBaseDir)
 		if nil != err {
 			log.Fatalf("Could not initialize subprocess configuration: %v", err)
 		}

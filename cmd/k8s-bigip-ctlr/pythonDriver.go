@@ -38,14 +38,6 @@ func initializeDriverConfig(
 		return fmt.Errorf("config writer argument cannot be nil")
 	}
 
-	// Clear sensitive information from the sections
-	for _, section := range []interface{}{&bigIP} {
-		if s, ok := section.(map[string]interface{}); ok {
-			delete(s, "username")
-			delete(s, "password")
-		}
-	}
-
 	sectionNames := []string{"global", "bigip"}
 	for i, v := range []interface{}{global, bigIP} {
 		doneCh, errCh, err := configWriter.SendSection(sectionNames[i], v)
@@ -154,13 +146,14 @@ func startPythonDriver(
 	configWriter writer.Writer,
 	global globalSection,
 	bigIP bigIPSection,
-	gtm gtmBigIPSection,
+	bigIPUserName string,
+	bigIPPassword string,
 	pythonBaseDir string,
 ) (<-chan int, error) {
 	var pyCmd string
 
 	// Start a goroutine to handle credential requests from the Python driver
-	go securecreds.HandleCredentialsRequest(bigIP.BigIPUsername, bigIP.BigIPPassword, gtm.GtmBigIPUsername, gtm.GtmBigIPPassword)
+	go securecreds.HandleCredentialsRequest(bigIPUserName, bigIPPassword, "", "")
 
 	err := initializeDriverConfig(configWriter, global, bigIP)
 	if nil != err {

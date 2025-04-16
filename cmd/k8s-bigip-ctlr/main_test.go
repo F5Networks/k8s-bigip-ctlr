@@ -64,9 +64,7 @@ var _ = Describe("Main Tests", func() {
 
 			expected := ConfigTest{
 				BigIP: bigIPSection{
-					BigIPUsername: "colonel atari",
-					BigIPPassword: "dexter",
-					BigIPURL:      "https://bigip.example.com",
+					BigIPURL: "https://bigip.example.com",
 					BigIPPartitions: []string{
 						"k8s",
 						"openshift",
@@ -1102,17 +1100,10 @@ var _ = Describe("Main Tests", func() {
 				VXLANPartition: "Common",
 			}
 			bs := bigIPSection{
-				BigIPUsername:   "admin",
-				BigIPPassword:   "admin",
 				BigIPURL:        "url",
 				BigIPPartitions: []string{},
 			}
-			gtm := gtmBigIPSection{
-				GtmBigIPUsername: "admin",
-				GtmBigIPPassword: "admin",
-				GtmBigIPURL:      "url",
-			}
-			subPidCh, _ := startPythonDriver(configWriter, gs, bs, gtm, "test")
+			subPidCh, _ := startPythonDriver(configWriter, gs, bs, "test", "test", "test")
 			pid = <-subPidCh
 		})
 

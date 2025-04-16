@@ -46,14 +46,6 @@ func initializeDriverConfig(
 		return fmt.Errorf("config writer argument cannot be nil")
 	}
 
-	// Clear sensitive information from the sections
-	for _, section := range []interface{}{&bigIP, &gtm} {
-		if s, ok := section.(map[string]interface{}); ok {
-			delete(s, "username")
-			delete(s, "password")
-		}
-	}
-
 	sections := make(map[string]interface{})
 
 	sections["global"] = global
@@ -168,13 +160,16 @@ func (agent *Agent) startPythonDriver(
 	global globalSection,
 	bigIP bigIPSection,
 	gtmBigIP gtmBigIPSection,
+	bigIPUsername, bigIPPassword,
+	gtmBigIPUsername, gtmBigIPPassword,
 	pythonBaseDir string,
 ) {
 	var pyCmd string
 	// Start a goroutine to handle credential requests from the Python driver
-	go securecreds.HandleCredentialsRequest(bigIP.BigIPUsername, bigIP.BigIPPassword, gtmBigIP.GtmBigIPUsername, gtmBigIP.GtmBigIPPassword)
+	go securecreds.HandleCredentialsRequest(bigIPUsername, bigIPPassword, gtmBigIPUsername, gtmBigIPPassword)
 
 	err := initializeDriverConfig(agent.ConfigWriter, global, bigIP, gtmBigIP)
+
 	if nil != err {
 		log.Fatalf("Could not initialize subprocess configuration: %v", err)
 		return

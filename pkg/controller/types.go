@@ -1004,16 +1004,12 @@ type (
 	}
 
 	bigIPSection struct {
-		BigIPUsername   string   `json:"username,omitempty"`
-		BigIPPassword   string   `json:"password,omitempty"`
 		BigIPURL        string   `json:"url,omitempty"`
 		BigIPPartitions []string `json:"partitions,omitempty"`
 	}
 
 	gtmBigIPSection struct {
-		GtmBigIPUsername string `json:"username,omitempty"`
-		GtmBigIPPassword string `json:"password,omitempty"`
-		GtmBigIPURL      string `json:"url,omitempty"`
+		GtmBigIPURL string `json:"url,omitempty"`
 	}
 
 	// AS3 version struct

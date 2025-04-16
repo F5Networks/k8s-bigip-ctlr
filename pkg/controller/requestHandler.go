@@ -143,27 +143,29 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 		gs.LogLevel = "DEBUG"
 	}
 
+	var gtmBigIPUsername, gtmBigIPPassword string
 	bs := bigIPSection{
-		BigIPUsername:   agent.APIHandler.LTM.PostManager.BIGIPUsername,
-		BigIPPassword:   agent.APIHandler.LTM.PostManager.BIGIPPassword,
 		BigIPURL:        agent.APIHandler.LTM.PostManager.BIGIPURL,
 		BigIPPartitions: []string{reqHandler.agentParams.Partition},
 	}
 
 	var gtm gtmBigIPSection
-	if len(reqHandler.agentParams.GTMParams.BIGIPURL) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPUsername) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPPassword) == 0 {
-		// gs.GTM = false
-		gtm = gtmBigIPSection{
-			GtmBigIPUsername: agent.APIHandler.LTM.PostManager.BIGIPUsername,
-			GtmBigIPPassword: agent.APIHandler.LTM.PostManager.BIGIPPassword,
-			GtmBigIPURL:      agent.APIHandler.LTM.PostManager.BIGIPURL,
-		}
-		log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
-	} else {
-		gtm = gtmBigIPSection{
-			GtmBigIPUsername: reqHandler.agentParams.GTMParams.BIGIPUsername,
-			GtmBigIPPassword: reqHandler.agentParams.GTMParams.BIGIPPassword,
-			GtmBigIPURL:      reqHandler.agentParams.GTMParams.BIGIPURL,
+	if reqHandler.agentParams.CCCLGTMAgent {
+		if len(reqHandler.agentParams.GTMParams.BIGIPURL) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPUsername) == 0 || len(reqHandler.agentParams.GTMParams.BIGIPPassword) == 0 {
+			// gs.GTM = false
+			gtm = gtmBigIPSection{
+				GtmBigIPURL: agent.APIHandler.LTM.PostManager.BIGIPURL,
+			}
+			gtmBigIPUsername = agent.APIHandler.LTM.PostManager.BIGIPUsername
+			gtmBigIPPassword = agent.APIHandler.LTM.PostManager.BIGIPPassword
+			log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
+		} else {
+			gtm = gtmBigIPSection{
+
+				GtmBigIPURL: reqHandler.agentParams.GTMParams.BIGIPURL,
+			}
+			gtmBigIPUsername = reqHandler.agentParams.GTMParams.BIGIPUsername
+			gtmBigIPPassword = reqHandler.agentParams.GTMParams.BIGIPPassword
 		}
 	}
 	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
@@ -172,6 +174,10 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 			gs,
 			bs,
 			gtm,
+			agent.APIHandler.LTM.PostManager.BIGIPUsername,
+			agent.APIHandler.LTM.PostManager.BIGIPPassword,
+			gtmBigIPUsername,
+			gtmBigIPPassword,
 			reqHandler.agentParams.PythonBaseDir,
 		)
 	} else {

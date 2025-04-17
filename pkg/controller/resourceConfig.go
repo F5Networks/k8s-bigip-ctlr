@@ -2608,22 +2608,6 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 	framedPools := make(map[string]struct{})
 	backendSvcs = ctlr.GetPoolBackendsForIL(&il.Spec, serviceport, il.Namespace, multiClusterServices)
 	for _, SvcBackend := range backendSvcs {
-		targetPort := nginxMonitorPort
-		if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
-			//fetch monitor port for nodeport
-			svc := ctlr.GetService(SvcBackend.SvcNamespace, SvcBackend.Name, SvcBackend.Cluster)
-			if svc != nil {
-				targetPort = getNodeport(svc, nginxMonitorPort)
-			}
-			if targetPort == 0 {
-				log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
-			}
-		} else if ctlr.PoolMemberType == NodePortLocal {
-			targetPort = ctlr.getNodeportForNPL(nginxMonitorPort, SvcBackend.Name, SvcBackend.SvcNamespace, SvcBackend.Cluster)
-			if targetPort == 0 {
-				log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
-			}
-		}
 		var monitorNames []MonitorName
 		if il.Spec.Monitors != nil {
 			for _, monitor := range il.Spec.Monitors {
@@ -2631,6 +2615,22 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 				monitorNames = append(monitorNames, monitorName)
 			}
 		} else {
+			targetPort := nginxMonitorPort
+			if ctlr.PoolMemberType == NodePort || (ctlr.PoolMemberType == Auto && svc.Spec.Type != v1.ServiceTypeClusterIP) {
+				//fetch monitor port for nodeport
+				svc := ctlr.GetService(SvcBackend.SvcNamespace, SvcBackend.Name, SvcBackend.Cluster)
+				if svc != nil {
+					targetPort = getNodeport(svc, nginxMonitorPort)
+				}
+				if targetPort == 0 {
+					log.Errorf("Nodeport not found for nginx monitor port %v: %v", nginxMonitorPort, getClusterLog(SvcBackend.Cluster))
+				}
+			} else if ctlr.PoolMemberType == NodePortLocal {
+				targetPort = ctlr.getNodeportForNPL(nginxMonitorPort, SvcBackend.Name, SvcBackend.SvcNamespace, SvcBackend.Cluster)
+				if targetPort == 0 {
+					log.Errorf("Nodeport not found for nginx monitor port %v: %v", nginxMonitorPort, getClusterLog(SvcBackend.Cluster))
+				}
+			}
 			monitorName := fmt.Sprintf("%s_monitor", ctlr.formatPoolName(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name, intstr.IntOrString{IntVal: serviceport.Port}, "", "", SvcBackend.Cluster))
 			monitorRefName := MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)}
 			monitorNames = append(monitorNames, monitorRefName)

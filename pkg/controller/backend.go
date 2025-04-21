@@ -98,7 +98,9 @@ func (agent *Agent) agentWorker() {
 			agent.LTM.PostManager.respChan <- agentConfig
 			continue
 		}
-
+		// this post manager lock prevents that tenant cache map is not read by other components
+		// while this post manager is processing this request
+		agent.LTM.PostManager.declUpdate.Lock()
 		agent.LTM.publishConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
@@ -108,7 +110,8 @@ func (agent *Agent) agentWorker() {
 
 		// update the tenant cache
 		agent.LTM.APIHandler.getApiHandler().updateTenantCache(agentConfig)
-
+		// unlock the PostManager lock after updating tenant cache
+		agent.LTM.PostManager.declUpdate.Unlock()
 		// notify resourceStatusUpdate response handler on successful tenant update
 		agent.LTM.PostManager.respChan <- agentConfig
 	}

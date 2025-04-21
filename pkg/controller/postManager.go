@@ -26,6 +26,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
@@ -42,10 +43,11 @@ const (
 
 func NewPostManager(params AgentParams, kind string, respChan chan *agentPostConfig) *PostManager {
 	pm := &PostManager{
-		firstPost: true,
-		respChan:  respChan,
-		postChan:  make(chan *agentPostConfig, 1),
-		apiType:   params.ApiType,
+		firstPost:  true,
+		respChan:   respChan,
+		postChan:   make(chan *agentPostConfig, 1),
+		apiType:    params.ApiType,
+		declUpdate: sync.Mutex{},
 	}
 	switch kind {
 	case GTMBigIP:

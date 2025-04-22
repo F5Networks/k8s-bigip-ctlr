@@ -186,7 +186,7 @@ var _ = Describe("PostManager", func() {
 	Describe("postConfig", func() {
 		Context("when the request is successful", func() {
 			BeforeEach(func() {
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusOK,
 					body:   io.NopCloser(strings.NewReader("{\"status\": \"success\"}")),
@@ -216,7 +216,7 @@ var _ = Describe("PostManager", func() {
 
 		Context("when the HTTP POST fails", func() {
 			BeforeEach(func() {
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusNotFound,
 					body:   io.NopCloser(strings.NewReader("")),
@@ -233,7 +233,7 @@ var _ = Describe("PostManager", func() {
 	Describe("httpPOST", func() {
 		Context("when the response body cannot be read", func() {
 			BeforeEach(func() {
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusOK,
 					body:   io.NopCloser(&errorReader{}),
@@ -250,7 +250,7 @@ var _ = Describe("PostManager", func() {
 
 		Context("when the response body is not valid JSON", func() {
 			BeforeEach(func() {
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusOK,
 					body:   io.NopCloser(strings.NewReader("not json")),
@@ -267,7 +267,7 @@ var _ = Describe("PostManager", func() {
 
 		Context("when the response is Unauthorized", func() {
 			BeforeEach(func() {
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusUnauthorized,
 					body:   io.NopCloser(strings.NewReader("Unauthorized")),
@@ -295,7 +295,7 @@ var _ = Describe("PostManager with TokenManager", func() {
 		mockPM.BIGIPUsername = "testuser"
 		mockPM.BIGIPPassword = "testpass"
 		mockPM.TokenManagerInterface = test.NewMockTokenManager("test-token")
-		mockPM.setResponses([]responceCtx{{
+		mockPM.setResponses([]responseCtx{{
 			tenant: "test",
 			status: http.StatusOK,
 			body:   io.NopCloser(strings.NewReader("{\"status\": \"success\"}")),
@@ -348,7 +348,7 @@ var _ = Describe("PostManager with TokenManager", func() {
 				// Force token to be fetched
 				token := mockPM.GetToken()
 				Expect(token).To(Equal("test-token"))
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusOK,
 					body:   io.NopCloser(strings.NewReader("{\"version\": \"3.36.0\"}")),
@@ -368,7 +368,7 @@ var _ = Describe("PostManager with TokenManager", func() {
 
 		Context("token refresh on 401", func() {
 			It("should attempt to refresh token when receiving 401 response", func() {
-				mockPM.setResponses([]responceCtx{{
+				mockPM.setResponses([]responseCtx{{
 					tenant: "test",
 					status: http.StatusUnauthorized,
 					body:   io.NopCloser(strings.NewReader("{\"version\": \"3.36.0\"}")),

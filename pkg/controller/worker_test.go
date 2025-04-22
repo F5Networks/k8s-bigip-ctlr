@@ -1594,7 +1594,7 @@ var _ = Describe("Worker Tests", func() {
 			//					mockPM.PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
 				body:   io.NopCloser(strings.NewReader("")),
@@ -3007,7 +3007,7 @@ var _ = Describe("Worker Tests", func() {
 			mockPM.BIGIPPassword = "pswd"
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
 				body:   io.NopCloser(strings.NewReader("")),

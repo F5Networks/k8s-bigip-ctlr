@@ -1012,6 +1012,7 @@ func initController(
 		agentParams,
 		nil,
 		td,
+		nil,
 	)
 	return ctlr
 }

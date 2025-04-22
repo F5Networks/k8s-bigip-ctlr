@@ -23,7 +23,7 @@ func (agent *Agent) gtmWorker() {
 		// this post manager lock prevents that tenant cache map is not read by other components
 		// while this post manager is processing this request
 		agent.GTM.PostManager.declUpdate.Lock()
-		agent.GTM.publishConfig(agentConfig)
+		agent.GTM.postConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests

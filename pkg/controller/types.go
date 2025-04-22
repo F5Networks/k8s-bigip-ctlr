@@ -18,10 +18,11 @@ package controller
 
 import (
 	"container/list"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -649,7 +650,7 @@ type (
 		WAF            bool   `json:"waf,omitempty"`
 		Policy         string `json:"policy,omitempty"`
 		Drop           bool   `json:"drop,omitempty"`
-		Enabled        *bool  `json:"enabled,omitempty"`
+		Enabled        bool   `json:"enabled,omitempty"`
 		Log            bool   `json:"log,omitempty"`
 		Message        string `json:"message,omitempty"`
 		PersistMethod  string `json:"method,omitempty"`
@@ -1064,7 +1065,7 @@ type (
 		Event              string                  `json:"event,omitempty"`
 		Select             *as3ActionForwardSelect `json:"select,omitempty"`
 		Policy             *as3ResourcePointer     `json:"policy,omitempty"`
-		Enabled            *bool                   `json:"enabled,omitempty"`
+		Enabled            bool                    `json:"enabled,omitempty"`
 		Location           string                  `json:"location,omitempty"`
 		Replace            *as3ActionReplaceMap    `json:"replace,omitempty"`
 		Write              *as3LogMessage          `json:"write,omitempty"`

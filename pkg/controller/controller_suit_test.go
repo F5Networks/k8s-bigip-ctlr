@@ -2,17 +2,19 @@ package controller
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
-	"io"
 	v1 "k8s.io/api/core/v1"
-	"net/http"
-	"strings"
-	"testing"
 )
 
 func TestController(t *testing.T) {
@@ -32,7 +34,7 @@ type (
 		RespIndex int
 	}
 
-	responceCtx struct {
+	responseCtx struct {
 		tenant string
 		status float64
 		body   io.ReadCloser
@@ -65,11 +67,11 @@ func newMockPostManger() *mockPostManager {
 	return mockPM
 }
 
-func getMockHttpClient(responces []responceCtx, method string) (*http.Client, error) {
+func getMockHttpClient(responses []responseCtx, method string) (*http.Client, error) {
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
 
-	for _, resp := range responces {
+	for _, resp := range responses {
 		var bodyContent string
 		if resp.body == nil {
 			if resp.status == http.StatusOK {
@@ -94,8 +96,8 @@ func getMockHttpClient(responces []responceCtx, method string) (*http.Client, er
 	return mockhc.NewMockHTTPClient(responseMap)
 }
 
-func (mockPM *mockPostManager) setResponses(responces []responceCtx, method string) {
-	client, _ := getMockHttpClient(responces, method)
+func (mockPM *mockPostManager) setResponses(responses []responseCtx, method string) {
+	client, _ := getMockHttpClient(responses, method)
 	mockPM.httpClient = client
 }
 
@@ -124,6 +126,26 @@ func newMockRequestHandler(writer writer.Writer) *RequestHandler {
 		PrimaryClusterHealthProbeParams: &PrimaryClusterHealthProbeParams{
 			statusRunning: true,
 		},
+	}
+}
+
+func newMockBaseAPIHandler() *BaseAPIHandler {
+	pm := &PostManager{
+		postChan: make(chan *agentPostConfig, 1),
+		respChan: make(chan *agentPostConfig, 1),
+		PostParams: PostParams{
+			BIGIPURL:      "https://127.0.0.1",
+			BIGIPPassword: "password",
+			BIGIPUsername: "username",
+			LogRequest:    true,
+			LogResponse:   true,
+		},
+		TokenManagerInterface: test.NewMockTokenManager("test-token"),
+	}
+	return &BaseAPIHandler{
+		apiType:     AS3,
+		PostManager: pm,
+		APIHandler:  NewAS3Handler(pm, "test"),
 	}
 }
 

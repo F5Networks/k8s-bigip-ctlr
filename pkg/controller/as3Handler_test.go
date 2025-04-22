@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"strings"
+	"sync"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -15,7 +16,8 @@ var _ = Describe("Backend Tests", func() {
 		var as3Handler AS3Handler
 		BeforeEach(func() {
 			as3Handler = AS3Handler{
-				AS3Parser: &AS3Parser{},
+				AS3Parser:   &AS3Parser{},
+				PostManager: &PostManager{declUpdate: sync.Mutex{}},
 			}
 			mem1 = PoolMember{
 				Address:         "1.2.3.5",
@@ -479,7 +481,8 @@ var _ = Describe("Backend Tests", func() {
 		var as3Handler AS3Handler
 		BeforeEach(func() {
 			as3Handler = AS3Handler{
-				AS3Parser: &AS3Parser{},
+				AS3Parser:   &AS3Parser{},
+				PostManager: &PostManager{declUpdate: sync.Mutex{}},
 			}
 		})
 		It("VirtualServer Declaration", func() {
@@ -500,7 +503,8 @@ var _ = Describe("Backend Tests", func() {
 		var as3Handler AS3Handler
 		BeforeEach(func() {
 			as3Handler = AS3Handler{
-				AS3Parser: &AS3Parser{},
+				AS3Parser:   &AS3Parser{},
+				PostManager: &PostManager{declUpdate: sync.Mutex{}},
 			}
 			DEFAULT_PARTITION = "default"
 		})
@@ -585,7 +589,8 @@ var _ = Describe("Backend Tests", func() {
 		var as3Handler AS3Handler
 		BeforeEach(func() {
 			as3Handler = AS3Handler{
-				AS3Parser: &AS3Parser{},
+				AS3Parser:   &AS3Parser{},
+				PostManager: &PostManager{declUpdate: sync.Mutex{}},
 			}
 		})
 		It("Service Address declaration", func() {

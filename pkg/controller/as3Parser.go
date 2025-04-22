@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -162,7 +163,11 @@ func (ap *AS3Parser) createPoolDecl(cfg *ResourceConfig, sharedApp as3Applicatio
 		pool.ReselectTries = v.ReselectTries
 		pool.ServiceDownAction = v.ServiceDownAction
 		pool.SlowRampTime = v.SlowRampTime
-		pool.Remark = fmt.Sprintf("%s loadbalances this pool", cfg.Virtual.Name)
+		Remark := fmt.Sprintf("%s loadbalances this pool", cfg.Virtual.Name)
+		if utf8.RuneCountInString(Remark) > 64 {
+			Remark = Remark[:64]
+		}
+		pool.Remark = Remark
 		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
 			// Skip duplicate pool members

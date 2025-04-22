@@ -20,7 +20,9 @@ func (agent *Agent) gtmWorker() {
 			log.Infof("%v[%v]%v No tenants found in request", agent.getAPIType(), getRequestPrefix(agentConfig.reqMeta.id), agent.GTM.postManagerPrefix)
 			continue
 		}
-
+		// this post manager lock prevents that tenant cache map is not read by other components
+		// while this post manager is processing this request
+		agent.GTM.PostManager.declUpdate.Lock()
 		agent.GTM.publishConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
@@ -30,7 +32,8 @@ func (agent *Agent) gtmWorker() {
 
 		// update the tenant cache
 		agent.GTM.APIHandler.getApiHandler().updateTenantCache(agentConfig)
-
+		// unlock the PostManager lock after updating tenant cache
+		agent.GTM.PostManager.declUpdate.Unlock()
 		// notify resourceStatusUpdate response handler on successful tenant update
 		agent.GTM.respChan <- agentConfig
 	}

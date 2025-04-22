@@ -585,8 +585,10 @@ func (am *AS3Handler) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
 	cisLabel := am.AS3Parser.defaultPartition
 
 	for tenant := range am.cachedTenantDeclMap {
-		if _, ok := config.ltmConfig[tenant]; !ok {
-			// Remove partition
+		// as cached tenantDeclMap stores both LTM and GTM partitions, we need to make sure
+		// that gtm partitions are not deleted when LTM & GTM are running on the same server
+		if _, ok := config.ltmConfig[tenant]; !ok && tenant != DEFAULT_GTM_PARTITION {
+			// 	Remove partition
 			adc[tenant] = am.AS3Parser.getDeletedTenantDeclaration(tenant, cisLabel, config.defaultRouteDomain)
 		}
 	}

@@ -533,6 +533,9 @@ func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAge
 		rscConfigRequest:      rsConfig,
 		timeout:               timeoutMedium,
 	}
+	// get the Post Manager Lock to read the tenant declaration cache and compare the
+	// existing config with the latest desired config
+	am.PostManager.declUpdate.Lock()
 	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig, ccclGTMAgent) {
 		// this section is for gtm agent
 		if !reflect.DeepEqual(cfg, am.cachedTenantDeclMap[tenant]) {
@@ -540,6 +543,7 @@ func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAge
 			as3cfg.tenantResponseMap[tenant] = tenantResponse{}
 		}
 	}
+	am.PostManager.declUpdate.Unlock()
 	as3cfg.data = string(am.createAS3Declaration(as3cfg.incomingTenantDeclMap, userAgent))
 	return as3cfg
 }

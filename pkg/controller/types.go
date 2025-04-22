@@ -939,7 +939,7 @@ type (
 
 	PostManager struct {
 		tokenmanager.TokenManagerInterface
-		sync.RWMutex
+		declUpdate sync.Mutex
 		httpClient *http.Client
 		PostParams
 		firstPost         bool

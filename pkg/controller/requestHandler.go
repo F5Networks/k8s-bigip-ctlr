@@ -1,11 +1,12 @@
 package controller
 
 import (
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"os"
 	"strings"
 	"time"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 var OsExit = os.Exit
@@ -238,7 +239,7 @@ func (reqHandler *RequestHandler) NewAgent(kind string, baseAPIHandler *BaseAPIH
 	switch kind {
 	case GTMBigIP:
 		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"
-		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, baseAPIHandler,reqHandler.respChan)
+		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, baseAPIHandler, reqHandler.respChan)
 	default:
 		DEFAULT_PARTITION = reqHandler.agentParams.Partition
 		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"

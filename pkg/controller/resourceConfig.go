@@ -2672,6 +2672,7 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 			Cluster:                  SvcBackend.Cluster,
 			ImplicitSvcSearchEnabled: true,
 			MonitorNames:             monitorNames,
+			BigIPRouteDomain:         rsCfg.Virtual.BigIPRouteDomain,
 		}
 
 		if ctlr.multiClusterMode != "" {

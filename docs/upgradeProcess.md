@@ -434,3 +434,5 @@ Refer Release Notes for [CIS v2.17.0](https://github.com/F5Networks/k8s-bigip-ct
   * CIS 2.20 and above will no longer update the  status of custom resources it's not monitoring (those with non-matching labels).
     This prevents conflicts when running multiple CIS deployments in the same k8s cluster, as each deployment can now watch a
     different set of custom resources with unique labels without interfering with resources managed by other CIS instances.
+  * Partition update in the CR resources is not supported and will be rejected by CRD schema validation.
+    To update partition for CR resource, delete the resource and recreate with new partition.

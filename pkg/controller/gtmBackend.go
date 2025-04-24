@@ -1,8 +1,9 @@
 package controller
 
 import (
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"time"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 // whenever it gets unblocked, retries failed declarations and polls for accepted tenant statuses

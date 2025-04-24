@@ -17,11 +17,12 @@
 package controller
 
 import (
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"strconv"
 	"strings"
 	"time"
+
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 var DEFAULT_PARTITION string

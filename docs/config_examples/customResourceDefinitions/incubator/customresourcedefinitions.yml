@@ -421,6 +421,8 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "has(self.partition) != has(oldSelf.partition)"
+                  message: "partition cannot be modified. Delete the resource and recreate with new partition"
                 - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
                   message: "'serviceAddress' cannot be added when it is not already present."
                 - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
@@ -831,6 +833,8 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "has(self.partition) != has(oldSelf.partition)"
+                  message: "partition cannot be modified. Delete the resource and recreate with new partition"
                 - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
                   message: "'serviceAddress' cannot be added when it is not already present."
                 - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
@@ -1112,6 +1116,8 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "has(self.partition) != has(oldSelf.partition)"
+                  message: "partition cannot be modified. Delete the resource and recreate with new partition"
                 - rule: "has(self.ipamLabel) || has(self.virtualServerAddress)"
                   message: "either ipamLabel or virtualServerAddress needs to be specified."
             status:

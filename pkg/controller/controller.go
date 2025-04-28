@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"net/http"
 	"os"
 	"strings"
@@ -148,7 +149,7 @@ const (
 )
 
 // NewController creates a new Controller Instance.
-func NewController(params Params, startController bool, agentParams AgentParams, handler *RequestHandler) *Controller {
+func NewController(params Params, startController bool, agentParams AgentParams, handler *RequestHandler, td *teem.TeemsData) *Controller {
 
 	ctlr := &Controller{
 		resources:                   NewResourceStore(),
@@ -173,6 +174,7 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		ResourceStatusVSAddressMap:  make(map[resourceRef]string),
 		respChan:                    make(chan *agentPostConfig, 1),
 		multiClusterHandler:         NewClusterHandler(params.LocalClusterName),
+		TeemData:                    td,
 	}
 	if handler == nil {
 		ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams)

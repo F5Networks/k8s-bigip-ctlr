@@ -39,7 +39,7 @@ type ApiTypeHandlerInterface interface {
 	logResponse(responseMap map[string]interface{})
 	logRequest(cfg string)
 	getApiHandler() *AS3Handler
-	createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string) agentPostConfig
+	createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string, gtmOnSeparateServer bool) agentPostConfig
 	//createLTMConfigADC(config ResourceConfigRequest) as3ADC
 	//createGTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC
 }
@@ -524,7 +524,7 @@ func (am *AS3Handler) removeDeletedTenantsForBigIP(as3Config map[string]interfac
 }
 
 // Creates AS3 adc only for tenants with updated configuration
-func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string) agentPostConfig {
+func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string, gtmOnSeparateServer bool) agentPostConfig {
 	as3cfg := agentPostConfig{
 		reqMeta:               rsConfig.reqMeta,
 		tenantResponseMap:     make(map[string]tenantResponse),
@@ -536,7 +536,7 @@ func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAge
 	// get the Post Manager Lock to read the tenant declaration cache and compare the
 	// existing config with the latest desired config
 	am.PostManager.declUpdate.Lock()
-	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig, ccclGTMAgent) {
+	for tenant, cfg := range am.createLTMAndGTMConfigADC(rsConfig, ccclGTMAgent, gtmOnSeparateServer) {
 		// this section is for gtm agent
 		if !reflect.DeepEqual(cfg, am.cachedTenantDeclMap[tenant]) {
 			as3cfg.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
@@ -727,7 +727,7 @@ func (am *AS3Handler) createGTMConfigADC(config ResourceConfigRequest, adc as3AD
 	return adc
 }
 
-func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest, ccclGTMAgent bool) as3ADC {
+func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest, ccclGTMAgent bool, gtmOnSeparateServer bool) as3ADC {
 	adc := as3ADC{}
 	if am.postManagerPrefix == gtmPostmanagerPrefix {
 		// this section is for gtm agent
@@ -735,7 +735,8 @@ func (am *AS3Handler) createLTMAndGTMConfigADC(config ResourceConfigRequest, ccc
 	} else {
 		// this section is for primary/secondary agent
 		adc = am.createLTMConfigADC(config)
-		if !ccclGTMAgent {
+		// Add GTM config to declaration with LTM config only when using AS3 based GTM Agent and both LTM and GTM are handled by same BIGIP
+		if !ccclGTMAgent && !gtmOnSeparateServer {
 			adc = am.createGTMConfigADC(config, adc)
 		}
 	}

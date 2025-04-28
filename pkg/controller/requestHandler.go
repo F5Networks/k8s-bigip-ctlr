@@ -23,8 +23,9 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		agentParams:                     agentParams,
 		PrimaryClusterHealthProbeParams: ctlr.multiClusterHandler.PrimaryClusterHealthProbeParams,
 	}
+	gtmOnSeparateBigIPServer := isGTMOnSeparateServer(agentParams)
 	if (agentParams.PrimaryParams != PostParams{}) {
-		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP)
+		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, gtmOnSeparateBigIPServer)
 		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
 		// start the token manager
 		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
@@ -32,7 +33,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
-		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP)
+		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, gtmOnSeparateBigIPServer)
 		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
 		// start the token manager
 		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
@@ -40,8 +41,8 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	// Run the GTM Agent only in case of separate server and not in cccl mode
-	if isGTMOnSeparateServer(agentParams) && !agentParams.CCCLGTMAgent {
-		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP)
+	if gtmOnSeparateBigIPServer && !agentParams.CCCLGTMAgent {
+		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, gtmOnSeparateBigIPServer)
 		// start the token manager
 		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
@@ -186,7 +187,7 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 	}
 }
 
-func (reqHandler *RequestHandler) NewAgentWorker(kind string) *Agent {
+func (reqHandler *RequestHandler) NewAgentWorker(kind string, gtmOnSeparateBigIpServer bool) *Agent {
 	var err error
 	var agent *Agent
 	switch kind {
@@ -218,6 +219,9 @@ func (reqHandler *RequestHandler) NewAgentWorker(kind string) *Agent {
 		log.Errorf("Invalid Agent kind: %s", kind)
 		OsExit(1)
 	}
+	// setting gtmOnSeparateServer helps avoid GTM declaration getting posted to BigIP handling LTM in scenarios where
+	// LTM and GTM are handled by different BigIPs
+	agent.gtmOnSeparateServer = gtmOnSeparateBigIpServer
 	return agent
 }
 

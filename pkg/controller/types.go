@@ -866,19 +866,20 @@ type (
 
 	Agent struct {
 		*APIHandler
-		Partition         string
-		ConfigWriter      writer.Writer
-		EventChan         chan interface{}
-		userAgent         string
-		HttpAddress       string
-		EnableIPV6        bool
-		ccclGTMAgent      bool
-		disableARP        bool
-		Type              string
-		httpClientMetrics bool
-		stopChan          chan struct{}
-		PythonDriverPID   int
-		StopChan          chan interface{}
+		Partition           string
+		ConfigWriter        writer.Writer
+		EventChan           chan interface{}
+		userAgent           string
+		HttpAddress         string
+		EnableIPV6          bool
+		ccclGTMAgent        bool
+		gtmOnSeparateServer bool
+		disableARP          bool
+		Type                string
+		httpClientMetrics   bool
+		stopChan            chan struct{}
+		PythonDriverPID     int
+		StopChan            chan interface{}
 	}
 
 	BaseAPIHandler struct {

@@ -46,7 +46,11 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 	var agentConfig agentPostConfig
 	if agent.APIHandler.GTM == nil {
 		// Convert ResourceConfigRequest to as3Config
-		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest, agent.ccclGTMAgent, agent.userAgent)
+		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest, agent.ccclGTMAgent, agent.userAgent, agent.gtmOnSeparateServer)
+		if len(agentConfig.incomingTenantDeclMap) == 0 {
+			log.Infof("[AS3]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
+			return
+		}
 		agentConfig.as3APIURL = agent.LTM.APIHandler.getAPIURL([]string{})
 		if agent.APIHandler.LTM.postManagerPrefix == secondaryPostmanagerPrefix {
 			agentConfig.agentKind = SecondaryBigIP
@@ -56,7 +60,11 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
 	} else {
 		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
-		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent)
+		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent, agent.gtmOnSeparateServer)
+		if len(agentConfig.incomingTenantDeclMap) == 0 {
+			log.Infof("[AS3]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
+			return
+		}
 		agentConfig.as3APIURL = agent.GTM.APIHandler.getAPIURL([]string{})
 		agentConfig.agentKind = GTMBigIP
 	}

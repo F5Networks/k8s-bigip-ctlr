@@ -66,7 +66,7 @@ var _ = Describe("OtherSDNType", func() {
 					BIGIPUsername: "username"},
 				Partition: "default",
 			},
-			mockRequestHandler)
+			mockRequestHandler, mockCtlr.TeemData)
 		Expect(ctlrOpenShift.processedHostPath).NotTo(BeNil(), "processedHostPath object should not be nil")
 		Expect(ctlrOpenShift.shareNodes).To(BeFalse(), "shareNodes should not be enable")
 		Expect(ctlrOpenShift.vxlanMgr).To(BeNil(), "vxlanMgr should be created")
@@ -81,7 +81,7 @@ var _ = Describe("OtherSDNType", func() {
 			AgentParams{
 				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},
 			},
-			mockRequestHandler)
+			mockRequestHandler, mockCtlr.TeemData)
 		Expect(ctlrK8s.processedHostPath).To(BeNil(), "processedHostPath object should be nil")
 		Expect(ctlrK8s.shareNodes).To(BeTrue(), "shareNodes should be enable")
 	})
@@ -95,7 +95,7 @@ var _ = Describe("OtherSDNType", func() {
 			AgentParams{
 				PrimaryParams: PostParams{BIGIPURL: "http://127.0.0.1:8080"},
 			},
-			mockRequestHandler)
+			mockRequestHandler, mockCtlr.TeemData)
 		ctlr.multiClusterHandler = NewClusterHandler("")
 		ctlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{InformerStore: initInformerStore(),
 			namespaces: make(map[string]struct{})}

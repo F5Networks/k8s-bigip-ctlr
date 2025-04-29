@@ -916,6 +916,7 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 
 func initController(
 	config *rest.Config,
+	td *teem.TeemsData,
 ) *controller.Controller {
 	postMgrParams := controller.PostParams{
 		BIGIPUsername:     *bigIPUsername,
@@ -1010,6 +1011,7 @@ func initController(
 		true,
 		agentParams,
 		nil,
+		td,
 	)
 	return ctlr
 }
@@ -1132,8 +1134,7 @@ func main() {
 
 	if *customResourceMode || *controllerMode != "" {
 		getGTMCredentials()
-		ctlr := initController(config)
-		ctlr.TeemData = td
+		ctlr := initController(config, td)
 		if !(*disableTeems) {
 			key, err := ctlr.RequestHandler.PrimaryBigIPWorker.LTM.GetBigipRegKey()
 			if err != nil {

@@ -9,7 +9,7 @@ import os
 import subprocess
 from subprocess import check_output
 from datetime import datetime
-# from pipes import quote
+from pipes import quote
 
 
 def cmp(a, b):

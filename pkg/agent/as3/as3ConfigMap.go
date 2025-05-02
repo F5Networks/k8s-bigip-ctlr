@@ -182,7 +182,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 	}
 
 	dec := (templateJSON["declaration"]).(map[string]interface{})
-
+	uniqueMembersMap := make(map[string]bool)
 	tenantMap := make(map[string]interface{})
 	var members []Member
 
@@ -207,50 +207,64 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				if len(eps) == 0 {
 					continue
 				}
-				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
+				var poolMem []map[string]interface{}
 				for _, mem := range (poolObj["members"]).([]interface{}) {
 					poolMemPriorityGroup := mem.(map[string]interface{})["priorityGroup"]
-					if poolMemPriorityGroup != nil && eps[0].PriorityGroup == int(poolMemPriorityGroup.(float64)) {
-						poolMem = mem.(map[string]interface{})
+					for _, ep := range eps {
+						if poolMemPriorityGroup != nil && ep.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+							memJson, _ := json.Marshal(mem.(map[string]interface{}))
+							memString := string(memJson)
+							if _, ok := uniqueMembersMap[memString]; !ok {
+								uniqueMembersMap[memString] = true
+								poolMem = append(poolMem, mem.(map[string]interface{}))
+							}
+						}
 					}
+				}
+				if len(poolMem) == 0 {
+					poolMem = append(poolMem, (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{}))
 				}
 				var poolMembers []map[string]interface{}
 				if am.poolMemberType == NodePortLocal {
 					for _, v := range eps {
-						var ips []string
-						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
-							members = append(members, v)
-							ips = append(ips, v.Address)
-							//copy poolMem to poolMember to preserve all other fields defined on the pool member
-							poolMember := make(map[string]interface{})
-							for key, value := range poolMem {
-								poolMember[key] = value
+						for _, mem := range poolMem {
+							var ips []string
+							if int(v.SvcPort) == int(mem["servicePort"].(float64)) && mem["priorityGroup"] != nil && v.PriorityGroup == int(mem["priorityGroup"].(float64)) {
+								members = append(members, v)
+								ips = append(ips, v.Address)
+								//copy poolMem to poolMember to preserve all other fields defined on the pool member
+								poolMember := make(map[string]interface{})
+								for key, value := range mem {
+									poolMember[key] = value
+								}
+								poolMember["serverAddresses"] = ips
+								poolMember["servicePort"] = float64(v.Port)
+								poolMember["shareNodes"] = mem["shareNodes"]
+								poolMembers = append(poolMembers, poolMember)
 							}
-							poolMember["serverAddresses"] = ips
-							poolMember["servicePort"] = float64(v.Port)
-							poolMember["shareNodes"] = poolMem["shareNodes"]
-							poolMembers = append(poolMembers, poolMember)
 						}
 					}
 				} else {
 					var port int32
 					for _, v := range eps {
-						var ips []string
-						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
-							ips = append(ips, v.Address)
-							members = append(members, v)
-							port = v.Port
-							//copy poolMem to poolMember to preserve all other fields defined on the pool member
-							poolMember := make(map[string]interface{})
-							for key, value := range poolMem {
-								poolMember[key] = value
+						for _, mem := range poolMem {
+							var ips []string
+							if int(v.SvcPort) == int(mem["servicePort"].(float64)) && mem["priorityGroup"] != nil && v.PriorityGroup == int(mem["priorityGroup"].(float64)) {
+								ips = append(ips, v.Address)
+								members = append(members, v)
+								port = v.Port
+								//copy poolMem to poolMember to preserve all other fields defined on the pool member
+								poolMember := make(map[string]interface{})
+								for key, value := range mem {
+									poolMember[key] = value
+								}
+								poolMember["serverAddresses"] = ips
+								poolMember["servicePort"] = float64(v.Port)
+								if v.AdminState != "" {
+									poolMember["adminState"] = v.AdminState
+								}
+								poolMembers = append(poolMembers, poolMember)
 							}
-							poolMember["serverAddresses"] = ips
-							poolMember["servicePort"] = float64(v.Port)
-							if v.AdminState != "" {
-								poolMember["adminState"] = v.AdminState
-							}
-							poolMembers = append(poolMembers, poolMember)
 						}
 					}
 
@@ -258,21 +272,25 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 						ipMap := make(map[string]bool)
 						members = append(members, eps...)
 						for _, v := range eps {
-							var ips []string
-							if _, ok := ipMap[v.Address]; !ok {
-								ipMap[v.Address] = true
-								ips = append(ips, v.Address)
-								//copy poolMem to poolMember to preserve all other fields defined on the pool member
-								poolMember := make(map[string]interface{})
-								for key, value := range poolMem {
-									poolMember[key] = value
+							for _, mem := range poolMem {
+								var ips []string
+								if mem["priorityGroup"] != nil && v.PriorityGroup == int(mem["priorityGroup"].(float64)) {
+									if _, ok := ipMap[v.Address]; !ok {
+										ipMap[v.Address] = true
+										ips = append(ips, v.Address)
+										//copy poolMem to poolMember to preserve all other fields defined on the pool member
+										poolMember := make(map[string]interface{})
+										for key, value := range mem {
+											poolMember[key] = value
+										}
+										poolMember["serverAddresses"] = ips
+										poolMember["servicePort"] = float64(eps[0].Port)
+										if v.AdminState != "" {
+											poolMember["adminState"] = v.AdminState
+										}
+										poolMembers = append(poolMembers, poolMember)
+									}
 								}
-								poolMember["serverAddresses"] = ips
-								poolMember["servicePort"] = float64(eps[0].Port)
-								if v.AdminState != "" {
-									poolMember["adminState"] = v.AdminState
-								}
-								poolMembers = append(poolMembers, poolMember)
 							}
 						}
 					}

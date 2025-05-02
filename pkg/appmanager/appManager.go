@@ -3567,6 +3567,9 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 			if _, ok := processedSvc[svcSelector]; !ok {
 				processedSvc[svcSelector] = true
 				svcList = append(svcList, service)
+			} else {
+				svcName := fmt.Sprintf("Service: %v, Namespace: %v,Timestamp: %v\n", service.Name, service.Namespace, service.GetCreationTimestamp())
+				log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
 			}
 		}
 		svcItems = svcList

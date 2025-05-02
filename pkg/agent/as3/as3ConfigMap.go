@@ -2,6 +2,7 @@ package as3
 
 import (
 	"encoding/json"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
@@ -210,8 +211,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				var poolMem []map[string]interface{}
 				for _, mem := range (poolObj["members"]).([]interface{}) {
 					poolMemPriorityGroup := mem.(map[string]interface{})["priorityGroup"]
+					if poolMemPriorityGroup == nil {
+						poolMemPriorityGroup = 0
+					}
 					for _, ep := range eps {
-						if poolMemPriorityGroup != nil && ep.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+						if ep.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 							memJson, _ := json.Marshal(mem.(map[string]interface{}))
 							memString := string(memJson)
 							if _, ok := uniqueMembersMap[memString]; !ok {
@@ -229,7 +233,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					for _, v := range eps {
 						for _, mem := range poolMem {
 							var ips []string
-							if int(v.SvcPort) == int(mem["servicePort"].(float64)) && mem["priorityGroup"] != nil && v.PriorityGroup == int(mem["priorityGroup"].(float64)) {
+							poolMemPriorityGroup := mem["priorityGroup"]
+							if poolMemPriorityGroup == nil {
+								poolMemPriorityGroup = 0
+							}
+							if int(v.SvcPort) == int(mem["servicePort"].(float64)) && v.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 								members = append(members, v)
 								ips = append(ips, v.Address)
 								//copy poolMem to poolMember to preserve all other fields defined on the pool member
@@ -249,7 +257,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					for _, v := range eps {
 						for _, mem := range poolMem {
 							var ips []string
-							if int(v.SvcPort) == int(mem["servicePort"].(float64)) && mem["priorityGroup"] != nil && v.PriorityGroup == int(mem["priorityGroup"].(float64)) {
+							poolMemPriorityGroup := mem["priorityGroup"]
+							if poolMemPriorityGroup == nil {
+								poolMemPriorityGroup = 0
+							}
+							if int(v.SvcPort) == int(mem["servicePort"].(float64)) && v.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 								ips = append(ips, v.Address)
 								members = append(members, v)
 								port = v.Port
@@ -274,7 +286,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 						for _, v := range eps {
 							for _, mem := range poolMem {
 								var ips []string
-								if mem["priorityGroup"] != nil && v.PriorityGroup == int(mem["priorityGroup"].(float64)) {
+								poolMemPriorityGroup := mem["priorityGroup"]
+								if poolMemPriorityGroup == nil {
+									poolMemPriorityGroup = 0
+								}
+								if v.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 									if _, ok := ipMap[v.Address]; !ok {
 										ipMap[v.Address] = true
 										ips = append(ips, v.Address)

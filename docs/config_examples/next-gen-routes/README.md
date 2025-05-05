@@ -728,7 +728,7 @@ Yes you can define the Kubernetes secret in route's SSL annotations. Please refe
 No, they are no longer supported as CLI parameters. These CLI parameters are moved to extended configmap -> baseRouteSpec -> defaultTLS -> clientSSL and serverSSL.
 Please refer to [Example] (https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml).
 ### What is the precedence of client and server SSL profiles? 
-CIS considers following precedence order.  Route annotations have the highest priority( followed by) route certificates(spec certs) have next priority (followed by) extended configmap baseRouteSpec default profiles.
+CIS considers following precedence order. Route annotations have the highest priority( followed by) route certificates(spec certs) have next priority (followed by) extended configmap baseRouteSpec default profiles.
 ### What is not supported with the SSL profiles?
 Under a single route group or single VIP, a combination of routes having route certificates(spec certs) and routes with SSL profiles annotation with bigip reference are not supported.
 ### Can we configure health monitors using route annotations?

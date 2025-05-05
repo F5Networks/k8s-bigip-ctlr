@@ -22,7 +22,7 @@ From CIS > 2.0, AS3 >= 3.18 is required.
 
 Create a host subnet for the BIPIP. This will provide the subnet for creating the tunnel self-IP.
 
-```
+```shell
 oc create -f f5-kctlr-openshift-hostsubnet.yaml
 ```
 ```
@@ -34,9 +34,7 @@ ose-3-11-node1.example.com         ose-3-11-node1.example.com         192.168.20
 ose-3-11-node2.lexample.com        ose-3-11-node2.example.com         192.168.200.86   10.129.0.0/23   []     []
 ```
 ### 3.2 Create a BIG-IP VXLAN tunnel
-
-#### create net tunnels vxlan vxlan-mp flooding-type multipoint
-```
+```shell
 (tmos)# create net tunnels vxlan vxlan-mp flooding-type multipoint
 (tmos)# create net tunnels tunnel openshift_vxlan key 0 profile vxlan-mp local-address 192.168.200.83
 ```
@@ -47,7 +45,7 @@ ose-3-11-node2.lexample.com        ose-3-11-node2.example.com         192.168.20
 Subnet comes from the creating the hostsubnets. Used .83 to be consistent with BigIP internal interface
 
 ### 3.4 Create a new partition on your BIG-IP system
-```
+```shell
 (tmos)# create auth partition openshift
 ```
 This needs to match the partition in the CIS configuration
@@ -76,7 +74,7 @@ args: [
         "--insecure=true",
        ]
 ```
-```
+```shell
 oc create secret generic bigip-login --namespace kube-system --from-literal=username=admin --from-literal=password=f5PME123
 oc create serviceaccount bigip-ctlr -n kube-system
 oc create -f f5-kctlr-openshift-clusterrole.yaml
@@ -93,7 +91,7 @@ Let's create some sample routes. The routes examples in the repo capture most co
 Update sample routes specifications with appropriate certificates/keys and BIG-IP objects.
 
 ### 5.1 Create example routes
-```
+```shell
 oc create -f sample-route-deployment.yaml -n f5demo
 oc create -f sample-route-service.yaml -n f5demo
 oc create -f sample-edge-route.yaml -n f5demo
@@ -109,7 +107,7 @@ oc create -f sample-unsecured-route.yaml -n f5demo
 
 ### 5.2 Delete example routes
 
-```
+```shell
 oc delete -f sample-route-deployment.yaml -n f5demo
 oc delete -f sample-route-service.yaml -n f5demo
 oc delete -f sample-edge-route.yaml -n f5demo
@@ -126,7 +124,7 @@ oc delete -f sample-unsecured-route.yaml -n f5demo
 
 ## 6. Enable logging for AS3
 
-```
+```shell
 oc get deploy -n kube-system
 oc log  deploy/<CIS-DEPLOYMENT-NAME> -f -n kube-system | grep -i 'as3'
 ```
@@ -134,7 +132,7 @@ oc log  deploy/<CIS-DEPLOYMENT-NAME> -f -n kube-system | grep -i 'as3'
 ## 7. Delete CIS.
 
 ### 7.1 Delete kubernetes bigip container connecter, authentication and RBAC
-```
+```shell
 oc delete serviceaccount bigip-ctlr -n kube-system
 oc delete -f f5-kctlr-openshift-clusterrole.yaml
 oc delete -f f5-k8s-bigip-ctlr-openshift.yaml

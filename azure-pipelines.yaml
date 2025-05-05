@@ -37,16 +37,47 @@ variables:
 stages:
 - stage: PreCheck
   jobs:
-  - job: Preverification
+  - job: GoVerification
     steps:
     - task: CmdLine@2
       displayName: Check Go format and Suspicious constructs
       inputs:
         script: 'make verify'
-    # - task: CmdLine@2
-    #   displayName: Check documentation
-    #   inputs:
-    #     script: 'make docs'
+  - job: DocVerification
+    steps:
+      # Set up Python
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.x'
+        displayName: 'Set up Python'
+      # Install Python dependencies
+      - script: |
+          echo "Installing Python packages..."
+          python -m pip install --upgrade pip
+          pip install sphinx f5-sphinx-theme sphinx-copybutton recommonmark sphinxjp.themes.basicstrap cloud_sptheme
+          pip install jinja2==3.0
+        displayName: 'Install Sphinx'
+
+        # Run Sphinx link checker with rate limiting
+      - script: |
+          echo "Running Sphinx linkcheck with rate limit..."
+          sphinx-build -b linkcheck docs/ _build/linkcheck
+        displayName: 'Run Sphinx Linkcheck'
+
+      # Install write-good
+      - script: |
+          echo "Installing write-good..."
+          sudo apt install -y nodejs
+          sudo npm install -g write-good
+        displayName: 'Install write-good'
+
+      # Run write-good
+      - script: |
+          echo "Checking grammar and style"
+          write-good `find docs -name '*.rst'` --passive --so --no-illusion --thereIs --cliches
+          write-good `find docs -name '*.md'` --so --no-illusion --thereIs --cliches
+        displayName: 'Run write-good checks'
+
 - stage: ContainerImage
   dependsOn: PreCheck
   jobs:

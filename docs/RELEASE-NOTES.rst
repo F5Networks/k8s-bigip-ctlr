@@ -158,7 +158,7 @@ Bug Fixes
 ````````````
 * `Issue 3401 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3401>`_: Fix for invalid iRule generation for HTTP/2 full proxy mode
 * `Issue 3466 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3466>`_: Fix scaling issue in NodeportLocal mode
-* `Issue 3432 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3432>`_: Show meaningful logs for exceptions occured from controller agent
+* `Issue 3432 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3432>`_: Show meaningful logs for exceptions occurred from controller agent
 * `Issue 3396 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3396>`_: Fix adding pool members from external clusters in nodeportLocal mc mode
 * `Issue 3351 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3351>`_: improve message handling when getting HTTP/401 from AS3
 * Fix pool members not getting updated for VS/TS on re-deployment of application with different servicePort and targetPort.
@@ -398,7 +398,7 @@ Added Functionality
         * NodePortLocal mode support added with all custom resources
         * Support for default pool with VS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/VirtualServer/defaultpool/>`_
         * Support for service typeLB in EDNS CR, See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/serviceTypeLB/service-type-lb-with-hostname.yaml>`_
-        * Support for **persistence** capability for service published through EDNS.  See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns.yaml>`_
+        * Support for **persistence** capability for service published through EDNS. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns.yaml>`_
         * Support for wildcard domain in EDNS CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-wildcard-domain.yaml>`_
         * Support for preferred client subnet in EDNS CR using AS3. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/externaldns-client-subnet-preferred.yaml>`_
         * Support for fallbackLbmode with EDNS CR See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/external-dns-with-lbModeFallback>`_
@@ -1033,7 +1033,7 @@ Added Functionality
     - :issues: 1824 Support for Kubernetes networking.k8s.io/v1 Ingress and IngressClass. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/ingress/networkingV1>`_.
     - For networking.k8s.io/v1 Ingress, add multiple BIGIP SSL client profiles with annotation ``virtual-server.f5.com/clientssl``. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/ingress/networkingV1>`_.
     - OpenShift route annotations ``virtual-server.f5.com/rewrite-app-root`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/routes/sample-route-rewrite-app-root.yaml>`_) and ``virtual-server.f5.com/rewrite-target-url`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/routes/sample-route-rewrite-target-url.yaml>`_) with agent AS3.
-    - :issues: 1570 iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/TransportServer>`_.
+    - :issues: 1570 iRule reference in TransportServer CRD. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/TransportServer>`_.
     - CIS deployment configuration options:
          * ``--periodic-sync-interval`` - Configure the periodic sync of Kubernetes resources.
          * ``--hubmode`` - Enable Support for ConfigMaps to monitor services in same and different namespaces.
@@ -1773,7 +1773,7 @@ v1.4.1
 
 Bug Fixes
 `````````
-* (github-517)Controller deletes SSL profiles off of Ingress virtual servers if watching multiple namespaces.
+* (github-517)Controller deletes SSL profiles of Ingress virtual servers if watching multiple namespaces.
 * (github-471)When updating routes, old service pools are not removed until after a refresh cycle.
 * (github-228)Address compatibility for BIG-IP v13.0 Health Monitor interval and timeout.
 
@@ -1935,9 +1935,9 @@ Limitations
 ```````````
 
 * Cannot share endpoints managed in a partition controlled by the K8S BIG-IP Controller with endpoints managed in another partition.
-* Kubernetes allows a service to name the individual service ports within a particular service.  However, the K8S BIG-IP Controller requires the virtual server section within the configmap to refer to the port number for the service port, not the name.
-* Two virtual servers cannot point to the same servicePort.  The last one specified will be the one that remains configured.
-* The BIG-IP Controller does not handle non-zero route domains.  All managed partitions should use the default route domain (0).
+* Kubernetes allows a service to name the individual service ports within a particular service. However, the K8S BIG-IP Controller requires the virtual server section within the configmap to refer to the port number for the service port, not the name.
+* Two virtual servers cannot point to the same servicePort. The last one specified will be the one that remains configured.
+* The BIG-IP Controller does not handle non-zero route domains. All managed partitions should use the default route domain (0).
 * Parameters other than IPAddress and Port (e.g. Connection Limit) specified in the iApp Pool Member Table apply to all members of the pool.
 * Cannot configure virtual servers with IPv6 addresses in the configmap.
 * The K8S BIG-IP Controller cannot watch more than one namespace.

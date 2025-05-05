@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 const (
@@ -163,11 +162,7 @@ func (ap *AS3Parser) createPoolDecl(cfg *ResourceConfig, sharedApp as3Applicatio
 		pool.ReselectTries = v.ReselectTries
 		pool.ServiceDownAction = v.ServiceDownAction
 		pool.SlowRampTime = v.SlowRampTime
-		Remark := fmt.Sprintf("%s loadbalances this pool", cfg.Virtual.Name)
-		if utf8.RuneCountInString(Remark) > 64 {
-			Remark = Remark[:64]
-		}
-		pool.Remark = Remark
+		pool.Remark = v.Description
 		poolMemberSet := make(map[PoolMember]struct{})
 		for _, val := range v.Members {
 			// Skip duplicate pool members
@@ -361,7 +356,7 @@ func (ap *AS3Parser) createServiceDecl(cfg *ResourceConfig, sharedApp as3Applica
 		}
 	}
 
-	if cfg.MetaData.Protocol == "https" {
+	if cfg.MetaData.Protocol == HTTPS {
 		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
 			if cfg.Virtual.HTTP2.Client == "" {
 				log.Errorf("[AS3] resetting ProfileHTTP2 as client profile doesnt co-exist with HTTP2 Server Profile, Please include client HTTP2 Profile ")

@@ -115,7 +115,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-		if rsCfg.MetaData.Protocol == "http" {
+		if rsCfg.MetaData.Protocol == HTTP {
 			// for unsecured vs, disable mrf router always
 			enabled := false
 			rsCfg.Virtual.HttpMrfRoutingEnabled = &enabled
@@ -492,6 +492,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			NodeMemberLabel:  "",
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 			Cluster:          bs.Cluster, // In all modes other than ratio, the cluster is ""
+			Description:      rsCfg.getPoolDescription(),
 		}
 
 		if ctlr.multiClusterMode != "" {

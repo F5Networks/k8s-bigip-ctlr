@@ -410,3 +410,13 @@ texinfo_show_urls = 'footnote'
 
 # Example configuration for intersphinx: refer to the Python standard library.
 #intersphinx_mapping = {'https://docs.python.org/': None}
+
+linkcheck_timeout = 10              # Wait 10 seconds max per request
+linkcheck_retries = 2               # Retry failed requests
+linkcheck_workers = 10               # Concurrent checks
+linkcheck_rate_limit_timeout = 2.0  # Wait 2s between requests to same domain
+linkcheck_anchors = True            # Check fragment identifiers (anchors)
+
+linkcheck_ignore = [
+    r'https://github.com/f5devcentral/f5-cis-docs/*',       # Ignore f5-cis-docs repo
+]

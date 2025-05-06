@@ -115,7 +115,7 @@ Following is the sample deployment for primary CIS deployment:
 
 * See How to configure the extendedConfigMap in default mode in standalone topology, [Documentation](default-mode/README.md#configuring-extendedconfigmapforstandalone).
 * See How to configure the extendedConfigMap in default mode in high availability topology, [Documentation](default-mode/README.md#configuring-extendedconfigmapforhighavailability).
-* See How to configure the extendedConfigMap in active-active mode, [Documentation](non-default-mode/README.md#configuring-extendedconfigmapforstandalone).
+* See How to configure the extendedConfigMap in active-active mode, [Documentation](non-default-mode/README.md#configuring-extended-configmap-for-active-active-high-availability-cis).
 * See How to configure the extendedConfigMap in ratio mode in standalone topology, [Documentation](non-default-mode/README.md#configuring-extended-configmap-for-ratio-mode-standalone-cis).
 * See How to configure the extendedConfigMap in ratio mode in high availability topology, [Documentation](non-default-mode/README.md#configuring-extended-configmap-for-ratio-mode-high-availability-cis).
 
@@ -128,7 +128,7 @@ Following is the sample deployment for primary CIS deployment:
 * See How to configure the TS CR in active-active and ratio mode [Documentation](non-default-mode/README.md#transport-server-support).
 
 ### Routes Support
-* See How to configure the routes in default mode [Documentation](default-mode/README.md#routes-support).
+* See How to configure the routes in default mode [Documentation](default-mode/README.md#Routes-Support).
 * See How to configure the routes in active-active and ratio mode [Documentation](non-default-mode/README.md#routes-support).
 
 ### ServiceTypeLB Support

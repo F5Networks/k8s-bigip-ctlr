@@ -54,7 +54,7 @@ stages:
       - script: |
           echo "Installing Python packages..."
           python -m pip install --upgrade pip
-          pip install sphinx f5-sphinx-theme sphinx-copybutton recommonmark sphinxjp.themes.basicstrap cloud_sptheme
+          pip install sphinx f5-sphinx-theme sphinx-copybutton sphinxjp.themes.basicstrap cloud_sptheme myst-parser
           pip install jinja2==3.0
         displayName: 'Install Sphinx'
 

@@ -42,7 +42,7 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinxjp.themes.basicstrap',
     'sphinx.ext.extlinks',
-    'recommonmark',
+    'myst_parser',
     'sphinx_copybutton',
     'cloud_sptheme.ext.table_styling'
 ]
@@ -56,8 +56,9 @@ templates_path = ['_templates']
 # source_suffix = ['.rst', '.md']
 
 source_suffix = {
-            '.rst': 'restructuredtext',
-        }
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
 
 
 # The encoding of source files.
@@ -411,12 +412,9 @@ texinfo_show_urls = 'footnote'
 # Example configuration for intersphinx: refer to the Python standard library.
 #intersphinx_mapping = {'https://docs.python.org/': None}
 
-linkcheck_timeout = 10              # Wait 10 seconds max per request
+#linkcheck_timeout = 60              # Wait 10 seconds max per request
 linkcheck_retries = 2               # Retry failed requests
-linkcheck_workers = 10               # Concurrent checks
-linkcheck_rate_limit_timeout = 2.0  # Wait 2s between requests to same domain
-linkcheck_anchors = True            # Check fragment identifiers (anchors)
+linkcheck_workers = 3               # Concurrent checks
+#linkcheck_rate_limit_timeout = 30  # Wait 30s between requests to same domain
 
-linkcheck_ignore = [
-    r'https://github.com/f5devcentral/f5-cis-docs/*',       # Ignore f5-cis-docs repo
-]
+#linkcheck_ignore = [r'https://github.com/f5devcentral/f5-ci-docs.*']

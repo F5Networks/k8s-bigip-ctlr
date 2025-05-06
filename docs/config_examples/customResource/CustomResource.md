@@ -226,7 +226,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServer
+   [Virtual Server](./VirtualServer)
 
    
 ## TLSProfile
@@ -288,7 +288,7 @@ different terminations(for same domain), one with edge and another with re-encry
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/VirtualServerWithTLSProfile
+   [Virtual Server With TLS Profile](./VirtualServerWithTLSProfile)
 
 ## TransportServer
    * TransportServer resource expose non-HTTP traffic configuration for a virtual server address in BIG-IP.
@@ -387,7 +387,7 @@ different terminations(for same domain), one with edge and another with re-encry
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/TransportServer
+   [Transport Server](./TransportServer)
 
 ## ExternalDNS
    * ExternalDNS CRD's allows you to control DNS records dynamically via Kubernetes/OSCP resources in a DNS provider-agnostic way.
@@ -435,7 +435,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.x-master/docs/config_examples/customResource/ExternalDNS/README.md 
+Refer [ExternalDNS](./ExternalDNS/README.md) 
 
 **Note**: 
 * To set up external DNS using BIG-IP GTM user needs to first manually configure GSLB → Datacenter and GSLB → Server on BIG-IP common partition.
@@ -446,16 +446,16 @@ Known Issues:
 
 ### Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/ExternalDNS
+[External DNS](./ExternalDNS)
 
 
 ## IngressLink
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/IngressLink/README.md
+Refer [IngressLink](./IngressLink/README.md)
 
 ## Policy CRD 
 
-Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy
+Refer [Policy](./Policy)
 
 
 # Note

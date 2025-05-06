@@ -15,7 +15,7 @@
 
 ## Overview
 NextGenRoute Controller uses extendedConfigMap for extending the native resources (routes). All the routes are group by namespaces or namespace-labels into RouteGroups. Each RouteGroup shares the same vsAddress, vsName and policy CR  which is specified in extendedConfigMap. 
-In order to migrate to nextGen we first need to create an extended ConfigMap and policy CR then modify the CIS deployment accordingly. Refer [NextGen Route Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/next-gen-routes) for more details
+In order to migrate to nextGen we first need to create an extended ConfigMap and policy CR then modify the CIS deployment accordingly. Refer [NextGen Route Documentation](./README.md) for more details
 
 ## Migration using defaultRouteGroup
 Currently, RouteGroup are expected to define per namespace or namespace label as follows:
@@ -176,7 +176,7 @@ Sample Route:
 
 #### Step-2 Creating Extended ConfigMap using defaultRouteGroup
 
-Extended ConfigMap is a must-use with the nextGen Route Controller. Refer [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/next-gen-routes) for more details          
+Extended ConfigMap is a must-use with the nextGen Route Controller. Refer [Documentation](./README.md) for more details          
 
 You can create an extended ConfigMap for given example as follows:
 * You can define the vserverAddr same as "route-vserver-addr" parameter in CIS deployment.
@@ -227,7 +227,7 @@ spec:
 
 **Note**:
     * If WAF/AllowSourceRange is defined in both route annotation & policy CR, route annotation takes the priority by default.  
-    * You can use the Policy CR to extend the virtual server capabilities even more. [See Details](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy).
+    * You can use the Policy CR to extend the virtual server capabilities even more. [See Details](../customResource/Policy).
     * Make sure the namespace where we created the policy CR monitored by CIS.   
  
 #### Step-4 Update the CIS deployment parameters and start
@@ -253,7 +253,7 @@ spec:
 
 * Remove "tls-version", "cipher-group" & "ciphers" parameters from CIS deployment and define them under "baseRouteSpec" in extendedConfigMap. See Step-2 above.
 
-* Remove "override-as3-declaration" parameter as it's no more supported with NextGen Routes. You can use the Policy CR to extend the virtual server capabilities. [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/Policy).
+* Remove "override-as3-declaration" parameter as it's no more supported with NextGen Routes. You can use the Policy CR to extend the virtual server capabilities. [See Example](../customResource/Policy).
 
 ```
     args: [

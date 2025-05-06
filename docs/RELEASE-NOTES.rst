@@ -55,7 +55,7 @@ Bug Fixes
 
 Upgrade notes
 ``````````````
-* For using calico cni with staticRoutingMode, update RBAC permissions to monitor calico blockaffinities resource. See `RBAC <./config_examples/rbac/k8s_rbac.yaml>`_
+* For using calico cni with staticRoutingMode, update RBAC permissions to monitor calico blockaffinities resource. See `RBAC <./config_examples/rbac/k8s_rbac.yml>`_
 * Optimized monitor creation for CIS multicluster default mode with shared monitor for pools. This fix required a bug fix from AS3 for https://my.f5.com/manage/s/article/K33604210 which limited sharing monitors for pools.
   AS3 3.52 version resolved this issue. Please update to AS3 3.52 version before upgrading CIS to 2.19.1
 
@@ -330,8 +330,8 @@ Added Functionality
 ```````````````````
 **What's new:**
     * CRD
-        * Support for HTML profile in Policy CR and VirtualServer CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/2.15-stable/docs/config_examples/customResource/Policy/policy-with-html-profile.yaml>`
-        * Support for renegotiationEnabled in TLSProfile CR. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.15-stable/docs/config_examples/customResource/VirtualServerWithTLSProfile/tls-with-ssl-renegotiation-disabled>`
+        * Support for HTML profile in Policy CR and VirtualServer CR. See `Example <./config_examples/customResource/Policy/policy-with-html-profile.yaml>`_
+        * Support for renegotiationEnabled in TLSProfile CR. See `Example <./config_examples/customResource/VirtualServerWithTLSProfile/tls-with-ssl-renegotiation-disabled>`_
     * CIS compatible with OpenShift 4.14 and Kubernetes 1.29
     * Improved operator support for OpenShift 4.14
 

@@ -17,6 +17,8 @@ Added Functionality
         * Support to define multiple health monitors
     * Support for configuring refresh token interval for bigip token authentication.
     * `Issue 3559 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3559>`_: Support for CIS to watch Custom Resources with custom label
+    * CIS is now compatible with OpenShift 4.17 and OpenShift 4.18
+    * CIS operator support for OpenShift 4.17 and OpenShift 4.18
 
 Bug Fixes
 ````````````

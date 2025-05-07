@@ -48,7 +48,7 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 		// Convert ResourceConfigRequest to as3Config
 		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest, agent.ccclGTMAgent, agent.userAgent, agent.gtmOnSeparateServer)
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("[AS3]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
+			log.Infof("[%s]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.LTM.apiType, agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
 			return
 		}
 		agentConfig.as3APIURL = agent.LTM.APIHandler.getAPIURL([]string{})
@@ -57,12 +57,12 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 		} else {
 			agentConfig.agentKind = PrimaryBigIP
 		}
-		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
+		log.Debugf("%s[%s]%v Posting ResourceConfigRequest: %+v\n", getRequestPrefix(rsConfigRequest.reqMeta.id), agent.APIHandler.LTM.apiType, agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
 	} else {
-		log.Debugf("%v Posting ResourceConfigRequest: %+v\n", agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
+		log.Debugf("%s[%s]%v Posting ResourceConfigRequest: %+v\n", getRequestPrefix(rsConfigRequest.reqMeta.id), agent.APIHandler.LTM.apiType, agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
 		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent, agent.gtmOnSeparateServer)
 		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("[AS3]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
+			log.Infof("[%s]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.LTM.apiType, agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
 			return
 		}
 		agentConfig.as3APIURL = agent.GTM.APIHandler.getAPIURL([]string{})

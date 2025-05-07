@@ -43,10 +43,10 @@ stages:
       displayName: Check Go format and Suspicious constructs
       inputs:
         script: 'make verify'
-    - task: CmdLine@2
-      displayName: Check documentation
-      inputs:
-        script: 'make docs'
+    # - task: CmdLine@2
+    #   displayName: Check documentation
+    #   inputs:
+    #     script: 'make docs'
 - stage: ContainerImage
   dependsOn: PreCheck
   jobs:

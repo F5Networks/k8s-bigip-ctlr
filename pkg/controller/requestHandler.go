@@ -60,14 +60,13 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 // - AgentWorker: Wraps Agent with additional worker functionality
 
 func (reqHandler *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRequest) {
-	// Always push latest activeConfig to channel
-	// Case1: Put latest config into the channel
-	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
-	// Either Case1 or Case2 executes, which ensures the above
-
 	select {
 	case reqHandler.reqChan <- rsConfig:
-	case <-time.After(3 * time.Millisecond):
+		// Sent successfully
+	default:
+	// Channel full: remove the old value, then send new one
+	case <-reqHandler.reqChan:
+		reqHandler.reqChan <- rsConfig
 	}
 }
 
@@ -79,19 +78,23 @@ func (reqHandler *RequestHandler) requestHandler() {
 		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && reqHandler.PrimaryClusterHealthProbeParams.statusChanged) {
 			// Post LTM config based on HA mode
 			if reqHandler.HAMode && reqHandler.SecondaryBigIPWorker != nil {
+				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), primaryPostmanagerPrefix)
 				reqHandler.PrimaryBigIPWorker.PostConfig(rsConfig)
+				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), secondaryPostmanagerPrefix)
 				reqHandler.SecondaryBigIPWorker.PostConfig(rsConfig)
 			} else {
+				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), defaultPostmanagerPrefix)
 				reqHandler.PrimaryBigIPWorker.PostConfig(rsConfig)
 			}
 			// post to the GTM server if it's on a separate server
 			if reqHandler.GTMBigIPWorker != nil {
+				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), gtmPostmanagerPrefix)
 				reqHandler.GTMBigIPWorker.PostConfig(rsConfig)
 			}
 		} else {
 			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
 			if !reqHandler.PrimaryClusterHealthProbeParams.statusRunning {
-				log.Debugf("[RequestHandler] No change in configuration")
+				log.Debugf("%s No change in request", getRequestPrefix(rsConfig.reqMeta.id))
 			}
 		}
 	}
@@ -229,7 +232,7 @@ func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
 	agent := &Agent{
 		APIHandler:   &APIHandler{},
 		ccclGTMAgent: reqHandler.agentParams.CCCLGTMAgent,
-		stopChan:     make(chan struct{}),
+		StopChan:     make(chan struct{}),
 		userAgent:    reqHandler.agentParams.UserAgent,
 	}
 	switch kind {

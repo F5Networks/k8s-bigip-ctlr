@@ -527,6 +527,7 @@ type (
 	// Pool config
 	Pool struct {
 		Name                     string                                  `json:"name"`
+		Description              string                                  `json:"description,omitempty"`
 		Partition                string                                  `json:"-"`
 		ServiceName              string                                  `json:"-"`
 		ServiceNamespace         string                                  `json:"-"`

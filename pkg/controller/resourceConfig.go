@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
@@ -598,6 +599,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				BigIPRouteDomain:         rsCfg.Virtual.BigIPRouteDomain,
 				ImplicitSvcSearchEnabled: true,
 				MonitorNames:             monitorNames,
+				Description:              rsCfg.getPoolDescription(),
 			}
 
 			if ctlr.multiClusterMode != "" {
@@ -999,6 +1001,7 @@ func (ctlr *Controller) handleDefaultPool(
 				ReselectTries:     vs.Spec.DefaultPool.ReselectTries,
 				ServiceDownAction: vs.Spec.DefaultPool.ServiceDownAction,
 				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
+				Description:       rsCfg.getPoolDescription(),
 			}
 			if vs.Spec.DefaultPool.Monitors != nil {
 				for _, mtr := range vs.Spec.DefaultPool.Monitors {
@@ -1076,6 +1079,7 @@ func (ctlr *Controller) handleDefaultPoolForPolicy(
 				ReselectTries:     plc.Spec.DefaultPool.ReselectTries,
 				ServiceDownAction: plc.Spec.DefaultPool.ServiceDownAction,
 				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
+				Description:       rsCfg.getPoolDescription(),
 			}
 			if plc.Spec.DefaultPool.Monitors != nil {
 				for _, mtr := range plc.Spec.DefaultPool.Monitors {
@@ -1127,6 +1131,21 @@ func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules
 	if plcy != nil {
 		rsCfg.SetPolicy(*plcy)
 	}
+}
+
+func (rsCfg *ResourceConfig) getPoolDescription() string {
+	vsIdentifier := rsCfg.Virtual.Name
+	if rsCfg.MetaData.httpTraffic == TLSAllowInsecure || rsCfg.MetaData.httpTraffic == TLSRedirectInsecure {
+		// In this case pool is attached to two virtual servers on http and another https
+		// which changes the pool description for each virtual and causes unwanted updates on BigIP
+		parts := strings.Split(vsIdentifier, "_")
+		vsIdentifier = strings.Join(parts[:len(parts)-1], "_")
+	}
+	description := fmt.Sprintf("%s loadbalances this pool", vsIdentifier)
+	if utf8.RuneCountInString(description) > 64 {
+		description = description[:64]
+	}
+	return description
 }
 
 func (ctlr *Controller) handleTransportServerTLS(rsCfg *ResourceConfig, tlsContext TLSContext) bool {
@@ -2456,6 +2475,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			// this is a temporary config. Should be removed later after implicit service search for virtual server
 			ImplicitSvcSearchEnabled: true,
 			MonitorNames:             monitorNames,
+			Description:              rsCfg.getPoolDescription(),
 		}
 
 		//svcKey := MultiClusterServiceKey{
@@ -2673,6 +2693,7 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 			ImplicitSvcSearchEnabled: true,
 			MonitorNames:             monitorNames,
 			BigIPRouteDomain:         rsCfg.Virtual.BigIPRouteDomain,
+			Description:              rsCfg.getPoolDescription(),
 		}
 
 		if ctlr.multiClusterMode != "" {
@@ -2869,6 +2890,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			Cluster:                  SvcBackend.Cluster,
 			ImplicitSvcSearchEnabled: true,
 			MonitorNames:             monitorNames,
+			Description:              rsCfg.getPoolDescription(),
 		}
 
 		if ctlr.multiClusterMode != "" {

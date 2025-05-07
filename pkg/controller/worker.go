@@ -3810,7 +3810,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				}
 				if found {
 					//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
-					if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
+					if vs.MetaData.Protocol == HTTP && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
 						continue
 					}
 					preGTMServerName := ""

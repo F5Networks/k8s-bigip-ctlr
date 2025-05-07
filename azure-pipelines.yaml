@@ -29,6 +29,7 @@ variables:
   helmVersion: 'v3.5.4'
   chartsUpdated: False
   operatorUpdated: False
+  docsUpdated: False
   operatorImageName: 'f5networks/f5-cis-operator-devel'
   operatorBundleImageName: 'f5networks/f5-cis-operator-bundle-devel'
   operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
@@ -36,20 +37,20 @@ variables:
 
 stages:
 - stage: PreCheck
+  dependsOn: []
   jobs:
-  - job: GoVerification
-    steps:
-    - task: CmdLine@2
-      displayName: Check Go format and Suspicious constructs
-      inputs:
-        script: 'make verify'
   - job: DocVerification
     steps:
+      - script: |
+          git diff HEAD HEAD~ --name-only | grep ".md\|.rst"
+          if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=docsUpdated]True"; fi
+        displayName: Check doc changes
       # Set up Python
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '3.x'
         displayName: 'Set up Python'
+        condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
       # Install Python dependencies
       - script: |
           echo "Installing Python packages..."
@@ -57,12 +58,14 @@ stages:
           pip install sphinx f5-sphinx-theme sphinx-copybutton sphinxjp.themes.basicstrap cloud_sptheme myst-parser
           pip install jinja2==3.0
         displayName: 'Install Sphinx'
+        condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
 
         # Run Sphinx link checker with rate limiting
       - script: |
           echo "Running Sphinx linkcheck with rate limit..."
           sphinx-build -b linkcheck docs/ _build/linkcheck
         displayName: 'Run Sphinx Linkcheck'
+        condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
 
       # Install write-good
       - script: |
@@ -70,6 +73,7 @@ stages:
           sudo apt install -y nodejs
           sudo npm install -g write-good
         displayName: 'Install write-good'
+        condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
 
       # Run write-good
       - script: |
@@ -77,11 +81,19 @@ stages:
           write-good `find docs -name '*.rst'` --passive --so --no-illusion --thereIs --cliches
           write-good `find docs -name '*.md'` --so --no-illusion --thereIs --cliches
         displayName: 'Run write-good checks'
+        condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
 
 - stage: ContainerImage
-  dependsOn: PreCheck
+  dependsOn: []
   jobs:
+  - job: GoVerification
+    steps:
+      - task: CmdLine@2
+        displayName: Check Go format and Suspicious constructs
+        inputs:
+          script: 'make verify'
   - job: BuildContainerImage
+    dependsOn: GoVerification
     steps:
       - script: |
           echo "##vso[task.setvariable variable=BUILD_VERSION]$(cat next-version.txt)"
@@ -173,7 +185,7 @@ stages:
           failTaskOnFailedTests: false
           testRunTitle: 'Trivy - Vulnerabilities Summary'
 - stage: Charts
-  dependsOn: PreCheck
+  dependsOn: []
   jobs:
   - job: BuildCharts
     steps:
@@ -227,7 +239,7 @@ stages:
       displayName: Upload charts
       condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
 - stage: Operator
-  dependsOn: PreCheck
+  dependsOn: []
   jobs:
   - job: BuildOperator
     steps:

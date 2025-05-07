@@ -877,9 +877,8 @@ type (
 		disableARP          bool
 		Type                string
 		httpClientMetrics   bool
-		stopChan            chan struct{}
 		PythonDriverPID     int
-		StopChan            chan interface{}
+		StopChan            chan struct{}
 	}
 
 	BaseAPIHandler struct {

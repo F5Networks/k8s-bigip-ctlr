@@ -416,5 +416,3 @@ texinfo_show_urls = 'footnote'
 linkcheck_retries = 2               # Retry failed requests
 linkcheck_workers = 3               # Concurrent checks
 #linkcheck_rate_limit_timeout = 30  # Wait 30s between requests to same domain
-
-#linkcheck_ignore = [r'https://github.com/f5devcentral/f5-ci-docs.*']

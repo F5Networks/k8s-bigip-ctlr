@@ -62,10 +62,16 @@ stages:
 
         # Run Sphinx link checker with rate limiting
       - script: |
-          echo "Running Sphinx linkcheck with rate limit..."
-          sphinx-build -b linkcheck docs/ _build/linkcheck
-        displayName: 'Run Sphinx Linkcheck'
+          echo "Identifying changed documentation files..."
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E '\.rst$|\.md$' || true)
+          if [ -z "$CHANGED_FILES" ]; then
+          echo "No documentation files have been modified in the current commit."
+          exit 0
+          fi
+          echo "Running linkcheck on modified files..."
+          sphinx-build -b linkcheck -E docs build/linkcheck $CHANGED_FILES
         condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
+        displayName: 'Run Sphinx Linkcheck'
 
       # Install write-good
       - script: |

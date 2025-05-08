@@ -102,7 +102,7 @@ func (agent *Agent) agentWorker() {
 		// this post manager lock prevents that tenant cache map is not read by other components
 		// while this post manager is processing this request
 		agent.LTM.PostManager.declUpdate.Lock()
-		
+
 		agent.LTM.postConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,

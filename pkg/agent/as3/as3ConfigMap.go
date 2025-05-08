@@ -236,9 +236,9 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 							var ips []string
 							poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
 							if !ok {
-								poolMemPriorityGroup = int(0)
+								poolMemPriorityGroup = float64(0)
 							}
-							if int(v.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && v.PriorityGroup == poolMemPriorityGroup.(int) {
+							if int(v.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && v.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 								poolMemberProcessed = true
 								uniqueLabel := fmt.Sprintf("%v_%v", v.SvcPort, v.PriorityGroup)
 								if _, ok := uniqueMembersMap[uniqueLabel]; !ok {
@@ -289,9 +289,9 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 							var ips []string
 							poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
 							if !ok {
-								poolMemPriorityGroup = int(0)
+								poolMemPriorityGroup = float64(0)
 							}
-							if int(v.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && v.PriorityGroup == poolMemPriorityGroup.(int) {
+							if int(v.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && v.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 								uniqueLabel := fmt.Sprintf("%v_%v", v.SvcPort, v.PriorityGroup)
 								if _, ok := uniqueMembersMap[uniqueLabel]; !ok {
 									poolMemberProcessed = true
@@ -346,9 +346,9 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 								var ips []string
 								poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
 								if !ok {
-									poolMemPriorityGroup = int(0)
+									poolMemPriorityGroup = float64(0)
 								}
-								if v.PriorityGroup == poolMemPriorityGroup.(int) {
+								if v.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
 									uniqueLabel := fmt.Sprintf("%v_%v", v.Address, v.PriorityGroup)
 									if _, ok := uniqueMembersMap[uniqueLabel]; !ok {
 										uniqueMembersMap[uniqueLabel] = true

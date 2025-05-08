@@ -240,10 +240,9 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 // addDefaultWAFDisableRule adds WAF disable action for rules without WAF and a default WAF disable rule
 func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig, wafDisableRuleName string) {
-	enabled := false
 	wafDisableAction := &action{
 		WAF:     true,
-		Enabled: &enabled,
+		Enabled: false,
 	}
 	wafDropAction := &action{
 		Drop:    true,

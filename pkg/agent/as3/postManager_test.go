@@ -17,7 +17,7 @@ type (
 		RespIndex int
 	}
 
-	responceCtx struct {
+	responseCtx struct {
 		tenant string
 		status float64
 		body   string
@@ -33,13 +33,13 @@ func newMockPostManger() *mockPostManager {
 	return mockPM
 }
 
-func (mockPM *mockPostManager) setResponses(responces []responceCtx, method string) {
+func (mockPM *mockPostManager) setResponses(responses []responseCtx, method string) {
 	var body string
 
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
 
-	for _, resp := range responces {
+	for _, resp := range responses {
 		if resp.body == "" {
 			if resp.status == http.StatusOK {
 				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}]}`,
@@ -86,7 +86,7 @@ var _ = Describe("PostManager Tests", func() {
 
 		It("Handle HTTP Status OK, Accepted & Created", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusOK,
@@ -109,7 +109,7 @@ var _ = Describe("PostManager Tests", func() {
 
 		It("Handle Expected HTTP Response Errors", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusServiceUnavailable,
@@ -128,7 +128,7 @@ var _ = Describe("PostManager Tests", func() {
 
 		It("Handle Unexpected HTTP Response Errors", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusRequestTimeout,
@@ -152,7 +152,7 @@ var _ = Describe("PostManager Tests", func() {
 
 		It("Handle HTTP Response Errors: StatusServiceUnavailable", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusServiceUnavailable,
@@ -165,7 +165,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 		It("Handle HTTP Response Errors: StatusNotFound", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusNotFound,
@@ -178,7 +178,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 		It("Handle HTTP Response Errors: StatusUnprocessableEntity", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusUnprocessableEntity,
@@ -199,7 +199,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 
 		It("Get BIG-IP AS3 Version", func() {
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusOK,
@@ -211,7 +211,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 
 		It("Validation1: Get BIG-IP AS3 Version", func() {
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusNotFound,
@@ -223,7 +223,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 
 		It("Validation2: Get BIG-IP AS3 Version", func() {
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusNotFound,
@@ -235,7 +235,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 
 		It("Validation3: Get BIG-IP AS3 Version", func() {
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusNotFound,
@@ -250,7 +250,7 @@ var _ = Describe("PostManager Tests", func() {
 	Describe("Get BIGIP Registration key", func() {
 		It("Get Registration key successfully", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
 				body:   `{"registrationKey": "sfiifhanji"}`,
@@ -261,7 +261,7 @@ var _ = Describe("PostManager Tests", func() {
 		})
 		It("Handle Failures while Getting Registration key", func() {
 			tnt := "test"
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: tnt,
 					status: http.StatusNotFound,

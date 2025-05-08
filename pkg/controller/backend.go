@@ -17,11 +17,12 @@
 package controller
 
 import (
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"strconv"
 	"strings"
 	"time"
+
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 var DEFAULT_PARTITION string
@@ -101,7 +102,8 @@ func (agent *Agent) agentWorker() {
 		// this post manager lock prevents that tenant cache map is not read by other components
 		// while this post manager is processing this request
 		agent.LTM.PostManager.declUpdate.Lock()
-		agent.LTM.publishConfig(agentConfig)
+
+		agent.LTM.postConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests

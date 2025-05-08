@@ -20,7 +20,7 @@ type ApiTypeHandlerInterface interface {
 	UpdateApiVersion(version string, build string, schemaVersion string)
 	getVersionURL() string
 	getVersionsFromResponse(httpResp *http.Response, responseMap map[string]interface{}) (string, string, string, error)
-	removeDeletedTenantsForBigIP(Config map[string]interface{}, rsConfig *ResourceConfigRequest, cisLabel, partition string)
+	// removeDeletedTenantsForBigIP(Config map[string]interface{}, rsConfig *ResourceConfigRequest, cisLabel, partition string)
 	handleResponseStatusOK(responseMap map[string]interface{}, cfg *agentPostConfig) bool
 	handleMultiStatus(responseMap map[string]interface{}, cfg *agentPostConfig) bool
 	handleResponseAccepted(responseMap map[string]interface{}, cfg *agentPostConfig) bool
@@ -31,7 +31,7 @@ type ApiTypeHandlerInterface interface {
 	handleNilResponseMap(code int, cfg *agentPostConfig) bool
 	getRegKeyFromResponse(httpResp *http.Response, responseMap map[string]interface{}) (string, error)
 	getVersionsFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) error
-	getDeclarationFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) (map[string]interface{}, error)
+	// getDeclarationFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) (map[string]interface{}, error)
 	updateTenantConfigStatus(id string, httpResp *http.Response, responseMap map[string]interface{}, cfg *agentPostConfig)
 	pollTenantStatus(cfg *agentPostConfig)
 	verifyTenantConfigStatus(id string, agentCfg *agentPostConfig)
@@ -108,8 +108,13 @@ func (am *AS3Handler) logRequest(cfg string) {
 }
 
 func (am *AS3Handler) logResponse(responseMap map[string]interface{}) {
+	// Avoid modifying the original response
+	responseMapCopy := make(map[string]interface{})
+	for key, value := range responseMap {
+		responseMapCopy[key] = value
+	}
 	// removing the certificates/privateKey from response log
-	if declaration, ok := (responseMap["declaration"]).([]interface{}); ok {
+	if declaration, ok := (responseMapCopy["declaration"]).(map[string]interface{}); ok {
 		for _, value := range declaration {
 			if tenantMap, ok := value.(map[string]interface{}); ok {
 				for _, value2 := range tenantMap {
@@ -132,7 +137,7 @@ func (am *AS3Handler) logResponse(responseMap map[string]interface{}) {
 			log.Errorf("[AS3]%v error while reading declaration from AS3 response: %v\n", am.postManagerPrefix, err)
 			return
 		}
-		responseMap["declaration"] = as3Declaration(decl)
+		responseMapCopy["declaration"] = as3Declaration(decl)
 	}
 	log.Debugf("[AS3]%v Raw response from Big-IP: %v ", am.postManagerPrefix, responseMap)
 }
@@ -179,37 +184,37 @@ func (am *AS3Handler) getVersionsFromResponse(httpResp *http.Response, responseM
 	}
 }
 
-func (am *AS3Handler) getDeclarationFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) (map[string]interface{}, error) {
-	// Check response status code
-	switch httpResp.StatusCode {
-	case http.StatusOK:
-		return responseMap, nil
-	case http.StatusNotFound:
-		if code, ok := responseMap["code"].(float64); ok {
-			if int(code) == http.StatusNotFound {
-				return nil, fmt.Errorf("%s RPM is not installed on BIGIP,"+
-					" Error response from BIGIP with status code %v", am.apiType, httpResp.StatusCode)
-			}
-		} else {
-			am.logResponse(responseMap)
-		}
-	case http.StatusUnauthorized:
-		if code, ok := responseMap["code"].(float64); ok {
-			if int(code) == http.StatusUnauthorized {
-				if _, ok := responseMap["message"].(string); ok {
-					return nil, fmt.Errorf("authentication failed,"+
-						" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, responseMap["message"])
-				} else {
-					return nil, fmt.Errorf("authentication failed,"+
-						" Error response from BIGIP with status code %v", httpResp.StatusCode)
-				}
-			}
-		} else {
-			am.logResponse(responseMap)
-		}
-	}
-	return nil, fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
-}
+//func (am *AS3Handler) getDeclarationFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) (map[string]interface{}, error) {
+//	// Check response status code
+//	switch httpResp.StatusCode {
+//	case http.StatusOK:
+//		return responseMap, nil
+//	case http.StatusNotFound:
+//		if code, ok := responseMap["code"].(float64); ok {
+//			if int(code) == http.StatusNotFound {
+//				return nil, fmt.Errorf("%s RPM is not installed on BIGIP,"+
+//					" Error response from BIGIP with status code %v", am.apiType, httpResp.StatusCode)
+//			}
+//		} else {
+//			am.logResponse(responseMap)
+//		}
+//	case http.StatusUnauthorized:
+//		if code, ok := responseMap["code"].(float64); ok {
+//			if int(code) == http.StatusUnauthorized {
+//				if _, ok := responseMap["message"].(string); ok {
+//					return nil, fmt.Errorf("authentication failed,"+
+//						" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, responseMap["message"])
+//				} else {
+//					return nil, fmt.Errorf("authentication failed,"+
+//						" Error response from BIGIP with status code %v", httpResp.StatusCode)
+//				}
+//			}
+//		} else {
+//			am.logResponse(responseMap)
+//		}
+//	}
+//	return nil, fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
+//}
 
 func (am *AS3Handler) getVersionsFromBigIPResponse(httpResp *http.Response, responseMap map[string]interface{}) error {
 	switch httpResp.StatusCode {
@@ -222,8 +227,8 @@ func (am *AS3Handler) getVersionsFromBigIPResponse(httpResp *http.Response, resp
 	case http.StatusNotFound:
 		return fmt.Errorf("AS3 RPM is not installed on BIGIP")
 
-	case http.StatusUnauthorized:
-		return fmt.Errorf("authentication failed for AS3 version check")
+	//case http.StatusUnauthorized:
+	//	return fmt.Errorf("authentication failed for AS3 version check")
 
 	default:
 		return fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
@@ -298,18 +303,18 @@ func (am *AS3Handler) getRegKeyFromResponse(httpResp *http.Response, responseMap
 		}
 		return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 
-	case http.StatusUnauthorized:
-		if code, ok := responseMap["code"].(float64); ok {
-			if int(code) == http.StatusUnauthorized {
-				if msg, ok := responseMap["message"].(string); ok {
-					return "", fmt.Errorf("authentication failed,"+
-						" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, msg)
-				}
-				return "", fmt.Errorf("authentication failed,"+
-					" Error response from BIGIP with status code %v", httpResp.StatusCode)
-			}
-		}
-		return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
+	//case http.StatusUnauthorized:
+	//	if code, ok := responseMap["code"].(float64); ok {
+	//		if int(code) == http.StatusUnauthorized {
+	//			if msg, ok := responseMap["message"].(string); ok {
+	//				return "", fmt.Errorf("authentication failed,"+
+	//					" Error response from BIGIP with status code %v Message: %v", httpResp.StatusCode, msg)
+	//			}
+	//			return "", fmt.Errorf("authentication failed,"+
+	//				" Error response from BIGIP with status code %v", httpResp.StatusCode)
+	//		}
+	//	}
+	//	return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
 
 	default:
 		return "", fmt.Errorf("error response from BIGIP with status code %v", httpResp.StatusCode)
@@ -509,19 +514,19 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 	return unknownResponse
 }
 
-func (am *AS3Handler) removeDeletedTenantsForBigIP(as3Config map[string]interface{}, rsConfig *ResourceConfigRequest, cisLabel, partition string) {
-	for k, v := range as3Config {
-		if decl, ok := v.(map[string]interface{}); ok {
-			if label, found := decl["label"]; found && label == cisLabel && k != partition+"_gtm" {
-				if _, ok := rsConfig.ltmConfig[k]; !ok {
-					// adding an empty tenant to delete the tenant from BIGIP
-					priority := 1
-					rsConfig.ltmConfig[k] = &PartitionConfig{Priority: &priority}
-				}
-			}
-		}
-	}
-}
+//func (am *AS3Handler) removeDeletedTenantsForBigIP(as3Config map[string]interface{}, rsConfig *ResourceConfigRequest, cisLabel, partition string) {
+//	for k, v := range as3Config {
+//		if decl, ok := v.(map[string]interface{}); ok {
+//			if label, found := decl["label"]; found && label == cisLabel && k != partition+"_gtm" {
+//				if _, ok := rsConfig.ltmConfig[k]; !ok {
+//					// adding an empty tenant to delete the tenant from BIGIP
+//					priority := 1
+//					rsConfig.ltmConfig[k] = &PartitionConfig{Priority: &priority}
+//				}
+//			}
+//		}
+//	}
+//}
 
 // Creates AS3 adc only for tenants with updated configuration
 func (am *AS3Handler) createAPIConfig(rsConfig ResourceConfigRequest, ccclGTMAgent bool, userAgent string, gtmOnSeparateServer bool) agentPostConfig {
@@ -783,7 +788,7 @@ func (am *AS3Handler) pollTenantStatus(cfg *agentPostConfig) {
 	for cfg.acceptedTaskId != "" {
 		log.Debugf("[%s]%v waiting for %v before checking taskId %v", am.apiType, am.postManagerPrefix, cfg.timeout, cfg.acceptedTaskId)
 		<-time.After(cfg.timeout)
-		cfg.tenantResponseMap = make(map[string]tenantResponse)
+		//cfg.tenantResponseMap = make(map[string]tenantResponse)
 		am.verifyTenantConfigStatus(cfg.acceptedTaskId, cfg)
 	}
 }

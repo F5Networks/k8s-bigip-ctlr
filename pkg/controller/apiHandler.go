@@ -15,10 +15,18 @@ type PostManagerInterface interface {
 	setupBIGIPRESTClient()
 }
 
-func NewGTMAPIHandler(params AgentParams, respChan chan *agentPostConfig) *GTMAPIHandler {
-	gtm := &GTMAPIHandler{
-		BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP, respChan),
-		Partition:      DEFAULT_GTM_PARTITION,
+func NewGTMAPIHandler(params AgentParams, baseAPIHandler *BaseAPIHandler, respChan chan *agentPostConfig) *GTMAPIHandler {
+	var gtm *GTMAPIHandler
+	if baseAPIHandler == nil {
+		gtm = &GTMAPIHandler{
+			BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP, respChan),
+			Partition:      DEFAULT_GTM_PARTITION,
+		}
+	} else {
+		gtm = &GTMAPIHandler{
+			BaseAPIHandler: baseAPIHandler,
+			Partition:      DEFAULT_GTM_PARTITION,
+		}
 	}
 	switch params.ApiType {
 	case AS3:
@@ -47,9 +55,16 @@ func NewBaseAPIHandler(params AgentParams, kind string, respChan chan *agentPost
 	}
 }
 
-func NewLTMAPIHandler(params AgentParams, kind string, respChan chan *agentPostConfig) *LTMAPIHandler {
-	ltm := &LTMAPIHandler{
-		BaseAPIHandler: NewBaseAPIHandler(params, kind, respChan),
+func NewLTMAPIHandler(params AgentParams, kind string, baseAPIHandler *BaseAPIHandler, respChan chan *agentPostConfig) *LTMAPIHandler {
+	var ltm *LTMAPIHandler
+	if baseAPIHandler == nil {
+		ltm = &LTMAPIHandler{
+			BaseAPIHandler: NewBaseAPIHandler(params, kind, respChan),
+		}
+	} else {
+		ltm = &LTMAPIHandler{
+			BaseAPIHandler: baseAPIHandler,
+		}
 	}
 	// Initialize appropriate API handler based on type
 	switch params.ApiType {
@@ -142,43 +157,43 @@ func (api *BaseAPIHandler) IsBigIPAppServicesAvailable() error {
 	return api.APIHandler.getVersionsFromBigIPResponse(httpResp, responseMap)
 }
 
-func (api *BaseAPIHandler) GetDeclarationFromBigIP() (map[string]interface{}, error) {
-	url := api.APIHandler.getAPIURL([]string{})
+// func (api *BaseAPIHandler) GetDeclarationFromBigIP() (map[string]interface{}, error) {
+// 	url := api.APIHandler.getAPIURL([]string{})
 
-	req, err := api.createHTTPRequest(url, api.postManagerPrefix)
-	if err != nil {
-		return nil, fmt.Errorf("Internal Error")
-	}
-	httpResp, responseMap := api.httpReq(req)
-	if httpResp == nil || responseMap == nil {
-		return nil, fmt.Errorf("Internal Error")
-	}
+// 	req, err := api.createHTTPRequest(url, api.postManagerPrefix)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("Internal Error")
+// 	}
+// 	httpResp, responseMap := api.httpReq(req)
+// 	if httpResp == nil || responseMap == nil {
+// 		return nil, fmt.Errorf("Internal Error")
+// 	}
 
-	return api.APIHandler.getDeclarationFromBigIPResponse(httpResp, responseMap)
+// 	return api.APIHandler.getDeclarationFromBigIPResponse(httpResp, responseMap)
 
-}
+// }
 
-func (gtmApi *GTMAPIHandler) GetDeclarationFromBigIP(postManagerPrefix string) (map[string]interface{}, error) {
-	url := gtmApi.APIHandler.getAPIURL([]string{})
+// func (gtmApi *GTMAPIHandler) GetDeclarationFromBigIP(postManagerPrefix string) (map[string]interface{}, error) {
+// 	url := gtmApi.APIHandler.getAPIURL([]string{})
 
-	// Create HTTP request
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		log.Errorf("[%s]%v Creating new HTTP request error: %v ", gtmApi.apiType, postManagerPrefix, err)
-		return nil, err
-	}
+// 	// Create HTTP request
+// 	req, err := http.NewRequest("GET", url, nil)
+// 	if err != nil {
+// 		log.Errorf("[%s]%v Creating new HTTP request error: %v ", gtmApi.apiType, postManagerPrefix, err)
+// 		return nil, err
+// 	}
 
-	// Set basic auth credentials
-	req.SetBasicAuth(gtmApi.BIGIPUsername, gtmApi.BIGIPPassword)
+// 	// Set basic auth credentials
+// 	req.SetBasicAuth(gtmApi.BIGIPUsername, gtmApi.BIGIPPassword)
 
-	// Make HTTP request
-	httpResp, responseMap := gtmApi.httpReq(req)
-	if httpResp == nil || responseMap == nil {
-		return nil, fmt.Errorf("Internal Error")
-	}
+// 	// Make HTTP request
+// 	httpResp, responseMap := gtmApi.httpReq(req)
+// 	if httpResp == nil || responseMap == nil {
+// 		return nil, fmt.Errorf("Internal Error")
+// 	}
 
-	return gtmApi.APIHandler.getDeclarationFromBigIPResponse(httpResp, responseMap)
-}
+// 	return gtmApi.APIHandler.getDeclarationFromBigIPResponse(httpResp, responseMap)
+// }
 
 func (api *BaseAPIHandler) createHTTPRequest(url string, postManagerPrefix string) (*http.Request, error) {
 	// Create HTTP request
@@ -194,11 +209,11 @@ func (api *BaseAPIHandler) createHTTPRequest(url string, postManagerPrefix strin
 	return req, nil
 }
 
-func (api *BaseAPIHandler) publishConfig(cfg *agentPostConfig) {
-	log.Debugf("[%s]%v PostManager Accepted the configuration", api.apiType, api.postManagerPrefix)
-	// postConfig updates the tenantResponseMap with response codes
-	api.postConfig(cfg)
-}
+// func (api *BaseAPIHandler) publishConfig(cfg *agentPostConfig) {
+// 	log.Debugf("[%s]%v PostManager Accepted the configuration", api.apiType, api.postManagerPrefix)
+// 	// postConfig updates the tenantResponseMap with response codes
+// 	api.postConfig(cfg)
+// }
 
 func (api *BaseAPIHandler) PopulateAPIVersion() {
 	version, build, schemaVersion, err := api.GetBigIPAPIVersion()

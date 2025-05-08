@@ -19,7 +19,7 @@ type (
 		RespIndex int
 	}
 
-	responceCtx struct {
+	responseCtx struct {
 		tenant string
 		status float64
 		body   string
@@ -35,13 +35,13 @@ func newMockPostManager() *mockPostManager {
 	return mockPM
 }
 
-func (mockPM *mockPostManager) SetResponses(responces []responceCtx, method string) {
+func (mockPM *mockPostManager) SetResponses(responses []responseCtx, method string) {
 	var body string
 
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
 
-	for _, resp := range responces {
+	for _, resp := range responses {
 		if resp.body == "" {
 			if resp.status == http.StatusOK {
 				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}]}`,
@@ -81,7 +81,7 @@ var _ = Describe("Agent AS3 Tests", func() {
 			Expect(ok).To(BeTrue())
 			// Test Get BIGIP Reg key
 			tnt := "test"
-			mockPM.SetResponses([]responceCtx{{
+			mockPM.SetResponses([]responseCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
 				body:   `{"registrationKey": "sfiifhanji"}`,
@@ -90,7 +90,7 @@ var _ = Describe("Agent AS3 Tests", func() {
 			// test clean function
 			Expect(ag.Clean("test")).To(BeNil())
 			// set invalid status
-			mockPM.SetResponses([]responceCtx{{
+			mockPM.SetResponses([]responseCtx{{
 				tenant: tnt,
 				status: http.StatusServiceUnavailable,
 				body:   `{"registrationKey": "sfiifhanji"}`,

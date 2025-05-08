@@ -2,14 +2,17 @@ package controller
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"strings"
 	"sync"
 )
 
-var _ = Describe("Backend Tests", func() {
+var _ = Describe("AS3Handler Tests", func() {
 
 	Describe("Prepare AS3 Declaration", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
@@ -73,6 +76,7 @@ var _ = Describe("Backend Tests", func() {
 					},
 				},
 			}
+			rsCfg.Virtual.IRules = []string{"none", "/common/irule1", "/common/irule_2", "/common/http_redirect_irule"}
 			rsCfg.IRulesMap = IRulesMap{
 				NameRef{"custom_iRule", DEFAULT_PARTITION}: &IRule{
 					Name:      "custom_iRule",
@@ -83,6 +87,21 @@ var _ = Describe("Backend Tests", func() {
 					Name:      HttpRedirectIRuleName,
 					Partition: DEFAULT_PARTITION,
 					Code:      "tcl code blocks",
+				},
+			}
+			rsCfg.IntDgMap = InternalDataGroupMap{
+				NameRef{"static-internal-dg", "test"}: DataGroupNamespaceMap{
+					"intDg1": &InternalDataGroup{
+						Name:      "static-internal-dg",
+						Partition: "test",
+						Type:      "string",
+						Records: []InternalDataGroupRecord{
+							{
+								Name: "apiTye",
+								Data: AS3,
+							},
+						},
+					},
 				},
 			}
 			rsCfg.Policies = Policies{
@@ -130,6 +149,80 @@ var _ = Describe("Backend Tests", func() {
 									Equals:      true,
 									Values:      []string{"/foo"},
 									Request:     true,
+								},
+							},
+							Actions: []*action{
+								{
+									Forward:       true,
+									Request:       true,
+									Redirect:      true,
+									HTTPURI:       true,
+									HTTPHost:      true,
+									Pool:          "default_svc_2",
+									Log:           true,
+									Location:      PrimaryBigIP,
+									Message:       "log action",
+									Replace:       true,
+									Value:         "urihost",
+									WAF:           true,
+									Policy:        "/common/policy3",
+									Enabled:       true,
+									Drop:          true,
+									PersistMethod: SourceAddress,
+								},
+								{
+									PersistMethod: DestinationAddress,
+								},
+								{
+									PersistMethod: CookieHash,
+								},
+								{
+									PersistMethod: CookieInsert,
+								},
+								{
+									PersistMethod: CookieRewrite,
+								},
+								{
+									PersistMethod: CookiePassive,
+								},
+								{
+									PersistMethod: Universal,
+								},
+								{
+									PersistMethod: Carp,
+								},
+								{
+									PersistMethod: Hash,
+								},
+								{
+									PersistMethod: Disable,
+								},
+								{
+									PersistMethod: "Disable",
+								},
+							},
+						},
+					},
+				},
+				Policy{
+					Name:     "policy3",
+					Strategy: "first-match",
+					Rules: Rules{
+						&Rule{
+							Conditions: []*condition{
+								{
+									Path:    true,
+									Name:    "condition3",
+									Values:  []string{"/common/test"},
+									HTTPURI: true,
+									Equals:  true,
+									Index:   3,
+								},
+								{
+									Tcp:     true,
+									Address: true,
+									Values:  []string{"10.10.10.10"},
+									Request: true,
 								},
 							},
 							Actions: []*action{
@@ -403,6 +496,17 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.Destination = "172.13.14.6:1600"
 			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			rsCfg.Virtual.ProfileL4 = "/Common/profileL4"
+			rsCfg.Virtual.ProfileDOS = "/Common/profileDOS"
+			rsCfg.Virtual.ProfileBotDefense = "/Common/profileBotDefense"
+			rsCfg.Virtual.TCP.Client = "/Common/tcpClient"
+			rsCfg.Virtual.TCP.Server = "/Common/tcpServer"
+			rsCfg.Virtual.TranslateServerAddress = true
+			rsCfg.Virtual.TranslateServerPort = true
+			rsCfg.Virtual.Source = "ts"
+			rsCfg.Virtual.PoolName = "/Common/customPool"
+			rsCfg.Virtual.Destination = "/test/172.13.14.15:8080"
+
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:            "pool1",
@@ -428,6 +532,62 @@ var _ = Describe("Backend Tests", func() {
 			Expect(strings.Contains(decl, "adminState")).To(BeTrue())
 			Expect(strings.Contains(decl, "connectionLimit")).To(BeTrue())
 			Expect(strings.Contains(decl, "profileFTP")).To(BeTrue())
+
+		})
+		It("Ingresslink Declaration", func() {
+			rsCfg := &ResourceConfig{}
+			rsCfg.MetaData.Active = true
+			rsCfg.MetaData.ResourceType = IngressLink
+			rsCfg.Virtual.Name = "crd_il_172.13.14.16"
+			rsCfg.Virtual.IpProtocol = "http"
+			rsCfg.Virtual.ProfileL4 = "/Common/profileL4"
+			rsCfg.Virtual.ProfileDOS = "/Common/profileDOS"
+			rsCfg.Virtual.ProfileBotDefense = "/Common/profileBotDefense"
+			rsCfg.Virtual.TCP.Client = "/Common/tcpClient"
+			rsCfg.Virtual.TCP.Server = "/Common/tcpServer"
+			rsCfg.Virtual.Profiles = ProfileRefs{
+				ProfileRef{
+					Name:      "serverssl",
+					Partition: "Common",
+					Context:   "udp",
+				},
+				ProfileRef{
+					Name:         "clientssl",
+					Partition:    "Common",
+					Context:      "udp",
+					BigIPProfile: true,
+				},
+			}
+			rsCfg.Virtual.TranslateServerAddress = true
+			rsCfg.Virtual.TranslateServerPort = true
+			rsCfg.Virtual.Source = "inglink"
+			rsCfg.Virtual.PoolName = "/Common/customPool"
+			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
+			rsCfg.Pools = Pools{
+				Pool{
+					Name:            "pool1",
+					Members:         []PoolMember{mem1, mem2},
+					MinimumMonitors: intstr.IntOrString{Type: 0, IntVal: 1},
+				},
+			}
+
+			config := ResourceConfigRequest{
+				ltmConfig:          make(LTMConfig),
+				shareNodes:         true,
+				gtmConfig:          GTMConfig{},
+				defaultRouteDomain: 1,
+			}
+
+			zero := 0
+			config.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+			config.ltmConfig["default"].ResourceMap["crd_il_172.13.14.16"] = rsCfg
+
+			agentPostCfg := as3Handler.createAPIConfig(config, false, "", false)
+			decl := agentPostCfg.data
+			Expect(decl).ToNot(Equal(""), "Failed to Create AS3 Declaration")
+			Expect(strings.Contains(decl, "adminState")).To(BeTrue())
+			Expect(strings.Contains(decl, "connectionLimit")).To(BeTrue())
+			Expect(strings.Contains(decl, "profileL4")).To(BeTrue())
 
 		})
 		It("Delete partition", func() {
@@ -633,6 +793,64 @@ var _ = Describe("Backend Tests", func() {
 		It("Verify two equal JSONs", func() {
 			ok := DeepEqualJSON(`{"key": "value"}`, `{"key": "value"}`)
 			Expect(ok).To(BeTrue())
+		})
+	})
+
+	Describe("Poll tenant status", func() {
+		var agent *Agent
+		var config *agentPostConfig
+		var mockBaseAPIHandler *BaseAPIHandler
+		BeforeEach(func() {
+			agent = &Agent{}
+			mockBaseAPIHandler = newMockBaseAPIHandler()
+			tenantDeclMap := make(map[string]as3Tenant)
+			tenantResponseMap := make(map[string]tenantResponse)
+			tenantResponseMap["test"] = tenantResponse{}
+			tenantDeclMap["test"] = as3Tenant{
+				"class":              "Tenant",
+				"defaultRouteDomain": 0,
+				as3SharedApplication: "shared",
+				"label":              "cis2.x",
+			}
+			config = &agentPostConfig{
+				acceptedTaskId: "123",
+				reqMeta: requestMeta{
+					id: 1,
+				},
+				as3APIURL:             "https://127.0.0.1/mgmt/shared/appsvcs/declare",
+				data:                  `{"class": "AS3", "declaration": {"class": "ADC", "test": {"class": "Tenant", "testApp": {"class": "Application", "webcert":{"class": "Certificate", "certificate": "abc", "privateKey": "abc", "chainCA": "abc"}}}}}`,
+				incomingTenantDeclMap: tenantDeclMap,
+				tenantResponseMap:     tenantResponseMap,
+			}
+		})
+		It("Verify tenant status", func() {
+			mockBaseAPIHandler.httpClient, _ = getMockHttpClient([]responseCtx{{
+				tenant: "test",
+				status: http.StatusOK,
+				body:   io.NopCloser(strings.NewReader("{\"results\": [{\"code\": 200, \"message\": \"success\", \"tenant\": \"test\"}], \"declaration\": {\"class\": \"ADC\", \"test\": {\"class\": \"Tenant\", \"testApp\": {\"class\": \"Application\", \"webcert\":{\"class\": \"Certificate\", \"certificate\": \"abc\", \"privateKey\": \"abc\", \"chainCA\": \"abc\"}}}}}")),
+			}, {
+				tenant: "test",
+				status: http.StatusUnprocessableEntity,
+				body:   io.NopCloser(strings.NewReader("{\"id\": \"123\"}")),
+			}}, http.MethodGet)
+			agent.APIHandler = &APIHandler{
+				LTM: &LTMAPIHandler{
+					BaseAPIHandler: mockBaseAPIHandler,
+				},
+				GTM: &GTMAPIHandler{
+					BaseAPIHandler: mockBaseAPIHandler,
+				},
+			}
+
+			// verify status ok
+			agent.LTM.APIHandler.pollTenantStatus(config)
+			Expect(config.acceptedTaskId).To(BeEmpty(), "Accepted task id should be empty")
+			Expect(config.tenantResponseMap["test"].agentResponseCode).To(Equal(http.StatusOK), "Response code should be 200")
+
+			config.acceptedTaskId = "123"
+			agent.LTM.APIHandler.pollTenantStatus(config)
+			Expect(config.acceptedTaskId).To(BeEmpty(), "Accepted task id should be empty")
+			Expect(config.tenantResponseMap["test"].agentResponseCode).To(Equal(http.StatusUnprocessableEntity), "Response code should be 422")
 		})
 	})
 

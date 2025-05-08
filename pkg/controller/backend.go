@@ -17,11 +17,12 @@
 package controller
 
 import (
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"strconv"
 	"strings"
 	"time"
+
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 var DEFAULT_PARTITION string
@@ -47,10 +48,6 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 	if agent.APIHandler.GTM == nil {
 		// Convert ResourceConfigRequest to as3Config
 		agentConfig = agent.LTM.APIHandler.createAPIConfig(rsConfigRequest, agent.ccclGTMAgent, agent.userAgent, agent.gtmOnSeparateServer)
-		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("[%s]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.LTM.apiType, agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
-			return
-		}
 		agentConfig.as3APIURL = agent.LTM.APIHandler.getAPIURL([]string{})
 		if agent.APIHandler.LTM.postManagerPrefix == secondaryPostmanagerPrefix {
 			agentConfig.agentKind = SecondaryBigIP
@@ -61,10 +58,6 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 	} else {
 		log.Debugf("%s[%s]%v Posting ResourceConfigRequest: %+v\n", getRequestPrefix(rsConfigRequest.reqMeta.id), agent.APIHandler.LTM.apiType, agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
 		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent, agent.gtmOnSeparateServer)
-		if len(agentConfig.incomingTenantDeclMap) == 0 {
-			log.Infof("[%s]%v No tenants found in ResourceConfigRequest %+v\n", agent.APIHandler.LTM.apiType, agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
-			return
-		}
 		agentConfig.as3APIURL = agent.GTM.APIHandler.getAPIURL([]string{})
 		agentConfig.agentKind = GTMBigIP
 	}
@@ -109,7 +102,8 @@ func (agent *Agent) agentWorker() {
 		// this post manager lock prevents that tenant cache map is not read by other components
 		// while this post manager is processing this request
 		agent.LTM.PostManager.declUpdate.Lock()
-		agent.LTM.publishConfig(agentConfig)
+
+		agent.LTM.postConfig(agentConfig)
 		/*
 			If there are any tenants with 201 response code,
 			poll for its status continuously and block incoming requests

@@ -195,9 +195,13 @@ func (ctlr *Controller) getPrimaryClusterHealthStatus() {
 		if !status {
 			ctlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning = false
 			ctlr.enqueuePrimaryClusterProbeEvent()
+			// primary CIS down.so set the resource status on primary to standy
+			go ctlr.updateSecondaryClusterResourcesStatus(ctlr.multiClusterHandler.HAPairClusterName)
 		} else {
 			log.Infof("[MultiCluster] Primary CIS is active and secondary CIS is moving to inactive state")
 			ctlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning = true
+			// primary CIS active, change the resource status on secondary to standby
+			go ctlr.updateSecondaryClusterResourcesStatus(ctlr.multiClusterHandler.LocalClusterName)
 		}
 		//update cccl global section with primary cluster running status
 		doneCh, errCh, err := ctlr.RequestHandler.PrimaryBigIPWorker.ConfigWriter.SendSection("primary-cluster-status", ctlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning)

@@ -73,9 +73,6 @@ func (ctlr *Controller) nextGenResourceWorker() {
 		//if primary cis is active.then set local cluster to standby
 		if ctlr.PrimaryClusterHealthProbeParams.statusRunning {
 			go ctlr.updateSecondaryClusterResourcesStatus(ctlr.multiClusterHandler.LocalClusterName)
-		} else {
-			//if primary cis is down, set the primary cluster resource status to standby
-			go ctlr.updateSecondaryClusterResourcesStatus(ctlr.multiClusterHandler.HAPairClusterName)
 		}
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
@@ -5478,111 +5475,105 @@ func (ctlr *Controller) updateSecondaryClusterResourcesStatus(secondaryClusterNa
 	// Get watched namespaces in the secondary cluster
 	namespaces := ctlr.getWatchingNamespaces(secondaryClusterName)
 	for _, ns := range namespaces {
+		//get crInf for cluster
+		crInf, found := ctlr.getNamespacedCRInformer(ns, secondaryClusterName)
+		if !found {
+			log.Debugf("custom resource informer not found for ns %s in cluster %s", ns, secondaryClusterName)
+			continue
+		}
 		// Process VirtualServers using direct API calls
-		vsList, err := clusterConfig.kubeCRClient.CisV1().VirtualServers(ns).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Errorf("Failed to list VirtualServers in namespace %s: %v", ns, err)
-		} else {
-			log.Debugf("Processing %d VirtualServers in namespace %s", len(vsList.Items), ns)
-			for _, vs := range vsList.Items {
-				// Create a status patch
-				statusPatch := struct {
-					Status cisapiv1.CustomResourceStatus `json:"status"`
-				}{
-					Status: cisapiv1.CustomResourceStatus{
-						Status: "standby",
-					},
-				}
+		vsList := crInf.vsInformer.GetIndexer().List()
+		log.Debugf("Processing %d VirtualServers in namespace %s", len(vsList), ns)
+		for _, obj := range vsList {
+			vs := obj.(*cisapiv1.VirtualServer)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
 
-				patchBytes, err := json.Marshal(statusPatch)
-				if err != nil {
-					log.Errorf("Failed to marshal status patch for VirtualServer %s/%s: %v", vs.Namespace, vs.Name, err)
-					continue
-				}
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for VirtualServer %s/%s: %v", vs.Namespace, vs.Name, err)
+				continue
+			}
+			_, err = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.Namespace).Patch(
+				context.TODO(),
+				vs.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
 
-				_, err = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.Namespace).Patch(
-					context.TODO(),
-					vs.Name,
-					types.MergePatchType,
-					patchBytes,
-					metav1.PatchOptions{},
-					"status")
-
-				if err != nil {
-					log.Errorf("Failed to update VirtualServer %s/%s status: %v", vs.Namespace, vs.Name, err)
-				}
+			if err != nil {
+				log.Errorf("Failed to update VirtualServer %s/%s status: %v", vs.Namespace, vs.Name, err)
 			}
 		}
 
-		// Process TransportServers using direct API calls
-		tsList, err := clusterConfig.kubeCRClient.CisV1().TransportServers(ns).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Errorf("Failed to list TransportServers in namespace %s: %v", ns, err)
-		} else {
-			log.Debugf("Processing %d TransportServers in namespace %s", len(tsList.Items), ns)
-			for _, ts := range tsList.Items {
-				// Create a status patch
-				statusPatch := struct {
-					Status cisapiv1.CustomResourceStatus `json:"status"`
-				}{
-					Status: cisapiv1.CustomResourceStatus{
-						Status: "standby",
-					},
-				}
+		// update TransportServer status
+		tsList := crInf.tsInformer.GetIndexer().List()
+		for _, obj := range tsList {
+			ts := obj.(*cisapiv1.TransportServer)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
 
-				patchBytes, err := json.Marshal(statusPatch)
-				if err != nil {
-					log.Errorf("Failed to marshal status patch for TransportServer %s/%s: %v", ts.Namespace, ts.Name, err)
-					continue
-				}
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for TransportServer %s/%s: %v", ts.Namespace, ts.Name, err)
+				continue
+			}
 
-				_, err = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.Namespace).Patch(
-					context.TODO(),
-					ts.Name,
-					types.MergePatchType,
-					patchBytes,
-					metav1.PatchOptions{},
-					"status")
+			_, err = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.Namespace).Patch(
+				context.TODO(),
+				ts.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
 
-				if err != nil {
-					log.Errorf("Failed to update TransportServer %s/%s status: %v", ts.Namespace, ts.Name, err)
-				}
+			if err != nil {
+				log.Errorf("Failed to update TransportServer %s/%s status: %v", ts.Namespace, ts.Name, err)
 			}
 		}
 
-		// Process IngressLinks using direct API calls
-		ilList, err := clusterConfig.kubeCRClient.CisV1().IngressLinks(ns).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Errorf("Failed to list IngressLinks in namespace %s: %v", ns, err)
-		} else {
-			log.Debugf("Processing %d IngressLinks in namespace %s", len(ilList.Items), ns)
-			for _, il := range ilList.Items {
-				// Create a status patch
-				statusPatch := struct {
-					Status cisapiv1.CustomResourceStatus `json:"status"`
-				}{
-					Status: cisapiv1.CustomResourceStatus{
-						Status: "standby",
-					},
-				}
+		// update ingressLink status
+		ilList := crInf.ilInformer.GetIndexer().List()
+		for _, obj := range ilList {
+			il := obj.(*cisapiv1.IngressLink)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
 
-				patchBytes, err := json.Marshal(statusPatch)
-				if err != nil {
-					log.Errorf("Failed to marshal status patch for IngressLink %s/%s: %v", il.Namespace, il.Name, err)
-					continue
-				}
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for IngressLink %s/%s: %v", il.Namespace, il.Name, err)
+				continue
+			}
 
-				_, err = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.Namespace).Patch(
-					context.TODO(),
-					il.Name,
-					types.MergePatchType,
-					patchBytes,
-					metav1.PatchOptions{},
-					"status")
+			_, err = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.Namespace).Patch(
+				context.TODO(),
+				il.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
 
-				if err != nil {
-					log.Errorf("Failed to update IngressLink %s/%s status: %v", il.Namespace, il.Name, err)
-				}
+			if err != nil {
+				log.Errorf("Failed to update IngressLink %s/%s status: %v", il.Namespace, il.Name, err)
 			}
 		}
 	}

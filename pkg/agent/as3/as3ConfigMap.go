@@ -208,24 +208,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				if len(eps) == 0 {
 					continue
 				}
-				// var poolMem []map[string]interface{}
-				// for _, mem := range (poolObj["members"]).([]interface{}) {
-				// 	poolMemPriorityGroup := mem.(map[string]interface{})["priorityGroup"]
-				// 	if poolMemPriorityGroup == nil {
-				// 		poolMemPriorityGroup = 0
-				// 	}
-				// 	for _, ep := range eps {
-				// 		if ep.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
-				// 			memJson, _ := json.Marshal(mem.(map[string]interface{}))
-				// 			memString := string(memJson)
-				// 			if _, ok := uniqueMembersMap[memString]; !ok {
-				// 				uniqueMembersMap[memString] = true
-				// 				poolMem = append(poolMem, mem.(map[string]interface{}))
-				// 			}
-				// 		}
-				// 	}
-				// }
-
+				
 				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
 				var poolMembers []map[string]interface{}
 				if am.poolMemberType == NodePortLocal {

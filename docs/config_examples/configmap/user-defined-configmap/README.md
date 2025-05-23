@@ -122,8 +122,9 @@ When using CIS with AS3 the behaviours are different The following needs to appl
 * When adding new services use the kubectl apply command
 * For configmaps to monitor services in different namespaces, leverage `hubmode` CIS deployment parameter. 
 
-# New label `cis.f5.com/as3-pool-member-priorityGroup`
+# Additional Configuration Parameters
 
+## as3-pool-member-priorityGroup label:
 * Introduced a new optional label `cis.f5.com/as3-pool-member-priorityGroup` where it accepts the value of the priorityGroup. With this label, the pool member with the matching priorityGroup will be selected, which gives fine grained control over the creation of pools with the pool members. Sample service config:
 ```
 labels:

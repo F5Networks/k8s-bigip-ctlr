@@ -74,9 +74,8 @@ func (reqHandler *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRe
 func (reqHandler *RequestHandler) requestHandler() {
 	log.Debug("Starting requestHandler")
 	for rsConfig := range reqHandler.reqChan {
-
-		// If CIS is running in non multi-cluster mode or the Primary CIS status is changed
-		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && reqHandler.PrimaryClusterHealthProbeParams.statusChanged) {
+		// If CIS is running in non multi-cluster mode,primary or its the secondary and the Primary CIS status down
+		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && !reqHandler.PrimaryClusterHealthProbeParams.statusRunning) {
 			// Post LTM config based on HA mode
 			if reqHandler.HAMode && reqHandler.SecondaryBigIPWorker != nil {
 				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), primaryPostmanagerPrefix)
@@ -91,11 +90,6 @@ func (reqHandler *RequestHandler) requestHandler() {
 			if reqHandler.GTMBigIPWorker != nil {
 				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), gtmPostmanagerPrefix)
 				reqHandler.GTMBigIPWorker.PostConfig(rsConfig)
-			}
-		} else {
-			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
-			if !reqHandler.PrimaryClusterHealthProbeParams.statusRunning {
-				log.Debugf("%s No change in request", getRequestPrefix(rsConfig.reqMeta.id))
 			}
 		}
 	}

@@ -1,8 +1,13 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"io"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"net/http"
 	"strings"
 	"testing"
@@ -437,6 +442,38 @@ func (m *mockController) updateStatusNode(node *v1.Node, ns string) {
 	if m.resourceQueue != nil {
 		m.SetupNodeProcessing("")
 	}
+}
+
+// addBlockAffinity adds a Calico BlockAffinity resource to the dynamic informer
+func (m *mockController) addBlockAffinity(name, namespace, nodeName, cidr string, dynamicClient *dynamicfake.FakeDynamicClient) error {
+	// Define the GVR for BlockAffinity
+	blockAffinityGVR := schema.GroupVersionResource{
+		Group:    "crd.projectcalico.org",
+		Version:  "v1",
+		Resource: "blockaffinities",
+	}
+	// Create unstructured BlockAffinity object
+	ba := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "crd.projectcalico.org/v1",
+			"kind":       "BlockAffinity",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"node": nodeName,
+				"cidr": cidr,
+			},
+		},
+	}
+	// Add to store
+	m.multiClusterHandler.ClusterConfigs[""].InformerStore.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetStore().Add(ba)
+	// Add to client
+	_, err := dynamicClient.Resource(blockAffinityGVR).
+		Namespace(namespace).
+		Create(context.TODO(), ba, metav1.CreateOptions{})
+	return err
 }
 
 //func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {

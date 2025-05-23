@@ -208,7 +208,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				if len(eps) == 0 {
 					continue
 				}
-				
+
 				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
 				var poolMembers []map[string]interface{}
 				if am.poolMemberType == NodePortLocal {

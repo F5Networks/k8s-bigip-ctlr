@@ -5,6 +5,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -367,6 +371,70 @@ var _ = Describe("Node Poller Handler", func() {
 		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))
+		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
+		// OrchestrationCNI = CALICO_K8S with static routing mode
+		mockCtlr.OrchestrationCNI = CALICO_K8S
+		mockCtlr.UseNodeInternal = true
+		mockCtlr.StaticRoutingMode = true
+		// Create a fake dynamic client
+		scheme := runtime.NewScheme()
+		// Register the Calico types
+		scheme.AddKnownTypeWithName(
+			schema.GroupVersionKind{
+				Group:   "crd.projectcalico.org",
+				Version: "v1",
+				Kind:    "BlockAffinity",
+			},
+			&unstructured.Unstructured{},
+		)
+		scheme.AddKnownTypeWithName(
+			schema.GroupVersionKind{
+				Group:   "crd.projectcalico.org",
+				Version: "v1",
+				Kind:    "BlockAffinityList",
+			},
+			&unstructured.UnstructuredList{},
+		)
+
+		dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
+		// Add block affinity resources to the fake dynamic client
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].dynamicClient = dynamicClient
+		// Add iinformers for dynamic client
+		mockCtlr.newDynamicInformersForCluster(dynamicClient, "")
+		//Add blockaffinity objects to dynamic client
+
+		mockCtlr.addBlockAffinity("blockaffinity-1", "", "worker1", "10.244.1.0/24", dynamicClient)
+		mockCtlr.addBlockAffinity("blockaffinity-2", "", "worker2", "10.244.2.0/24", dynamicClient)
+		bacidrs := mockCtlr.GetNodePodCIDRMap()
+		Expect(bacidrs).To(HaveLen(2))
+		Expect(bacidrs[0].baName).To(Equal("blockaffinity-1"))
+		Expect(bacidrs[1].baName).To(Equal("blockaffinity-2"))
+		// Update node with internal IP
+		for i, _ := range nodeObjs {
+			// update node with calico node ip annotation
+			nodeObjs[i].Annotations["projectcalico.org/IPv4Address"] = "1.2.3.4"
+			nodeObjs[i].Status.Addresses = []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "1.2.3.4"},
+			}
+			mockCtlr.updateNode(&nodeObjs[i], namespace)
+		}
+
+		mockCtlr.SetupNodeProcessing("")
+		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
+		Expect(ok).To(Equal(true))
+		Expect(len(mockWriter.Sections)).To(Equal(1))
+
+		expectedRouteSection = routeSection{
+			Entries: []routeConfig{
+				{
+					Name:        "k8s-blockaffinity-1",
+					Network:     "10.244.1.0/24",
+					Gateway:     "1.2.3.4",
+					Description: cisIdentifier,
+				},
+			},
+			CISIdentifier: cisIdentifier,
+		}
 		Expect(mockWriter.Sections["static-routes"]).To(Equal(expectedRouteSection))
 		mockCtlr.resourceQueue.ShutDown()
 

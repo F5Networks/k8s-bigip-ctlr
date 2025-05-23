@@ -149,7 +149,7 @@ const (
 )
 
 // NewController creates a new Controller Instance.
-func NewController(params Params, startController bool, agentParams AgentParams, handler *RequestHandler, td *teem.TeemsData) *Controller {
+func NewController(params Params, startController bool, agentParams AgentParams, handler *RequestHandler, td *teem.TeemsData, baseAPIHandler *BaseAPIHandler) *Controller {
 
 	ctlr := &Controller{
 		resources:                   NewResourceStore(),
@@ -177,7 +177,7 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		TeemData:                    td,
 	}
 	if handler == nil {
-		ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams)
+		ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams, baseAPIHandler)
 	} else {
 		ctlr.RequestHandler = handler
 	}

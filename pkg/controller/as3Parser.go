@@ -52,11 +52,11 @@ func (ap *AS3Parser) getDeletedTenantDeclaration(tenant, cisLabel string, defaul
 
 func (ap *AS3Parser) processIRulesForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
 	// Skip processing IRules for "None" value
-	for _, v := range rsCfg.Virtual.IRules {
-		if v == "none" {
-			continue
-		}
-	}
+	//for _, v := range rsCfg.Virtual.IRules {
+	//	if v == "none" {
+	//		continue
+	//	}
+	//}
 	// Create irule declaration
 	for _, v := range rsCfg.IRulesMap {
 		iRule := &as3IRules{}
@@ -68,11 +68,11 @@ func (ap *AS3Parser) processIRulesForAS3(rsCfg *ResourceConfig, sharedApp as3App
 
 func (ap *AS3Parser) processDataGroupForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
 	// Skip processing DataGroup for "None" iRule value
-	for _, v := range rsCfg.Virtual.IRules {
-		if v == "none" {
-			continue
-		}
-	}
+	//for _, v := range rsCfg.Virtual.IRules {
+	//	if v == "none" {
+	//		continue
+	//	}
+	//}
 	for _, idg := range rsCfg.IntDgMap {
 		for _, dg := range idg {
 			dataGroupRecord, found := sharedApp[dg.Name]
@@ -613,9 +613,6 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 		if v.Forward {
 			action.Type = "forward"
 		}
-		if v.Log {
-			action.Type = "log"
-		}
 		if v.Request {
 			action.Event = "request"
 		}
@@ -632,6 +629,7 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 			action.Location = v.Location
 		}
 		if v.Log {
+			action.Type = "log"
 			action.Write = &as3LogMessage{
 				Message: v.Message,
 			}
@@ -667,7 +665,7 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 				BigIP: v.Policy,
 			}
 		}
-		if v.Enabled != nil {
+		if v.Enabled {
 			action.Enabled = v.Enabled
 		}
 		// Add drop action if specified
@@ -676,24 +674,20 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 		}
 
 		if v.PersistMethod != "" {
+			action.Event = "request"
+			action.Type = "persist"
 			switch v.PersistMethod {
 			case SourceAddress:
-				action.Event = "request"
-				action.Type = "persist"
 				action.SourceAddress = &PersistMetaData{
 					Netmask: v.Netmask,
 					Timeout: v.Timeout,
 				}
 			case DestinationAddress:
-				action.Event = "request"
-				action.Type = "persist"
 				action.DestinationAddress = &PersistMetaData{
 					Netmask: v.Netmask,
 					Timeout: v.Timeout,
 				}
 			case CookieHash:
-				action.Event = "request"
-				action.Type = "persist"
 				action.CookieHash = &PersistMetaData{
 					Timeout: v.Timeout,
 					Offset:  v.Offset,
@@ -701,49 +695,35 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 					Name:    v.Name,
 				}
 			case CookieInsert:
-				action.Event = "request"
-				action.Type = "persist"
 				action.CookieInsert = &PersistMetaData{
 					Name:   v.Name,
 					Expiry: v.Expiry,
 				}
 			case CookieRewrite:
-				action.Event = "request"
-				action.Type = "persist"
 				action.CookieRewrite = &PersistMetaData{
 					Name:   v.Name,
 					Expiry: v.Expiry,
 				}
 			case CookiePassive:
-				action.Event = "request"
-				action.Type = "persist"
 				action.CookiePassive = &PersistMetaData{
 					Name: v.Name,
 				}
 			case Universal:
-				action.Event = "request"
-				action.Type = "persist"
 				action.Universal = &PersistMetaData{
 					Key:     v.Key,
 					Timeout: v.Timeout,
 				}
 			case Carp:
-				action.Event = "request"
-				action.Type = "persist"
 				action.Carp = &PersistMetaData{
 					Key:     v.Key,
 					Timeout: v.Timeout,
 				}
 			case Hash:
-				action.Event = "request"
-				action.Type = "persist"
 				action.Hash = &PersistMetaData{
 					Key:     v.Key,
 					Timeout: v.Timeout,
 				}
 			case Disable:
-				action.Event = "request"
-				action.Type = "persist"
 				action.Disable = &PersistMetaData{}
 			default:
 				log.Warning("provide a persist method value from sourceAddress, destinationAddress, cookieInsert, cookieRewrite, cookiePassive, cookieHash, universal, hash, and carp")
@@ -754,24 +734,24 @@ func (ap *AS3Parser) createRuleAction(rl *Rule, rulesData *as3Rule) {
 	}
 }
 
-func (ap *AS3Parser) DeepEqualJSON(decl1, decl2 as3Declaration) bool {
-	if decl1 == "" && decl2 == "" {
-		return true
-	}
-	var o1, o2 interface{}
-
-	err := json.Unmarshal([]byte(decl1), &o1)
-	if err != nil {
-		return false
-	}
-
-	err = json.Unmarshal([]byte(decl2), &o2)
-	if err != nil {
-		return false
-	}
-
-	return reflect.DeepEqual(o1, o2)
-}
+//func (ap *AS3Parser) DeepEqualJSON(decl1, decl2 as3Declaration) bool {
+//	if decl1 == "" && decl2 == "" {
+//		return true
+//	}
+//	var o1, o2 interface{}
+//
+//	err := json.Unmarshal([]byte(decl1), &o1)
+//	if err != nil {
+//		return false
+//	}
+//
+//	err = json.Unmarshal([]byte(decl2), &o2)
+//	if err != nil {
+//		return false
+//	}
+//
+//	return reflect.DeepEqual(o1, o2)
+//}
 
 func (ap *AS3Parser) processProfilesForAS3(rsCfg *ResourceConfig, sharedApp as3Application) {
 	if svc, ok := sharedApp[rsCfg.Virtual.Name].(*as3Service); ok {

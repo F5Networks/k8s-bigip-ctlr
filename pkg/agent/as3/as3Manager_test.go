@@ -322,7 +322,7 @@ var _ = Describe("AS3Manager Tests", func() {
 		It("Check BigIP App services available", func() {
 			mockPM := newMockPostManger()
 			mockMgr.PostManager = mockPM.PostManager
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusOK,
@@ -330,7 +330,7 @@ var _ = Describe("AS3Manager Tests", func() {
 				},
 			}, http.MethodGet)
 			Expect(mockMgr.IsBigIPAppServicesAvailable()).To(BeNil())
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusOK,
@@ -341,7 +341,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			Expect(mockMgr.as3Version).To(Equal(defaultAS3Version))
 			Expect(mockMgr.as3Release).To(Equal(defaultAS3Version + "-" + defaultAS3Build))
 			Expect(mockMgr.as3SchemaVersion).To(Equal(fmt.Sprintf("%.2f.0", as3Version)))
-			mockPM.setResponses([]responceCtx{
+			mockPM.setResponses([]responseCtx{
 				{
 					tenant: "test",
 					status: http.StatusOK,
@@ -374,7 +374,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockPM.AS3PostDelay = 2
 			mockMgr.PostManager = mockPM.PostManager
 			go mockMgr.ConfigDeployer()
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: "test",
 				status: http.StatusOK,
 				body:   "",
@@ -409,7 +409,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			tnt := "test"
 			mockPM := newMockPostManger()
 			mockMgr.PostManager = mockPM.PostManager
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: tnt,
 				status: http.StatusOK,
 				body:   "",
@@ -435,7 +435,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3ActiveConfig.tenantMap["Tenant2"] = true
 			mockPM := newMockPostManger()
 			mockMgr.PostManager = mockPM.PostManager
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: "Tenant1",
 				status: http.StatusOK,
 				body:   ""},
@@ -483,7 +483,7 @@ var _ = Describe("AS3Manager Tests", func() {
 		It("Clean CIS managed Partition", func() {
 			mockPM := newMockPostManger()
 			mockMgr.PostManager = mockPM.PostManager
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: "Tenant1",
 				status: http.StatusOK,
 				body:   ""},
@@ -495,7 +495,7 @@ var _ = Describe("AS3Manager Tests", func() {
 		It("Handle Post Failures", func() {
 			mockPM := newMockPostManger()
 			mockMgr.PostManager = mockPM.PostManager
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: "Tenant1",
 				status: http.StatusOK,
 				body:   ""},
@@ -507,7 +507,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.FilterTenants = true
 			// setting failed tenant context
 			mockMgr.failedContext.failedTenants["Tenant1"] = as3Declaration("")
-			mockPM.setResponses([]responceCtx{{
+			mockPM.setResponses([]responseCtx{{
 				tenant: "Tenant1",
 				status: http.StatusOK,
 				body:   ""},

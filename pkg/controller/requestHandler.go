@@ -1,16 +1,17 @@
 package controller
 
 import (
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"os"
 	"strings"
 	"time"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 var OsExit = os.Exit
 
-func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandler {
+func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, baseAPIHandler *BaseAPIHandler) *RequestHandler {
 	var refreshTokenInterval time.Duration
 	if agentParams.RefreshTokenInterval != 0 {
 		refreshTokenInterval = time.Duration(agentParams.RefreshTokenInterval) * time.Hour
@@ -25,7 +26,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 	}
 	gtmOnSeparateBigIPServer := isGTMOnSeparateServer(agentParams)
 	if (agentParams.PrimaryParams != PostParams{}) {
-		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, gtmOnSeparateBigIPServer)
+		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
 		// start the token manager
 		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
@@ -33,7 +34,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
-		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, gtmOnSeparateBigIPServer)
+		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
 		// start the token manager
 		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
@@ -42,7 +43,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams) *RequestHandl
 	}
 	// Run the GTM Agent only in case of separate server and not in cccl mode
 	if gtmOnSeparateBigIPServer && !agentParams.CCCLGTMAgent {
-		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, gtmOnSeparateBigIPServer)
+		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		// start the token manager
 		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
@@ -73,9 +74,8 @@ func (reqHandler *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRe
 func (reqHandler *RequestHandler) requestHandler() {
 	log.Debug("Starting requestHandler")
 	for rsConfig := range reqHandler.reqChan {
-
-		// If CIS is running in non multi-cluster mode or the Primary CIS status is changed
-		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && reqHandler.PrimaryClusterHealthProbeParams.statusChanged) {
+		// If CIS is running in non multi-cluster mode,primary or its the secondary and the Primary CIS status down
+		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && !reqHandler.PrimaryClusterHealthProbeParams.statusRunning) {
 			// Post LTM config based on HA mode
 			if reqHandler.HAMode && reqHandler.SecondaryBigIPWorker != nil {
 				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), primaryPostmanagerPrefix)
@@ -90,11 +90,6 @@ func (reqHandler *RequestHandler) requestHandler() {
 			if reqHandler.GTMBigIPWorker != nil {
 				log.Debugf("%s%s enqueuing request", getRequestPrefix(rsConfig.reqMeta.id), gtmPostmanagerPrefix)
 				reqHandler.GTMBigIPWorker.PostConfig(rsConfig)
-			}
-		} else {
-			// Log only when it's primary/standalone CIS or when it's secondary CIS and primary CIS is down
-			if !reqHandler.PrimaryClusterHealthProbeParams.statusRunning {
-				log.Debugf("%s No change in request", getRequestPrefix(rsConfig.reqMeta.id))
 			}
 		}
 	}
@@ -190,12 +185,12 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 	}
 }
 
-func (reqHandler *RequestHandler) NewAgentWorker(kind string, gtmOnSeparateBigIpServer bool) *Agent {
+func (reqHandler *RequestHandler) NewAgentWorker(kind string, gtmOnSeparateBigIpServer bool, baseAPIHandler *BaseAPIHandler) *Agent {
 	var err error
 	var agent *Agent
 	switch kind {
 	case GTMBigIP:
-		agent = reqHandler.NewAgent(GTMBigIP)
+		agent = reqHandler.NewAgent(GTMBigIP, baseAPIHandler)
 		err = agent.GTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
@@ -203,7 +198,7 @@ func (reqHandler *RequestHandler) NewAgentWorker(kind string, gtmOnSeparateBigIp
 			OsExit(1)
 		}
 	case SecondaryBigIP:
-		agent = reqHandler.NewAgent(SecondaryBigIP)
+		agent = reqHandler.NewAgent(SecondaryBigIP, baseAPIHandler)
 		err = agent.LTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
@@ -211,7 +206,7 @@ func (reqHandler *RequestHandler) NewAgentWorker(kind string, gtmOnSeparateBigIp
 			OsExit(1)
 		}
 	case PrimaryBigIP:
-		agent = reqHandler.NewAgent(PrimaryBigIP)
+		agent = reqHandler.NewAgent(PrimaryBigIP, baseAPIHandler)
 		err = agent.LTM.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
@@ -228,7 +223,7 @@ func (reqHandler *RequestHandler) NewAgentWorker(kind string, gtmOnSeparateBigIp
 	return agent
 }
 
-func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
+func (reqHandler *RequestHandler) NewAgent(kind string, baseAPIHandler *BaseAPIHandler) *Agent {
 	agent := &Agent{
 		APIHandler:   &APIHandler{},
 		ccclGTMAgent: reqHandler.agentParams.CCCLGTMAgent,
@@ -238,11 +233,11 @@ func (reqHandler *RequestHandler) NewAgent(kind string) *Agent {
 	switch kind {
 	case GTMBigIP:
 		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"
-		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, reqHandler.respChan)
+		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, baseAPIHandler, reqHandler.respChan)
 	default:
 		DEFAULT_PARTITION = reqHandler.agentParams.Partition
 		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"
-		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, reqHandler.respChan)
+		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, baseAPIHandler, reqHandler.respChan)
 	}
 	return agent
 }

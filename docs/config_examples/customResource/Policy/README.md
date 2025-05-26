@@ -1,5 +1,5 @@
 # Policy
-Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual Server and Transport server. The Policy CRD resource defines the profile configuration for a virtual server in BIG-IP. 
+This is used to apply existing BIG-IP profiles and policy with Routes, Virtual Server and Transport server. The CRD resource defines the profile configuration for a virtual server in BIG-IP. 
 
   **Note**: VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource if the respective feature supported. Examples of features supported in all resource CRD (i.e. VirtualServer, TransportServer, and Policy) are waf and persistenceProfile.
 
@@ -125,7 +125,7 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 |-------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------------|
 | reselectTries     | Integer | Optional | 0       | reselectTries specifies the maximum number of attempts to find a responsive member for a connection |
 | serviceDownAction | String  | Optional | None    | serviceDownAction specifies connection handling when member is non-responsive                       |
-| slowRampTime      | Integer | Optional | 10      | BIG-IP AS3 sets the connection rate to a newly-active member slowly during this interval (seconds)  |
+| slowRampTime      | Integer | Optional | 10      | BIG-IP AS3 sets the connection rate to a newly active member slowly during this interval (seconds)  |
 
 ### Default Pool Components
 

@@ -7,7 +7,7 @@ Default Route Domain is supported for CRD resources and hence this feature is su
 ```
 --default-route-domain=5
 ```
-* By default default-route-domain is 0
+* By default `default-route-domain` is 0
 
 ```Note: Validated CRD resources with the below BIGIP RouteDomain configuration ```
 
@@ -53,7 +53,7 @@ Steps followed to configure BIGIP RouteDomain:
       tmsh -q -c 'cd /test; create net route 10.130.0.0/23 gw 10.4.1.117'
       where 10.4.1.x are the cluster node IPs and 10.xxx.0.0/23 are the POD networks assigned to the respective cluster Node (acting as gw)
           
-5.  Start CIS
+5. Start CIS
 ```
 
 #### Note: CIS creates new bigip-partitions based on the 'partition' spec parameter in VS/TS CRD and inherits the CIS-managed-Partition Route domain to the new partitions.

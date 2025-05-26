@@ -42,7 +42,7 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinxjp.themes.basicstrap',
     'sphinx.ext.extlinks',
-    'recommonmark',
+    'myst_parser',
     'sphinx_copybutton',
     'cloud_sptheme.ext.table_styling'
 ]
@@ -56,8 +56,9 @@ templates_path = ['_templates']
 # source_suffix = ['.rst', '.md']
 
 source_suffix = {
-            '.rst': 'restructuredtext',
-        }
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
 
 
 # The encoding of source files.
@@ -88,9 +89,9 @@ with open('../next-version.txt') as verfile:
 
 # External links
 extlinks = {'issues': ('https://github.com/F5Networks/k8s-bigip-ctlr/issues/%s',
-                      'issue '),
+                      None),
                       'cccl-issue': ('https://github.com/f5devcentral/f5-cccl/issues/%s',
-                      'issue ')}
+                      None)}
 
 # Substitutions
 rst_epilog = '''
@@ -410,3 +411,8 @@ texinfo_show_urls = 'footnote'
 
 # Example configuration for intersphinx: refer to the Python standard library.
 #intersphinx_mapping = {'https://docs.python.org/': None}
+
+#linkcheck_timeout = 60              # Wait 10 seconds max per request
+linkcheck_retries = 2               # Retry failed requests
+linkcheck_workers = 3               # Concurrent checks
+#linkcheck_rate_limit_timeout = 30  # Wait 30s between requests to same domain

@@ -5,7 +5,7 @@ F5 IngressLink Multi-Cluster is an integrated solution that enables seamless tra
 
 ## Configuration
 
-### 1.  Create IngressLink Custom Resource Definition
+### 1. Create IngressLink Custom Resource Definition
 
 Create IngressLink Custom Resource definition as follows:
 

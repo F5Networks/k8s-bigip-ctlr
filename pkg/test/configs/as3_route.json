@@ -44,7 +44,9 @@
           {
             "addressDiscovery": "static",
             "servicePort": 8080,
-            "serverAddresses": []
+            "serverAddresses": [],
+            "priorityGroup": 0,
+            "shareNodes": null
           }
         ],
         "class": "Pool"

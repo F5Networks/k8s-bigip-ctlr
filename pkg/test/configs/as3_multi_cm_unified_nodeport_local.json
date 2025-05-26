@@ -15,14 +15,16 @@
                 "1.1.1.1"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             },
             {
               "serverAddresses": [
                 "2.2.2.2"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             }
           ],
           "monitors": [
@@ -58,14 +60,16 @@
                 "1.1.1.1"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             },
             {
               "serverAddresses": [
                 "2.2.2.2"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             }
           ],
           "monitors": [
@@ -83,14 +87,16 @@
                 "1.1.1.1"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             },
             {
               "serverAddresses": [
                 "2.2.2.2"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             }
           ],
           "monitors": [
@@ -111,7 +117,9 @@
               "serverAddresses": [
                 "1.1.1.1"
               ],
-              "servicePort": 90
+              "servicePort": 90,
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ],
           "monitors": [
@@ -133,14 +141,16 @@
                 "1.1.1.1"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             },
             {
               "serverAddresses": [
                 "2.2.2.2"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             }
           ],
           "monitors": [
@@ -176,14 +186,16 @@
                 "1.1.1.1"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             },
             {
               "serverAddresses": [
                 "2.2.2.2"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             }
           ],
           "monitors": [
@@ -201,14 +213,16 @@
                 "1.1.1.1"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             },
             {
               "serverAddresses": [
                 "2.2.2.2"
               ],
               "servicePort": 80,
-              "shareNodes": null
+              "shareNodes": null,
+              "priorityGroup": 0
             }
           ],
           "monitors": [
@@ -229,7 +243,9 @@
               "serverAddresses": [
                 "1.1.1.1"
               ],
-              "servicePort": 90
+              "servicePort": 90,
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ],
           "monitors": [

@@ -48,7 +48,8 @@
               "serverAddresses": [
                 "1.1.1.1",
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         },
@@ -63,7 +64,8 @@
               "serverAddresses": [
                 "1.1.1.1",
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         }
@@ -87,7 +89,8 @@
               "servicePort": 90,
               "serverAddresses": [
                 "1.1.1.1"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         },
@@ -102,7 +105,8 @@
               "serverAddresses": [
                 "1.1.1.1",
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         }
@@ -145,7 +149,8 @@
               "serverAddresses": [
                 "1.1.1.1",
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         },
@@ -160,7 +165,8 @@
               "serverAddresses": [
                 "1.1.1.1",
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         }
@@ -184,7 +190,8 @@
               "servicePort": 90,
               "serverAddresses": [
                 "1.1.1.1"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         },
@@ -199,7 +206,8 @@
               "serverAddresses": [
                 "1.1.1.1",
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0
             }
           ]
         }

@@ -90,4 +90,4 @@ See also [How F5 IPAM Controller works](https://clouddocs.f5.com/containers/late
 
 ## Examples Repository
 
-See also [More examples of ServiceType LB](https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/customResource/serviceTypeLB).
+See also [More examples of ServiceType LB](./).

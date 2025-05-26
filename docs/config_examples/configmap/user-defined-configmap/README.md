@@ -25,7 +25,7 @@ From CIS > 2.0, AS3 >= 3.18 is required.
   https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
 
 * Get the required YAML files for the repo and update the files to the setup environment.
-  https://github.com/F5Networks/k8s-bigip-ctlr/tree/2.x-master/docs/config_examples/configmap/user-defined-configmap for YAML files to use moving forward.
+  Use [user-defined-configmap](./) for YAML files to use moving forward.
 
 CIS uses the partition defined in the CIS configuration by default to communicate with the F5 BIG-IP when adding static ARPs and forwarding entries for VXLAN. CIS managed partitions **<partition_AS3>** and **<partition>** should not be used in ConfigMap as Tenants. If CIS is deployed with **bigip-partition=cis**, then **<cis_AS3>** and **<cis>** are not supposed to be used as a tenant in AS3 declaration. Below is a proper declaration which would be correctly processed by CIS. Using **<k8s>** for the AS3 tenant in AS3. 
 
@@ -104,7 +104,7 @@ data:
         f5type: virtual-server
         as3: "true"
     ```
-* Create and deploy the kubernetes service discovery labels. CIS can dynamically discover and update load balancing pool members using service discovery. CIS maps each pool definition in the AS3 template to a Kubernetes Service resource using a label. To create this mapping, add the following labels to your Kubernetes Service.
+* Create and deploy the kuberenetes service discovery labels. CIS can dynamically discover and update load balancing pool members using service discovery. CIS maps each pool definition in the AS3 template to a Kubernetes Service resource using a label. To create this mapping, add the following labels to your Kubernetes Service.
     ```
     labels:
         app: f5-hello-world-end-to-end-ssl
@@ -113,75 +113,6 @@ data:
         cis.f5.com/as3-pool: secure_ssl_waf_pool
     name: f5-hello-world-end-to-end-ssl-waf
     ```
-* Introduced a new optional label `cis.f5.com/as3-pool-member-priorityGroup` where it accepts the value of the priorityGroup. With this label, the pool member with the matching priorityGroup will be selected, which gives fine grained control over the creation of pools with the pool members. Sample service config:
-    ```
-    labels:
-        app: f5-hello-world-end-to-end-ssl
-        cis.f5.com/as3-tenant: AS3
-        cis.f5.com/as3-app: A5
-        cis.f5.com/as3-pool: secure_ssl_waf_pool
-        cis.f5.com/as3-pool-member-priorityGroup: 10
-    name: f5-hello-world-end-to-end-ssl-waf
-    ```
-    
-    ConfigMap:
-    ```
-    kind: ConfigMap
-    apiVersion: v1
-    metadata:
-    name: f5-as3-declaration
-    namespace: default
-    labels:
-        f5type: virtual-server
-        as3: "true"
-    data:
-    template: |
-        {
-            "class": "AS3",
-            "declaration": {
-                "class": "ADC",
-                "schemaVersion": "3.13.0",
-                "id": "urn:uuid:33045210-3ab8-4636-9b2a-c98d22ab915d",
-                "label": "http",
-                "remark": "A1 Template",
-                "k8s": {
-                    "class": "Tenant",
-                    "A1": {
-                        "class": "Application",
-                        "template": "generic",
-                        "a1_80_vs": {
-                            "class": "Service_HTTP",
-                            "remark": "a1",
-                            "virtualAddresses": [
-                                "10.192.75.101"
-                            ],
-                            "pool": "web_pool"
-                        },
-                        "web_pool": {
-                            "class": "Pool",
-                            "monitors": [
-                                "http"
-                            ],
-                            "members": [
-                                {
-                                    "servicePort": 8080,
-                                    "serverAddresses": [],
-                                    "priorityGroup": 0
-                                },
-                                {
-                                    "servicePort": 8080,
-                                    "serverAddresses": [],
-                                    "priorityGroup": 10
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        }
-    ```
-    From the above sample configs, pool with priorityGroup from label will be selected.
-
 ## Using a configmap with AS3
 When using CIS with AS3 the behaviours are different The following needs to apply:
 
@@ -191,3 +122,73 @@ When using CIS with AS3 the behaviours are different The following needs to appl
 * When adding new services use the kubectl apply command
 * For configmaps to monitor services in different namespaces, leverage `hubmode` CIS deployment parameter. 
 
+## Additional Configuration Parameters
+
+### cis.f5.com/as3-pool-member-priorityGroup label:
+* Introduced a new optional label `cis.f5.com/as3-pool-member-priorityGroup` where it accepts the value of the priorityGroup. With this label, the pool member with the matching priorityGroup will be selected, which gives fine grained control over the creation of pools with the pool members. Sample service config:
+```
+labels:
+    app: f5-hello-world-end-to-end-ssl
+    cis.f5.com/as3-tenant: AS3
+    cis.f5.com/as3-app: A5
+    cis.f5.com/as3-pool: secure_ssl_waf_pool
+    cis.f5.com/as3-pool-member-priorityGroup: 10
+```
+    
+ConfigMap:
+```
+kind: ConfigMap
+apiVersion: v1
+metadata:
+name: f5-as3-declaration
+namespace: default
+labels:
+    f5type: virtual-server
+    as3: "true"
+data:
+    template: |
+    {
+        "class": "AS3",
+        "declaration": {
+            "class": "ADC",
+            "schemaVersion": "3.13.0",
+            "id": "urn:uuid:33045210-3ab8-4636-9b2a-c98d22ab915d",
+            "label": "http",
+            "remark": "A1 Template",
+            "k8s": {
+                "class": "Tenant",
+                "A1": {
+                    "class": "Application",
+                    "template": "generic",
+                    "a1_80_vs": {
+                        "class": "Service_HTTP",
+                        "remark": "a1",
+                        "virtualAddresses": [
+                            "10.192.75.101"
+                        ],
+                        "pool": "web_pool"
+                    },
+                    "web_pool": {
+                        "class": "Pool",
+                        "monitors": [
+                            "http"
+                        ],
+                        "members": [
+                            {
+                                "servicePort": 8080,
+                                "serverAddresses": [],
+                                "priorityGroup": 0
+                            },
+                            {
+                                "servicePort": 8080,
+                                "serverAddresses": [],
+                                "priorityGroup": 10
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+```
+From the above sample configs, pool with priorityGroup from label will be selected.

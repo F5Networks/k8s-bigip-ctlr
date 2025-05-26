@@ -43,7 +43,9 @@
                         {
                             "servicePort": 80,
                             "serverAddresses": [
-                            ]
+                            ],
+                            "priorityGroup": 0,
+                            "shareNodes": null
                         }
                     ]
                 },
@@ -56,7 +58,9 @@
                         {
                             "servicePort": 80,
                             "serverAddresses": [
-                            ]
+                            ],
+                            "priorityGroup": 0,
+                            "shareNodes": null
                         }
                     ]
                 }
@@ -80,7 +84,9 @@
                             "servicePort": 90,
                             "serverAddresses": [
                                 "1.1.1.1"
-                            ]
+                            ],
+                            "priorityGroup": 0,
+                            "shareNodes": null
                         }
                     ]
                 },
@@ -93,7 +99,9 @@
                         {
                             "servicePort": 80,
                             "serverAddresses": [
-                            ]
+                            ],
+                            "priorityGroup": 0,
+                            "shareNodes": null
                         }
                     ]
                 }

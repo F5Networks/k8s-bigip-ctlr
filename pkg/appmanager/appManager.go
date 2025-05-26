@@ -3555,16 +3555,24 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 	}
 
 	if len(svcItems) > 1 {
-		svcName := ""
+		var svcList []v1.Service
+		processedSvc := make(map[string]bool)
 		sort.Sort(byTimestamp(svcItems))
-		//picking up the oldest service
-		svcItems = svcItems[:1]
-
 		for _, service := range svcItems {
-			svcName += fmt.Sprintf("Service: %v, Namespace: %v,Timestamp: %v\n", service.Name, service.Namespace, service.GetCreationTimestamp())
+			poolMemberPriorityGroupLabel, poolMemberPriorityGroupOk := service.ObjectMeta.Labels["cis.f5.com/as3-pool-member-priorityGroup"]
+			svcSelector := selector
+			if poolMemberPriorityGroupOk {
+				svcSelector += "_" + poolMemberPriorityGroupLabel
+			}
+			if _, ok := processedSvc[svcSelector]; !ok {
+				processedSvc[svcSelector] = true
+				svcList = append(svcList, service)
+			} else {
+				svcName := fmt.Sprintf("Service: %v, Namespace: %v,Timestamp: %v\n", service.Name, service.Namespace, service.GetCreationTimestamp())
+				log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
+			}
 		}
-
-		log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
+		svcItems = svcList
 	}
 
 	for _, service := range svcItems {

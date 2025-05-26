@@ -58,7 +58,9 @@
             {
               "addressDiscovery": "static",
               "servicePort": 8080,
-              "serverAddresses": []
+              "serverAddresses": [],
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ],
           "class": "Pool"
@@ -138,13 +140,17 @@
               "servicePort": 80,
               "serverAddresses": [
                 "1.1.1.1"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             },
             {
               "servicePort": 80,
               "serverAddresses": [
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ]
         },
@@ -158,13 +164,17 @@
               "servicePort": 80,
               "serverAddresses": [
                 "1.1.1.1"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             },
             {
               "servicePort": 80,
               "serverAddresses": [
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ]
         }
@@ -188,7 +198,9 @@
               "servicePort": 90,
               "serverAddresses": [
                 "1.1.1.1"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ]
         },
@@ -202,13 +214,17 @@
               "servicePort": 80,
               "serverAddresses": [
                 "1.1.1.1"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             },
             {
               "servicePort": 80,
               "serverAddresses": [
                 "2.2.2.2"
-              ]
+              ],
+              "priorityGroup": 0,
+              "shareNodes": null
             }
           ]
         }

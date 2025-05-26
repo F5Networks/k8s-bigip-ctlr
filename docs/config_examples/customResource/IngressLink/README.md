@@ -14,7 +14,7 @@ Minimum version to use IngressLink:
 
 ## Configuration
 
-### 1.  Create IngressLink Custom Resource Definition
+### 1. Create IngressLink Custom Resource Definition
 
 Create IngressLink Custom Resource definition as follows:
 

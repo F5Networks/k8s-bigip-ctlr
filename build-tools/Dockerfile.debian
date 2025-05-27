@@ -40,6 +40,8 @@ COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
 COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin
 COPY LICENSE /licenses/
 
+# Remove shell and bash access
+RUN rm -f /bin/sh /bin/bash
 
 # Enable CN Certificate validation 
 ENV GODEBUG x509ignoreCN=0

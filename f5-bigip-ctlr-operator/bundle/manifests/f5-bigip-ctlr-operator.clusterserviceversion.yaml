@@ -51,7 +51,7 @@ metadata:
     categories: Networking
     certified: "false"
     containerImage: registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator@sha256:560aff6297fa8d5c13d830b0186035205abb1785d62f310a268054fbfd3ae7d1
-    createdAt: "2025-05-14"
+    createdAt: "2025-05-28"
     description: Operator to install F5 Container Ingress Services (CIS) for BIG-IP.
     operators.operatorframework.io/builder: operator-sdk-v1.26.0
     operators.operatorframework.io/project_layout: helm.sdk.operatorframework.io/v1

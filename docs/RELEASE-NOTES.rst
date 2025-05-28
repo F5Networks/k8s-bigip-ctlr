@@ -35,10 +35,6 @@ Upgrade notes
   This prevents conflicts when running multiple CIS deployments in the same K8S cluster, as each deployment can now watch a
   different set of custom resources with unique labels without interfering with resources managed by other CIS instances.
 
-Manifest Files
-````````````````
-- `CRD <./config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
-- `RBAC <./config_examples/rbac>`_
 
 2.19.1
 -------------

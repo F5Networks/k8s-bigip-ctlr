@@ -1,28 +1,28 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.20.0
 -------------
 
 Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
-      * `Issue 3739 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3739>`_: IngressLink multicluster support for default mode.See `Documentation <./config_examples/multicluster/default-mode/IngressLink>`_
+        * `Issue 3739 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3739>`_: IngressLink multicluster support for default mode.See `Documentation <./config_examples/multicluster/default-mode/IngressLink>`_
     * CRD
-    * `Issue 3374 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3374>`_: RFE: Target discrete Pool_Member entities with ConfigMap
-    * `Issue 3779 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3779>`_: ServiceTypeLB health monitor enhancements. See `Examples <./config_examples/customResource/serviceTypeLB>`_
-        * Shared monitor support for LB type service
-        * Support to reference existing monitors from BigIP
-        * Support to define multiple health monitors
-    * Support for configuring refresh token interval for bigip token authentication.
-    * `Issue 3559 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3559>`_: Support for CIS to watch Custom Resources with custom label
-    * CIS is now compatible with OpenShift 4.17 and OpenShift 4.18
-    * CIS operator support for OpenShift 4.17 and OpenShift 4.18
+        * `Issue 3374 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3374>`_: RFE: Target discrete Pool_Member entities with ConfigMap. See section cis.f5.com/as3-pool-member-priorityGroup label in `Documentation <./config_examples/configmap/user-defined-configmap/README.md>`_
+        * `Issue 3779 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3779>`_: ServiceTypeLB health monitor enhancements. See `Example <./config_examples/customResource/serviceTypeLB>`_
+            * Shared monitor support for LB type service
+            * Support to reference existing monitors from BigIP
+            * Support to define multiple health monitors
+        * Support for configuring refresh token interval for BigIP token authentication with `refresh-token-interval` CIS deployment parameter.
+        * `Issue 3559 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3559>`_: Support for CIS to watch Custom Resources with custom label. See section Label in `Examples <./config_examples/customResource/CustomResource.md>`_
+        * CIS is now compatible with OpenShift 4.17, OpenShift 4.18 and Kubernetes 1.32
+        * CIS operator support for OpenShift 4.17 and OpenShift 4.18
 
 Bug Fixes
 ````````````
-* `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Loadbalancer doesn't work in 2.19.0 and 2.19.1
+* `Issue 3762 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3762>`_: TCP/UDP Load balancer doesn't work in 2.19.0 and 2.19.1
 * `Issue 3755 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3755>`_: Upgrade to 2.19 - Unexpected error: 'config'
 * `Issue 3766 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3766>`_: CIS doesn't gracefully handle 503 error from F5
 * `Issue 3767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3767>`_: HTTPS support for primaryEndPoint url
@@ -32,9 +32,13 @@ Bug Fixes
 Upgrade notes
 ``````````````
 * CIS 2.20 and above will no longer update the status of custom resources it's not monitoring (those with non-matching labels).
-  This prevents conflicts when running multiple CIS deployments in the same k8s cluster, as each deployment can now watch a
+  This prevents conflicts when running multiple CIS deployments in the same K8S cluster, as each deployment can now watch a
   different set of custom resources with unique labels without interfering with resources managed by other CIS instances.
 
+Manifest Files
+````````````````
+- `CRD <./config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
+- `RBAC <./config_examples/rbac>`_
 
 2.19.1
 -------------

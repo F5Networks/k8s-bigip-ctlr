@@ -421,6 +421,8 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "has(self.partition) == has(oldSelf.partition) && (!has(self.partition) || self.partition == oldSelf.partition)"
+                  message: "partition cannot be modified. Delete the resource and recreate with new partition"
                 - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
                   message: "'serviceAddress' cannot be added when it is not already present."
                 - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
@@ -831,6 +833,8 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "has(self.partition) == has(oldSelf.partition) && (!has(self.partition) || self.partition == oldSelf.partition)"
+                  message: "partition cannot be modified. Delete the resource and recreate with new partition"
                 - rule: "!(has(self.serviceAddress) && !has(oldSelf.serviceAddress))"
                   message: "'serviceAddress' cannot be added when it is not already present."
                 - rule: "!(has(oldSelf.serviceAddress) && !has(self.serviceAddress))"
@@ -1056,6 +1060,52 @@ spec:
                   items:
                     type: string
                     pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                monitors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                      reference:
+                        type: string
+                        enum: [ bigip ]
+                tls:
+                  type: object
+                  properties:
+                    clientSSLs:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                    serverSSLs:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                    reference:
+                      type: string
+                      enum: [ bigip, secret ]
+                multiClusterServices:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      clusterName:
+                        type: string
+                      namespace:
+                        type: string
+                      service:
+                        type: string
+                      weight:
+                        type: integer
+                        minimum: 0
+                        maximum: 256
+                    required:
+                      - clusterName
+                      - namespace
+                      - service
                 selector:
                   properties:
                     matchLabels:
@@ -1066,6 +1116,8 @@ spec:
               x-kubernetes-validations:
                 - rule: "!has(self.partition) || self.partition != 'Common'"
                   message: "The partition cannot be 'Common' if specified."
+                - rule: "has(self.partition) == has(oldSelf.partition) && (!has(self.partition) || self.partition == oldSelf.partition)"
+                  message: "partition cannot be modified. Delete the resource and recreate with new partition"
                 - rule: "has(self.ipamLabel) || has(self.virtualServerAddress)"
                   message: "either ipamLabel or virtualServerAddress needs to be specified."
             status:

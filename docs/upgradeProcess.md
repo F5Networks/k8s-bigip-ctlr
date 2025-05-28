@@ -50,6 +50,8 @@ Compatibility Matrix
 | v2.18.0     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.32           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.18.1     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.33           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.19.0     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.34           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.19.1     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.34           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.20.0     | v17.0          | v1.32              | v4.18.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.35           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
 
 Compatibility Matrix for Multi Cluster Support
@@ -64,6 +66,8 @@ Compatibility Matrix for Multi Cluster Support
 | v2.18.0     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.32           |
 | v2.18.1     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.33           |
 | v2.19.0     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.34           |
+| v2.19.1     | v17.0          | v1.31              | v4.16.0*          | Yes      | No  | Yes                | v3.52       | v0.0.34           |
+| v2.20.0     | v17.0          | v1.32              | v4.18.0*          | Yes      | No  | Yes                | v3.52       | v0.0.35           |
 
 
 
@@ -425,7 +429,7 @@ Refer Release Notes for [CIS v2.17.0](./RELEASE-NOTES.rst)
 * CRD
   * You cannot add or delete the serviceAddress property for VS and TS CR after creating the CR.
 
-### **Upgrading from 2.19.0 to 2.20.0:**
+### **Upgrading from 2.19.1 to 2.20.0:**
 
 **_Functionality Changes:_**
 * Multi Cluster CRD

@@ -16,3 +16,9 @@ for above Virtual Server with VIP "172.16.3.5".
 By deploying this yaml file in your cluster, CIS will attach k8s secrets clientssl-secret1 and clientssl-secret2 as client SSL profile & k8s secrets  serverssl-secret1 and serverssl-secret2 as client SSL profile for VIP "172.16.3.5".
 
 Note:- You need deploy either "multiple-bigip-ssl-profiles.yml" or "multiple-kubernetes-ssl-secrets.yml" with "virtualserver.yml".
+
+## Creating the kubernetes secrets with certificates for BIG IP
+
+```shell
+kubectl create secret tls <secret-name> --cert=<path/to/certificate.crt> --key=<path/to/private.key> -n <namespace>
+```

@@ -3,6 +3,7 @@
 This section demonstrates the deployment of a Secure Virtual Server with Re-encrypt Termination using mix of k8s secret and BIGIP Profile for clientSSL and serverSSL profiles.
 
 # Configuration
+```
   spec:
     tls:
       reference: hybrid
@@ -10,6 +11,7 @@ This section demonstrates the deployment of a Secure Virtual Server with Re-encr
         profileReference: secret
       serverSSLParams:
         profileReference: bigip
+ ```
 
 # virtualserver.yml
 
@@ -19,3 +21,9 @@ It will load balance the traffic for domain foo.com
 # reencrypt-tls.yml
 
 By deploying this yaml file in your cluster, CIS will attach profile created from foo-secret as clientssl and /Common/serverssl as serverssl profiles.
+
+## Creating the kubernetes secrets with certificates for BIG IP
+
+```shell
+kubectl create secret tls <secret-name> --cert=<path/to/certificate.crt> --key=<path/to/private.key> -n <namespace>
+```

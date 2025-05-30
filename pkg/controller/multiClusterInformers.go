@@ -200,6 +200,19 @@ func (ctlr *Controller) stopMultiClusterNodeInformer(clusterName string) error {
 	return nil
 }
 
+func (ctlr *Controller) stopMultiClusterDynamicInformer(clusterName string) error {
+	// remove the pool informers for clusters whose config has been removed
+	if infStore := ctlr.multiClusterHandler.getInformerStore(clusterName); infStore != nil {
+		if infStore.dynamicInformers != nil {
+			if infStore.dynamicInformers.CalicoBlockAffinityInformer != nil {
+				infStore.dynamicInformers.stop()
+				infStore.dynamicInformers = nil
+			}
+		}
+	}
+	return nil
+}
+
 // setup multi cluster informer
 func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterServiceKey, startInformer bool) error {
 	if config := ctlr.multiClusterHandler.getClusterConfig(svcKey.clusterName); config != nil {
@@ -225,6 +238,18 @@ func (ctlr *Controller) setupAndStartMultiClusterInformers(svcKey MultiClusterSe
 		if err != nil {
 			log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", svcKey.clusterName, err)
 			return err
+		}
+		// create block affinities informer for calico cni enabled clusters.
+		if config.orchestrationCNI == CALICO_K8S && config.staticRoutingMode {
+			if config.dynamicClient != nil {
+				//check if rbac exists to watch calico resource and if present start informer
+				if ctlr.checkCalicoRBACPermissions(svcKey.clusterName) {
+					dynamicInf := ctlr.newDynamicInformersForCluster(config.dynamicClient, svcKey.clusterName)
+					if startInformer {
+						dynamicInf.start(apiServerUnreachable)
+					}
+				}
+			}
 		}
 	} else {
 		log.Debugf("[MultiCluster] cluster config not found for cluster: %v", svcKey.clusterName)
@@ -260,7 +285,16 @@ func (ctlr *Controller) setupAndStartExternalClusterInformers(clusterName string
 		log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", clusterName, err)
 		return err
 	}
-
+	// create block affinities informer for calico cni enabled clusters.
+	if clusterConfig.orchestrationCNI == CALICO_K8S && clusterConfig.staticRoutingMode {
+		if clusterConfig.dynamicClient != nil {
+			// check if rbac exists to watch calico resource and if present start informer
+			if ctlr.checkCalicoRBACPermissions(clusterName) {
+				dynamicInf := ctlr.newDynamicInformersForCluster(clusterConfig.dynamicClient, clusterName)
+				dynamicInf.start(apiServerUnreachable)
+			}
+		}
+	}
 	return nil
 }
 
@@ -292,6 +326,20 @@ func (ctlr *Controller) updateMultiClusterInformers(namespace string, startInfor
 			if err != nil {
 				log.Errorf("[MultiCluster] unable to setup node informer for cluster: %v, Error: %v", clusterName, err)
 				return err
+			}
+		}
+		// create block affinities informer for calico cni enabled clusters.
+		if config.dynamicInformers == nil {
+			if config.orchestrationCNI == CALICO_K8S && config.staticRoutingMode {
+				if config.dynamicClient != nil {
+					// check if rbac exists to watch calico resource and if present start informer
+					if ctlr.checkCalicoRBACPermissions(clusterName) {
+						dynamicInf := ctlr.newDynamicInformersForCluster(config.dynamicClient, clusterName)
+						if startInformer {
+							dynamicInf.start(apiServerUnreachable)
+						}
+					}
+				}
 			}
 		}
 	}

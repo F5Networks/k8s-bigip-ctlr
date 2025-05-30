@@ -102,13 +102,13 @@ Specifies whether the CIS HA cluster is configured with active-active mode, defa
 
 **highAvailabilityCIS Parameters**
 
-| Parameter              | Type    | Required  | Description                                                             | Default | Examples                  |
-|------------------------|---------|-----------|-------------------------------------------------------------------------|---------|---------------------------|
-| primaryClusterEndPoint | String  | Mandatory | Endpoint to check health of primary cluster                             | -       | http://10.145.72.114:8001 |
-| probeInterval          | Integer | Optional  | Time interval between health check (in seconds)                         | 60      | 30                        |
-| retryInterval          | Integer | Optional  | Time interval between recheck when primary cluster is down (in seconds) | 15      | 3                         |
-| primaryCluster         | Object  | Mandatory | Primary cluster config                                                  | -       | -                         |
-| secondaryCluster       | Object  | Mandatory | Secondary cluster config                                                | -       | -                         |
+| Parameter        | Type    | Required  | Description                                                             | Default | Examples                  |
+|------------------|---------|-----------|-------------------------------------------------------------------------|---------|---------------------------|
+| primaryEndPoint  | String  | Mandatory | Endpoint to check health of primary cluster                             | -       | http://10.145.72.114:8001 |
+| probeInterval    | Integer | Optional  | Time interval between health check (in seconds)                         | 60      | 30                        |
+| retryInterval    | Integer | Optional  | Time interval between recheck when primary cluster is down (in seconds) | 15      | 3                         |
+| primaryCluster   | Object  | Mandatory | Primary cluster config                                                  | -       | -                         |
+| secondaryCluster | Object  | Mandatory | Secondary cluster config                                                | -       | -                         |
 
 Health probe parameters are provided in highAvailabilityCIS in extended configmap, helping to ensure high availability of CIS. CIS running in secondary cluster continuously monitors the health of the primary cluster. If it's down, then the secondary CIS takes the responsibility of posting declarations to BIG-IP.
 

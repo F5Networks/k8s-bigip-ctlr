@@ -33,3 +33,9 @@ By deploying this yaml file in your cluster, CIS will create a Virtual Server co
 
 By deploying this yaml file in your cluster, CIS will create a Virtual Server containing server http2 Profile on BIG-IP.
 Here client corresponds to ingress http2 profile and Server refers to egress http2 profile.
+
+## Creating the kubernetes secrets with certificates for BIG IP
+
+```shell
+kubectl create secret tls <secret-name> --cert=<path/to/certificate.crt> --key=<path/to/private.key> -n <namespace>
+```

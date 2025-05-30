@@ -27,3 +27,9 @@ By deploying this yaml file in your cluster, CIS will attach k8s secret[clientss
 This is only applicable for services svc-edge
 
 ## Note: clientssl mentioned in both edge-tls.yml and reencrypt-tls.yml should be same as both are pointing to same domain.
+
+## Creating the kubernetes secrets with certificates for BIG IP
+
+```shell
+kubectl create secret tls <secret-name> --cert=<path/to/certificate.crt> --key=<path/to/private.key> -n <namespace>
+```

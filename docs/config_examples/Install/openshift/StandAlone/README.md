@@ -1,140 +1,183 @@
-# OpenShift 3.11/4.x - Container Ingress Services Quick Start Guide with Single BIG-IP 
+# CIS Installation
 
-## 1. Introduction
+## Overview
+CIS can be configured for Kubernetes and OpenShift, varying by resources (ConfigMap, Ingress, Routes, CRD, serviceTypeLB), BIG-IP deployment (stand alone, HA), and cluster networking (Flannel/Calico/Cilium/Antrea/OVNKuberentes).
 
-This document provides quickstart instructions for installation, configuration and deployment of CIS on OCP 3.11/4.x and integration with standalone BIGIP.
+## Prerequisites
 
-## 2. Prerequisite
+These are the mandatory requirements for deploying CIS:
 
-CIS uses AS3 declarative API. We need the AS3 extension installed on BIGIP. 
+* OpenShift cluster must be up and running.
 
-From CIS > 2.0, AS3 >= 3.18 is required.
- 
-* Install AS3 on BIGIP
-  https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
+* AS3: 3.18+ must be installed on your BIG-IP system.
 
-* Get the required YAML files for the repo and update the files to the setup environment.
-  Use [Sample Files](./) for YAML files to use moving forward.
+* Use the latest TLS version and cipher suites in Kubernetes for kube-api.
 
-## 3. Adding BIG-IP to OpenShift Cluster
+* Create a BIG-IP partition to manage Kubernetes objects. This partition can be created either via the GUI (System > Users > Partition List) or via our TMOS CLI:
+  ```shell
+  create auth partition <cis_managed_partition>
+  ```
 
-### 3.1 Create a new OpenShift HostSubnet
+* You need a user with administrative access to this partition.
 
-Create a host subnet for the BIPIP. This will provide the subnet for creating the tunnel self-IP.
+* If you need to pull the k8s-bigip-ctlr image from a private Docker registry, store your Docker login credentials as a Secret.
 
-```shell
-oc create -f f5-kctlr-openshift-hostsubnet.yaml
-```
-```
-[root@ose-3-11-master openshift-3-11]# oc get hostsubnets
-NAME                               HOST                               HOST IP          SUBNET          EGRESS CIDRS   EGRESS IPS
-f5-server                          f5-server                          192.168.200.83   10.131.0.0/23   []     []
-ose-3-11-master.example.com        ose-3-11-master.example.com        192.168.200.84   10.128.0.0/23   []     []
-ose-3-11-node1.example.com         ose-3-11-node1.example.com         192.168.200.85   10.130.0.0/23   []     []
-ose-3-11-node2.lexample.com        ose-3-11-node2.example.com         192.168.200.86   10.129.0.0/23   []     []
-```
-### 3.2 Create a BIG-IP VXLAN tunnel
-```shell
-(tmos)# create net tunnels vxlan vxlan-mp flooding-type multipoint
-(tmos)# create net tunnels tunnel openshift_vxlan key 0 profile vxlan-mp local-address 192.168.200.83
-```
-### 3.3 Add the BIG-IP device to the OpenShift overlay network
-```
-(tmos)# create net self 10.131.0.83/14 allow-service all vlan openshift_vxlan
-```
-Subnet comes from the creating the hostsubnets. Used .83 to be consistent with BigIP internal interface
+Also consider  [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
 
-### 3.4 Create a new partition on your BIG-IP system
-```shell
-(tmos)# create auth partition openshift
-```
-This needs to match the partition in the CIS configuration
+For BIG-IP HA, see [Deploying CIS with BIG-IP HA](https://clouddocs.f5.com/containers/latest/userguide/cis-deployment-options.html)
 
-## 4. Configure and Deploy CIS Controller
+## Installing CIS Using Helm Charts
 
-### 4.1  Create CIS Controller, BIG-IP credentials and RBAC Authentication
+This is the simplest way to install CIS on OpenShift/Kubernetes cluster. Helm is a package manager for Kubernetes. Helm is Kubernetes version of yum or apt. Helm deploys something called charts, which you can think of as a packaged application. It is a collection of all your versioned, pre-configured application resources which can be deployed as one unit.
 
-```
-args: [
-        "--bigip-username=$(BIGIP_USERNAME)",
-        "--bigip-password=$(BIGIP_PASSWORD)",
-        # Replace with the IP address or hostname of your BIG-IP device
-        "--bigip-url=<BIGIP_ADDRESS>",
-        # Replace with the name of the BIG-IP partition you want to manage
-        "--bigip-partition=<PARTITION_CREATED_ABOVE>",
-        "--pool-member-type=<cluster|nodeport>",
-        # Replace with the path to the BIG-IP VXLAN connected to the
-        # OpenShift HostSubnet
-        "--openshift-sdn-name=<HOST_SUBNET>",
-        "--manage-routes=true",
-        "--namespace=f5demo",
-        "--route-vserver-addr=<VS_IP_ADDRESS>",
-        "--log-level=DEBUG",
-        # Self-signed cert
-        "--insecure=true",
-       ]
-```
-```shell
-oc create secret generic bigip-login --namespace kube-system --from-literal=username=admin --from-literal=password=f5PME123
-oc create serviceaccount bigip-ctlr -n kube-system
-oc create -f f5-kctlr-openshift-clusterrole.yaml
-oc create -f f5-k8s-bigip-ctlr-openshift.yaml
-oc adm policy add-cluster-role-to-user cluster-admin -z bigip-ctlr -n kube-system
-```
+* Optionally, add BIG-IP credentials as Openshift secrets.
+  ```shell
+  oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password>
+  ```
+* Add the CIS chart repository in Helm using following command:
+  ```shell
+  helm repo add f5-stable https://f5networks.github.io/charts/stable
+  ```
+* Update the sample ./docs/config_examples/Install/openshift/sample-helm-values.yaml
 
-This will deploy and start CIS. Check BIG-IP partition `<partition>_AS3` for L4-L7 info and `<partition>` for L2-L3 info. 
+* Installing Helm charts
+  * Install the Helm chart using the following command if BIG-IP credential secrets are created manually:
+    ```shell
+    helm install -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr
+    ```
+  * Install the Helm chart with --skip crds if BIG-IP credential secrets are created manually (without Custom Resource Definitions installations):
+    ```shell
+    helm install --skip-crds -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr
+    ```
+  * If you want to create the BIG-IP credential secret with Helm charts, use the following command:
+    ```shell
+    helm install --set bigip_secret.create="true" --set bigip_secret.username=$BIGIP_USERNAME --set bigip_secret.password=$BIGIP_PASSWORD -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr
+    ```
 
-## 5. Sample routes 
+**Note:-** For Kubernetes versions lower than 1.18, please use Helm chart version 0.0.14 as follows: helm install --skip-crds -f values.yaml <new-chart-name> f5-stable/f5-bigip-ctlr --version 0.0.14.
 
-Let's create some sample routes. The routes examples in the repo capture most commonly used OpenShift routes that are processed by CIS.
+### Chart parameters
 
-Update sample routes specifications with appropriate certificates/keys and BIG-IP objects.
+| Parameter                                 | Required | Default                      | Description                                                              |
+|-------------------------------------------|----------|------------------------------|--------------------------------------------------------------------------|
+| `bigip_login_secret`                      | Optional | f5-bigip-ctlr-login          | Secret that contains BIG-IP login credentials.                           |
+| `bigip_secret.create`                     | Optional | false                        | Create Kubernetes secret using username and password.                    |
+| `bigip_secret.username`                   | Optional | N/A                          | BIG-IP username to create the Kubernetes secret.                         |
+| `bigip_secret.password`                   | Optional | N/A                          | BIG-IP password to create the Kubernetes secret.                         |
+| `args.bigip_url`                          | Required | N/A                          | The management IP for your BIG-IP device.                                |
+| `args.bigip_partition`                    | Required | f5-bigip-ctlr                | BIG-IP partition the CIS Controller will manage.                         |
+| `args.namespaces`                         | Optional | N/A                          | List of Kubernetes namespaces which CIS will monitor.                    |
+| `rbac.create`                             | Optional | true                         | Create ClusterRole and ClusterRoleBinding.                               |
+| `serviceAccount.name`                     | Optional | f5-bigip-ctlr-serviceaccount | Name of the ServiceAccount for CIS controller.                           |
+| `serviceAccount.create`                   | Optional | true                         | Create service account for the CIS controller.                           |
+| `namespace`                               | Optional | kube-system                  | Name of namespace CIS will use to create deployment and other resources. |
+| `image.user`                              | Optional | f5networks                   | CIS Controller image repository username.                                |
+| `image.repo`                              | Optional | k8s-bigip-ctlr               | CIS Controller image repository name.                                    |
+| `image.pullPolicy`                        | Optional | Always                       | CIS Controller image pull policy.                                        |
+| `image.pullSecrets`                       | Optional | N/A                          | List of secrets of container registry to pull image.                     |
+| `version`                                 | Optional | latest                       | CIS Controller image tag.                                                |
+| `nodeSelector`                            | Optional | N/A                          | Dictionary of Node selector labels.                                      |
+| `tolerations`                             | Optional | N/A                          | Array of labels.                                                         |
+| `limits_cpu`                              | Optional | 100m                         | CPU limits for the pod.                                                  |
+| `limits_memory`                           | Optional | 512Mi                        | Memory limits for the pod.                                               |
+| `requests_cpu`                            | Optional | 100m                         | CPU request for the pod.                                                 |
+| `requests_memory`                         | Optional | 512Mi                        | Memory request for the pod.                                              |
+| `affinity`                                | Optional | N/A                          | Dictionary of affinity.                                                  |
+| `securityContext`                         | Optional | N/A                          | Dictionary of deployment securityContext.                                |
+| `podSecurityContext`                      | Optional | N/A                          | Dictionary of pod securityContext.                                       |
+| `ingressClass.ingressClassName`           | Optional | f5                           | Name of ingress class.                                                   |
+| `ingressClass.isDefaultIngressController` | Optional | false                        | CIS will monitor all ingress resources if set to true.                   |
+| `ingressClass.create`                     | Optional | true                         | Create ingress class.                                                    |
 
-### 5.1 Create example routes
-```shell
-oc create -f sample-route-deployment.yaml -n f5demo
-oc create -f sample-route-service.yaml -n f5demo
-oc create -f sample-edge-route.yaml -n f5demo
-oc create -f sample-passthrough-route.yaml -n f5demo
-oc create -f sample-reencrypt-route.yaml -n f5demo
-oc create -f sample-route-ab.yaml -n f5demo
-oc create -f sample-route-balance.yaml -n f5demo
-oc create -f sample-route-basic.yaml -n f5demo
-oc create -f sample-route-edge-ssl-waf.yaml -n f5demo
-oc create -f sample-route-waf.yaml -n f5demo
-oc create -f sample-unsecured-route.yaml -n f5demo
-```
+**Note:-** The parameters bigip_login_secret and bigip_secret are mutually exclusive. If both are defined in the values.yaml file, bigip_secret will be given priority.
 
-### 5.2 Delete example routes
+### Uninstalling Helm Chart
 
-```shell
-oc delete -f sample-route-deployment.yaml -n f5demo
-oc delete -f sample-route-service.yaml -n f5demo
-oc delete -f sample-edge-route.yaml -n f5demo
-oc delete -f sample-passthrough-route.yaml -n f5demo
-oc delete -f sample-reencrypt-route.yaml -n f5demo
-oc delete -f sample-route-ab.yaml -n f5demo
-oc delete -f sample-route-balance.yaml -n f5demo
-oc delete -f sample-route-basic.yaml -n f5demo
-oc delete -f sample-route-edge-ssl-waf.yaml -n f5demo
-oc delete -f sample-route-waf.yaml -n f5demo
-oc delete -f sample-unsecured-route.yaml -n f5demo
+* Run the command to uninstall the chart.
+  ```shell
+  helm uninstall <new-chart> 
+  ```
+* Optionally, Run the command to delete the secrets created.
+  ```shell
+  oc delete secret f5-bigip-ctlr-login -n kube-system
+  ```
 
-``` 
 
-## 6. Enable logging for AS3
+## Installing CIS Manually
 
-```shell
-oc get deploy -n kube-system
-oc log  deploy/<CIS-DEPLOYMENT-NAME> -f -n kube-system | grep -i 'as3'
-```
+* Clone the GitHub repository
+  ```shell
+  git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
+  ```
+* Download the CA/BIG IP certificate and use it with CIS controller.
+  ```shell
+  echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
+  oc create configmap trusted-certs --from-file=./server_cert.pem -n default
+  ```
 
-## 7. Delete CIS.
+Alternatively, for non-prod environment you can use ```--insecure=true``` parameter.
 
-### 7.1 Delete kubernetes bigip container connecter, authentication and RBAC
-```shell
-oc delete serviceaccount bigip-ctlr -n kube-system
-oc delete -f f5-kctlr-openshift-clusterrole.yaml
-oc delete -f f5-k8s-bigip-ctlr-openshift.yaml
-oc delete secret bigip-login -n kube-system
-```
+**Note:-** If you are updating the BIGIP/CA Certificates, don't miss to rotate them on k8s cluster and restart the CIS.
+
+* Install the RBAC for CIS Controller
+  ```shell
+  oc create -f ./docs/config_examples/rbac/openshift_rbac.yaml
+  ```
+
+* Optionally, Install Custom Resource Definitions for CIS Controller if you are using [custom resources](https://clouddocs.f5.com/containers/latest/userguide/crd/) or [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/)
+  ```shell
+  export CIS_VERSION=<cis-version>
+  # For example
+  # export CIS_VERSION=v2.20.0
+  # or
+  # export CIS_VERSION=master
+  # the latter if using a CIS image with :latest label
+  oc create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+  ```
+
+* Create the kubernetes secret with BIG IP credentials
+
+  ```shell
+  mkdir "creds"
+  echo -n "admin" > creds/username
+  echo -n "admin" > creds/password
+  echo -n "10.10.10.10" > creds/url 
+  ```
+  
+  ```shell
+  oc create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/
+  ```
+  
+* Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Modify the extended ConfigMap file as required and deploy it
+  ```shell
+  oc create -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigWithNamespaceLabel.yaml
+  ```
+
+* Update the CIS deployment file with required image and [config parameters](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html) and install the CIS Controller.
+  ```shell
+  oc create -f ./docs/config_examples/Install/opneshift/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
+  ```
+
+### Uninstalling CIS
+
+* To uninstall CIS, run the following commands:
+  ```shell
+  oc delete -f ./docs/config_examples/Install/opneshift/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
+  oc delete secret f5-bigip-ctlr-login -n kube-system
+  oc delete -f ./docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+  oc delete -f ./docs/config_examples/rbac/openshift_rbac.yaml
+  oc create -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigWithNamespaceLabel.yaml
+  ```
+
+* Optionally, Run the command to delete the secrets created.
+  ```shell
+  oc delete secret f5-bigip-ctlr-login -n kube-system
+  ```
+* Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Run the command to delete the extended cm.
+  ```shell
+    oc delete -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigWithNamespaceLabel.yaml
+    ```
+
+## Installing CIS using Operators on OpenShift Cluster
+
+Refer [Installing CIS using Operators on OpenShift Cluster](https://clouddocs.f5.com/containers/latest/userguide/openshift/#installing-cis-using-operators-on-openshift-cluster)

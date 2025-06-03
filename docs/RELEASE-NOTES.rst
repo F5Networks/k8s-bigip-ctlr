@@ -16,6 +16,10 @@ Bug Fixes
 * `Issue 3839 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3839>`_: Calico-CNI support added for multiCluster
 * `Issue 3857 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3857>`_: Secrets referenced in TLSProfile are not processed on update when hybrid mode is used
 * `Issue 3859 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3859>`_: Fix ctlr agent crash without gtm credentials
+* validation to check shareNodes is same in both members of the pool in as3 configmap
+* AS3 pool members are appended from duplicate service even if priority group doesn't match
+* AS3 configmap with priority group duplicate service endpoints are added to pool with same priority group
+
 Upgrade notes
 ``````````````
 * The service label `cis.f5.com/as3-pool-member-priorityGroup` should match with the priority group mentioned in the pool members of the configmap. Values of priority group of pool members of a pool and the service label `cis.f5.com/as3-pool-member-priorityGroup` will be defauls to 0 if not provided.

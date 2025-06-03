@@ -34,7 +34,7 @@ const (
 	svcTenantLabel                  = "cis.f5.com/as3-tenant="
 	svcAppLabel                     = "cis.f5.com/as3-app="
 	svcPoolLabel                    = "cis.f5.com/as3-pool="
-	svcPoolMemberPriorityGroupLabel = "cis.f5.com/as3-priority-group="
+	svcPoolMemberPriorityGroupLabel = "cis.f5.com/as3-pool-member-priorityGroup="
 	as3SupportedVersion             = 3.18
 	// Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
 	// While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/main/schema/latest/as3-schema.json

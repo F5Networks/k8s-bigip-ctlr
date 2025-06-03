@@ -18,7 +18,7 @@ Bug Fixes
 * `Issue 3859 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3859>`_: Fix ctlr agent crash without gtm credentials
 Upgrade notes
 ``````````````
-* The service label `cis.f5.com/as3-pool-member-priorityGroup` should match with the priority group mentioned in the pool members of the configmap. Values of priority group of pool members of a pool and the service label `as3-pool-member-priorityGroup` will be defauls to 0 if not provided.
+* The service label `cis.f5.com/as3-pool-member-priorityGroup` should match with the priority group mentioned in the pool members of the configmap. Values of priority group of pool members of a pool and the service label `cis.f5.com/as3-pool-member-priorityGroup` will be defauls to 0 if not provided.
 
 2.20.0
 -------------

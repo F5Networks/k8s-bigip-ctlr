@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  namespace: cafe
+  labels:
+    f5nr: "true"
+  name: cafe-mocha
+spec:
+  host: cafe.example.com
+  path: "/mocha"
+  port:
+    targetPort: 8080
+  to:
+    kind: Service
+    name: mocha-svc

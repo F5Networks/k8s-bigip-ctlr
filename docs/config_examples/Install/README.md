@@ -184,7 +184,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 
 * Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Modify the extended ConfigMap file as required and deploy it
   ```shell
-  oc create -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigWithNamespaceLabel.yaml
+  oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/StandAlone/route/global-cm.yaml
   ```
 
 * Create the kubernetes secret with BIG IP credentials

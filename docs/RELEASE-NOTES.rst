@@ -12,7 +12,9 @@ Added Functionality
 
 Bug Fixes
 ````````````
-* 
+* validation to check shareNodes is same in both members of the pool in as3 configmap
+* AS3 pool members are appended from duplicate service even if priority group doesn't match
+* AS3 configmap with priority group duplicate service endpoints are added to pool with same priority group
 
 Upgrade notes
 ``````````````

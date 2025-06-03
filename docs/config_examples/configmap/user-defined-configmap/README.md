@@ -125,7 +125,7 @@ When using CIS with AS3 the behaviours are different The following needs to appl
 ## Additional Configuration Parameters
 
 ### cis.f5.com/as3-pool-member-priorityGroup label:
-* Introduced a new optional label `cis.f5.com/as3-pool-member-priorityGroup` where it accepts the value of the priorityGroup. With this label, the pool member with the matching priorityGroup will be selected, which gives fine grained control over the creation of pools with the pool members. Sample service config:
+* Introduced a new optional label `cis.f5.com/as3-pool-member-priorityGroup` where it accepts the value of the priorityGroup. With this label, the pool member with the matching priorityGroup will be selected, which gives fine grained control over the creation of pools with the pool members. The values of the service label `cis.f5.com/as3-pool-member-priorityGroup` and priorityGroup of pool member of a pool in configmap defaults to 0 when not provided and the pool members of the pool from configmap will be processed when it is matched with the service label `cis.f5.com/as3-pool-member-priorityGroup`. Sample service config:
 ```
 labels:
     app: f5-hello-world-end-to-end-ssl

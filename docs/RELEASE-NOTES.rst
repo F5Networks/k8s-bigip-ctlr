@@ -10,7 +10,6 @@ Added Functionality
     * Multi Cluster
     * CRD
 
-
 Bug Fixes
 ````````````
 * `Issue 3724 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3724>`_:  All customResource status set to standby on secondary cluster
@@ -19,6 +18,7 @@ Bug Fixes
 * `Issue 3859 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3859>`_: Fix ctlr agent crash without gtm credentials
 Upgrade notes
 ``````````````
+* The service label `as3-pool-member-priorityGroup` should match with the priority group mentioned in the pool members of the configmap. Values of priority group of pool members of a pool and the service label `as3-pool-member-priorityGroup` will be defauls to 0 if not provided.
 
 2.20.0
 -------------

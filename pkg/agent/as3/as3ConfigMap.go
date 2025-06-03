@@ -3,6 +3,7 @@ package as3
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
@@ -196,9 +197,9 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				poolObj := appObj[string(pn)].(map[string]interface{})
 				var eps []Member
 				if val, ok := rscCfgMap.Label[IsTenantNameServiceNamespace]; ok && val == TrueLabel {
-					eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), string(tnt), true)
+					eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn, ""), string(tnt), true)
 				} else {
-					eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace, false)
+					eps, err = rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn, ""), rscCfgMap.Namespace, false)
 				}
 				// If there is some error while fetching the endpoint from API server then skip processing further
 				if nil != err {
@@ -209,7 +210,6 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					continue
 				}
 
-				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
 				var poolMembers []map[string]interface{}
 				if am.poolMemberType == NodePortLocal {
 					for _, v := range eps {
@@ -238,29 +238,18 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 									if v.AdminState != "" {
 										poolMember["adminState"] = v.AdminState
 									}
+									if len(poolMembers) > 0 && poolMembers[0]["shareNodes"] != poolMember["shareNodes"] {
+										log.Warningf("Share nodes value should be same for all the pool members. Defaulting to the first processed pool member share nodes value: %v.", poolMembers[0]["shareNodes"])
+										poolMember["shareNodes"] = poolMembers[0]["shareNodes"]
+									}
 									poolMembers = append(poolMembers, poolMember)
 									uniqueMembersMap[uniqueLabel] = true
 								}
 							}
 						}
 						if !poolMemberProcessed {
-							var ips []string
-							if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
-								members = append(members, v)
-								ips = append(ips, v.Address)
-								//copy poolMem to poolMember to preserve all other fields defined on the pool member
-								poolMember := make(map[string]interface{})
-								for key, value := range poolMem {
-									poolMember[key] = value
-								}
-								poolMember["serverAddresses"] = ips
-								poolMember["servicePort"] = float64(v.Port)
-								poolMember["shareNodes"] = poolMem["shareNodes"]
-								if v.AdminState != "" {
-									poolMember["adminState"] = v.AdminState
-								}
-								poolMembers = append(poolMembers, poolMember)
-							}
+							selector := am.getSelector(tnt, app, pn, strconv.Itoa(v.PriorityGroup))
+							log.Warningf("Cannot create pool member for service with selector: { %s } since either service port: %d or the pool member priority group: %d didn't match with pool members of configmap", selector, int(v.SvcPort), v.PriorityGroup)
 						}
 					}
 				} else {
@@ -293,34 +282,21 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 										poolMember["adminState"] = v.AdminState
 									}
 									uniqueMembersMap[uniqueLabel] = true
+									if len(poolMembers) > 0 && poolMembers[0]["shareNodes"] != poolMember["shareNodes"] {
+										log.Warningf("Share nodes value should be same for all the pool members. Defaulting to the first processed pool member share nodes value: %v.", poolMembers[0]["shareNodes"])
+										poolMember["shareNodes"] = poolMembers[0]["shareNodes"]
+									}
 									poolMembers = append(poolMembers, poolMember)
 								}
 							}
 						}
 						if !poolMemberProcessed {
-							var ips []string
-							if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
-								members = append(members, v)
-								ips = append(ips, v.Address)
-								port = v.Port
-								//copy poolMem to poolMember to preserve all other fields defined on the pool member
-								poolMember := make(map[string]interface{})
-								for key, value := range poolMem {
-									poolMember[key] = value
-								}
-								poolMember["serverAddresses"] = ips
-								poolMember["servicePort"] = float64(v.Port)
-								poolMember["shareNodes"] = poolMem["shareNodes"]
-								if v.AdminState != "" {
-									poolMember["adminState"] = v.AdminState
-								}
-								poolMembers = append(poolMembers, poolMember)
-							}
+							selector := am.getSelector(tnt, app, pn, strconv.Itoa(v.PriorityGroup))
+							log.Warningf("Cannot create pool member for service with selector: { %s } since either service port: %d or the pool member priority group: %d didn't match with pool members of configmap", selector, int(v.SvcPort), v.PriorityGroup)
 						}
 					}
 
 					if port == 0 {
-						ipMap := make(map[string]bool)
 						members = append(members, eps...)
 						for _, v := range eps {
 							uniqueMembersMap := make(map[string]bool)
@@ -347,27 +323,18 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 										if v.AdminState != "" {
 											poolMember["adminState"] = v.AdminState
 										}
+										if len(poolMembers) > 0 && poolMembers[0]["shareNodes"] != poolMember["shareNodes"] {
+											log.Warningf("Share nodes value should be same for all the pool members. Defaulting to the first processed pool member share nodes value: %v.", poolMembers[0]["shareNodes"])
+											poolMember["shareNodes"] = poolMembers[0]["shareNodes"]
+										}
 										poolMembers = append(poolMembers, poolMember)
 									}
 								}
 							}
+
 							if !poolMemberProcessed {
-								var ips []string
-								if _, ok := ipMap[v.Address]; !ok {
-									ipMap[v.Address] = true
-									ips = append(ips, v.Address)
-									//copy poolMem to poolMember to preserve all other fields defined on the pool member
-									poolMember := make(map[string]interface{})
-									for key, value := range poolMem {
-										poolMember[key] = value
-									}
-									poolMember["serverAddresses"] = ips
-									poolMember["servicePort"] = float64(eps[0].Port)
-									if v.AdminState != "" {
-										poolMember["adminState"] = v.AdminState
-									}
-									poolMembers = append(poolMembers, poolMember)
-								}
+								selector := am.getSelector(tnt, app, pn, strconv.Itoa(v.PriorityGroup))
+								log.Warningf("Cannot create pool member for service with selector: { %s } since either service port: %d or the pool member priority group: %d didn't match with pool members of configmap", selector, int(v.SvcPort), v.PriorityGroup)
 							}
 						}
 					}
@@ -382,8 +349,12 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 }
 
 // Method prepares and returns the label selector in string format
-func (am *AS3Manager) getSelector(tenant tenantName, app appName, pool poolName) string {
-	return svcTenantLabel + string(tenant) + "," +
+func (am *AS3Manager) getSelector(tenant tenantName, app appName, pool poolName, priorityGroup string) string {
+	selector := svcTenantLabel + string(tenant) + "," +
 		svcAppLabel + string(app) + "," +
 		svcPoolLabel + string(pool)
+	if priorityGroup != "" {
+		selector += "," + svcPoolMemberPriorityGroupLabel + priorityGroup
+	}
+	return selector
 }

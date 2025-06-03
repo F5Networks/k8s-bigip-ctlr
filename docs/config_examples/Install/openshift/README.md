@@ -135,7 +135,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   oc create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
   ```
 
-* Create the kubernetes secret with BIG IP credentials
+* Create the Openshift secret with BIG IP credentials
 
   ```shell
   mkdir "creds"
@@ -155,14 +155,14 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 
 * Update the CIS deployment file with required image and [config parameters](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html) and install the CIS Controller.
   ```shell
-  oc create -f ./docs/config_examples/Install/opneshift/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
+  oc create -f ./docs/config_examples/Install/opneshift/f5-k8s-bigip-ctlr-openshift.yaml
   ```
 
 ### Uninstalling CIS
 
 * To uninstall CIS, run the following commands:
   ```shell
-  oc delete -f ./docs/config_examples/Install/opneshift/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
+  oc delete -f ./docs/config_examples/Install/opneshift/f5-k8s-bigip-ctlr-openshift.yaml
   oc delete secret f5-bigip-ctlr-login -n kube-system
   oc delete -f ./docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
   oc delete -f ./docs/config_examples/rbac/openshift_rbac.yaml

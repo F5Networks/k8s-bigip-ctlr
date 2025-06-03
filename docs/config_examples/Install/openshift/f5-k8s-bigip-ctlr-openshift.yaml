@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: f5-ose-bigip-02-ctrl
+  name: f5-server
   namespace: kube-system
 spec:
   # DO NOT INCREASE REPLICA COUNT
@@ -21,9 +21,9 @@ spec:
         runAsGroup: 3000
         fsGroup: 2000
       volumes:
-        - name: bigip-2-creds
+        - name: bigip-creds
           secret:
-            secretName: bigip-2-creds
+            secretName: f5-bigip-ctlr-login
       containers:
         - name: cntr-ingress-svcs
           image: registry.connect.redhat.com/f5networks/cntr-ingress-svcs:latest
@@ -48,7 +48,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 15
           volumeMounts:
-            - name: bigip-2-creds
+            - name: bigip-creds
               mountPath: "/tmp/creds"
               readOnly: true
           securityContext:
@@ -86,7 +86,7 @@ spec:
             # "--custom-resource-mode=true",
             # for configuring nextgen openshift routes, see more on https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/
             "--controller-mode=openshift",
-            "--extended-spec-configmap=default/extended-cm",
+            "--extended-spec-configmap=kube-system/extended-cm",
             "--namespace-label=cis=true" # Optional, only needed when using namespaceLabel with next gen routes
             # for configuring the multi-cluster mode, see more on https://clouddocs.f5.com/containers/latest/userguide/multicluster/
             # "--multi-cluster-mode=primary",
@@ -94,8 +94,8 @@ spec:
             # "--extended-spec-configmap=default/extended-cm",
             # for using the F5 IPAM Controller, see more on https://clouddocs.f5.com/containers/latest/userguide/ipam/
             # "--ipam=true",
-              ]
+          ]
       serviceAccountName: bigip-ctlr
       imagePullSecrets:
-          - name: f5-docker-images
-          - name: bigip-login
+        - name: f5-docker-images
+        - name: bigip-login

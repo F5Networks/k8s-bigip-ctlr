@@ -35,6 +35,21 @@ For BIG-IP HA, see [Deploying CIS with BIG-IP HA](https://clouddocs.f5.com/conta
 
 This is the simplest way to install CIS on OpenShift/Kubernetes cluster. Helm is a package manager for Kubernetes. Helm is Kubernetes version of yum or apt. Helm deploys something called charts, which you can think of as a packaged application. It is a collection of all your versioned, pre-configured application resources which can be deployed as one unit.
 
+* Clone the GitHub repository
+  ```shell
+  git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
+  ```
+  
+* Download the CA/BIG IP certificate and use it with CIS controller.
+
+  ```shell
+  echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
+  kubectl create configmap trusted-certs --from-file=./server_cert.pem  -n kube-system
+  ```
+Alternatively, for non-prod environment you can use ```--insecure=true``` parameter.
+
+**Note:-** If you are updating the BIGIP/CA Certificates, don't miss to rotate them on k8s cluster and restart the CIS.
+
 * Optionally, add BIG-IP credentials as K8S secrets.
     ```shell
     kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> 
@@ -101,13 +116,18 @@ This is the simplest way to install CIS on OpenShift/Kubernetes cluster. Helm is
 
 * Run the command to uninstall the chart.
 ```shell
-helm uninstall <new-chart> 
+helm delete <new-chart> 
 ```
 * Optionally, Run the command to delete the secrets created.
   ```shell
   kubectl delete secret f5-bigip-ctlr-login -n kube-system
   ```
-
+* Delete the trusted certs configMap
+  ```shell
+  kubectl delete configmap trusted-certs -n kube-system
+  rm -rf server_cert.pem
+  ```
+  
 ## Installing CIS Manually
 
 * Clone the GitHub repository
@@ -118,7 +138,7 @@ helm uninstall <new-chart>
 
   ```shell
   echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
-  kubectl create configmap trusted-certs --from-file=./server_cert.pem -n default
+  kubectl create configmap trusted-certs --from-file=./server_cert.pem  -n kube-system
   ```
 Alternatively, for non-prod environment you can use ```--insecure=true``` parameter.
 
@@ -149,11 +169,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 * Create the kubernetes secret with BIG IP credentials
 
   ```shell
-  mkdir "creds"
-  echo -n "admin" > creds/username
-  echo -n "admin" > creds/password
-  echo -n "10.10.10.10" > creds/url
-  kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/ 
+  kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri> 
   ```
 
 * Update the CIS deployment file with required image and [config parameters](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html) and install the CIS Controller.
@@ -179,7 +195,11 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   ```shell
   kubectl delete secret f5-bigip-ctlr-login -n kube-system
   ```
-
+* Delete the trusted certs configMap
+  ```shell
+  kubectl delete configmap trusted-certs -n kube-system
+  rm -rf server_cert.pem
+  ```
 
 ## Creating VXLAN Tunnels on Kubernetes Cluster
 This section is required only if you plan to use CIS in a ClusterIP Deployment. See [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options) for more information.

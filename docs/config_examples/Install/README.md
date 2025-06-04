@@ -36,22 +36,48 @@ For BIG-IP HA, see [Deploying CIS with BIG-IP HA](https://clouddocs.f5.com/conta
 
 This is the simplest way to install CIS on OpenShift/Kubernetes cluster. Helm is a package manager for Kubernetes. Helm is Kubernetes version of yum or apt. Helm deploys something called charts, which you can think of as a packaged application. It is a collection of all your versioned, pre-configured application resources which can be deployed as one unit.
 
+* Clone the GitHub repository
+  ```shell
+  git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
+  ```
+
+* Download the CA/BIG IP certificate and use it with CIS controller.
+  * For Kubernetes, use the following command:
+    ```shell
+    echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
+    kubectl create configmap trusted-certs --from-file=./server_cert.pem -n kube-system
+    ```
+  * For Openshift, use the following command:
+    ```shell
+    echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
+    oc create configmap trusted-certs --from-file=./server_cert.pem -n kube-system
+    ```
+    
+Alternatively, for non-prod environment you can use ```insecure: true``` in yaml file.
+
+**Note:-** If you are updating the BIGIP/CA Certificates, don't miss to rotate them on k8s cluster and restart the CIS.
+
 * Optionally, add BIG-IP credentials as K8S secrets.
+  
   * For Kubernetes, use the following command:
       ```shell
-      kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> 
+      kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri>
       ```
   * For Openshift, use the following command:
     ```shell
-    oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password>
+    oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri>
     ```
+* Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Modify the extended ConfigMap file as required and deploy it
+  ```shell
+  oc create -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml
+  ```
 * Add the CIS chart repository in Helm using following command:
     ```shell
     helm repo add f5-stable https://f5networks.github.io/charts/stable
     ```
-* Update the sample sample-helm-values.yaml
-  * For kubernetes, use ./docs/config_examples/Install/k8s/sample-helm-values.yaml
-  * For openshift, use ./docs/config_examples/Install/openshift/StandAlone/sample-helm-values.yaml
+* Update the sample ./docs/config_examples/Install/k8s/sample-helm-values.yaml
+  * For kubernetes, use ```./docs/config_examples/Install/k8s/sample-helm-values.yaml```
+  * For openshift, use ```./docs/config_examples/Install/openshift/StandAlone/sample-helm-values.yaml```
 * Installing Helm charts
   * Install the Helm chart using the following command if BIG-IP credential secrets are created manually:
     ```shell
@@ -118,7 +144,23 @@ helm uninstall <new-chart>
     ```shell
     oc delete secret f5-bigip-ctlr-login -n kube-system
     ```
-    
+* Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Run the command to delete the extended cm.
+  ```shell
+    oc delete -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml
+  ```
+  
+* Delete the trusted certs configMap
+  * For Kubernetes, use the following command:
+    ```shell
+    kubectl delete configmap trusted-certs -n kube-system
+    rm -rf server_cert.pem
+    ```
+  * For OpenShift, use the following command:
+    ```shell
+    oc delete configmap trusted-certs -n kube-system
+    rm -rf server_cert.pem
+    ```
+
 
 ## Installing CIS Manually
 
@@ -130,12 +172,12 @@ helm uninstall <new-chart>
   * For Kubernetes, use the following command:
     ```shell
     echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
-    kubectl create configmap trusted-certs --from-file=./server_cert.pem -n default
+    kubectl create configmap trusted-certs --from-file=./server_cert.pem -n kube-system
     ```
   * For Openshift, use the following command:
     ```shell
     echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
-    oc create configmap trusted-certs --from-file=./server_cert.pem -n default
+    oc create configmap trusted-certs --from-file=./server_cert.pem -n kube-system
     ```
 
 Alternatively, for non-prod environment you can use ```--insecure=true``` parameter.
@@ -189,19 +231,13 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 
 * Create the kubernetes secret with BIG IP credentials
 
-  ```shell
-  mkdir "creds"
-  echo -n "admin" > creds/username
-  echo -n "admin" > creds/password
-  echo -n "10.10.10.10" > creds/url 
-  ```
   * For Kubernetes, use the following command:
-    ```shell
-    kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/
-    ```
+      ```shell
+      kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri>
+      ```
   * For Openshift, use the following command:
     ```shell
-    oc create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/
+    oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri>
     ```
 
 * Update the CIS deployment file with required image and [config parameters](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html) and install the CIS Controller.
@@ -247,7 +283,18 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   ```shell
     oc delete -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigWithNamespaceLabel.yaml
     ```
-  
+* Delete the trusted certs configMap
+  * For Kubernetes, use the following command:
+    ```shell
+    kubectl delete configmap trusted-certs -n kube-system
+    rm -rf server_cert.pem
+    ```
+  * For OpenShift, use the following command:
+    ```shell
+    oc delete configmap trusted-certs -n kube-system
+    rm -rf server_cert.pem
+    ```
+    
 ## Installing CIS using Operators on OpenShift Cluster
 
 Refer [Installing CIS using Operators on OpenShift Cluster](https://clouddocs.f5.com/containers/latest/userguide/openshift/#installing-cis-using-operators-on-openshift-cluster)

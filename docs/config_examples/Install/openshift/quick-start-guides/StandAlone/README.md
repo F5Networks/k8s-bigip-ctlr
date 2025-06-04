@@ -30,7 +30,7 @@ F5 Controller Ingress Services (CIS) called **Next Generation Routes Controller*
 * Download the CA/BIG IP certificate and use it with CIS controller.
   ```shell
   echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
-  oc create configmap trusted-certs --from-file=./server_cert.pem -n default
+  oc create configmap trusted-certs --from-file=./server_cert.pem -n kube-system
   ```
 
 Alternatively, for non-prod environment you can use ```--insecure=true``` parameter.
@@ -56,19 +56,12 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 * Create the Openshift secret with BIG IP credentials
 
   ```shell
-  mkdir "creds"
-  echo -n "admin" > creds/username
-  echo -n "admin" > creds/password
-  echo -n "10.192.125.60" > creds/url 
-  ```
-
-  ```shell
-  oc create secret generic f5-bigip-ctlr-login -n kube-system --from-file=creds/
+  oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=admin --from-literal=url=10.192.125.60
   ```
   
 * Update the CIS deployment file with required image and [config parameters](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html) and install the CIS Controller.
   ```shell
-  oc create -f ./docs/config_examples/Install/opneshift/f5-k8s-bigip-ctlr-openshift.yaml
+  oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
   ```
 
 ### Step 5 Creating OpenShift Routes for cafe.example.com

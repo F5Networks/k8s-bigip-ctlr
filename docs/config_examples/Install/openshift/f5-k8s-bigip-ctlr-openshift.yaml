@@ -86,12 +86,14 @@ spec:
             # "--custom-resource-mode=true",
             # for configuring nextgen openshift routes, see more on https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/
             "--controller-mode=openshift",
-            "--extended-spec-configmap=kube-system/extended-cm",
-            "--namespace-label=cis=true" # Optional, only needed when using namespaceLabel with next gen routes
+            "--extended-spec-configmap=kube-system/extended-spec-config",
+            "--namespace=default", # Optional, only needed when using namespaceLabel with next gen routes
+            "--namespace=kube-system",
+            "--namespace=bar",
             # for configuring the multi-cluster mode, see more on https://clouddocs.f5.com/containers/latest/userguide/multicluster/
             # "--multi-cluster-mode=primary",
             # "--local-cluster-name=cluster1",
-            # "--extended-spec-configmap=default/extended-cm",
+            # "--extended-spec-configmap=default/extended-spec-config",
             # for using the F5 IPAM Controller, see more on https://clouddocs.f5.com/containers/latest/userguide/ipam/
             # "--ipam=true",
           ]

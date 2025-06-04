@@ -20,7 +20,7 @@ extended ConfigMap provides control to the admin to create and maintain the reso
   ```
 * Modify the extended Config map and create the extended ConfigMap
   ```shell
-  oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/HA/next-gen-route/global-cm.yaml
+  oc create -f docs/config_examples/Install/openshift/quick-start-guides/HA/next-gen-route/route/global-cm.yaml
   ```
 
 
@@ -31,7 +31,7 @@ F5 Controller Ingress Services (CIS) called **Next Generation Routes Controller*
 * Download the CA/BIG IP certificate and use it with CIS controller.
   ```shell
   echo | openssl s_client -showcerts -servername <server-hostname>  -connect <server-ip-address>:<server-port> 2>/dev/null | openssl x509 -outform PEM > server_cert.pem
-  oc create configmap trusted-certs --from-file=./server_cert.pem -n default
+  oc create configmap trusted-certs --from-file=./server_cert.pem -n kube-system
   ```
 
 Alternatively, for non-prod environment you can use ```--insecure=true``` parameter.
@@ -55,29 +55,13 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   ```
 
 * Create the Openshift secret with BIG IP credentials for BIG-IP 01
-
   ```shell
-  mkdir "creds"
-  echo -n "admin" > creds/username
-  echo -n "admin" > creds/password
-  echo -n "10.192.125.60" > creds/url 
-  ```
-
-  ```shell
-  oc create secret generic bigip-1-creds -n kube-system --from-file=creds/
+  oc create secret generic bigip-1-creds -n kube-system --from-literal=username=admin --from-literal=password=admin --from-literal=url=10.192.125.60
   ```
 
 * Create the Openshift secret with BIG IP credentials for BIG-IP 02
-
   ```shell
-  mkdir "creds"
-  echo -n "admin" > creds/username
-  echo -n "admin" > creds/password
-  echo -n "10.192.125.61" > creds/url 
-  ```
-
-  ```shell
-  oc create secret generic bigip-2-creds -n kube-system --from-file=creds/
+  oc create secret generic bigip-2-creds -n kube-system --from-literal=username=admin --from-literal=password=admin --from-literal=url=10.192.125.61
   ```
 
 * * Update the CIS deployment file with required image and [config parameters](https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html) and install the CIS Controller.

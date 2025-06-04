@@ -69,6 +69,9 @@ spec:
             "--bigip-partition=openshift",
             # See the page for pool member type support, https://clouddocs.f5.com/containers/latest/userguide/config-options.html
             "--pool-member-type=cluster",
+            "--orchestration-cni=ovn-k8s",
+            "--static-routing-mode=true",
+            "--shared-static-routes=true",
             # if pool-member-type is set to cluster,
             # see static routes support, https://clouddocs.f5.com/containers/latest/userguide/static-route-support.html
             # for Calico CNI see https://clouddocs.f5.com/containers/latest/userguide/calico-config.html
@@ -79,7 +82,7 @@ spec:
             # Logging level
             "--log-level=INFO",
             # "--trusted-certs-cfgmap=<namespace/config-map-with-bigip-certificates>"
-            "--trusted-certs-cfgmap=default/trusted-certs",
+            "--trusted-certs-cfgmap=kube-system/trusted-certs",
             # Use below parameter only for non-production environments
             # "--insecure",
             # for using custom resources, see more on https://clouddocs.f5.com/containers/latest/userguide/crd/
@@ -92,7 +95,7 @@ spec:
             # for configuring the multi-cluster mode, see more on https://clouddocs.f5.com/containers/latest/userguide/multicluster/
             # "--multi-cluster-mode=primary",
             # "--local-cluster-name=cluster1",
-            # "--extended-spec-configmap=default/extended-cm",
+            # "--extended-spec-configmap=kube-system/extended-cm",
             # for using the F5 IPAM Controller, see more on https://clouddocs.f5.com/containers/latest/userguide/ipam/
             # "--ipam=true",
           ]

@@ -22,10 +22,10 @@ These are the mandatory requirements for deploying CIS:
 
 * If you need to pull the k8s-bigip-ctlr image from a private Docker registry, store your Docker login credentials as a Secret.
 
-Additionally, if you are deploying CIS in Cluster Mode you need to have the following prerequisites. For more information, see [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
+Additionally, if you are using VXLan in Cluster Mode you need to have the following prerequisites. For more information, see [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
 
 * You must have a fully active/licensed BIG-IP. SDN must be licensed. For more information, see BIG-IP VE license support for SDN services.
-* VXLAN tunnel should be configured from OpenShift/Kubernetes Cluster to BIG-IP. For more information, see [Creating VXLAN Tunnels](#Creating-VXLAN-Tunnels).
+* VXLan tunnel should be configured from OpenShift/Kubernetes Cluster to BIG-IP. For more information, see [Creating VXLAN Tunnels](#Creating-VXLAN-Tunnels).
 
 Also consider  [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
 
@@ -132,9 +132,10 @@ Alternatively, for non-prod environment you can use ```insecure: true``` in yaml
 ### Uninstalling Helm Chart
 
 * Run the command to uninstall the chart.
-```shell
-helm uninstall <new-chart> 
-```
+  ```shell
+  helm delete <new-chart> 
+  helm repo remove f5-stable
+  ```
 * Optionally, Run the command to delete the secrets created.
   * For Kubernetes, use the following command:
     ```shell
@@ -206,7 +207,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
     ```shell
       export CIS_VERSION=<cis-version>
       # For example
-      # export CIS_VERSION=v2.12.0
+      # export CIS_VERSION=v2.20.0
       # or
       # export CIS_VERSION=2.x-master
       # the latter if using a CIS image with :latest label
@@ -217,7 +218,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
     ```shell
     export CIS_VERSION=<cis-version>
     # For example
-    # export CIS_VERSION=v2.12.0
+    # export CIS_VERSION=v2.20.0
     # or
     # export CIS_VERSION=2.x-master
     # the latter if using a CIS image with :latest label
@@ -226,7 +227,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 
 * Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Modify the extended ConfigMap file as required and deploy it
   ```shell
-  oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/StandAlone/route/global-cm.yaml
+  oc create -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml
   ```
 
 * Create the kubernetes secret with BIG IP credentials
@@ -248,7 +249,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
     ```
   * For Openshift, use following cmd:
     ```shell
-    oc create -f ./docs/config_examples/Install/opneshift/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
+    oc create -f ./docs/config_examples/Install/openshift/f5-k8s-bigip-ctlr-openshift.yaml
     ```
 
 ### Uninstalling CIS
@@ -258,14 +259,12 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   * For Kubernetes, use following cmd:
     ```shell
     kubectl delete -f ./docs/config_examples/Install/k8s/sample-k8s-bigip-ctlr.yaml
-    kubectl delete secret f5-bigip-ctlr-login -n kube-system
     kubectl delete -f ./docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
     kubectl delete -f ./docs/config_examples/rbac/k8s_rbac.yml
     ```
   * For Openshift, use following cmd:
     ```shell
-    oc delete -f ./docs/config_examples/Install/opneshift/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
-    oc delete secret f5-bigip-ctlr-login -n kube-system
+    oc delete -f ./docs/config_examples/Install/openshift/f5-k8s-bigip-ctlr-openshift.yaml
     oc delete -f ./docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
     oc delete -f ./docs/config_examples/rbac/openshift_rbac.yaml
     ```
@@ -281,7 +280,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
     ```
 * Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Run the command to delete the extended cm.
   ```shell
-    oc delete -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigWithNamespaceLabel.yaml
+    oc delete -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml
     ```
 * Delete the trusted certs configMap
   * For Kubernetes, use the following command:

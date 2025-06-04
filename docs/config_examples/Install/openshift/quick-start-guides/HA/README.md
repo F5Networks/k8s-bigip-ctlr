@@ -74,27 +74,29 @@ CIS [repo](./next-gen-route/cis)
 
 Validate both CIS instances are running
 
-```
-# oc get pod -n kube-system
-NAME                                            READY   STATUS    RESTARTS   AGE
-k8s-bigip-ctlr-01-deployment-7cc8b7cf94-2csz7   1/1     Running   0          16s
-k8s-bigip-ctlr-02-deployment-5c8d8c4676-hjwpr   1/1     Running   0          16s
-```
+  ```
+  # oc get pod -n kube-system
+  NAME                                            READY   STATUS    RESTARTS   AGE
+  k8s-bigip-ctlr-01-deployment-7cc8b7cf94-2csz7   1/1     Running   0          16s
+  k8s-bigip-ctlr-02-deployment-5c8d8c4676-hjwpr   1/1     Running   0          16s
+  ```
 
+### Step 4 Deploy the sample application on OpenShift
+  ```
+  oc create -f docs/config_examples/Install/openshift/quick-start-guides/demo-app/cafe/
+  ```
 ### Step 5 Creating OpenShift Routes for cafe.example.com
 
-User-case for the OpenShift Routes:
+Use-case for the OpenShift Routes:
 
 - Edge Termination
 - Backend listening on PORT 8080
 
 Create OpenShift Routes
 
-```
-oc create -f route-tea-edge.yaml
-oc create -f route-coffee-edge.yaml
-oc create -f route-mocha-edge.yaml
-```
+  ```
+  oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/HA/next-gen-route/route/cafe/secure
+  ```
 
 Routes [repo](./next-gen-route/route/cafe/secure)
 

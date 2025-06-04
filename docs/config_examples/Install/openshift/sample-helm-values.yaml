@@ -56,7 +56,7 @@ args:
   # use_secrets:
   ## below parameter is a recommended parameter to verify the bigip certificate
   # trusted_certs_cfgmap: <namespace/config-map-with-bigip-certificates>
-  trusted_certs_cfgmap: default/trusted-certs
+  trusted_certs_cfgmap: kube-system/trusted-certs
   ## Use below parameter only for non-production environments
   # insecure: true
   ## for using custom resources, see more on https://clouddocs.f5.com/containers/latest/userguide/crd/

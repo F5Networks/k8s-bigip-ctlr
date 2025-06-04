@@ -64,20 +64,23 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/StandAlone/f5-k8s-bigip-ctlr-openshift.yaml
   ```
 
+### Step 4 Deploy the sample application on OpenShift
+  ```
+  oc create -f docs/config_examples/Install/openshift/quick-start-guides/demo-app/cafe/
+  ```
 ### Step 5 Creating OpenShift Routes for cafe.example.com
 
-User-case for the OpenShift Routes:
+Use-case for the OpenShift Routes:
 
 - Edge Termination
 - Backend listening on PORT 8080
 
 Create OpenShift Routes
 
-```
-oc create -f route-tea-edge.yaml
-oc create -f route-coffee-edge.yaml
-oc create -f route-mocha-edge.yaml
-```
+  ```
+  oc create -f ./docs/config_examples/Install/openshift/quick-start-guides/HA/next-gen-route/route/cafe/secure
+  ```
+
 
 Routes [repo](./route/cafe/secure)
 

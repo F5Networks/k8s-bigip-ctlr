@@ -50,7 +50,6 @@ Alternatively, for non-prod environment you can use ```insecure: true``` in yaml
   oc create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri>
   ```
 
-
 * Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Modify the extended ConfigMap file as required and deploy it
   ```shell
   oc create -f ./docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml
@@ -118,6 +117,7 @@ Alternatively, for non-prod environment you can use ```insecure: true``` in yaml
 * Run the command to uninstall the chart.
   ```shell
   helm delete <new-chart> 
+  helm repo remove f5-stable
   ```
 * Optionally, Run the command to delete the secrets created.
   ```shell

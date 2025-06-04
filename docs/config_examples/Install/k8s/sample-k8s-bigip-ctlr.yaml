@@ -80,7 +80,7 @@ spec:
             # for vxlan tunnel parameters see https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html#vxlan
             # below parameter is a recommended parameter to verify the bigip certificate
             # "--trusted-certs-cfgmap=<namespace/config-map-with-bigip-certificates>"
-            "--trusted-certs-cfgmap=default/trusted-certs",
+            "--trusted-certs-cfgmap=kube-system/trusted-certs",
             # Use below parameter only for non-production environments
             # "--insecure",
             "--as3-validation=true",

@@ -22,10 +22,10 @@ These are the mandatory requirements for deploying CIS:
 
 * If you need to pull the k8s-bigip-ctlr image from a private Docker registry, store your Docker login credentials as a Secret.
 
-Additionally, if you are deploying CIS in Cluster Mode you need to have the following prerequisites. For more information, see [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
+Additionally, if you are using VXLan in Cluster Mode you need to have the following prerequisites. For more information, see [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
 
 * You must have a fully active/licensed BIG-IP. SDN must be licensed. For more information, see BIG-IP VE license support for SDN services.
-* VXLAN tunnel should be configured from Kubernetes Cluster to BIG-IP. For more information, see [Creating VXLAN Tunnels on Kubernetes Cluster](#Creating-VXLAN-Tunnels-on-Kubernetes-Cluster).
+* VXLan tunnel should be configured from Kubernetes Cluster to BIG-IP. For more information, see [Creating VXLAN Tunnels on Kubernetes Cluster](#Creating-VXLAN-Tunnels-on-Kubernetes-Cluster).
 
 Also consider  [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options).
 
@@ -52,7 +52,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 
 * Optionally, add BIG-IP credentials as K8S secrets.
     ```shell
-    kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> 
+    kubectl create secret generic f5-bigip-ctlr-login -n kube-system --from-literal=username=admin --from-literal=password=<password> --from-literal=url=<bigip-uri>
     ```
 
 * Add the CIS chart repository in Helm using following command:
@@ -115,9 +115,10 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 ### Uninstalling Helm Chart
 
 * Run the command to uninstall the chart.
-```shell
-helm delete <new-chart> 
-```
+  ```shell
+  helm delete <new-chart> 
+  helm repo remove f5-stable
+  ```
 * Optionally, Run the command to delete the secrets created.
   ```shell
   kubectl delete secret f5-bigip-ctlr-login -n kube-system
@@ -159,7 +160,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   ```shell
     export CIS_VERSION=<cis-version>
     # For example
-    # export CIS_VERSION=v2.12.0
+    # export CIS_VERSION=v2.20.0
     # or
     # export CIS_VERSION=2.x-master
     # the latter if using a CIS image with :latest label
@@ -185,7 +186,6 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
 
   ```shell
   kubectl delete -f ./docs/config_examples/Install/k8s/sample-k8s-bigip-ctlr.yaml
-  kubectl delete secret f5-bigip-ctlr-login -n kube-system
   kubectl delete -f ./docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
   kubectl delete -f ./docs/config_examples/rbac/k8s_rbac.yml
   ```
@@ -202,7 +202,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   ```
 
 ## Creating VXLAN Tunnels on Kubernetes Cluster
-This section is required only if you plan to use CIS in a ClusterIP Deployment. See [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options) for more information.
+This section is required only if you plan to use CIS in a ClusterIP Deployment with VXLan. See [BIG IP Networking with CIS](https://clouddocs.f5.com/containers/latest/userguide/config-options.html#config-options) for more information.
 
 This configuration is for Standalone BIG-IP.
 * Log in to BIG-IP and create a partition called kubernetes for CIS.

@@ -180,7 +180,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 							httpTraffic = strings.ToLower(string(rt.Spec.TLS.InsecureEdgeTerminationPolicy))
 						}
 					}
-					ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "", httpTraffic, isSecureRoute(rt))
+					ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "", httpTraffic, isSecureRoute(rt), extdSpec.VServerAddr)
 				}
 			}
 			if isSecureRoute(rt) {

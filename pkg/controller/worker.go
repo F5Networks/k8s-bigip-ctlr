@@ -5245,16 +5245,9 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 
 	for _, obj := range orderedTLS {
 		tlsProfile := obj.(*cisapiv1.TLSProfile)
-		if tlsProfile.Spec.TLS.Reference == Secret {
-			if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
-				for _, name := range tlsProfile.Spec.TLS.ClientSSLs {
-					if name == secret.Name {
-						allTLSProfiles = append(allTLSProfiles, tlsProfile)
-					}
-				}
-			} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
-				allTLSProfiles = append(allTLSProfiles, tlsProfile)
-			}
+		// Check if the TLS profile references the secret
+		if matchesSecret(tlsProfile, secret.Name) {
+			allTLSProfiles = append(allTLSProfiles, tlsProfile)
 		}
 	}
 	return allTLSProfiles
@@ -5332,7 +5325,7 @@ func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 
 func (ctlr *Controller) getBlockAffinitiesFromAllClusters() []interface{} {
 	var ba []interface{}
-	//fetch nodes from other clusters
+	// fetch nodes from other clusters
 	if ctlr.multiClusterHandler.isClusterInformersReady() {
 		ba = ctlr.multiClusterHandler.getAllBlockAffinitiesUsingInformers()
 	} else {
@@ -5590,4 +5583,39 @@ func (ctlr *Controller) updateSecondaryClusterResourcesStatus(secondaryClusterNa
 		}
 	}
 	log.Debugf("Completed setting status of all custom resources on secondary cluster %s to 'standby'", secondaryClusterName)
+}
+
+// matchesSecret checks if a TLSProfile references the given secret name
+func matchesSecret(tlsProfile *cisapiv1.TLSProfile, secretName string) bool {
+	if tlsProfile == nil {
+		return false
+	}
+	// Helper function to check if secret name matches in a slice or single value
+	checkSecretMatch := func(secretsList []string, singleSecret string) bool {
+		if len(secretsList) > 0 {
+			for _, name := range secretsList {
+				if name == secretName {
+					return true
+				}
+			}
+		} else if singleSecret == secretName {
+			return true
+		}
+		return false
+	}
+	if tlsProfile.Spec.TLS.Reference == Secret {
+		// Check both client and server SSL configurations
+		return checkSecretMatch(tlsProfile.Spec.TLS.ClientSSLs, tlsProfile.Spec.TLS.ClientSSL) || checkSecretMatch(tlsProfile.Spec.TLS.ServerSSLs, tlsProfile.Spec.TLS.ServerSSL)
+	} else if tlsProfile.Spec.TLS.Reference == Hybrid {
+		// Check client SSL params if reference is Secret
+		clientSecretMatch := tlsProfile.Spec.TLS.ClientSSLParams.ProfileReference == Secret &&
+			checkSecretMatch(tlsProfile.Spec.TLS.ClientSSLs, tlsProfile.Spec.TLS.ClientSSL)
+
+		// Check server SSL params if reference is Secret
+		serverSecretMatch := tlsProfile.Spec.TLS.ServerSSLParams.ProfileReference == Secret &&
+			checkSecretMatch(tlsProfile.Spec.TLS.ServerSSLs, tlsProfile.Spec.TLS.ServerSSL)
+
+		return clientSecretMatch || serverSecretMatch
+	}
+	return false
 }

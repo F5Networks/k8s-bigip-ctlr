@@ -146,6 +146,8 @@ const (
 	defaultAS3Version = "3.52.0"
 	defaultAS3Build   = "5"
 	clusterHealthPath = "/readyz"
+	certFile          = "/tls/tls.crt"
+	keyFile           = "/tls/tls.key"
 )
 
 // NewController creates a new Controller Instance.
@@ -287,6 +289,8 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		go ctlr.Start()
 
 		go ctlr.setOtherSDNType()
+		// Start the validation webhook server
+		go ctlr.validationWebhook()
 		// Start the CIS health check
 		go ctlr.CISHealthCheck()
 		// Start the Resource Event Watcher
@@ -587,6 +591,14 @@ func (ctlr *Controller) StopInformers(clusterName string) {
 	}
 	// stop node Informer
 	informerStore.nodeInformer.stop()
+}
+
+func (ctlr *Controller) validationWebhook() {
+	http.HandleFunc("/validate", ctlr.serveValidate)
+	fmt.Println("Starting webhook server on :8443")
+	if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
+		panic(err)
+	}
 }
 
 func (ctlr *Controller) CISHealthCheck() {

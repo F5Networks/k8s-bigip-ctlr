@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tea
+  namespace: cafe
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tea
+  template:
+    metadata:
+      labels:
+        app: tea
+    spec:
+      containers:
+      - name: tea
+        image: pleshakov/nginx-hello:0.1
+        ports:
+        - containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee
+  namespace: cafe
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+      - name: coffee
+        image: pleshakov/nginx-hello:0.1
+        ports:
+        - containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mocha
+  namespace: cafe
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mocha
+  template:
+    metadata:
+      labels:
+        app: mocha
+    spec:
+      containers:
+      - name: mocha
+        image: pleshakov/nginx-hello:0.1
+        ports:
+        - containerPort: 8080

@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  namespace: cafe
+  labels:
+    f5nr: "true"
+  name: cafe-coffee
+spec:
+  host: cafe.example.com
+  path: "/coffee"
+  port:
+    targetPort: 8080
+  to:
+    kind: Service
+    name: coffee-svc

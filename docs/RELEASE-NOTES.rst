@@ -13,6 +13,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3724 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3724>`_:  All customResource status set to standby on secondary cluster
 * `Issue 3839 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3839>`_: Calico-CNI support added for multiCluster
 
 Upgrade notes

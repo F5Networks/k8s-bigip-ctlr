@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"reflect"
 	"sort"
@@ -69,6 +70,10 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster
 	if ctlr.multiClusterMode == SecondaryCIS {
 		ctlr.firstPollPrimaryClusterHealthStatus()
+		//if primary cis is active.then set local cluster to standby
+		if ctlr.PrimaryClusterHealthProbeParams.statusRunning {
+			go ctlr.updateSecondaryClusterResourcesStatus(ctlr.multiClusterHandler.LocalClusterName)
+		}
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
 
@@ -5468,4 +5473,121 @@ func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
 		return true
 	}
 	return false
+}
+
+// updateSecondaryClusterResourcesStatus updates the status of all custom resources in the secondary cluster to "standby"
+func (ctlr *Controller) updateSecondaryClusterResourcesStatus(secondaryClusterName string) {
+	// Get secondary cluster config
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(secondaryClusterName)
+	if clusterConfig == nil {
+		log.Errorf("Failed to get cluster config for secondary cluster: %s", secondaryClusterName)
+		return
+	}
+
+	// Get watched namespaces in the secondary cluster
+	namespaces := ctlr.getWatchingNamespaces(secondaryClusterName)
+	for _, ns := range namespaces {
+		//get crInf for cluster
+		crInf, found := ctlr.getNamespacedCRInformer(ns, secondaryClusterName)
+		if !found {
+			log.Debugf("custom resource informer not found for ns %s in cluster %s", ns, secondaryClusterName)
+			continue
+		}
+		// Process VirtualServers using direct API calls
+		vsList := crInf.vsInformer.GetIndexer().List()
+		log.Debugf("Processing %d VirtualServers in namespace %s", len(vsList), ns)
+		for _, obj := range vsList {
+			vs := obj.(*cisapiv1.VirtualServer)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
+
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for VirtualServer %s/%s: %v", vs.Namespace, vs.Name, err)
+				continue
+			}
+			_, err = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.Namespace).Patch(
+				context.TODO(),
+				vs.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
+
+			if err != nil {
+				log.Errorf("Failed to update VirtualServer %s/%s status: %v", vs.Namespace, vs.Name, err)
+			}
+		}
+
+		// update TransportServer status
+		tsList := crInf.tsInformer.GetIndexer().List()
+		for _, obj := range tsList {
+			ts := obj.(*cisapiv1.TransportServer)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
+
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for TransportServer %s/%s: %v", ts.Namespace, ts.Name, err)
+				continue
+			}
+
+			_, err = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.Namespace).Patch(
+				context.TODO(),
+				ts.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
+
+			if err != nil {
+				log.Errorf("Failed to update TransportServer %s/%s status: %v", ts.Namespace, ts.Name, err)
+			}
+		}
+
+		// update ingressLink status
+		ilList := crInf.ilInformer.GetIndexer().List()
+		for _, obj := range ilList {
+			il := obj.(*cisapiv1.IngressLink)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
+
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for IngressLink %s/%s: %v", il.Namespace, il.Name, err)
+				continue
+			}
+
+			_, err = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.Namespace).Patch(
+				context.TODO(),
+				il.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
+
+			if err != nil {
+				log.Errorf("Failed to update IngressLink %s/%s status: %v", il.Namespace, il.Name, err)
+			}
+		}
+	}
+	log.Debugf("Completed setting status of all custom resources on secondary cluster %s to 'standby'", secondaryClusterName)
 }

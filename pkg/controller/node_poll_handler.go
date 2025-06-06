@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
@@ -307,9 +306,6 @@ func (ctlr *Controller) processStaticRouteUpdate(
 							route.Name = fmt.Sprintf("k8s-%v", bacidr.baName)
 							route.Network = bacidr.cidr
 							routes.Entries = append(routes.Entries, route)
-						} else {
-							log.Warningf("Pod Network not found for node %v, static route not added", node.Name)
-							continue
 						}
 					}
 				} else {
@@ -428,26 +424,14 @@ func parseHostCIDRS(ann string, nodenetwork *net.IPNet) (string, error) {
 func (ctlr *Controller) GetNodePodCIDRMap() []BlockAffinitycidr {
 	var bacidrs []BlockAffinitycidr
 	if ctlr.OrchestrationCNI == CALICO_K8S {
-		// Retrieve Calico Block Affinity
-		blockAffinitiesRaw, err := ctlr.multiClusterHandler.ClusterConfigs[ctlr.multiClusterHandler.LocalClusterName].kubeClient.Discovery().RESTClient().Get().AbsPath(CALICO_API_BLOCK_AFFINITIES).DoRaw(context.TODO())
-		if err != nil {
-			log.Warningf("Calico blockaffinity resource not found on the cluster, getting error %v", err)
-			return bacidrs
-		}
-		// Define a map to store the unmarshalled data
-		var blockAffinities unstructured.UnstructuredList
-
-		// Unmarshal the JSON data into the unstructured list
-		err = json.Unmarshal(blockAffinitiesRaw, &blockAffinities)
-		if err != nil {
-			log.Errorf("Unable to unmarshall block affinity resource %v, getting error %v", string(blockAffinitiesRaw), err)
-			return bacidrs
-		}
-		for _, blockAffinity := range blockAffinities.Items {
+		// Retrieve Calico Block Affinity from all clusters
+		ba := ctlr.multiClusterHandler.getAllBlockAffinitiesUsingRestClient()
+		for _, blockAffinity := range ba {
+			obj := blockAffinity.(*unstructured.Unstructured)
 			// Access the spec field from the unstructured object
-			specData := blockAffinity.Object["spec"].(map[string]interface{})
+			specData := obj.Object["spec"].(map[string]interface{})
 			bacidr := BlockAffinitycidr{}
-			bacidr.baName = blockAffinity.Object["metadata"].(map[string]interface{})["name"].(string)
+			bacidr.baName = obj.Object["metadata"].(map[string]interface{})["name"].(string)
 			bacidr.nodeName = specData["node"].(string)
 			bacidr.cidr = specData["cidr"].(string)
 			bacidrs = append(bacidrs, bacidr)
@@ -458,9 +442,7 @@ func (ctlr *Controller) GetNodePodCIDRMap() []BlockAffinitycidr {
 
 func (ctlr *Controller) processBlockAffinities(clusterName string) {
 	var baListInf []interface{}
-	if infStore, ok := ctlr.multiClusterHandler.ClusterConfigs[clusterName]; ok {
-		baListInf = infStore.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetIndexer().List()
-	}
+	baListInf = ctlr.getBlockAffinitiesFromAllClusters()
 	routes := routeSection{}
 	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
@@ -475,17 +457,34 @@ func (ctlr *Controller) processBlockAffinities(clusterName string) {
 		route := routeConfig{}
 		route.Description = routes.CISIdentifier
 		if clusterConfig != nil {
-			nodes := clusterConfig.oldNodes
+			nodes := ctlr.getNodesFromAllClusters()
 			cidr := baJSON["cidr"]
 			nodeName := baJSON["node"]
 			//check if node is in watched nodes
-			for _, node := range nodes {
-				if node.Name == nodeName {
-					route.Gateway = node.Addr
-					route.Name = fmt.Sprintf("k8s-%v", baName)
-					route.Network = cidr
-					routes.Entries = append(routes.Entries, route)
-					break
+			for _, obj := range nodes {
+				node := obj.(*v1.Node)
+				// Ignore the Nodes with status NotReady
+				var notExecutable bool
+				for _, nodeCondition := range node.Status.Conditions {
+					if nodeCondition.Type == v1.NodeReady && nodeCondition.Status != v1.ConditionTrue {
+						notExecutable = true
+						break
+					}
+				}
+				if notExecutable == true {
+					continue
+				}
+				if nodeIPValue, ok := node.Annotations[CALICONodeIPAnnotation]; ok {
+					if node.Name == nodeName {
+						route.Gateway = strings.Split(nodeIPValue, "/")[0]
+						route.Name = fmt.Sprintf("k8s-%v", baName)
+						route.Network = cidr
+						routes.Entries = append(routes.Entries, route)
+						break
+					}
+				} else {
+					log.Warningf("Host addresses annotation %v not found on node %v ,static route not added", CALICONodeIPAnnotation, node.Name)
+					continue
 				}
 			}
 		}

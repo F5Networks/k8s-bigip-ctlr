@@ -1492,13 +1492,32 @@ func (nsInfr *NSInformer) stop() {
 	close(nsInfr.stopCh)
 }
 
-func (dynamicInf *DynamicInformers) start() {
+func (dynamicInf *DynamicInformers) start(apiServerUnreachable bool) {
+	var cacheSyncs []cache.InformerSynced
 	if dynamicInf.CalicoBlockAffinityInformer != nil {
 		log.Infof("Starting calico block affinity Informer for cluster %v", dynamicInf.clusterName)
 		go dynamicInf.CalicoBlockAffinityInformer.Informer().Run(dynamicInf.stopCh)
-		if dynamicInf.CalicoBlockAffinityInformer.Informer().HasSynced() {
-			log.Debugf("Successfully synced block affinity informer caches for Cluster: %s", dynamicInf.clusterName)
+		cacheSyncs = append(cacheSyncs, dynamicInf.CalicoBlockAffinityInformer.Informer().HasSynced)
+	}
+	if apiServerUnreachable {
+		infSyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			infSyncCtx.Done(),
+			cacheSyncs...,
+		) {
+			log.Debugf("Successfully synced dynamic informer cache for cluster %v", dynamicInf.clusterName)
+		} else {
+			log.Warningf("Could not sync dynamic informer cache for cluster %v", dynamicInf.clusterName)
 		}
+	} else {
+		cache.WaitForNamedCacheSync(
+			"F5 CIS Ingress Controller",
+			dynamicInf.stopCh,
+			cacheSyncs...,
+		)
+		log.Debugf("Successfully synced dynamic informer cache for cluster %v", dynamicInf.clusterName)
 	}
 }
 

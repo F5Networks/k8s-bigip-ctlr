@@ -70,8 +70,15 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
+			mockWriter := &test.MockWriter{FailStyle: test.Success}
+			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockCtlr.resources.ltmConfig = make(map[string]*PartitionConfig, 0)
 			mockCtlr.Partition = "test"
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					VirtualServer: make(map[string]int),
+				},
+			}
 
 		})
 		AfterEach(func() {

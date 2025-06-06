@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cis-webhook-cert
+  namespace: kube-system
+spec:
+  secretName: cis-webhook-tls
+  duration: 8760h # 1y
+  renewBefore: 360h # 15d
+  subject:
+    organizations:
+      - f5.com
+  commonName: cis-webhook.kube-system.svc
+  dnsNames:
+    - cis-webhook.kube-system.svc
+    - cis-webhook.kube-system.svc.cluster.local
+  issuerRef:
+    name: cis-webhook-selfsigned
+    kind: Issuer

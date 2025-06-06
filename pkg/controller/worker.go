@@ -236,7 +236,7 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName 
 			// same service can be updated but event is rejected if another service with the same key .
 			if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
 				if val.timestamp.Before(&svc.CreationTimestamp) {
-					err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label while processing service '%s/%s' of cluster %s. "+
+					err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label, port or bigip route-domain while processing service '%s/%s' of cluster %s. "+
 						"However it will be processed for Pool if any local MultiCluster Loadbalancer service references it in the multiClusterServices annotation.",
 						appConfig, svc.Namespace, svc.Name, clusterName)
 					return err, false
@@ -618,7 +618,7 @@ func (ctlr *Controller) processResources() bool {
 					//same service can be updated but event is created.
 					if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
 						if val.timestamp.Before(&svc.CreationTimestamp) {
-							log.Warningf("l4 app already exists with given ip-address/ipam-label while processing service %s", appConfig, svcKey)
+							log.Warningf("l4 app already exists with given ip-address/ipam-label, port or bigip route-domain while processing service %s", appConfig, svcKey)
 							break
 						} else {
 							delete(ctlr.resources.processedL4Apps, appConfig)
@@ -1326,10 +1326,10 @@ func (ctlr *Controller) processVirtualServers(
 	if !isVSDeleted {
 		// check if the virutal server matches all the requirements.
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
-		valid := ctlr.checkValidVirtualServer(virtual)
-		if false == valid {
-			log.Errorf("VirtualServer %s, is not valid",
-				vkey)
+		valid, errMsg := ctlr.checkValidVirtualServer(virtual)
+		if !valid {
+			log.Errorf("VirtualServer %s, is not valid: %s", vkey, errMsg)
+			ctlr.updateVSStatus(virtual, "", StatusError, errors.New(errMsg))
 			return nil
 		}
 	}
@@ -3133,10 +3133,10 @@ func (ctlr *Controller) processTransportServers(
 	if !isTSDeleted {
 		// check if the virutal server matches all the requirements.
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
-		valid := ctlr.checkValidTransportServer(virtual)
-		if false == valid {
-			log.Warningf("TransportServer %s is not valid",
-				vkey)
+		valid, errMsg := ctlr.checkValidTransportServer(virtual)
+		if !valid {
+			log.Errorf("TransportServer %s is not valid: %s", vkey, errMsg)
+			ctlr.updateTSStatus(virtual, "", "", errors.New(errMsg))
 			return nil
 		}
 	}
@@ -4274,10 +4274,11 @@ func (ctlr *Controller) processIngressLink(
 	if !isILDeleted {
 		// check if the virutal server matches all the requirements.
 		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
-		valid := ctlr.checkValidIngressLink(ingLink)
+		valid, errMsg := ctlr.checkValidIngressLink(ingLink)
 		if !valid {
-			log.Errorf("ingressLink %s, is not valid",
-				vkey)
+			log.Errorf("ingressLink %s, is not valid: %s",
+				vkey, errMsg)
+			ctlr.updateILStatus(ingLink, "", StatusError, errors.New(errMsg))
 			return nil
 		}
 	}
@@ -4420,7 +4421,7 @@ func (ctlr *Controller) processIngressLink(
 		appConfig := getL4AppConfig(ip, key, port.Port, ingLink.Spec.BigIPRouteDomain)
 		if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok && appConfig != (l4AppConfig{}) {
 			if val.timestamp.Before(&ingLink.CreationTimestamp) {
-				log.Warningf("l4 app already exists with given ip-address/ipam-label and port %s, when processing ingressLink %s/%s", appConfig, ingLink.Namespace, ingLink.Name)
+				log.Warningf("l4 app already exists with given ip-address/ipam-label, port or bigip route-domain %s, when processing ingressLink %s/%s", appConfig, ingLink.Namespace, ingLink.Name)
 				continue
 			}
 		}

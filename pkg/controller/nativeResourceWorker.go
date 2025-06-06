@@ -2128,6 +2128,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 		log.Debugf("kubeconfig deleted for cluster %s.Informers are stopped", mcc.ClusterName)
 		ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
 		ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
+		ctlr.stopMultiClusterDynamicInformer(mcc.ClusterName)
 		return nil
 	}
 	// Extract the kubeconfig from the secret
@@ -2144,6 +2145,9 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	if clusterConfig == nil {
 		clusterConfig = newClusterConfig()
 	}
+	// update CNI information in cluster config
+	clusterConfig.orchestrationCNI = ctlr.multiClusterHandler.orchestrationCNI
+	clusterConfig.staticRoutingMode = ctlr.multiClusterHandler.staticRoutingMode
 	// Create clientset using the provided kubeconfig for the respective cluster
 	err = ctlr.setupClientsforCluster(config, false, false, mcc.ClusterName, clusterConfig)
 	// update externalclusterconfig in clusterconfig

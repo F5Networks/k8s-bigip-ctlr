@@ -428,6 +428,7 @@ func (ctlr *Controller) processResources() bool {
 					log.Debugf("kubeconfig updated for cluster %s.Updating informers with new client", mcc.ClusterName)
 					ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
 					ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
+					ctlr.stopMultiClusterDynamicInformer(mcc.ClusterName)
 					//start the informers with updated client kubeconfig
 					if mcc.ServiceTypeLBDiscovery || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
 						//start all informers for the cluster
@@ -5322,6 +5323,17 @@ func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 		nodes = ctlr.multiClusterHandler.getAllNodesUsingRestClient()
 	}
 	return nodes
+}
+
+func (ctlr *Controller) getBlockAffinitiesFromAllClusters() []interface{} {
+	var ba []interface{}
+	//fetch nodes from other clusters
+	if ctlr.multiClusterHandler.isClusterInformersReady() {
+		ba = ctlr.multiClusterHandler.getAllBlockAffinitiesUsingInformers()
+	} else {
+		ba = ctlr.multiClusterHandler.getAllBlockAffinitiesUsingRestClient()
+	}
+	return ba
 }
 
 func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace string, clusterName string) int32 {

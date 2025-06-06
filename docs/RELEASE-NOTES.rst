@@ -13,6 +13,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3839 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3839>`_: Calico-CNI support added for multiCluster
 
 Upgrade notes
 ``````````````

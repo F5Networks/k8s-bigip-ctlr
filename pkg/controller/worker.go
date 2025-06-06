@@ -1546,6 +1546,7 @@ func (ctlr *Controller) processVirtualServers(
 
 		for _, vrt := range virtuals {
 			// Updating the virtual server IP Address status for all associated virtuals
+			// Additionally, this IP is used for health monitor name
 			vrt.Status.VSAddress = ip
 			ctlr.ResourceStatusVSAddressMap[resourceRef{
 				name:      vrt.Name,
@@ -1606,7 +1607,7 @@ func (ctlr *Controller) processVirtualServers(
 							namespace: virtual.Namespace,
 							kind:      VirtualServer,
 						}
-						ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, virtual.Spec.Host, virtual.Spec.HTTPTraffic, isTLSVirtualServer(virtual))
+						ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, virtual.Spec.Host, virtual.Spec.HTTPTraffic, isTLSVirtualServer(virtual), ip)
 					}
 				}
 			}
@@ -3192,6 +3193,7 @@ func (ctlr *Controller) processTransportServers(
 		ip = virtual.Spec.VirtualServerAddress
 	}
 	// Updating the virtual server IP Address status
+	// Additionally, this IP is used for health monitor name
 	virtual.Status.VSAddress = ip
 	ctlr.ResourceStatusVSAddressMap[resourceRef{
 		name:      virtual.Name,
@@ -3587,7 +3589,7 @@ func (ctlr *Controller) processLBServices(
 			}
 		}
 
-		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName, multiClusterServices)
+		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName, multiClusterServices, ip)
 
 		// handle pool settings from policy cr
 		if plc != nil {

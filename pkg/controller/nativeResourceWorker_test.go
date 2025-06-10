@@ -2501,7 +2501,8 @@ externalClustersConfig:
 				"SampleVS",
 				"default",
 				cisapiv1.VirtualServerSpec{
-					Host: "test.com",
+					VirtualServerAddress: "1.2.3.4",
+					Host:                 "test.com",
 					Pools: []cisapiv1.VSPool{
 						{
 							Path:             "/foo",
@@ -2563,6 +2564,7 @@ externalClustersConfig:
 			mockCtlr.addService(svc_1, "cluster3")
 			svc_1_b := test.NewService("svc1-b", "1", "default", "NodePort", fooPorts)
 			mockCtlr.addService(svc_1_b, "")
+			vs.Status.VSAddress = "1.2.3.4"
 			mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false, "")
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap[""])).To(Equal(2))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(1))
@@ -2571,7 +2573,7 @@ externalClustersConfig:
 			//Verify that distinct health monitors are created for all pools in ratio mode
 			expectedHealthMonitors := make(map[string]struct{})
 			expectedHealthMonitors = map[string]struct{}{
-				"svc1_default_test_com_foo": struct{}{},
+				"default_1_2_3_4_test_com_foo": struct{}{},
 			}
 			for _, hm := range rsCfg.Monitors {
 				_, ok := expectedHealthMonitors[hm.Name]
@@ -2715,6 +2717,7 @@ externalClustersConfig:
 				"SampleTS",
 				"default",
 				cisapiv1.TransportServerSpec{
+					VirtualServerAddress: "1.2.3.4",
 					Pool: cisapiv1.TSPool{
 						Service:          "svc1",
 						ServicePort:      intstr.IntOrString{IntVal: 80},
@@ -2771,12 +2774,13 @@ externalClustersConfig:
 					mockCtlr.multiClusterHandler.ClusterConfigs[clusterName].comInformers[namespace] = poolInfr
 				}
 			}
+			ts.Status.VSAddress = "1.2.3.4"
 			mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			Expect(len(rsCfg.Monitors)).To(Equal(2))
 			Expect(len(rsCfg.Pools)).To(Equal(2))
 			Expect(len(rsCfg.IRulesMap)).To(Equal(1))
-			Expect(rsCfg.Monitors[0].Name).To(Equal("svc_default_tcp_80"))
-			Expect(rsCfg.Monitors[1].Name).To(Equal("svc_default_tcp_8080"))
+			Expect(rsCfg.Monitors[0].Name).To(Equal("default_1_2_3_4_tcp_80"))
+			Expect(rsCfg.Monitors[1].Name).To(Equal("default_1_2_3_4_tcp_8080"))
 			Expect(mockCtlr.discoveryMode).To(Equal(DefaultMode))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap)).To(Equal(1))
 			Expect(len(mockCtlr.multiClusterResources.clusterSvcMap["cluster3"])).To(Equal(2))

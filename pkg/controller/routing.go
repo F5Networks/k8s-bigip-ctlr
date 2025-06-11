@@ -70,7 +70,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		// Create a rule for each host including host aliases and path combination
 		for _, host := range hosts {
 			// Service cannot be empty
-			if pl.Service == "" {
+			if pl.Service == "" && ctlr.discoveryMode != DefaultMode {
 				continue
 			}
 			// If not using WAF from policy CR, use Pool Based WAF from VS

@@ -1,3 +1,3 @@
 -e git+https://github.com/f5devcentral/f5-cccl.git@497c325211de2191afe1ffaef673df07f7bb7c26#egg=f5-cccl
--e git+https://github.com/f5devcentral/f5-ctlr-agent.git@856e03921a16506a81b9e3ae56d860e635f6abac#egg=f5-ctlr-agent
+-e git+https://github.com/f5devcentral/f5-ctlr-agent.git@a717f8843f4dced916efda1edeebc8675ef0e675#egg=f5-ctlr-agent
 -e git+https://github.com/F5Networks/f5-icontrol-rest-python.git@3fee4a4599e903cce1abfe232e6ffb74d7085b64#egg=f5-icontrol-rest

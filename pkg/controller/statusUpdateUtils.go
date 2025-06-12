@@ -15,15 +15,11 @@ import (
 func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, status string, err error) {
 	vsStatus := cisapiv1.CustomResourceStatus{
 		Status:      status,
+		VSAddress:   ip,
 		LastUpdated: metav1.Now(),
 	}
 	if err != nil {
 		vsStatus.Error = err.Error()
-	} else if ip != "" {
-		vsStatus.VSAddress = ip
-	} else {
-		vsStatus.Error = fmt.Sprintf("Missing label %s on VS %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
-			vs.Namespace, vs.Name)
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: vsStatus,
@@ -41,15 +37,11 @@ func (ctlr *Controller) updateVSStatus(vs *cisapiv1.VirtualServer, ip string, st
 func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, status string, err error) {
 	tsStatus := cisapiv1.CustomResourceStatus{
 		Status:      status,
+		VSAddress:   ip,
 		LastUpdated: metav1.Now(),
 	}
 	if err != nil {
 		tsStatus.Error = err.Error()
-	} else if ip != "" {
-		tsStatus.VSAddress = ip
-	} else {
-		tsStatus.Error = fmt.Sprintf("Missing label %s on TS %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
-			ts.Namespace, ts.Name)
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: tsStatus,
@@ -68,14 +60,10 @@ func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, stat
 	ilStatus := cisapiv1.CustomResourceStatus{
 		Status:      status,
 		LastUpdated: metav1.Now(),
+		VSAddress:   ip,
 	}
 	if err != nil {
 		ilStatus.Error = err.Error()
-	} else if ip != "" {
-		ilStatus.VSAddress = ip
-	} else {
-		ilStatus.Error = fmt.Sprintf("Missing label %s on il %v/%v", ctlr.multiClusterHandler.customResourceSelector.String(),
-			il.Namespace, il.Name)
 	}
 	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
 		ResourceObj: ilStatus,

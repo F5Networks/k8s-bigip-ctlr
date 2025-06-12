@@ -17,6 +17,8 @@ Bug Fixes
 * `Issue 3839 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3839>`_: Calico-CNI support added for multiCluster
 * `Issue 3857 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3857>`_: Secrets referenced in TLSProfile are not processed on update when hybrid mode is used
 * `Issue 3859 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3859>`_: Fix ctlr agent crash without gtm credentials
+* `Issue 3851 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3851>`_: Fix crash issue with hostless and hostAliases vs
+
 Upgrade notes
 ``````````````
 

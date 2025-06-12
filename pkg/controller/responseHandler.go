@@ -58,15 +58,16 @@ func (ctlr *Controller) responseHandler() {
 							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ctlr.updateVSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
+							ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
 								namespace: virtual.Namespace,
 								kind:      VirtualServer,
-							}], StatusOk, nil)
+							}]
+							ctlr.updateVSStatus(virtual, ip, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
 								// set status of all the LB services associated with this VS
-								go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
+								go ctlr.updateLBServiceStatusForVSorTS(virtual, ip, true)
 							}
 						}
 					}
@@ -94,13 +95,14 @@ func (ctlr *Controller) responseHandler() {
 							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ctlr.updateTSStatus(virtual, ctlr.ResourceStatusVSAddressMap[resourceRef{
+							ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
 								name:      virtual.Name,
 								namespace: virtual.Namespace,
 								kind:      TransportServer,
-							}], StatusOk, nil)
+							}]
+							ctlr.updateTSStatus(virtual, ip, StatusOk, nil)
 							// set status of all the LB services associated with this TS
-							go ctlr.updateLBServiceStatusForVSorTS(virtual, virtual.Status.VSAddress, true)
+							go ctlr.updateLBServiceStatusForVSorTS(virtual, ip, true)
 						}
 					}
 

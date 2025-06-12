@@ -132,7 +132,7 @@ labels:
     cis.f5.com/as3-tenant: AS3
     cis.f5.com/as3-app: A5
     cis.f5.com/as3-pool: secure_ssl_waf_pool
-    cis.f5.com/as3-pool-member-priorityGroup: 10
+    cis.f5.com/as3-pool-member-priorityGroup: "10"
 ```
     
 ConfigMap:

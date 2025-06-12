@@ -1735,6 +1735,10 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			continue
 		}
 
+		if vrt.Spec.Host == "" && len(vrt.Spec.HostAliases) > 0 {
+			continue
+		}
+
 		// Multiple VS sharing same VS address with different partition is invalid
 		// This also handles for host group/VS with same hosts
 		if currentVS.Spec.VirtualServerAddress != "" &&

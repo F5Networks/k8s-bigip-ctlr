@@ -52,17 +52,17 @@ func (ctlr *Controller) responseHandler() {
 						continue
 					}
 					virtual := obj.(*cisapiv1.VirtualServer)
+					ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
+						name:      virtual.Name,
+						namespace: virtual.Namespace,
+						kind:      VirtualServer,
+					}]
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for virtual server as tenant posting is failed
-							ctlr.updateVSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateVSStatus(virtual, ip, StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for virtual server as tenant posting is success
-							ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
-								name:      virtual.Name,
-								namespace: virtual.Namespace,
-								kind:      VirtualServer,
-							}]
 							ctlr.updateVSStatus(virtual, ip, StatusOk, nil)
 							// Update Corresponding Service Status of Type LB
 							if !ctlr.isAddingPoolRestricted(ctlr.multiClusterHandler.LocalClusterName) {
@@ -89,17 +89,18 @@ func (ctlr *Controller) responseHandler() {
 						continue
 					}
 					virtual := obj.(*cisapiv1.TransportServer)
+
+					ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
+						name:      virtual.Name,
+						namespace: virtual.Namespace,
+						kind:      TransportServer,
+					}]
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for transport server as tenant posting is failed
-							ctlr.updateTSStatus(virtual, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateTSStatus(virtual, ip, StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for transport server as tenant posting is success
-							ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
-								name:      virtual.Name,
-								namespace: virtual.Namespace,
-								kind:      TransportServer,
-							}]
 							ctlr.updateTSStatus(virtual, ip, StatusOk, nil)
 							// set status of all the LB services associated with this TS
 							go ctlr.updateLBServiceStatusForVSorTS(virtual, ip, true)
@@ -123,17 +124,19 @@ func (ctlr *Controller) responseHandler() {
 						continue
 					}
 					il := obj.(*cisapiv1.IngressLink)
+
+					ip, _ := ctlr.ResourceStatusVSAddressMap[resourceRef{
+						name:      il.Name,
+						namespace: il.Namespace,
+						kind:      IngressLink,
+					}]
 					if il.Namespace+"/"+il.Name == rscKey {
 						if tenantResponse, found := agentConfig.failedTenants[partition]; found {
 							// update the status for ingresslink as tenant posting is failed
-							ctlr.updateILStatus(il, "", StatusError, errors.New(tenantResponse.message))
+							ctlr.updateILStatus(il, ip, StatusError, errors.New(tenantResponse.message))
 						} else {
 							// update the status for ingresslink as tenant posting is success
-							ctlr.updateILStatus(il, ctlr.ResourceStatusVSAddressMap[resourceRef{
-								name:      il.Name,
-								namespace: il.Namespace,
-								kind:      IngressLink,
-							}], StatusOk, nil)
+							ctlr.updateILStatus(il, ip, StatusOk, nil)
 						}
 					}
 

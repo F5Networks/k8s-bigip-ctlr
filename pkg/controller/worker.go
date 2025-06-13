@@ -901,10 +901,11 @@ func (ctlr *Controller) processResources() bool {
 	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
 		(ctlr.multiClusterMode == SecondaryCIS && rKey.kind == HACIS) {
 		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
-			shareNodes:         ctlr.shareNodes,
-			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
-			defaultRouteDomain: ctlr.defaultRouteDomain,
+			ltmConfig:                ctlr.resources.getLTMConfigDeepCopy(),
+			shareNodes:               ctlr.shareNodes,
+			gtmConfig:                ctlr.resources.getGTMConfigCopy(),
+			defaultRouteDomain:       ctlr.defaultRouteDomain,
+			sharedDefaultRouteDomain: ctlr.sharedDefaultRouteDomain,
 		}
 
 		if ctlr.multiClusterMode != "" {

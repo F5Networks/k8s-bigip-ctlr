@@ -86,6 +86,7 @@ type (
 		ipamClusterLabel            string
 		ipamCR                      string
 		defaultRouteDomain          int32
+		sharedDefaultRouteDomain    bool
 		TeemData                    *teem.TeemsData
 		requestCounter              int64
 		ipamHostSpecEmpty           bool
@@ -208,6 +209,7 @@ type (
 		IPAM                        bool
 		IPAMClusterLabel            string
 		DefaultRouteDomain          int32
+		SharedDefaultRouteDomain    bool
 		Mode                        ControllerMode
 		GlobalExtendedSpecConfigmap string
 		RouteLabel                  string
@@ -505,12 +507,13 @@ type (
 	}
 
 	ResourceConfigRequest struct {
-		ltmConfig          LTMConfig
-		shareNodes         bool
-		gtmConfig          GTMConfig
-		defaultRouteDomain int32
-		reqMeta            requestMeta
-		poolMemberType     string
+		ltmConfig                LTMConfig
+		shareNodes               bool
+		gtmConfig                GTMConfig
+		defaultRouteDomain       int32
+		sharedDefaultRouteDomain bool
+		reqMeta                  requestMeta
+		poolMemberType           string
 	}
 
 	resourceRef struct {

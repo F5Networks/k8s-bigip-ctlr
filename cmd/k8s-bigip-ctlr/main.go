@@ -177,6 +177,7 @@ var (
 	tls13CipherGroupReference   *string
 	ciphers                     *string
 	as3PostDelay                *int
+	sharedDefaultRouteDomain    *bool
 
 	trustedCertsCfgmap      *string
 	agent                   *string
@@ -287,6 +288,8 @@ func _init() {
 		"Optional, to put the controller to process desired resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
 		"Optional, CIS uses this value as default Route Domain in BIG-IP ")
+	sharedDefaultRouteDomain = bigIPFlags.Bool("shared-default-route-domain", true,
+		"Optional, set to false if default route domain in partition defined by bigip-partition flag")
 	routeSpecConfigmap = globalFlags.String("route-spec-configmap", "",
 		"Required, specify a configmap that holds additional spec for routes"+
 			" if controller-mode is 'openshift'")
@@ -996,6 +999,7 @@ func initController(
 			IpamNamespace:               *ipamNamespace,
 			ShareNodes:                  *shareNodes,
 			DefaultRouteDomain:          int32(*defaultRouteDomain),
+			SharedDefaultRouteDomain:    *sharedDefaultRouteDomain,
 			Mode:                        controller.ControllerMode(*controllerMode),
 			GlobalExtendedSpecConfigmap: *globalSpecConfigMap,
 			RouteLabel:                  *routeLabel,

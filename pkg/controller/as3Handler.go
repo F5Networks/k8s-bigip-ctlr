@@ -631,6 +631,9 @@ func (am *AS3Handler) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
 			as3SharedApplication: sharedApp,
 			"label":              cisLabel,
 		}
+		if am.AS3VersionInfo.bigIPAS3Version >= 3.52 {
+			tenantDecl["useCommonRouteDomainTenant"] = config.sharedDefaultRouteDomain
+		}
 		adc[tenantName] = tenantDecl
 	}
 	return adc

@@ -1277,7 +1277,7 @@ var _ = Describe("AppManager Tests", func() {
 						Session: "user-enabled",
 					},
 				}
-				mems, _ := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default", false)
+				mems, _, _ := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default", make([]interface{}, 0), false)
 				Expect(mems).To(Equal(expMembers))
 			})
 
@@ -4390,7 +4390,7 @@ var _ = Describe("AppManager Tests", func() {
 					mockMgr.appMgr.isNodePort = true
 				}()
 				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
-				members, _ := mockMgr.appMgr.getEndpoints("test", namespace, false)
+				members, _, _ := mockMgr.appMgr.getEndpoints("test", namespace, make([]interface{}, 0), false)
 				Expect(members).To(BeNil())
 
 				// Add service
@@ -4405,16 +4405,16 @@ var _ = Describe("AppManager Tests", func() {
 				svc2.Labels["test"] = "true"
 				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc1, metav1.CreateOptions{})
 				mockMgr.appMgr.kubeClient.CoreV1().Services(namespace).Create(context.TODO(), svc2, metav1.CreateOptions{})
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
+				members, _, _ = mockMgr.appMgr.getEndpoints("test", namespace, make([]interface{}, 0), false)
 				Expect(members).To(BeNil())
 
 				// Set isNodePort to false, no endpoints
 				mockMgr.appMgr.isNodePort = false
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
+				members, _, _ = mockMgr.appMgr.getEndpoints("test", namespace, make([]interface{}, 0), false)
 				Expect(members).To(BeNil())
 
 				// Set isNodePort to false, no endpoints
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
+				members, _, _ = mockMgr.appMgr.getEndpoints("test", namespace, make([]interface{}, 0), false)
 				Expect(members).To(BeNil())
 
 				// Add endpoints
@@ -4424,7 +4424,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.kubeClient.CoreV1().Endpoints(namespace).Create(context.TODO(), endpts1, metav1.CreateOptions{})
 				//appInf.endptInformer.GetStore().Add(endpts1)
 				delete(mockMgr.appMgr.appInformers, namespace)
-				members, _ = mockMgr.appMgr.getEndpoints("test", namespace, false)
+				members, _, _ = mockMgr.appMgr.getEndpoints("test", namespace, make([]interface{}, 0), false)
 				Expect(members).NotTo(BeNil())
 				Expect(len(members)).To(Equal(2))
 

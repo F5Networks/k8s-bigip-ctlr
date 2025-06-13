@@ -67,6 +67,13 @@ func (ctlr *Controller) checkValidVirtualServer(
 		return false
 	}
 
+	if vsResource.Spec.Host == "" && len(vsResource.Spec.HostAliases) > 0 {
+		err = fmt.Sprintf("Host is not provided but HostAliases is present for VirtualServer: %v", vsName)
+		log.Errorf(err)
+		ctlr.updateVSStatus(vsResource, "", StatusError, errors.New(err))
+		return false
+	}
+
 	bindAddr := vsResource.Spec.VirtualServerAddress
 	if ctlr.ipamCli == nil {
 

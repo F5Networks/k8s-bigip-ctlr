@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"reflect"
 	"sort"
@@ -69,6 +70,10 @@ func (ctlr *Controller) nextGenResourceWorker() {
 	// when CIS is running in the secondary mode then enable health probe on the primary cluster
 	if ctlr.multiClusterMode == SecondaryCIS {
 		ctlr.firstPollPrimaryClusterHealthStatus()
+		//if primary cis is active.then set local cluster to standby
+		if ctlr.PrimaryClusterHealthProbeParams.statusRunning {
+			go ctlr.updateSecondaryClusterResourcesStatus(ctlr.multiClusterHandler.LocalClusterName)
+		}
 		go ctlr.probePrimaryClusterHealthStatus()
 	}
 
@@ -428,6 +433,7 @@ func (ctlr *Controller) processResources() bool {
 					log.Debugf("kubeconfig updated for cluster %s.Updating informers with new client", mcc.ClusterName)
 					ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
 					ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
+					ctlr.stopMultiClusterDynamicInformer(mcc.ClusterName)
 					//start the informers with updated client kubeconfig
 					if mcc.ServiceTypeLBDiscovery || mcc.ClusterName == ctlr.multiClusterHandler.LocalClusterName {
 						//start all informers for the cluster
@@ -1545,6 +1551,7 @@ func (ctlr *Controller) processVirtualServers(
 
 		for _, vrt := range virtuals {
 			// Updating the virtual server IP Address status for all associated virtuals
+			// Additionally, this IP is used for health monitor name
 			vrt.Status.VSAddress = ip
 			ctlr.ResourceStatusVSAddressMap[resourceRef{
 				name:      vrt.Name,
@@ -1605,7 +1612,7 @@ func (ctlr *Controller) processVirtualServers(
 							namespace: virtual.Namespace,
 							kind:      VirtualServer,
 						}
-						ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, virtual.Spec.Host, virtual.Spec.HTTPTraffic, isTLSVirtualServer(virtual))
+						ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, virtual.Spec.Host, virtual.Spec.HTTPTraffic, isTLSVirtualServer(virtual), ip)
 					}
 				}
 			}
@@ -1725,6 +1732,10 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 	for _, vrt := range allVirtuals {
 		// skip the deleted virtual in the event of deletion
 		if isVSDeleted && vrt.Name == currentVS.Name && vrt.ObjectMeta.Namespace == currentVS.ObjectMeta.Namespace {
+			continue
+		}
+
+		if vrt.Spec.Host == "" && len(vrt.Spec.HostAliases) > 0 {
 			continue
 		}
 
@@ -3191,6 +3202,7 @@ func (ctlr *Controller) processTransportServers(
 		ip = virtual.Spec.VirtualServerAddress
 	}
 	// Updating the virtual server IP Address status
+	// Additionally, this IP is used for health monitor name
 	virtual.Status.VSAddress = ip
 	ctlr.ResourceStatusVSAddressMap[resourceRef{
 		name:      virtual.Name,
@@ -3586,7 +3598,7 @@ func (ctlr *Controller) processLBServices(
 			}
 		}
 
-		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName, multiClusterServices)
+		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec, clusterName, multiClusterServices, ip)
 
 		// handle pool settings from policy cr
 		if plc != nil {
@@ -5239,16 +5251,9 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 
 	for _, obj := range orderedTLS {
 		tlsProfile := obj.(*cisapiv1.TLSProfile)
-		if tlsProfile.Spec.TLS.Reference == Secret {
-			if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
-				for _, name := range tlsProfile.Spec.TLS.ClientSSLs {
-					if name == secret.Name {
-						allTLSProfiles = append(allTLSProfiles, tlsProfile)
-					}
-				}
-			} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
-				allTLSProfiles = append(allTLSProfiles, tlsProfile)
-			}
+		// Check if the TLS profile references the secret
+		if matchesSecret(tlsProfile, secret.Name) {
+			allTLSProfiles = append(allTLSProfiles, tlsProfile)
 		}
 	}
 	return allTLSProfiles
@@ -5322,6 +5327,17 @@ func (ctlr *Controller) getNodesFromAllClusters() []interface{} {
 		nodes = ctlr.multiClusterHandler.getAllNodesUsingRestClient()
 	}
 	return nodes
+}
+
+func (ctlr *Controller) getBlockAffinitiesFromAllClusters() []interface{} {
+	var ba []interface{}
+	// fetch nodes from other clusters
+	if ctlr.multiClusterHandler.isClusterInformersReady() {
+		ba = ctlr.multiClusterHandler.getAllBlockAffinitiesUsingInformers()
+	} else {
+		ba = ctlr.multiClusterHandler.getAllBlockAffinitiesUsingRestClient()
+	}
+	return ba
 }
 
 func (ctlr *Controller) getNodeportForNPL(port int32, svcName string, namespace string, clusterName string) int32 {
@@ -5454,6 +5470,158 @@ func (ctlr *Controller) isAddingPoolRestricted(cluster string) bool {
 	// In case of multiCluster mode, populate pool members only if adminState is not set to NoPool
 	if adminState, ok := ctlr.clusterAdminState[cluster]; ok && adminState == clustermanager.NoPool {
 		return true
+	}
+	return false
+}
+
+// updateSecondaryClusterResourcesStatus updates the status of all custom resources in the secondary cluster to "standby"
+func (ctlr *Controller) updateSecondaryClusterResourcesStatus(secondaryClusterName string) {
+	// Get secondary cluster config
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(secondaryClusterName)
+	if clusterConfig == nil {
+		log.Errorf("Failed to get cluster config for secondary cluster: %s", secondaryClusterName)
+		return
+	}
+
+	// Get watched namespaces in the secondary cluster
+	namespaces := ctlr.getWatchingNamespaces(secondaryClusterName)
+	for _, ns := range namespaces {
+		//get crInf for cluster
+		crInf, found := ctlr.getNamespacedCRInformer(ns, secondaryClusterName)
+		if !found {
+			log.Debugf("custom resource informer not found for ns %s in cluster %s", ns, secondaryClusterName)
+			continue
+		}
+		// Process VirtualServers using direct API calls
+		vsList := crInf.vsInformer.GetIndexer().List()
+		log.Debugf("Processing %d VirtualServers in namespace %s", len(vsList), ns)
+		for _, obj := range vsList {
+			vs := obj.(*cisapiv1.VirtualServer)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
+
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for VirtualServer %s/%s: %v", vs.Namespace, vs.Name, err)
+				continue
+			}
+			_, err = clusterConfig.kubeCRClient.CisV1().VirtualServers(vs.Namespace).Patch(
+				context.TODO(),
+				vs.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
+
+			if err != nil {
+				log.Errorf("Failed to update VirtualServer %s/%s status: %v", vs.Namespace, vs.Name, err)
+			}
+		}
+
+		// update TransportServer status
+		tsList := crInf.tsInformer.GetIndexer().List()
+		for _, obj := range tsList {
+			ts := obj.(*cisapiv1.TransportServer)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
+
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for TransportServer %s/%s: %v", ts.Namespace, ts.Name, err)
+				continue
+			}
+
+			_, err = clusterConfig.kubeCRClient.CisV1().TransportServers(ts.Namespace).Patch(
+				context.TODO(),
+				ts.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
+
+			if err != nil {
+				log.Errorf("Failed to update TransportServer %s/%s status: %v", ts.Namespace, ts.Name, err)
+			}
+		}
+
+		// update ingressLink status
+		ilList := crInf.ilInformer.GetIndexer().List()
+		for _, obj := range ilList {
+			il := obj.(*cisapiv1.IngressLink)
+			// Create a status patch
+			statusPatch := struct {
+				Status cisapiv1.CustomResourceStatus `json:"status"`
+			}{
+				Status: cisapiv1.CustomResourceStatus{
+					Status: "standby",
+				},
+			}
+
+			patchBytes, err := json.Marshal(statusPatch)
+			if err != nil {
+				log.Errorf("Failed to marshal status patch for IngressLink %s/%s: %v", il.Namespace, il.Name, err)
+				continue
+			}
+
+			_, err = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.Namespace).Patch(
+				context.TODO(),
+				il.Name,
+				types.MergePatchType,
+				patchBytes,
+				metav1.PatchOptions{},
+				"status")
+
+			if err != nil {
+				log.Errorf("Failed to update IngressLink %s/%s status: %v", il.Namespace, il.Name, err)
+			}
+		}
+	}
+	log.Debugf("Completed setting status of all custom resources on secondary cluster %s to 'standby'", secondaryClusterName)
+}
+
+// matchesSecret checks if a TLSProfile references the given secret name
+func matchesSecret(tlsProfile *cisapiv1.TLSProfile, secretName string) bool {
+	if tlsProfile == nil {
+		return false
+	}
+	// Helper function to check if secret name matches in a slice or single value
+	checkSecretMatch := func(secretsList []string, singleSecret string) bool {
+		if len(secretsList) > 0 {
+			for _, name := range secretsList {
+				if name == secretName {
+					return true
+				}
+			}
+		} else if singleSecret == secretName {
+			return true
+		}
+		return false
+	}
+	if tlsProfile.Spec.TLS.Reference == Secret {
+		// Check both client and server SSL configurations
+		return checkSecretMatch(tlsProfile.Spec.TLS.ClientSSLs, tlsProfile.Spec.TLS.ClientSSL) || checkSecretMatch(tlsProfile.Spec.TLS.ServerSSLs, tlsProfile.Spec.TLS.ServerSSL)
+	} else if tlsProfile.Spec.TLS.Reference == Hybrid {
+		// Check client SSL params if reference is Secret
+		clientSecretMatch := tlsProfile.Spec.TLS.ClientSSLParams.ProfileReference == Secret &&
+			checkSecretMatch(tlsProfile.Spec.TLS.ClientSSLs, tlsProfile.Spec.TLS.ClientSSL)
+
+		// Check server SSL params if reference is Secret
+		serverSecretMatch := tlsProfile.Spec.TLS.ServerSSLParams.ProfileReference == Secret &&
+			checkSecretMatch(tlsProfile.Spec.TLS.ServerSSLs, tlsProfile.Spec.TLS.ServerSSL)
+
+		return clientSecretMatch || serverSecretMatch
 	}
 	return false
 }

@@ -1685,7 +1685,7 @@ func (appMgr *Manager) syncConfigMaps(
 
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
-				members, err := appMgr.getEndpoints(selector, sKey.Namespace, false)
+				members, _, err := appMgr.getEndpoints(selector, sKey.Namespace, make([]interface{}, 0), false)
 				if err != nil {
 					return err
 				}
@@ -3529,10 +3529,10 @@ func (appMgr *Manager) getEndpointsForHubMode(svcName, svcNamespace string, isTe
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServiceNamespace bool) ([]Member, error) {
+func (appMgr *Manager) getEndpoints(selector, namespace string, poolMemberConfig []interface{}, isTenantNameServiceNamespace bool) ([]Member, []map[string]interface{}, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
-
+	filteredPoolMemConfig := make([]map[string]interface{}, 0)
 	appInf, _ := appMgr.getNamespaceInformer(namespace)
 
 	var svcItems []v1.Service
@@ -3540,7 +3540,8 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 	if appMgr.hubMode {
 		svcItems, err = appMgr.getServicesForHubMode(selector, namespace, isTenantNameServiceNamespace)
 		if err != nil {
-			return nil, err
+			filteredPoolMemConfig := make([]map[string]interface{}, 0)
+			return nil, filteredPoolMemConfig, err
 		}
 	} else {
 		svcInformer := appInf.svcInformer
@@ -3609,6 +3610,16 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 								}
 								if _, ok := uniqueMembersMap[member]; !ok {
 									uniqueMembersMap[member] = struct{}{}
+									for _, mem := range poolMemberConfig {
+										poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
+										if !ok {
+											poolMemPriorityGroup = float64(0)
+										}
+										if int(member.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && member.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+											filteredPoolMemConfig = append(filteredPoolMemConfig, mem.(map[string]interface{}))
+											break
+										}
+									}
 									members = append(members, member)
 								}
 							}
@@ -3623,7 +3634,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 				eps, err = appMgr.getEndpointsForHubMode(service.Name, service.Namespace, isTenantNameServiceNamespace)
 				if err != nil {
 					log.Debugf("[CORE] Error getting endpoints for service %v/%v", service.Namespace, service.Name)
-					return nil, err
+					return nil, filteredPoolMemConfig, err
 				}
 				if eps == nil {
 					log.Debugf("[CORE] Endpoints for service %v/%v not found", service.Namespace, service.Name)
@@ -3663,6 +3674,16 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 						}
 						if _, ok := uniqueMembersMap[member]; !ok {
 							uniqueMembersMap[member] = struct{}{}
+							for _, mem := range poolMemberConfig {
+								poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
+								if !ok {
+									poolMemPriorityGroup = float64(0)
+								}
+								if int(member.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && member.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+									filteredPoolMemConfig = append(filteredPoolMemConfig, mem.(map[string]interface{}))
+									break
+								}
+							}
 							members = append(members, member)
 						}
 					}
@@ -3671,7 +3692,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 		} else if appMgr.poolMemberType == NodePortLocal { // Controller is in NodePortLocal Mode
 			pods, err := appMgr.GetPodsForService(service.Namespace, service.Name)
 			if err != nil {
-				return nil, err
+				return nil, filteredPoolMemConfig, err
 			}
 			if pods != nil {
 				for _, portSpec := range service.Spec.Ports {
@@ -3685,6 +3706,16 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 						}
 						if _, ok := uniqueMembersMap[newMember]; !ok {
 							uniqueMembersMap[newMember] = struct{}{}
+							for _, mem := range poolMemberConfig {
+								poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
+								if !ok {
+									poolMemPriorityGroup = float64(0)
+								}
+								if int(newMember.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && newMember.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+									filteredPoolMemConfig = append(filteredPoolMemConfig, mem.(map[string]interface{}))
+									break
+								}
+							}
 							members = append(members, newMember)
 						}
 					}
@@ -3703,6 +3734,16 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 						}
 						if _, ok := uniqueMembersMap[newMember]; !ok {
 							uniqueMembersMap[newMember] = struct{}{}
+							for _, mem := range poolMemberConfig {
+								poolMemPriorityGroup, ok := mem.(map[string]interface{})["priorityGroup"]
+								if !ok {
+									poolMemPriorityGroup = float64(0)
+								}
+								if int(newMember.SvcPort) == int(mem.(map[string]interface{})["servicePort"].(float64)) && newMember.PriorityGroup == int(poolMemPriorityGroup.(float64)) {
+									filteredPoolMemConfig = append(filteredPoolMemConfig, mem.(map[string]interface{}))
+									break
+								}
+							}
 							members = append(members, newMember)
 						}
 					}
@@ -3721,7 +3762,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string, isTenantNameServ
 		}
 		return members[i].Address < members[j].Address
 	})
-	return members, nil
+	return members, filteredPoolMemConfig, nil
 }
 
 // getDeploysAndRsMatchingSvcLabel returns the name of the deployments and replicasets which are associated with the provided service

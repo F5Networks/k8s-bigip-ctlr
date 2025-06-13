@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    k8s.ovn.org/routing-external-gws: 10.192.125.60 ##BIG-IP interface address rotatable to the OpenShift nodes
+  labels:
+    kubernetes.io/metadata.name: default
+  name: cafe

@@ -2777,7 +2777,7 @@ func CreatePolicy(rls Rules, policyName, partition string) *Policy {
 	return &plcy
 }
 
-func (cm *AgentCfgMap) Init(n string, ns string, d string, l map[string]string, annotation string, getEP func(string, string, bool) ([]Member, error)) {
+func (cm *AgentCfgMap) Init(n string, ns string, d string, l map[string]string, annotation string, getEP func(string, string, []interface{}, bool) ([]Member, []map[string]interface{}, error)) {
 	cm.Name = n
 	cm.Namespace = ns
 	cm.Data = d

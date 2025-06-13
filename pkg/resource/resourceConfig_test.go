@@ -2218,7 +2218,9 @@ var _ = Describe("Resource Config Tests", func() {
 			cm := &AgentCfgMap{}
 			label := make(map[string]string)
 			annotation := ""
-			getEP := func(string, string, bool) ([]Member, error) { return nil, nil }
+			getEP := func(string, string, []interface{}, bool) ([]Member, []map[string]interface{}, error) {
+				return nil, make([]map[string]interface{}, 0), nil
+			}
 			cm.Init("test1", "default", "", label, annotation, getEP)
 			Expect(cm.Name).To(Equal("test1"))
 			Expect(cm.Namespace).To(Equal("default"))

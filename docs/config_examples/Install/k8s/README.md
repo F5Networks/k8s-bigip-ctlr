@@ -151,7 +151,7 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   kubectl create -f ./docs/config_examples/rbac/k8s_rbac.yml
   ```
 
-**Note:-** The command has the broadest supported permission set. You can narrow the permissions down to specific resources, namespaces, etc. to suit your needs. See the [Kubernetes RBAC documentation](https://kubernetes.io/docs/admin/authorization/rbac/) for more information.
+**Note:-** The command has the broadest supported permission set. You can narrow the permissions down to specific resources, namespaces, etc. to suit your needs. See the [Kubernetes RBAC documentation](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) for more information.
 
 **Important:** You can substitute a Role and RoleBinding if your Controller does not need access to the entire Cluster.
 

@@ -1,0 +1,102 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    f5nr: "true"
+  name: cafe-coffee-edge
+  namespace: cafe
+spec:
+  host: cafe.example.com
+  path: "/coffee"
+  port:
+    targetPort: 8080
+  tls:
+    certificate: |
+      -----BEGIN CERTIFICATE-----
+      MIIFbDCCA1QCCQDFiyiR3eKdTjANBgkqhkiG9w0BAQsFADB4MQswCQYDVQQGEwJV
+      UzELMAkGA1UECAwCQ0ExETAPBgNVBAcMCFNhbiBKb3NlMQ0wCwYDVQQKDARDYWZl
+      MQ0wCwYDVQQLDARDYWZlMQ0wCwYDVQQDDARDYWZlMRwwGgYJKoZIhvcNAQkBFg1j
+      YWZlQGNhZmUuY29tMB4XDTIyMDYwNzIwMzIzN1oXDTIzMDYwNzIwMzIzN1oweDEL
+      MAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMREwDwYDVQQHDAhTYW4gSm9zZTENMAsG
+      A1UECgwEQ2FmZTENMAsGA1UECwwEQ2FmZTENMAsGA1UEAwwEQ2FmZTEcMBoGCSqG
+      SIb3DQEJARYNY2FmZUBjYWZlLmNvbTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCC
+      AgoCggIBANyq2v9XyIjq0NZ+O+q0kfv/okKKToqTvNYKbg/qkDTAmqJJjpZr1Gf4
+      gn1bopwN3cZpq5jUt8QDWOrpJ5QkIqSkoRiDtc6urEVrOYU/oB/zsl0A9n0BtNgb
+      OOY983rSndH+YYcqoIHcwTkVmBTG0+G4tz7ajr2H7S7Y3j6GOje/RFDy6xW/SBxy
+      sEszDTvEhJBL8aWW0a3/cqV/8hoOYnUMRlep2vaJS0OMMweZzFFI4pYR9rz8fpTn
+      oszcY7q3lISJwp38GDwCnprTHOtSGTIkfi3wSlEdiXKjFxQZMSN12JE6wekWY0cS
+      pYqnB+1KSgFssb4mssMi2ptDNhISgW9OTDhWub70VWlR+xrrEPEegkFee5/OGewL
+      hEifQRjIRh4XNepp+v2wERxTq8PSjVI3FoX/ClAXxS0VIDMrHJfZq+uLxihyH8Y+
+      5j8MMzWSAYf5U2gRrEyXXsJm+CeUvVafTCsjWXvk2w+BWcBSnOHiAF2pIyvVMBNf
+      NPKOH1b159LeUIQ/fuJ/K4ZYo/himQ1m6plbtUQ4eZslxqZ13g4rTJBHye/PQqfe
+      Ef5jKmRM7JIeNSBUwdnPBm9hyB3aDpY5Ic0Qe/DswiEsIoHCDphqePotS2zTGEXJ
+      0eekC+8+gLFX32BBN0Af9ydwwKRqNR4d+SXW2iQXDnbi9ldWZ7dNAgMBAAEwDQYJ
+      KoZIhvcNAQELBQADggIBAKgtgKy64roQnDC6tgRvKu6YKkivekT9zFcGICBuXd1e
+      9BqnBcLf/XW+bJUuoz6IGKiJLSCeE5zG4u8f8P3klVS3pTda6eGHErWKZl0bE5Ws
+      6ODK8sduOR5hOxHPnYu0/Nbntr0XTxtuMiwu8cCG4AM+Yea4IrXAccXFrpig515A
+      bgN0llRLmzdvoFSAtd2Jl8CGakMJj4aGdbqi1CisaagwD2Opx+V4CF5A2DEXTK+o
+      gUTNOe84V904FbODe9wu7pLvNpwZtaGgC0Pp81QXHG0c4cEQYOxqj1VMxmLCHfRl
+      ts37EBCAGPre3Mi2VUxgYUOuMgFvnSyt5w+gBH+Irne0gIrJBiDNyB0WTDecY03y
+      rUrDJgnjUuwgoOc1TlJt6ltcBNyv/68Nco4GrtEuH1nFo+1zZ/MCinPNg7UCTWks
+      51brsCUnjIKjFTFouFdgVmJFsnGxs4XkOKRmeNeX4ExhXHo7wKn0OkM43FkZ9yAY
+      u/eYPb8/45os0o+OKzgdJsdQWG7WwF/E4QO5LWiW7Qzu5GvTDet8y+0vLFQWMzKn
+      Pq5DXf5QwgqaSNx6rmK3TEeL2Bx1kxChVkVqsOcktWgohWBw6C60Fne0/gmfxjD4
+      Kh2ldxSZ9KNZ9peHlcSMgvrhMEZt6e/MQqocrhvWWozILmoy//nGtT6laPdpaVsG
+      -----END CERTIFICATE-----
+    key: |
+      -----BEGIN PRIVATE KEY-----
+      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
+      beFyZ9M9av2TFSV8QFAyQXMEVG1Gzw==
+      -----END PRIVATE KEY-----
+    termination: edge
+  to:
+    kind: Service
+    name: coffee-svc

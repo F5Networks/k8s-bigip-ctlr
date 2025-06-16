@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: extended-cm
+  namespace: kube-system
+  labels:
+    f5nr: "true"
+data:
+  extendedSpec: |
+    extendedRouteSpec:
+    - namespace: cafe
+      vserverAddr: 10.192.125.65
+      vserverName: cafe
+      allowOverride: true

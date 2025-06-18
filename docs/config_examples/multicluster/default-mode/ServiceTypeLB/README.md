@@ -4,7 +4,7 @@ Processing of serviceType LB resource from external clusters including HA peer c
  
 ## Configuration
 
-To enbale discovery of service Type LB resources from primary cluster, set serviceTypeLBDiscovery to true for cluster through extendedSpec in configmap
+To enable discovery of service Type LB resources from primary cluster, set serviceTypeLBDiscovery to true for cluster through extendedSpec in configmap
 
 `config`
 

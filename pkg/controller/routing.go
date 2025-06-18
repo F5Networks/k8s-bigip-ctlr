@@ -1631,14 +1631,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				port,
-				"",
-				"",
-				be.Cluster,
-			)
+			poolName := ctlr.formatPoolName(svcNamespace, be.Name, port, "", "", be.Cluster, "")
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
@@ -2032,14 +2025,10 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				port,
-				"",
-				host,
-				be.Cluster,
-			)
+			poolName := pool.Name
+			if poolName == "" {
+				poolName = ctlr.formatPoolName(svcNamespace, be.Name, port, "", host, be.Cluster, pool.Path)
+			}
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
@@ -2094,11 +2083,7 @@ func (ctlr *Controller) updateDataGroupForAdvancedSvcTypeLB(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				be.SvcPort,
-				"", "", be.Cluster)
+			poolName := ctlr.formatPoolName(svcNamespace, be.Name, be.SvcPort, "", "", be.Cluster, "")
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
@@ -2147,11 +2132,7 @@ func (ctlr *Controller) updateDataGroupForIngressLink(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				be.SvcPort,
-				"", "", be.Cluster)
+			poolName := ctlr.formatPoolName(svcNamespace, be.Name, be.SvcPort, "", "", be.Cluster, "")
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}

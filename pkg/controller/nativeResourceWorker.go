@@ -476,14 +476,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			svcNamespace = bs.SvcNamespace
 		}
 		pool := Pool{
-			Name: ctlr.formatPoolName(
-				svcNamespace,
-				bs.Name,
-				servicePort,
-				"",
-				"",
-				bs.Cluster,
-			),
+			Name:             ctlr.formatPoolName(svcNamespace, bs.Name, servicePort, "", "", bs.Cluster, ""),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
 			ServiceNamespace: svcNamespace,
@@ -587,14 +580,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
-	poolName := ctlr.formatPoolName(
-		route.Namespace,
-		route.Spec.To.Name,
-		servicePort,
-		"",
-		"",
-		"",
-	)
+	poolName := ctlr.formatPoolName(route.Namespace, route.Spec.To.Name, servicePort, "", "", "", "")
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
 		var rules *Rules
@@ -789,14 +775,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 	}
 
 	servicePort := intstr.IntOrString{IntVal: port}
-	poolName := ctlr.formatPoolName(
-		svcKey.namespace,
-		svcKey.serviceName,
-		servicePort,
-		"",
-		"",
-		"",
-	)
+	poolName := ctlr.formatPoolName(svcKey.namespace, svcKey.serviceName, servicePort, "", "", "", "")
 	// for each cluster -> referred svcs -> for each svc -> port info and bigip vs and dependant resource(route)
 	if serviceKeys, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
 		if svcPorts, ok2 := serviceKeys[svcKey]; ok2 {

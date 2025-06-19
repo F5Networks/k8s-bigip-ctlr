@@ -2052,6 +2052,12 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			updateDataGroup(dgMap, dgName,
 				partition, namespace, key, value, "string")
 		}
+		// Update data group for hostRewrite
+		if pool.HostRewrite != "" {
+			key := pool.HostRewrite + path
+			updateDataGroup(dgMap, dgName,
+				partition, namespace, key, value, "string")
+		}
 	}
 }
 

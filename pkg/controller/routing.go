@@ -106,28 +106,33 @@ func (ctlr *Controller) prepareVirtualServerRules(
 					log.Errorf("Error configuring rule: %v", err)
 					return nil
 				}
-				if pl.HostRewrite != "" {
-					hostRewriteActions, err := getHostRewriteActions(
-						pl.HostRewrite,
-						len(rl.Actions),
-					)
-					if nil != err {
-						log.Errorf("Error configuring rule: %v", err)
-						return nil
+				// For AB pool selection is done in iRule and policy actions on the pool
+				// are applied before the iRule is executed so host header is rewritten before pool selection.
+				// Handle host rewrite through iRule for AB(including multiCluster) scenarios.
+				if !(isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode) {
+					if pl.HostRewrite != "" {
+						hostRewriteActions, err := getHostRewriteActions(
+							pl.HostRewrite,
+							len(rl.Actions),
+						)
+						if nil != err {
+							log.Errorf("Error configuring rule: %v", err)
+							return nil
+						}
+						rl.Actions = append(rl.Actions, hostRewriteActions...)
 					}
-					rl.Actions = append(rl.Actions, hostRewriteActions...)
-				}
-				if pl.Rewrite != "" {
-					rewriteActions, err := getRewriteActions(
-						path,
-						pl.Rewrite,
-						len(rl.Actions),
-					)
-					if nil != err {
-						log.Errorf("Error configuring rule: %v", err)
-						return nil
+					if pl.Rewrite != "" {
+						rewriteActions, err := getRewriteActions(
+							path,
+							pl.Rewrite,
+							len(rl.Actions),
+						)
+						if nil != err {
+							log.Errorf("Error configuring rule: %v", err)
+							return nil
+						}
+						rl.Actions = append(rl.Actions, rewriteActions...)
 					}
-					rl.Actions = append(rl.Actions, rewriteActions...)
 				}
 
 				if vs.Spec.HostPersistence.Method != "" {
@@ -937,8 +942,25 @@ func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition str
 			when HTTP_REQUEST priority 200 {
 			   set path [string tolower [HTTP::host]][HTTP::path]
 			   set persist_key "[IP::client_addr]:$path"
-			   set persist_record [linsert [persist lookup %v [list $persist_key any pool] ] 1 member]
-			   
+			   set persist_record [linsert [persist lookup %[1]s [list $persist_key any pool] ] 1 member]
+               # check hostRewrite path match
+               set hostrw_class "/%[4]s/%[5]s_host_path_rewrite_dg"
+               if {[class exists $hostrw_class]} then {
+               set hostpathRewrite [class match -value $path equals $hostrw_class]
+   			   if {$hostpathRewrite != ""} then {
+				   # if hostRewrite is not empty, then rewrite the host
+				   set fields [split $hostpathRewrite "/"]
+				   set newHost [lindex $fields 0]
+				   set newPath [join [lrange $fields 1 end] "/"]
+                   set newPath "/$newPath"
+				   if {[HTTP::host] ne $newHost} then {
+					 HTTP::header replace "Host" $newHost
+				   }
+				   if {[HTTP::path] ne $newPath} then {
+					 HTTP::path $newPath
+				   }
+               }
+               }
 			   if {$persist_record ne "member"} then {
 							pool [lindex $persist_record 0] member [lindex $persist_record 2] [lindex $persist_record 3]
 							event disable
@@ -946,21 +968,39 @@ func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition str
 				   set selected_pool [call select_ab_pool $path ""]
 				   if {$selected_pool != ""} then {
 						pool $selected_pool
-						persist %v $persist_key %v
+						persist %[2]s $persist_key %[3]d
 						return
 					}
 				}
-}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut)
+}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut, dgPath, rsVSName)
 	} else {
 		iRule += fmt.Sprintf(`
 			when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
 			set selected_pool [call select_ab_pool $path ""]
+            # check hostRewrite path match
+            set hostrw_class "/%[1]s/%[2]s_host_path_rewrite_dg"
+            if {[class exists $hostrw_class]} then {
+            set hostpathRewrite [class match -value $path equals $hostrw_class]
+            if {$hostpathRewrite != ""} then {
+               # if hostRewrite is not empty, then rewrite the host
+               set fields [split $hostpathRewrite "/"]
+               set newHost [lindex $fields 0]
+               set newPath [join [lrange $fields 1 end] "/"]
+               set newPath "/$newPath"
+               if {[HTTP::host] ne $newHost} then {
+                 HTTP::header replace "Host" $newHost
+               }
+               if {[HTTP::path] ne $newPath} then {
+				 HTTP::path $newPath
+               }
+            }
+            }
 			if {$selected_pool != ""} then {
 				pool $selected_pool
 				return
 			}
-		}`)
+		}`, dgPath, rsVSName)
 	}
 
 	return iRule

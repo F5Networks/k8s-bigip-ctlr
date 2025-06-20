@@ -542,6 +542,26 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
+		//handle host and path Rewrite for the AB iRule case
+		if (pl.Rewrite != "" || pl.HostRewrite != "") && (isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode) {
+			// update hostRewriteDG map
+			key := vs.Spec.Host + pl.Path
+			if pl.HostRewrite == "" {
+				// if hostRewrite is empty, then use vs.Spec.Host
+				pl.HostRewrite = vs.Spec.Host
+			}
+			if pl.Rewrite == "" {
+				// if rewrite is empty, then use pool path
+				pl.Rewrite = pl.Path
+			}
+			value := pl.HostRewrite + pl.Rewrite
+			updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, HostPathRewriteDgName), rsCfg.Virtual.Partition, vs.Namespace, key, value, DataGroupType)
+			// Update data group for hostAliases
+			for _, host := range vs.Spec.HostAliases {
+				key = host + pl.Path
+				updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, HostPathRewriteDgName), rsCfg.Virtual.Partition, vs.Namespace, key, value, DataGroupType)
+			}
+		}
 		// create monitor for the pool
 		var monitorNames []MonitorName
 		// Fetch service backends with weights for pool
@@ -2212,6 +2232,9 @@ func (pol *Policy) AddRules(rls *Rules) {
 func (cfg *ResourceConfig) GetName() string {
 	return cfg.Virtual.Name
 }
+
+// Internal data group for host path rewrite mapping
+const HostPathRewriteDgName = "host_path_rewrite_dg"
 
 // Internal data group for default pool of a virtual server.
 const DefaultPoolsDgName = "default_pool_servername_dg"

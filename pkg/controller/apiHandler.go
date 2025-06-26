@@ -15,11 +15,11 @@ type PostManagerInterface interface {
 	setupBIGIPRESTClient()
 }
 
-func NewGTMAPIHandler(params AgentParams, baseAPIHandler *BaseAPIHandler, respChan chan *agentPostConfig) *GTMAPIHandler {
+func NewGTMAPIHandler(params AgentParams, baseAPIHandler *BaseAPIHandler, respChan chan *agentPostConfig, eventChan chan *ResourceEvent) *GTMAPIHandler {
 	var gtm *GTMAPIHandler
 	if baseAPIHandler == nil {
 		gtm = &GTMAPIHandler{
-			BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP, respChan),
+			BaseAPIHandler: NewBaseAPIHandler(params, GTMBigIP, respChan, eventChan),
 			Partition:      DEFAULT_GTM_PARTITION,
 		}
 	} else {
@@ -48,18 +48,18 @@ func NewGTMAPIHandler(params AgentParams, baseAPIHandler *BaseAPIHandler, respCh
 	return gtm
 }
 
-func NewBaseAPIHandler(params AgentParams, kind string, respChan chan *agentPostConfig) *BaseAPIHandler {
+func NewBaseAPIHandler(params AgentParams, kind string, respChan chan *agentPostConfig, eventChan chan *ResourceEvent) *BaseAPIHandler {
 	return &BaseAPIHandler{
 		apiType:     params.ApiType,
-		PostManager: NewPostManager(params, kind, respChan),
+		PostManager: NewPostManager(params, kind, respChan, eventChan),
 	}
 }
 
-func NewLTMAPIHandler(params AgentParams, kind string, baseAPIHandler *BaseAPIHandler, respChan chan *agentPostConfig) *LTMAPIHandler {
+func NewLTMAPIHandler(params AgentParams, kind string, baseAPIHandler *BaseAPIHandler, respChan chan *agentPostConfig, eventChan chan *ResourceEvent) *LTMAPIHandler {
 	var ltm *LTMAPIHandler
 	if baseAPIHandler == nil {
 		ltm = &LTMAPIHandler{
-			BaseAPIHandler: NewBaseAPIHandler(params, kind, respChan),
+			BaseAPIHandler: NewBaseAPIHandler(params, kind, respChan, eventChan),
 		}
 	} else {
 		ltm = &LTMAPIHandler{

@@ -41,13 +41,14 @@ const (
 	timeoutMax        = 240 * time.Second
 )
 
-func NewPostManager(params AgentParams, kind string, respChan chan *agentPostConfig) *PostManager {
+func NewPostManager(params AgentParams, kind string, respChan chan *agentPostConfig, eventChan chan *ResourceEvent) *PostManager {
 	pm := &PostManager{
-		firstPost:  true,
-		respChan:   respChan,
-		postChan:   make(chan *agentPostConfig, 1),
-		apiType:    params.ApiType,
-		declUpdate: sync.Mutex{},
+		firstPost:         true,
+		respChan:          respChan,
+		eventNotifierChan: eventChan,
+		postChan:          make(chan *agentPostConfig, 1),
+		apiType:           params.ApiType,
+		declUpdate:        sync.Mutex{},
 	}
 	switch kind {
 	case GTMBigIP:

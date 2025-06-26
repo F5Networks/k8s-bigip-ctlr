@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -487,7 +489,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 				warning = fmt.Sprintf("Error when unassigning Service LB Ingress status IP: %v", updateErr)
 			}
 			log.Warning(warning)
-			ch.statusUpdate.eventNotifierChan <- ResourceEvent{
+			ch.statusUpdate.eventNotifierChan <- &ResourceEvent{
 				svc,
 				v1.EventTypeWarning,
 				"StatusIPError",
@@ -503,7 +505,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 				message = fmt.Sprintf("F5 CIS unassigned Service LB Ingress status IP for service: %s in namespace:%s",
 					svc.Name, svc.Namespace)
 			}
-			ch.statusUpdate.eventNotifierChan <- ResourceEvent{
+			ch.statusUpdate.eventNotifierChan <- &ResourceEvent{
 				svc,
 				v1.EventTypeNormal,
 				"ExternalIP",
@@ -575,14 +577,14 @@ func NewStatusUpdater() *StatusUpdate {
 	return &StatusUpdate{
 		ResourceStatusUpdateChan:    make(chan ResourceStatus),
 		ResourceStatusUpdateTracker: sync.Map{},
-		eventNotifierChan:           make(chan ResourceEvent),
+		eventNotifierChan:           make(chan *ResourceEvent),
 	}
 }
 
 // ResourceEventWatcher watches for resource events
 func (ch *ClusterHandler) ResourceEventWatcher() {
 	for resourceEvent := range ch.statusUpdate.eventNotifierChan {
-		ch.RecordEvent(resourceEvent)
+		ch.RecordEvent(*resourceEvent)
 	}
 }
 
@@ -592,6 +594,15 @@ func (ch *ClusterHandler) RecordEvent(resourceEvent ResourceEvent) {
 	case *v1.Service:
 		svc := resourceEvent.resourceObj.(*v1.Service)
 		go ch.recordLBServiceIngressEvent(svc, resourceEvent.eventType, resourceEvent.reason, resourceEvent.message, resourceEvent.clusterName)
+	case *v1.Event:
+		// This is a special case where we are recording AS3 ERROR events
+		podName := os.Getenv("HOSTNAME")
+		data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+		var namespace string
+		if err == nil {
+			namespace = strings.TrimSpace(string(data))
+		}
+		ch.recordAS3ERROREvent(podName, namespace, resourceEvent.eventType, resourceEvent.reason, resourceEvent.message, ch.LocalClusterName)
 	default:
 		log.Errorf("unknown resource type %T received for Event", resourceEvent.resourceObj)
 	}
@@ -660,4 +671,32 @@ func (ch *ClusterHandler) getNRInformerForCluster(clusterName string, namespace 
 		return informer
 	}
 	return nil
+}
+
+func (ch *ClusterHandler) recordAS3ERROREvent(
+	podName string,
+	namespace string,
+	eventType string,
+	reason string,
+	message string,
+	clusterName string,
+) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("recovered from panic while recording event for AS3 ERROR in cis namespace: %v",
+				namespace)
+		}
+	}()
+	// Create the event
+	if config := ch.getClusterConfig(clusterName); config != nil {
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: namespace,
+			},
+		}
+		evNotifier := config.eventNotifier.CreateNotifierForNamespace(
+			namespace, config.kubeClient.CoreV1())
+		evNotifier.RecordEvent(pod, eventType, reason, message)
+	}
 }

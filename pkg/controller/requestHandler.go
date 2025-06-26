@@ -21,6 +21,7 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, baseAPIHandle
 	reqHandler := &RequestHandler{
 		reqChan:                         make(chan ResourceConfigRequest, 1),
 		respChan:                        ctlr.respChan,
+		eventNotifierChan:               ctlr.multiClusterHandler.statusUpdate.eventNotifierChan,
 		agentParams:                     agentParams,
 		PrimaryClusterHealthProbeParams: ctlr.multiClusterHandler.PrimaryClusterHealthProbeParams,
 	}
@@ -233,11 +234,11 @@ func (reqHandler *RequestHandler) NewAgent(kind string, baseAPIHandler *BaseAPIH
 	switch kind {
 	case GTMBigIP:
 		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"
-		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, baseAPIHandler, reqHandler.respChan)
+		agent.APIHandler.GTM = NewGTMAPIHandler(reqHandler.agentParams, baseAPIHandler, reqHandler.respChan, reqHandler.eventNotifierChan)
 	default:
 		DEFAULT_PARTITION = reqHandler.agentParams.Partition
 		DEFAULT_GTM_PARTITION = reqHandler.agentParams.Partition + "_gtm"
-		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, baseAPIHandler, reqHandler.respChan)
+		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, baseAPIHandler, reqHandler.respChan, reqHandler.eventNotifierChan)
 	}
 	return agent
 }

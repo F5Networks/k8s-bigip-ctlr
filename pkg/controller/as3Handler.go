@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -483,6 +484,14 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					// add the error to cis event channel
+					am.PostManager.eventNotifierChan <- &ResourceEvent{
+						eventType:   v1.EventTypeWarning,
+						resourceObj: &v1.Event{},
+						message:     "AS3Error",
+						reason:      fmt.Sprintf("AS3 Declaration failed for tenant %s with error code: %v with error: %v %v", tenant, v["code"], v["message"], v["response"]),
+						clusterName: "",
+					}
 					// increase the timeout to recover the BigIP
 					cfg.increaseTimeout()
 					log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
@@ -501,12 +510,28 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 			cfg.increaseTimeout()
 			log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)
 			am.updateTenantResponseCode(int(code), cfg, "", false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"]))
+			// add the error to cis event channel
+			am.PostManager.eventNotifierChan <- &ResourceEvent{
+				eventType:   v1.EventTypeWarning,
+				resourceObj: &v1.Event{},
+				message:     "AS3Error",
+				reason:      fmt.Sprintf("AS3 declaration failed with code:%v error %v", err["code"], err["message"]),
+				clusterName: "",
+			}
 		} else {
 			unknownResponse = true
 		}
 	} else {
 		unknownResponse = true
 		if code, ok := responseMap["code"].(float64); ok {
+			//add the error to cis event channel
+			am.PostManager.eventNotifierChan <- &ResourceEvent{
+				eventType:   v1.EventTypeWarning,
+				resourceObj: &v1.Event{},
+				message:     "AS3Error",
+				reason:      fmt.Sprintf("AS3 declaration failed with code %v: %v", responseMap["code"], responseMap["message"]),
+				clusterName: "",
+			}
 			// increase the timeout to recover the BigIP
 			cfg.increaseTimeout()
 			log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)

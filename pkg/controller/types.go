@@ -165,7 +165,7 @@ type (
 	StatusUpdate struct {
 		ResourceStatusUpdateTracker sync.Map            // Tracks the last time a resource was updated, helps to ensure latest status update
 		ResourceStatusUpdateChan    chan ResourceStatus // Channel holds the resource status
-		eventNotifierChan           chan ResourceEvent  // Channel holds the resource events
+		eventNotifierChan           chan *ResourceEvent // Channel holds the resource events
 	}
 
 	ResourceStatus struct {
@@ -847,6 +847,7 @@ type (
 		resources                       *ResourceStore
 		reqChan                         chan ResourceConfigRequest
 		respChan                        chan *agentPostConfig
+		eventNotifierChan               chan *ResourceEvent
 		PrimaryClusterHealthProbeParams *PrimaryClusterHealthProbeParams
 		agentParams                     AgentParams
 		disableARP                      bool
@@ -951,6 +952,7 @@ type (
 		postManagerPrefix string
 		postChan          chan *agentPostConfig
 		respChan          chan *agentPostConfig
+		eventNotifierChan chan *ResourceEvent
 		httpClientMetrics bool
 		apiType           string
 	}

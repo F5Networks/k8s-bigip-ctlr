@@ -1867,7 +1867,7 @@ var _ = Describe("Worker Tests", func() {
 				//check html profile
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HTMLProfile).To(Equal("/Common/htmlProfile"))
 				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
-					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
+					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com_foo" {
 						Expect(len(rule.Actions)).To(Equal(3))
 					} else if rule.Name == "vs_test_com_redirectto__home" {
 						Expect(len(rule.Actions)).To(Equal(1))

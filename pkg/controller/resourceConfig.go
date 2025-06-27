@@ -2950,7 +2950,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			}
 		}
 		// update the pool identifier for service
-		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pool.ServiceName, "", pool, pool.ServicePort, ctlr.multiClusterHandler.LocalClusterName)
+		// clusterName may not be same as local cluster name as serviceTypeLBs in different clusters are also processed,
+		// so we need to update the clusterSvcMap with the actual clusterName
+		ctlr.updateMultiClusterResourceServiceMap(rsCfg, rsRef, pool.ServiceName, "", pool, pool.ServicePort, clusterName)
 
 		// Update the pool Members
 		ctlr.updatePoolMembersForResources(&pool)

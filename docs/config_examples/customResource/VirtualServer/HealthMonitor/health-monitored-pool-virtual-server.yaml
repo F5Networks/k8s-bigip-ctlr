@@ -15,7 +15,7 @@ spec:
     servicePort: 8080
     monitor:
       type: http
-      send: “GET /rn”
+      send: "GET /foo"
       recv: ""
       interval: 10
       timeout: 10
@@ -24,7 +24,7 @@ spec:
     servicePort: 8082
     monitor:
       type: http
-      send: “GET /rn”
+      send: "GET /bar"
       recv: ""
       interval: 20
       timeout: 10

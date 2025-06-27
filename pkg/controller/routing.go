@@ -749,6 +749,8 @@ func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string,
     	set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
 		set ab_rule [class match -value "/" equals $ab_class]
         set retries 0
+        set pool_retries 0
+        set max_retries 2
         set request_headers ""
         set pool_list [list]
         set tried_pool_list [list]
@@ -813,8 +815,7 @@ func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string,
 			# Check if we got a 503 response
 			if { [HTTP::status] starts_with "5" } {
 				# Log the 503 response for debugging purposes
-				log local0. "Received response [HTTP::status], retrying request with next pool"
-		
+				log local0. "Received response [HTTP::status] with pool [LB::server pool], retrying request with next pool"	
 				# Increment the retry counter
 				incr retries
 		
@@ -841,8 +842,34 @@ func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string,
 					HTTP::retry $request_headers
 					return
 				} else {
-					# If no next pool is found, return a 503 (Service Unavailable)
-					%[1]s::respond 503
+                    # Increment pool retry counter
+                    incr pool_retries
+                    if { $pool_retries < $max_retries } {
+						# Try to reselect from reset tried pool list
+						set tried_pool_list [list]
+						foreach pool $pool_list {
+							if { $pool == $current_pool || [lsearch -glob $tried_pool_list $pool] != -1 } {
+								continue
+							}
+							if { [active_members $pool] >= 1 } {
+								set next_pool $pool
+								break
+							}
+						}
+                        if { $next_pool != "" } {
+							pool $next_pool
+							lappend tried_pool_list $next_pool
+							HTTP::retry $request_headers
+							return
+						} else {
+							#no active pool member found in the retry loop, return 503
+							%[1]s::respond 503
+						}
+					# If no retries left, return a 503 (Service Unavailable)
+					} else {	
+						# If no next pool is found, return a 503 (Service Unavailable)
+						%[1]s::respond 503
+					}
 				}
 			}
 		}`, strings.ToUpper(tsType))

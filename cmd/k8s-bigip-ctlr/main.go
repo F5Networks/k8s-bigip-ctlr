@@ -137,6 +137,7 @@ var (
 	syncInterval         *int
 	printVersion         *bool
 	httpAddress          *string
+	httpsAddress         *string
 	dgPath               string
 	disableTeems         *bool
 	enableIPV6           *bool
@@ -273,6 +274,8 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
+	httpsAddress = globalFlags.String("https-listen-address", "0.0.0.0:8443",
+		"Optional, address to serve https based informations (/mutate and /validate).")
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
@@ -958,6 +961,7 @@ func initController(
 		VXLANName:            vxlanName,
 		PythonBaseDir:        *pythonBaseDir,
 		HttpAddress:          *httpAddress,
+		HttpsAddress:         *httpsAddress,
 		EnableIPV6:           *enableIPV6,
 		CCCLGTMAgent:         *ccclGtmAgent,
 		StaticRoutingMode:    *staticRoutingMode,

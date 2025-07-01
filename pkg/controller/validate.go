@@ -36,7 +36,7 @@ var (
 	deserializer = serializer.NewCodecFactory(scheme.Scheme).UniversalDeserializer()
 )
 
-func (ctlr *Controller) serveValidate(w http.ResponseWriter, r *http.Request) {
+func (ctlr *Controller) handleValidate(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "could not read request", http.StatusBadRequest)
@@ -70,7 +70,7 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 	var errMsg string
 
 	switch req.Kind.Kind {
-	case "VirtualServer":
+	case VirtualServer:
 		vs := &cisapiv1.VirtualServer{}
 		if _, _, err := deserializer.Decode(req.Object.Raw, nil, vs); err != nil {
 			return &admissionv1.AdmissionResponse{
@@ -82,7 +82,7 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 		}
 		// Assuming you have a controller instance `ctlr`
 		allowed, errMsg = ctlr.checkValidVirtualServer(vs)
-	case "TransportServer":
+	case TransportServer:
 		ts := &cisapiv1.TransportServer{}
 		if _, _, err := deserializer.Decode(req.Object.Raw, nil, ts); err != nil {
 			return &admissionv1.AdmissionResponse{
@@ -94,7 +94,7 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 		}
 		allowed, errMsg = ctlr.checkValidTransportServer(ts)
 
-	case "IngressLink":
+	case IngressLink:
 		il := &cisapiv1.IngressLink{}
 		if _, _, err := deserializer.Decode(req.Object.Raw, nil, il); err != nil {
 			return &admissionv1.AdmissionResponse{
@@ -105,6 +105,8 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 			}
 		}
 		allowed, errMsg = ctlr.checkValidIngressLink(il)
+	case CustomPolicy, TLSProfile:
+		allowed = true
 	default:
 		return &admissionv1.AdmissionResponse{
 			Allowed: false,

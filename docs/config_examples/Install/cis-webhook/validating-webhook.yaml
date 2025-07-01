@@ -9,15 +9,16 @@ webhooks:
         name: cis-webhook
         namespace: kube-system
         path: /validate
-        # You can patch this with
-        # kubectl get secret cis-webhook-tls -n kube-system -o jsonpath='{.data.ca\.crt}'
+      # You can patch this with
+      # kubectl get secret cis-webhook-tls -n kube-system -o jsonpath='{.data.ca\.crt}'
       caBundle: <CA_BUNDLE>
     rules:
       - apiGroups: ["cis.f5.com"]
         apiVersions: ["v1"]
-        resources: ["virtualservers", "transportservers", "ingresslinks"]
+        resources: ["virtualservers", "transportservers", "ingresslinks", "policies", "tlsprofiles"]
         operations: ["CREATE", "UPDATE"]
         scope: "Namespaced"
     admissionReviewVersions: ["v1"]
     sideEffects: None
     failurePolicy: Fail
+    timeoutSeconds: 30

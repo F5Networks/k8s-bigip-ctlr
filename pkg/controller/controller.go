@@ -289,8 +289,8 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		go ctlr.Start()
 
 		go ctlr.setOtherSDNType()
-		// Start the validation webhook server
-		go ctlr.validationWebhook()
+		// Start the webhook server
+		go ctlr.startWebhook()
 		// Start the CIS health check
 		go ctlr.CISHealthCheck()
 		// Start the Resource Event Watcher
@@ -593,10 +593,11 @@ func (ctlr *Controller) StopInformers(clusterName string) {
 	informerStore.nodeInformer.stop()
 }
 
-func (ctlr *Controller) validationWebhook() {
-	http.HandleFunc("/validate", ctlr.serveValidate)
-	fmt.Println("Starting webhook server on :8443")
-	if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
+func (ctlr *Controller) startWebhook() {
+	http.HandleFunc("/mutate", ctlr.handleMutate)
+	http.HandleFunc("/validate", ctlr.handleValidate)
+	log.Infof("Starting webhook server on :%s", ctlr.agentParams.HttpsAddress)
+	if err := http.ListenAndServeTLS(ctlr.agentParams.HttpsAddress, certFile, keyFile, nil); err != nil {
 		panic(err)
 	}
 }

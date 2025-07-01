@@ -918,6 +918,7 @@ type (
 		PythonBaseDir        string
 		UserAgent            string
 		HttpAddress          string
+		HttpsAddress         string
 		EnableIPV6           bool
 		DisableARP           bool
 		CCCLGTMAgent         bool

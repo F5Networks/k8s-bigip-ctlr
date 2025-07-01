@@ -36,7 +36,7 @@ var (
 	deserializer = serializer.NewCodecFactory(scheme.Scheme).UniversalDeserializer()
 )
 
-func (ctlr *Controller) serveValidate(w http.ResponseWriter, r *http.Request) {
+func (ctlr *Controller) handleValidate(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "could not read request", http.StatusBadRequest)

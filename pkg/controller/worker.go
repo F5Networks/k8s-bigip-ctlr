@@ -1498,6 +1498,10 @@ func (ctlr *Controller) processVirtualServers(
 		if virtual.Spec.BigIPRouteDomain > 0 {
 			if ctlr.PoolMemberType == Cluster {
 				log.Warning("bigipRouteDomain is not supported in cluster mode")
+				rsCfg.Virtual.SetVirtualAddress(
+					ip,
+					portS.port,
+				)
 			} else {
 				rsCfg.Virtual.BigIPRouteDomain = virtual.Spec.BigIPRouteDomain
 				rsCfg.Virtual.SetVirtualAddress(
@@ -3257,6 +3261,10 @@ func (ctlr *Controller) processTransportServers(
 	if virtual.Spec.BigIPRouteDomain > 0 {
 		if ctlr.PoolMemberType == Cluster {
 			log.Warning("bigipRouteDomain is not supported in cluster mode")
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				virtual.Spec.VirtualServerPort,
+			)
 		} else {
 			rsCfg.Virtual.BigIPRouteDomain = virtual.Spec.BigIPRouteDomain
 			rsCfg.Virtual.SetVirtualAddress(
@@ -4449,6 +4457,10 @@ func (ctlr *Controller) processIngressLink(
 		if ingLink.Spec.BigIPRouteDomain > 0 {
 			if ctlr.PoolMemberType == Cluster {
 				log.Warning("bigipRouteDomain is not supported in Cluster mode")
+				rsCfg.Virtual.SetVirtualAddress(
+					ip,
+					port.Port,
+				)
 			} else {
 				rsCfg.Virtual.BigIPRouteDomain = ingLink.Spec.BigIPRouteDomain
 				rsCfg.Virtual.SetVirtualAddress(

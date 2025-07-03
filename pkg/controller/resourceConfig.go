@@ -3054,6 +3054,20 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			Context:      "http",
 			BigIPProfile: true,
 		})
+	} else {
+		if rsCfg.MetaData.Protocol == HTTPS && plc.Spec.Profiles.HTTPProfiles.Secure != "" {
+			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+				Name:         plc.Spec.Profiles.HTTPProfiles.Secure,
+				Context:      "http",
+				BigIPProfile: true,
+			})
+		} else if rsCfg.MetaData.Protocol == HTTP && plc.Spec.Profiles.HTTPProfiles.Insecure != "" {
+			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+				Name:         plc.Spec.Profiles.HTTPProfiles.Insecure,
+				Context:      "http",
+				BigIPProfile: true,
+			})
+		}
 	}
 
 	if (plc.Spec.L7Policies.ProfileAdapt != cisapiv1.ProfileAdapt{}) {

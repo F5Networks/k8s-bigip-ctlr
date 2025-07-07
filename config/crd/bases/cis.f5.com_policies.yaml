@@ -1,0 +1,302 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: policies.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: Policy
+    listKind: PolicyList
+    plural: policies
+    shortNames:
+    - plc
+    singular: policy
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              autoLastHop:
+                enum:
+                - default
+                - auto
+                - disable
+                type: string
+              defaultPool:
+                properties:
+                  loadBalancingMethod:
+                    pattern: ^[a-z]+[a-z_-]+[a-z]+$
+                    type: string
+                  monitors:
+                    items:
+                      properties:
+                        interval:
+                          type: integer
+                        name:
+                          pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                          type: string
+                        recv:
+                          type: string
+                        reference:
+                          enum:
+                          - bigip
+                          type: string
+                        send:
+                          type: string
+                        sslProfile:
+                          pattern: ^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$
+                          type: string
+                        targetPort:
+                          format: int32
+                          type: integer
+                        timeout:
+                          type: integer
+                        type:
+                          type: string
+                      type: object
+                    type: array
+                  name:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-._+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  nodeMemberLabel:
+                    pattern: ^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=(\s?|""|[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9])$
+                    type: string
+                  reference:
+                    enum:
+                    - bigip
+                    - service
+                    type: string
+                  reselectTries:
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  service:
+                    pattern: '[a-z]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                  serviceDownAction:
+                    type: string
+                  serviceNamespace:
+                    pattern: ^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$
+                    type: string
+                  servicePort:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                required:
+                - reference
+                type: object
+              iRuleList:
+                items:
+                  pattern: ^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                  type: string
+                type: array
+              iRules:
+                properties:
+                  insecure:
+                    pattern: ^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  priority:
+                    enum:
+                    - low
+                    - high
+                    type: string
+                  secure:
+                    pattern: ^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                type: object
+              l3Policies:
+                properties:
+                  allowSourceRange:
+                    items:
+                      type: string
+                    type: array
+                  allowVlans:
+                    items:
+                      pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([A-z0-9-_.\s]+\/?)*$
+                      type: string
+                    type: array
+                  botDefense:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  dos:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  firewallPolicy:
+                    pattern: ^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$
+                    type: string
+                  ipIntelligencePolicy:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                type: object
+              l7Policies:
+                properties:
+                  policyPerRequestAccess:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  profileAccess:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  profileAdapt:
+                    properties:
+                      request:
+                        pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                      response:
+                        pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                    type: object
+                  waf:
+                    pattern: ^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$
+                    type: string
+                type: object
+              ltmPolicies:
+                properties:
+                  insecure:
+                    pattern: ^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  priority:
+                    enum:
+                    - low
+                    - high
+                    type: string
+                  secure:
+                    pattern: ^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                type: object
+              poolSettings:
+                properties:
+                  multiPoolPersistence:
+                    properties:
+                      method:
+                        enum:
+                        - uieSourceAddress
+                        - hashSourceAddress
+                        type: string
+                      timeOut:
+                        default: 180
+                        format: int32
+                        minimum: 1
+                        type: integer
+                    type: object
+                  reselectTries:
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  serviceDownAction:
+                    type: string
+                  slowRampTime:
+                    format: int32
+                    maximum: 900
+                    minimum: 0
+                    type: integer
+                type: object
+              profiles:
+                properties:
+                  analyticsProfiles:
+                    properties:
+                      http:
+                        pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                    type: object
+                  ftpProfile:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  htmlProfile:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  http:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  http2:
+                    properties:
+                      client:
+                        pattern: ^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                      server:
+                        pattern: ^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                    type: object
+                  httpCompressionProfile:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  httpMrfRoutingEnabled:
+                    type: boolean
+                  logProfiles:
+                    items:
+                      pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                      type: string
+                    type: array
+                  persistenceProfile:
+                    pattern: ^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  profileL4:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  profileMultiplex:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  profileWebSocket:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  rewriteProfile:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$
+                    type: string
+                  sslProfiles:
+                    properties:
+                      clientProfiles:
+                        items:
+                          pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                          type: string
+                        type: array
+                      serverProfiles:
+                        items:
+                          pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                          type: string
+                        type: array
+                    type: object
+                  tcp:
+                    properties:
+                      client:
+                        pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                      server:
+                        pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                        type: string
+                    type: object
+                  udp:
+                    pattern: ^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$
+                    type: string
+                type: object
+              snat:
+                pattern: ^$|^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)+$
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true

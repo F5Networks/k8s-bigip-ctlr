@@ -1,0 +1,126 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: tlsprofiles.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: TLSProfile
+    listKind: TLSProfileList
+    plural: tlsprofiles
+    shortNames:
+    - tls
+    singular: tlsprofile
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              hosts:
+                items:
+                  pattern: ^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$
+                  type: string
+                type: array
+              tls:
+                properties:
+                  clientSSL:
+                    pattern: ^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  clientSSLParams:
+                    properties:
+                      profileReference:
+                        enum:
+                        - bigip
+                        - secret
+                        type: string
+                      renegotiationEnabled:
+                        type: boolean
+                    type: object
+                  clientSSLs:
+                    items:
+                      pattern: ^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$
+                      type: string
+                    type: array
+                  reference:
+                    enum:
+                    - bigip
+                    - secret
+                    - hybrid
+                    type: string
+                  serverSSL:
+                    pattern: ^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$
+                    type: string
+                  serverSSLParams:
+                    properties:
+                      profileReference:
+                        enum:
+                        - bigip
+                        - secret
+                        type: string
+                      renegotiationEnabled:
+                        type: boolean
+                    type: object
+                  serverSSLs:
+                    items:
+                      pattern: ^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$
+                      type: string
+                    type: array
+                  termination:
+                    enum:
+                    - edge
+                    - reencrypt
+                    - passthrough
+                    type: string
+                required:
+                - termination
+                type: object
+              tlsCipher:
+                properties:
+                  cipherGroup:
+                    type: string
+                  ciphers:
+                    type: string
+                  disableTLSVersions:
+                    enum:
+                    - "1.0"
+                    - "1.1"
+                    - "1.2"
+                    - "1.3"
+                    items:
+                      type: string
+                    type: array
+                  tlsVersion:
+                    enum:
+                    - "1.0"
+                    - "1.1"
+                    - "1.2"
+                    - "1.3"
+                    type: string
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true

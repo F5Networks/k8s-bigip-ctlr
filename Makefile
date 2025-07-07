@@ -153,3 +153,8 @@ endif
 crd-code-gen:
 	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr/v2 quay.io/f5networks/ciscrdcodegen:latest
 	docker rm crdcodegen
+
+crd-schema:
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
+	controller-gen crd paths=./config/apis/cis/... output:crd:dir=./config/crd/bases
+#	cat ./config/crd/bases/*.yaml > ./docs/config_examples/customResourceDefinitions/incubator/customresourcedefinitions.yml

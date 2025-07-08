@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -591,46 +590,6 @@ func (ctlr *Controller) StopInformers(clusterName string) {
 	}
 	// stop node Informer
 	informerStore.nodeInformer.stop()
-}
-
-func (ctlr *Controller) startWebhook() {
-	http.HandleFunc("/mutate", ctlr.handleMutate)
-	http.HandleFunc("/validate", ctlr.handleValidate)
-	log.Infof("Starting webhook server on :%s", ctlr.agentParams.HttpsAddress)
-	if err := http.ListenAndServeTLS(ctlr.agentParams.HttpsAddress, certFile, keyFile, nil); err != nil {
-		panic(err)
-	}
-}
-
-func (ctlr *Controller) CISHealthCheck() {
-	// Expose cis health endpoint
-	http.Handle("/ready", ctlr.CISHealthCheckHandler())
-}
-
-func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-		if clusterConfig.kubeClient != nil {
-			var response string
-			// Check if kube-api server is reachable
-			_, err := clusterConfig.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
-			if err != nil {
-				response = "kube-api server is not reachable."
-			}
-			// Check if big-ip server is reachable
-			_, _, _, err2 := ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.GetBigIPAPIVersion()
-			if err2 != nil {
-				response = response + "big-ip server is not reachable."
-			}
-			if err2 == nil && err == nil {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("Ok"))
-			} else {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(response))
-			}
-		}
-	})
 }
 
 func initInformerStore() *InformerStore {

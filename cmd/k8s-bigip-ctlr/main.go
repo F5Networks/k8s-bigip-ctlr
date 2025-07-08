@@ -1172,6 +1172,9 @@ func main() {
 		disableARP = true
 	}
 
+	hc := &health.HealthChecker{
+		KubeClient: kubeClient,
+	}
 	// Python driver disable for the nodeport and nodeportlocal mode
 	if *poolMemberType == "cluster" || !disableLTM {
 		gs := globalSection{
@@ -1212,15 +1215,11 @@ func main() {
 			}
 		}(subPid)
 
-		// Add health check e.g. is Python process still there?
-		hc := &health.HealthChecker{
-			SubPID: subPid,
-		}
-		http.Handle("/health", hc.HealthCheckHandler())
-	} else { // a new health checker for nodeport and nodeportlocal mode for AS3
-		hc := &health.HealthChecker{}
-		http.Handle("/health", hc.CISHealthCheckHandler(kubeClient))
+		// Add process id to health check e.g. is Python process still there?
+		hc.SubPID = subPid
 	}
+	// Add the health check handler
+	http.Handle("/health", hc.HealthCheckHandler())
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()

@@ -802,7 +802,8 @@ var _ = Describe("Worker Tests", func() {
 
 			It("Verifies Common partition is not allowed in VS", func() {
 				vrt3.Spec.Partition = CommonPartition
-				Expect(mockCtlr.checkValidVirtualServer(vrt3)).To(BeFalse(), "VS with Common partition "+
+				valid, _ := mockCtlr.checkValidVirtualServer(vrt3)
+				Expect(valid).To(BeFalse(), "VS with Common partition "+
 					"should not be allowed")
 			})
 		})
@@ -1831,8 +1832,8 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
 
 				//check valid virtual server
-				valid := mockCtlr.checkValidVirtualServer(vs)
-				Expect(valid).To(BeFalse())
+				valid, _ := mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeTrue())
 
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
@@ -1896,10 +1897,10 @@ var _ = Describe("Worker Tests", func() {
 				// verify HTTPTraffic is not set for insecure virtual server
 				vs.Spec.HTTPTraffic = TLSAllowInsecure
 				vs.Spec.TLSProfileName = ""
-				valid = mockCtlr.checkValidVirtualServer(vs)
+				valid, _ = mockCtlr.checkValidVirtualServer(vs)
 				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
 				vs.Spec.HTTPTraffic = TLSRedirectInsecure
-				valid = mockCtlr.checkValidVirtualServer(vs)
+				valid, _ = mockCtlr.checkValidVirtualServer(vs)
 				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
 
 			})
@@ -2346,8 +2347,8 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 
 				//check if virtual server exist
-				valid := mockCtlr.checkValidTransportServer(ts)
-				Expect(valid).To(BeFalse())
+				valid, _ := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeTrue())
 
 				// with invalid type
 				ts.Spec.Type = "sctp1"
@@ -2426,7 +2427,7 @@ var _ = Describe("Worker Tests", func() {
 
 				//check if virtual server exist
 				ts.Spec.VirtualServerAddress = ""
-				valid := mockCtlr.checkValidTransportServer(ts)
+				valid, _ := mockCtlr.checkValidTransportServer(ts)
 				Expect(valid).To(BeFalse())
 
 				ts.Spec.VirtualServerAddress = "10.1.1.1"
@@ -2622,7 +2623,8 @@ var _ = Describe("Worker Tests", func() {
 
 				// Verify TS with Common partition is not allowed
 				ts.Spec.Partition = CommonPartition
-				Expect(mockCtlr.checkValidTransportServer(ts)).To(BeFalse(), "TS with Common partition is not allowed")
+				valid, _ := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeFalse(), "TS with Common partition is not allowed")
 			})
 		})
 
@@ -2795,8 +2797,8 @@ var _ = Describe("Worker Tests", func() {
 				}
 				IngressLink1.Spec.IPAMLabel = "test"
 
-				valid := mockCtlr.checkValidIngressLink(IngressLink1)
-				Expect(valid).To(BeFalse())
+				valid, _ := mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeTrue())
 
 				mockCtlr.addIngressLink(IngressLink1)
 				mockCtlr.processResources()
@@ -2853,12 +2855,12 @@ var _ = Describe("Worker Tests", func() {
 				delete(mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers, "")
 				IngressLink1.Spec.IPAMLabel = ""
 				IngressLink1.Spec.VirtualServerAddress = ""
-				valid = mockCtlr.checkValidIngressLink(IngressLink1)
+				valid, _ = mockCtlr.checkValidIngressLink(IngressLink1)
 				Expect(valid).To(BeFalse(), "Invalid IngressLink")
 
 				mockCtlr.ipamCli = nil
 				IngressLink1.Spec.VirtualServerAddress = ""
-				valid = mockCtlr.checkValidIngressLink(IngressLink1)
+				valid, _ = mockCtlr.checkValidIngressLink(IngressLink1)
 				Expect(valid).To(BeFalse(), "Invalid IngressLink")
 
 			})
@@ -2954,7 +2956,8 @@ var _ = Describe("Worker Tests", func() {
 
 				// Verify IL with Common partition is not allowed
 				ingressLink1.Spec.Partition = CommonPartition
-				Expect(mockCtlr.checkValidIngressLink(ingressLink1)).To(BeFalse(), "IL with Common partition is not allowed")
+				valid, _ := mockCtlr.checkValidIngressLink(ingressLink1)
+				Expect(valid).To(BeFalse(), "IL with Common partition is not allowed")
 			})
 		})
 	})

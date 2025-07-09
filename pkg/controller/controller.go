@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -146,6 +145,8 @@ const (
 	defaultAS3Version = "3.52.0"
 	defaultAS3Build   = "5"
 	clusterHealthPath = "/readyz"
+	certFile          = "/tls/tls.crt"
+	keyFile           = "/tls/tls.key"
 )
 
 // NewController creates a new Controller Instance.
@@ -287,6 +288,8 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		go ctlr.Start()
 
 		go ctlr.setOtherSDNType()
+		// Start the webhook server
+		go ctlr.startWebhook()
 		// Start the CIS health check
 		go ctlr.CISHealthCheck()
 		// Start the Resource Event Watcher
@@ -587,37 +590,6 @@ func (ctlr *Controller) StopInformers(clusterName string) {
 	}
 	// stop node Informer
 	informerStore.nodeInformer.stop()
-}
-
-func (ctlr *Controller) CISHealthCheck() {
-	// Expose cis health endpoint
-	http.Handle("/ready", ctlr.CISHealthCheckHandler())
-}
-
-func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-		if clusterConfig.kubeClient != nil {
-			var response string
-			// Check if kube-api server is reachable
-			_, err := clusterConfig.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO())
-			if err != nil {
-				response = "kube-api server is not reachable."
-			}
-			// Check if big-ip server is reachable
-			_, _, _, err2 := ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.GetBigIPAPIVersion()
-			if err2 != nil {
-				response = response + "big-ip server is not reachable."
-			}
-			if err2 == nil && err == nil {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("Ok"))
-			} else {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(response))
-			}
-		}
-	})
 }
 
 func initInformerStore() *InformerStore {

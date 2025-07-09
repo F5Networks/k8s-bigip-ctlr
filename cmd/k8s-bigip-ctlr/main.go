@@ -137,6 +137,7 @@ var (
 	syncInterval         *int
 	printVersion         *bool
 	httpAddress          *string
+	httpsAddress         *string
 	dgPath               string
 	disableTeems         *bool
 	enableIPV6           *bool
@@ -273,6 +274,8 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
+	httpsAddress = globalFlags.String("https-listen-address", "0.0.0.0:8443",
+		"Optional, address to serve https based informations (/mutate and /validate).")
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
@@ -958,6 +961,7 @@ func initController(
 		VXLANName:            vxlanName,
 		PythonBaseDir:        *pythonBaseDir,
 		HttpAddress:          *httpAddress,
+		HttpsAddress:         *httpsAddress,
 		EnableIPV6:           *enableIPV6,
 		CCCLGTMAgent:         *ccclGtmAgent,
 		StaticRoutingMode:    *staticRoutingMode,
@@ -1168,6 +1172,9 @@ func main() {
 		disableARP = true
 	}
 
+	hc := &health.HealthChecker{
+		KubeClient: kubeClient,
+	}
 	// Python driver disable for the nodeport and nodeportlocal mode
 	if *poolMemberType == "cluster" || !disableLTM {
 		gs := globalSection{
@@ -1208,15 +1215,11 @@ func main() {
 			}
 		}(subPid)
 
-		// Add health check e.g. is Python process still there?
-		hc := &health.HealthChecker{
-			SubPID: subPid,
-		}
-		http.Handle("/health", hc.HealthCheckHandler())
-	} else { // a new health checker for nodeport and nodeportlocal mode for AS3
-		hc := &health.HealthChecker{}
-		http.Handle("/health", hc.CISHealthCheckHandler(kubeClient))
+		// Add process id to health check e.g. is Python process still there?
+		hc.SubPID = subPid
 	}
+	// Add the health check handler
+	http.Handle("/health", hc.HealthCheckHandler())
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()

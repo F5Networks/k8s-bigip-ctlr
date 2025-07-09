@@ -59,7 +59,8 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
     ```shell
     helm repo add f5-stable https://f5networks.github.io/charts/stable
     ```
-* Update the sample-helm-values.yaml ```./docs/config_examples/Install/k8s/sample-helm-values.yaml```
+  
+* Copy and update the sample ```./docs/config_examples/Install/k8s/sample-helm-values.yaml``` to values.yaml
     
 * Installing Helm charts
     * Install the Helm chart using the following command if BIG-IP credential secrets are created manually:

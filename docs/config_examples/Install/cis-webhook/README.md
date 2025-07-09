@@ -124,12 +124,9 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
      ```shell
      helm repo add jetstack https://charts.jetstack.io
      helm repo update
-     helm install cert-manager jetstack/cert-manager \
-     --namespace cert-manager \
-     --version v1.14.4 \
-     --set installCRDs=true \
-     --set prometheus.enabled=false
+     helm install cert-manager jetstack/cert-manager --namespace cert-manager 
      ``` 
+    Note:- Helm should be installed on your jumpbox. For more information, see [Installing Helm](https://helm.sh/docs/intro/install/).
   * Ensure cert-manager pods are running:
     * For Kubernetes, use the following command:
       ```shell
@@ -255,17 +252,19 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
     ```
 * Optionally, Uninstall cert-manager
   ```shell
-  helm delete cert-manager
+  helm delete cert-manager --namespace cert-manager
   helm repo remove jetstack
   ```
 
-* Optionally, Run the command to delete the secrets created.
+* Optionally, Run the command to delete the secrets and namespace created.
   * For Kubernetes, use the following command:
     ```shell
+    kubectl delete namespace cert-manager
     kubectl delete secret f5-bigip-ctlr-login -n kube-system
     ```
   * For Openshift, use the following command:
     ```shell
+    oc delete namespace cert-manager
     oc delete secret f5-bigip-ctlr-login -n kube-system
     ```
 * Mandatory with [nextGen Routes](https://clouddocs.f5.com/containers/latest/userguide/next-gen-routes/), Run the command to delete the extended cm.
@@ -276,12 +275,12 @@ Alternatively, for non-prod environment you can use ```--insecure=true``` parame
   * For Kubernetes, use the following command:
     ```shell
     kubectl delete configmap trusted-certs -n kube-system
-    rm -rf server_cert.pem
+    rm -rf server_cert.pem ca.crt
     ```
   * For OpenShift, use the following command:
     ```shell
     oc delete configmap trusted-certs -n kube-system
-    rm -rf server_cert.pem
+    rm -rf server_cert.pem ca.crt
     ```
 
 ## Creating VXLAN Tunnels

@@ -75,7 +75,7 @@ Alternatively, for non-prod environment you can use ```insecure: true``` in yaml
     ```shell
     helm repo add f5-stable https://f5networks.github.io/charts/stable
     ```
-* Update the sample ./docs/config_examples/Install/k8s/sample-helm-values.yaml
+* Copy and update the sample files to values.yaml
   * For kubernetes, use ```./docs/config_examples/Install/k8s/sample-helm-values.yaml```
   * For openshift, use ```./docs/config_examples/Install/openshift/StandAlone/sample-helm-values.yaml```
 * Installing Helm charts

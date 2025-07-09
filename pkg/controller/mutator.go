@@ -5,6 +5,7 @@ import (
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"io"
 	admissionv1 "k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 )
 
@@ -118,6 +119,10 @@ func (ctlr *Controller) handleMutate(w http.ResponseWriter, r *http.Request) {
 
 	patchBytes, _ := json.Marshal(patches)
 	resp := admissionv1.AdmissionReview{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admission.k8s.io/v1",
+			Kind:       "AdmissionReview",
+		},
 		Response: &admissionv1.AdmissionResponse{
 			UID:     admissionReview.Request.UID,
 			Allowed: true,

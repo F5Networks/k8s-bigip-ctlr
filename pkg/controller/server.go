@@ -34,15 +34,15 @@ func (ctlr *Controller) startWebhook() {
 
 		// Check cert/key existence and validity before starting server
 		if _, err := os.Stat(certFile); err != nil {
-			log.Errorf("TLS certificate file not found: %s, error: %v", certFile, err)
+			log.Errorf("Webhook server failed as TLS certificate file not found: %s, error: %v", certFile, err)
 			return
 		}
 		if _, err := os.Stat(keyFile); err != nil {
-			log.Errorf("TLS key file not found: %s, error: %v", keyFile, err)
+			log.Errorf("Webhook server failed as TLS key file not found: %s, error: %v", keyFile, err)
 			return
 		}
 		if err := validateTLSCertificate(certFile, keyFile); err != nil {
-			log.Errorf("Invalid TLS certificate or key: %v", err)
+			log.Errorf("Webhook server failed as Invalid TLS certificate or key: %v", err)
 			return
 		}
 

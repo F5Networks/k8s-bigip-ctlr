@@ -63,7 +63,6 @@ spec:
             capabilities:
               drop: [ "ALL" ]
             runAsNonRoot: true
-            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           command: ["/app/bin/k8s-bigip-ctlr"]

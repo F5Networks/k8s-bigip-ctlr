@@ -72,5 +72,7 @@ In case static routes are not added, along with looking at CIS logs you can also
 
 In case static routes are configured with calico CNI, you can check the logs of CIS to see if the blockaffinities are being read properly. If not, you can check the permissions of the CIS service account to read blockaffinities. You can also check and verify that the blockaffinities are being created properly in the calico CNI.
 
-
+### FAQ
+* **Q: How to configure shared static routes with multiple CIS instances in different clusters using the same BIGIP?**
+  * A: Set `--shared-static-routes=true` and `--local-cluster-name=<clusterName>` in CIS deployment args. This will create static routes in /Common partition and uniquely manage them per cluster without overriding other cluster routes.
 

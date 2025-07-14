@@ -17,9 +17,11 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/bigiphandler"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"io"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -30,6 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 var (
@@ -130,177 +133,351 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 func (ctlr *Controller) checkValidVirtualServer(
 	vsResource *cisapiv1.VirtualServer,
 ) (bool, string) {
-
 	vsName := vsResource.ObjectMeta.Name
 	var errMsg string
+	var wg sync.WaitGroup
 
-	if vsResource.Spec.Partition == CommonPartition {
-		errMsg = fmt.Sprintf("VirtualServer %s cannot be created in Common partition", vsName)
-		return false, errMsg
-	}
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
-		errMsg = fmt.Sprintf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
-		return false, errMsg
-	}
-
-	if vsResource.Spec.Host == "" && len(vsResource.Spec.HostAliases) > 0 {
-		errMsg = fmt.Sprintf("Host is not provided but HostAliases is present for VirtualServer: %v", vsName)
-		return false, errMsg
-	}
-
-	bindAddr := vsResource.Spec.VirtualServerAddress
-	if ctlr.ipamCli == nil {
-		if bindAddr == "" {
-			errMsg = fmt.Sprintf("No IP was specified for the virtual server %s", vsName)
-			return false, errMsg
+	// Check partition
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if vsResource.Spec.Partition == CommonPartition {
+			errChan <- fmt.Sprintf("VirtualServer %s cannot be created in Common partition", vsName)
+			cancel()
 		}
-	} else {
-		ipamLabel := vsResource.Spec.IPAMLabel
-		if ipamLabel == "" && bindAddr == "" {
-			errMsg = fmt.Sprintf("No ipamLabel was specified for the virtual server %s", vsName)
-			return false, errMsg
+	}()
+
+	// Check TLSProfileName and HTTPTraffic
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
+			errChan <- fmt.Sprintf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
+			cancel()
 		}
-	}
-	for _, pool := range vsResource.Spec.Pools {
-		if ctlr.discoveryMode == DefaultMode {
-			if pool.MultiClusterServices == nil {
-				errMsg = fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for VirtualServer %s/%s, pool %s but "+
-					"CIS is running with default mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
-				return false, errMsg
-			}
-			if pool.Service != "" || pool.ServicePort != (intstr.IntOrString{}) ||
-				pool.Weight != nil || pool.AlternateBackends != nil {
-				log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
-					"VirtualServer %s for pool %s as these are not supported in default mode", vsResource.ObjectMeta.Name, pool.Name)
+	}()
+
+	// Check Host and HostAliases
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if vsResource.Spec.Host == "" && len(vsResource.Spec.HostAliases) > 0 {
+			errChan <- fmt.Sprintf("Host is not provided but HostAliases is present for VirtualServer: %v", vsName)
+			cancel()
+		}
+	}()
+
+	// Check IPAM and VirtualServerAddress
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		bindAddr := vsResource.Spec.VirtualServerAddress
+		if ctlr.ipamCli == nil {
+			if bindAddr == "" {
+				errChan <- fmt.Sprintf("No IP was specified for the virtual server %s", vsName)
+				cancel()
 			}
 		} else {
-			if pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
-				errMsg = fmt.Sprintf("MultiClusterServices is set for VirtualServer %s/%s for pool %s but CIS is not running in "+
-					"multiCluster mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
-				return false, errMsg
-			}
-			if pool.Service == "" || pool.ServicePort == (intstr.IntOrString{}) {
-				errMsg = fmt.Sprintf("Service/ServicePort is not provided in Pool %s for VirtualServer %s/%s",
-					pool.Name, vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name)
-				return false, errMsg
+			ipamLabel := vsResource.Spec.IPAMLabel
+			if ipamLabel == "" && bindAddr == "" {
+				errChan <- fmt.Sprintf("No ipamLabel was specified for the virtual server %s", vsName)
+				cancel()
 			}
 		}
+	}()
 
-		for _, mcs := range pool.MultiClusterServices {
-			err := ctlr.checkValidMultiClusterService(mcs, true)
-			if err != nil {
-				log.Errorf("[MultiCluster] invalid multiClusterServices: %v for VS: %s: %v", mcs, vsName, err)
-				continue
+	// Check Pools
+	for _, pool := range vsResource.Spec.Pools {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if ctlr.discoveryMode == DefaultMode {
+				if pool.MultiClusterServices == nil {
+					errChan <- fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for VirtualServer %s/%s, pool %s but "+
+						"CIS is running with default mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
+					cancel()
+					return
+				}
+				if pool.Service != "" || pool.ServicePort != (intstr.IntOrString{}) ||
+					pool.Weight != nil || pool.AlternateBackends != nil {
+					log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+						"VirtualServer %s for pool %s as these are not supported in default mode", vsResource.ObjectMeta.Name, pool.Name)
+				}
+			} else {
+				if pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
+					errChan <- fmt.Sprintf("MultiClusterServices is set for VirtualServer %s/%s for pool %s but CIS is not running in "+
+						"multiCluster mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
+					cancel()
+					return
+				}
+				if pool.Service == "" || pool.ServicePort == (intstr.IntOrString{}) {
+					errChan <- fmt.Sprintf("Service/ServicePort is not provided in Pool %s for VirtualServer %s/%s",
+						pool.Name, vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name)
+					cancel()
+					return
+				}
 			}
-		}
+
+			for _, mcs := range pool.MultiClusterServices {
+				err := ctlr.checkValidMultiClusterService(mcs, true)
+				if err != nil {
+					log.Errorf("[MultiCluster] invalid multiClusterServices: %v for VS: %s: %v", mcs, vsName, err)
+					continue
+				}
+			}
+		}()
 	}
 
-	return true, errMsg
+	// create a session to BIG-IP
+	bigipSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL, ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent, ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
+	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
+
+	// Validate iRules
+	for _, irule := range vsResource.Spec.IRules {
+		wg.Add(1)
+		go func(irule string) {
+			defer wg.Done()
+			if _, err := validator.GetIRule(irule); err != nil {
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s: %v", irule, vsName, err)
+				cancel()
+				return
+			}
+		}(irule)
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg = <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
+	}
 }
 
 func (ctlr *Controller) checkValidTransportServer(
 	tsResource *cisapiv1.TransportServer,
 ) (bool, string) {
-	if ctlr.discoveryMode == DefaultMode {
-		if tsResource.Spec.Pool.MultiClusterServices == nil {
-			errMsg := fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s when "+
-				"CIS is running in default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-			return false, errMsg
-		}
-		if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
-			tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
-			log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
-				"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
-		}
-	} else {
-		if tsResource.Spec.Pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
-			errMsg := fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
-				"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-			return false, errMsg
-		}
-		if tsResource.Spec.Pool.Service == "" || tsResource.Spec.Pool.ServicePort == (intstr.IntOrString{}) {
-			errMsg := fmt.Sprintf("Service/ServicePort is not provided in Pool for TransportServer %s/%s",
-				tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-			return false, errMsg
-		}
-	}
+	var errMsg string
+	var wg sync.WaitGroup
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	vsName := tsResource.ObjectMeta.Name
 
-	if tsResource.Spec.Partition == CommonPartition {
-		errMsg := fmt.Sprintf("TransportServer %s cannot be created in Common partition", vsName)
-		return false, errMsg
-	}
-
-	bindAddr := tsResource.Spec.VirtualServerAddress
-
-	if ctlr.ipamCli == nil {
-		if bindAddr == "" {
-			errMsg := fmt.Sprintf("No IP was specified for the transport server %s", vsName)
-			return false, errMsg
-		}
-	} else {
-		ipamLabel := tsResource.Spec.IPAMLabel
-		if ipamLabel == "" && bindAddr == "" {
-			errMsg := fmt.Sprintf("No ipamLabel was specified for the transport server %s", vsName)
-			return false, errMsg
-		}
-	}
-	key := ctlr.ipamClusterLabel + tsResource.ObjectMeta.Namespace + "/" + tsResource.ObjectMeta.Name + "_ts"
-	if tsResource.Spec.HostGroup != "" {
-		key = ctlr.ipamClusterLabel + tsResource.Spec.HostGroup + "_hg"
-	}
-	if appConfig := getL4AppConfig(tsResource.Spec.VirtualServerAddress, key, tsResource.Spec.VirtualServerPort, tsResource.Spec.BigIPRouteDomain); appConfig != (l4AppConfig{}) {
-		if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
-			if val.timestamp.Before(&tsResource.CreationTimestamp) {
-				errMsg := fmt.Sprintf("l4 app already exists with given ip-address/ipam-label, port or bigip route-domain  %v, while processing transport server %s/%s", appConfig, tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-				return false, errMsg
+	// Discovery mode checks
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if ctlr.discoveryMode == DefaultMode {
+			if tsResource.Spec.Pool.MultiClusterServices == nil {
+				errChan <- fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s when "+
+					"CIS is running in default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+				cancel()
+				return
+			}
+			if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
+				tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
+				log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+					"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
+			}
+		} else {
+			if tsResource.Spec.Pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
+				errChan <- fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
+					"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+				cancel()
+				return
+			}
+			if tsResource.Spec.Pool.Service == "" || tsResource.Spec.Pool.ServicePort == (intstr.IntOrString{}) {
+				errChan <- fmt.Sprintf("Service/ServicePort is not provided in Pool for TransportServer %s/%s",
+					tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+				cancel()
+				return
 			}
 		}
-	}
+	}()
 
+	// Partition check
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if tsResource.Spec.Partition == CommonPartition {
+			errChan <- fmt.Sprintf("TransportServer %s cannot be created in Common partition", vsName)
+			cancel()
+			return
+		}
+	}()
+
+	// IPAM and VirtualServerAddress check
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		bindAddr := tsResource.Spec.VirtualServerAddress
+		if ctlr.ipamCli == nil {
+			if bindAddr == "" {
+				errChan <- fmt.Sprintf("No IP was specified for the transport server %s", vsName)
+				cancel()
+				return
+			}
+		} else {
+			ipamLabel := tsResource.Spec.IPAMLabel
+			if ipamLabel == "" && bindAddr == "" {
+				errChan <- fmt.Sprintf("No ipamLabel was specified for the transport server %s", vsName)
+				cancel()
+				return
+			}
+		}
+	}()
+
+	// L4 AppConfig check
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		key := ctlr.ipamClusterLabel + tsResource.ObjectMeta.Namespace + "/" + tsResource.ObjectMeta.Name + "_ts"
+		if tsResource.Spec.HostGroup != "" {
+			key = ctlr.ipamClusterLabel + tsResource.Spec.HostGroup + "_hg"
+		}
+		if appConfig := getL4AppConfig(tsResource.Spec.VirtualServerAddress, key, tsResource.Spec.VirtualServerPort, tsResource.Spec.BigIPRouteDomain); appConfig != (l4AppConfig{}) {
+			if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+				if val.timestamp.Before(&tsResource.CreationTimestamp) {
+					errChan <- fmt.Sprintf("l4 app already exists with given ip-address/ipam-label, port or bigip route-domain  %v, while processing transport server %s/%s", appConfig, tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	// MultiClusterServices check
 	if tsResource.Spec.Pool.MultiClusterServices != nil {
 		for _, mcs := range tsResource.Spec.Pool.MultiClusterServices {
-			err := ctlr.checkValidMultiClusterService(mcs, true)
-			if err != nil {
-				log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s: %v", mcs, vsName, err)
-				continue
-			}
+			wg.Add(1)
+			go func(mcs cisapiv1.MultiClusterServiceReference) {
+				defer wg.Done()
+				if err := ctlr.checkValidMultiClusterService(mcs, true); err != nil {
+					log.Errorf("[MultiCluster] invalid extendedServiceReference: %v for TS: %s: %v", mcs, vsName, err)
+					// Not returning error, just logging as per original logic
+				}
+			}(mcs)
 		}
 	}
-	return true, ""
+
+	bigipSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL, ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent, ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
+	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
+
+	// Validate iRules
+	for _, irule := range tsResource.Spec.IRules {
+		wg.Add(1)
+		go func(irule string) {
+			defer wg.Done()
+			if _, err := validator.GetIRule(irule); err != nil {
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s: %v", irule, vsName, err)
+				cancel()
+				return
+			}
+		}(irule)
+	}
+
+	// Validate ClientSSL Profile if TLSProfileName is set
+	for _, clientssl := range tsResource.Spec.TLS.ClientSSLs {
+		wg.Add(1)
+		go func(clientssl string) {
+			defer wg.Done()
+			if _, err := validator.GetClientSSLProfile(clientssl); err != nil {
+				errChan <- fmt.Sprintf("Referenced ClientSSL Profile '%s' does not exist on BIGIP for VirtualServer %s: %v", clientssl, vsName, err)
+				cancel()
+				return
+			}
+		}(clientssl)
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg = <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
+	}
 }
 
 func (ctlr *Controller) checkValidIngressLink(
 	il *cisapiv1.IngressLink,
 ) (bool, string) {
+	var wg sync.WaitGroup
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	var errMsg string
 	ilName := il.ObjectMeta.Name
-	if il.Spec.Partition == CommonPartition {
-		errMsg = fmt.Sprintf("IngressLink %s cannot be created in Common partition", ilName)
-		return false, errMsg
-	}
 
-	if il.Spec.Selector == nil && ctlr.multiClusterMode == "" {
-		errMsg = fmt.Sprintf("Selector is not provided for IngressLink %s", ilName)
-		return false, errMsg
-	}
-	bindAddr := il.Spec.VirtualServerAddress
+	// Partition check
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if il.Spec.Partition == CommonPartition {
+			errChan <- fmt.Sprintf("IngressLink %s cannot be created in Common partition", ilName)
+			cancel()
+		}
+	}()
 
-	if ctlr.ipamCli == nil {
-		if bindAddr == "" {
-			errMsg = fmt.Sprintf("No IP was specified for ingresslink %s", ilName)
-			return false, errMsg
+	// Selector check
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if il.Spec.Selector == nil && ctlr.multiClusterMode == "" {
+			errChan <- fmt.Sprintf("Selector is not provided for IngressLink %s", ilName)
+			cancel()
 		}
-	} else {
-		ipamLabel := il.Spec.IPAMLabel
-		if ipamLabel == "" && bindAddr == "" {
-			errMsg = fmt.Sprintf("No ipamLabel was specified for the il server %s", ilName)
-			return false, errMsg
+	}()
+
+	// IPAM/VirtualServerAddress check
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		bindAddr := il.Spec.VirtualServerAddress
+		if ctlr.ipamCli == nil {
+			if bindAddr == "" {
+				errChan <- fmt.Sprintf("No IP was specified for ingresslink %s", ilName)
+				cancel()
+			}
+		} else {
+			ipamLabel := il.Spec.IPAMLabel
+			if ipamLabel == "" && bindAddr == "" {
+				errChan <- fmt.Sprintf("No ipamLabel was specified for the il server %s", ilName)
+				cancel()
+			}
 		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg := <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
 	}
-	return true, errMsg
 }
 
 // checkValidMultiClusterService checks if extended service is valid or not

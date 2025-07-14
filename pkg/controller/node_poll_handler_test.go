@@ -97,7 +97,8 @@ var _ = Describe("Node Poller Handler", func() {
 
 	It("Nodes Update processing", func() {
 		mockCtlr.Partition = "test"
-		cisIdentifier := mockCtlr.Partition + "_127.0.0.1"
+		mockCtlr.multiClusterHandler.LocalClusterName = "localCluster"
+		cisIdentifier := "127.0.0.1_" + mockCtlr.multiClusterHandler.LocalClusterName
 		mockCtlr.setNodeInformer("")
 		mockCtlr.UseNodeInternal = true
 		namespace := "default"

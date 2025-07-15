@@ -441,11 +441,3 @@ Refer Release Notes for [CIS v2.17.0](./RELEASE-NOTES.rst)
     different set of custom resources with unique labels without interfering with resources managed by other CIS instances.
   * Partition update in the CR resources is not supported and will be rejected by CRD schema validation.
     To update partition for CR resource, delete the resource and recreate with new partition.
-
-### **Upgrading from 2.20.0 to 2.20.1:**
-
-**_Functionality Changes:_**
-* Multi Cluster CRD
-  * CIS now supports Calico CNI in multi-cluster mode
-* CRD
-  * Support for CIS deployment parameter `shared-default-route-domain` with `default-route-domain` to configure useCommonRouteDomainTenant in AS3 declaration

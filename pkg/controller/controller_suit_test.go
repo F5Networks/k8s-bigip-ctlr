@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
+	"testing"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
-	"net/http"
-	"strings"
-	"testing"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
@@ -115,6 +116,8 @@ func newMockRequestHandler(writer writer.Writer) *RequestHandler {
 		},
 	}
 	return &RequestHandler{
+		reqChan:  make(chan ResourceConfigRequest, 1),
+		respChan: make(chan *agentPostConfig, 1),
 		PrimaryBigIPWorker: &Agent{
 			APIHandler: &APIHandler{LTM: &LTMAPIHandler{
 				&BaseAPIHandler{

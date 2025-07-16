@@ -160,6 +160,7 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		dgPath:                      strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:                  params.ShareNodes,
 		defaultRouteDomain:          params.DefaultRouteDomain,
+		sharedDefaultRouteDomain:    params.SharedDefaultRouteDomain,
 		mode:                        params.Mode,
 		ciliumTunnelName:            params.CiliumTunnelName,
 		StaticRoutingMode:           params.StaticRoutingMode,
@@ -540,33 +541,9 @@ func (ctlr *Controller) StartInformers(clusterName string) {
 	//start CNI informers if required
 	if ctlr.StaticRoutingMode && ctlr.OrchestrationCNI == CALICO_K8S {
 		// check if role permissions exists for calico crd
-		roleCheck := authv1.SelfSubjectAccessReview{
-			Spec: authv1.SelfSubjectAccessReviewSpec{
-				ResourceAttributes: &authv1.ResourceAttributes{
-					Resource:  BLOCKAFFINITIES,
-					Verb:      "watch",
-					Group:     "crd.projectcalico.org",
-					Namespace: "",
-				},
-			},
+		if ctlr.checkCalicoRBACPermissions(ctlr.multiClusterHandler.LocalClusterName) {
+			informerStore.dynamicInformers.start(false)
 		}
-		clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
-		if clusterConfig != nil {
-			resp, err := clusterConfig.kubeClient.AuthorizationV1().
-				SelfSubjectAccessReviews().
-				Create(context.TODO(), &roleCheck, metaV1.CreateOptions{})
-			if err == nil {
-				if resp.Status.Allowed {
-					log.Debugf("RBAC present for blockaffinities watch: %v", resp)
-					informerStore.dynamicInformers.start()
-				} else {
-					log.Warning("Role Permissions to watch blockaffinities resource for calico CNI is not provided.Informers are not created for blockaffinities resource.Create proper RBAC for blockaffinities watch for static routing to work properly")
-				}
-			} else {
-				log.Errorf("Failed to create Self Subject Access Review for blockaffinities resource: %v.Skipping informer creation for blockaffinitoes resource", err)
-			}
-		}
-
 	}
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
@@ -696,5 +673,43 @@ func (ctlr *Controller) handleNsInformersforCluster(clusterName string, startInf
 				}
 			}
 		}
+	}
+}
+
+// checkCalicoRBACPermissions checks if the necessary RBAC permissions exist for watching Calico CRDs
+// Returns true if permissions exist, false otherwise
+func (ctlr *Controller) checkCalicoRBACPermissions(clusterName string) bool {
+	roleCheck := authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authv1.ResourceAttributes{
+				Resource:  BLOCKAFFINITIES,
+				Verb:      "watch",
+				Group:     "crd.projectcalico.org",
+				Namespace: "",
+			},
+		},
+	}
+
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
+	if clusterConfig == nil {
+		log.Error("Failed to get cluster configuration for local cluster")
+		return false
+	}
+
+	resp, err := clusterConfig.kubeClient.AuthorizationV1().
+		SelfSubjectAccessReviews().
+		Create(context.TODO(), &roleCheck, metaV1.CreateOptions{})
+
+	if err != nil {
+		log.Errorf("Failed to create Self Subject Access Review for blockaffinities resource: %v. Skipping informer creation for blockaffinities resource", err)
+		return false
+	}
+
+	if resp.Status.Allowed {
+		log.Debugf("RBAC present for blockaffinities watch: %v", resp)
+		return true
+	} else {
+		log.Warning("Role Permissions to watch blockaffinities resource for calico CNI is not provided. Informers are not created for blockaffinities resource. Create proper RBAC for blockaffinities watch for static routing to work properly")
+		return false
 	}
 }

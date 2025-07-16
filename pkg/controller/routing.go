@@ -70,7 +70,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		// Create a rule for each host including host aliases and path combination
 		for _, host := range hosts {
 			// Service cannot be empty
-			if pl.Service == "" {
+			if pl.Service == "" && ctlr.discoveryMode != DefaultMode {
 				continue
 			}
 			// If not using WAF from policy CR, use Pool Based WAF from VS
@@ -106,28 +106,33 @@ func (ctlr *Controller) prepareVirtualServerRules(
 					log.Errorf("Error configuring rule: %v", err)
 					return nil
 				}
-				if pl.HostRewrite != "" {
-					hostRewriteActions, err := getHostRewriteActions(
-						pl.HostRewrite,
-						len(rl.Actions),
-					)
-					if nil != err {
-						log.Errorf("Error configuring rule: %v", err)
-						return nil
+				// For AB pool selection is done in iRule and policy actions on the pool
+				// are applied before the iRule is executed so host header is rewritten before pool selection.
+				// Handle host rewrite through iRule for AB(including multiCluster) scenarios.
+				if !(isVSABDeployment(&pl) || ctlr.discoveryMode == Ratio || ctlr.discoveryMode == DefaultMode) {
+					if pl.HostRewrite != "" {
+						hostRewriteActions, err := getHostRewriteActions(
+							pl.HostRewrite,
+							len(rl.Actions),
+						)
+						if nil != err {
+							log.Errorf("Error configuring rule: %v", err)
+							return nil
+						}
+						rl.Actions = append(rl.Actions, hostRewriteActions...)
 					}
-					rl.Actions = append(rl.Actions, hostRewriteActions...)
-				}
-				if pl.Rewrite != "" {
-					rewriteActions, err := getRewriteActions(
-						path,
-						pl.Rewrite,
-						len(rl.Actions),
-					)
-					if nil != err {
-						log.Errorf("Error configuring rule: %v", err)
-						return nil
+					if pl.Rewrite != "" {
+						rewriteActions, err := getRewriteActions(
+							path,
+							pl.Rewrite,
+							len(rl.Actions),
+						)
+						if nil != err {
+							log.Errorf("Error configuring rule: %v", err)
+							return nil
+						}
+						rl.Actions = append(rl.Actions, rewriteActions...)
 					}
-					rl.Actions = append(rl.Actions, rewriteActions...)
 				}
 
 				if vs.Spec.HostPersistence.Method != "" {
@@ -744,6 +749,8 @@ func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string,
     	set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
 		set ab_rule [class match -value "/" equals $ab_class]
         set retries 0
+        set pool_retries 0
+        set max_retries 2
         set request_headers ""
         set pool_list [list]
         set tried_pool_list [list]
@@ -808,8 +815,7 @@ func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string,
 			# Check if we got a 503 response
 			if { [HTTP::status] starts_with "5" } {
 				# Log the 503 response for debugging purposes
-				log local0. "Received response [HTTP::status], retrying request with next pool"
-		
+				log local0. "Received response [HTTP::status] with pool [LB::server pool], retrying request with next pool"	
 				# Increment the retry counter
 				incr retries
 		
@@ -836,8 +842,34 @@ func (ctlr *Controller) getABDeployIruleForIL(rsVSName string, partition string,
 					HTTP::retry $request_headers
 					return
 				} else {
-					# If no next pool is found, return a 503 (Service Unavailable)
-					%[1]s::respond 503
+                    # Increment pool retry counter
+                    incr pool_retries
+                    if { $pool_retries < $max_retries } {
+						# Try to reselect from reset tried pool list
+						set tried_pool_list [list]
+						foreach pool $pool_list {
+							if { $pool == $current_pool || [lsearch -glob $tried_pool_list $pool] != -1 } {
+								continue
+							}
+							if { [active_members $pool] >= 1 } {
+								set next_pool $pool
+								break
+							}
+						}
+                        if { $next_pool != "" } {
+							pool $next_pool
+							lappend tried_pool_list $next_pool
+							HTTP::retry $request_headers
+							return
+						} else {
+							#no active pool member found in the retry loop, return 503
+							%[1]s::respond 503
+						}
+					# If no retries left, return a 503 (Service Unavailable)
+					} else {	
+						# If no next pool is found, return a 503 (Service Unavailable)
+						%[1]s::respond 503
+					}
 				}
 			}
 		}`, strings.ToUpper(tsType))
@@ -937,8 +969,25 @@ func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition str
 			when HTTP_REQUEST priority 200 {
 			   set path [string tolower [HTTP::host]][HTTP::path]
 			   set persist_key "[IP::client_addr]:$path"
-			   set persist_record [linsert [persist lookup %v [list $persist_key any pool] ] 1 member]
-			   
+			   set persist_record [linsert [persist lookup %[1]s [list $persist_key any pool] ] 1 member]
+               # check hostRewrite path match
+               set hostrw_class "/%[4]s/%[5]s_host_path_rewrite_dg"
+               if {[class exists $hostrw_class]} then {
+               set hostpathRewrite [class match -value $path equals $hostrw_class]
+   			   if {$hostpathRewrite != ""} then {
+				   # if hostRewrite is not empty, then rewrite the host
+				   set fields [split $hostpathRewrite "/"]
+				   set newHost [lindex $fields 0]
+				   set newPath [join [lrange $fields 1 end] "/"]
+                   set newPath "/$newPath"
+				   if {[HTTP::host] ne $newHost} then {
+					 HTTP::header replace "Host" $newHost
+				   }
+				   if {[HTTP::path] ne $newPath} then {
+					 HTTP::path $newPath
+				   }
+               }
+               }
 			   if {$persist_record ne "member"} then {
 							pool [lindex $persist_record 0] member [lindex $persist_record 2] [lindex $persist_record 3]
 							event disable
@@ -946,21 +995,39 @@ func (ctlr *Controller) getPathBasedABDeployIRule(rsVSName string, partition str
 				   set selected_pool [call select_ab_pool $path ""]
 				   if {$selected_pool != ""} then {
 						pool $selected_pool
-						persist %v $persist_key %v
+						persist %[2]s $persist_key %[3]d
 						return
 					}
 				}
-}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut)
+}`, persistenceType, persistenceType, multiPoolPersistence.TimeOut, dgPath, rsVSName)
 	} else {
 		iRule += fmt.Sprintf(`
 			when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
 			set selected_pool [call select_ab_pool $path ""]
+            # check hostRewrite path match
+            set hostrw_class "/%[1]s/%[2]s_host_path_rewrite_dg"
+            if {[class exists $hostrw_class]} then {
+            set hostpathRewrite [class match -value $path equals $hostrw_class]
+            if {$hostpathRewrite != ""} then {
+               # if hostRewrite is not empty, then rewrite the host
+               set fields [split $hostpathRewrite "/"]
+               set newHost [lindex $fields 0]
+               set newPath [join [lrange $fields 1 end] "/"]
+               set newPath "/$newPath"
+               if {[HTTP::host] ne $newHost} then {
+                 HTTP::header replace "Host" $newHost
+               }
+               if {[HTTP::path] ne $newPath} then {
+				 HTTP::path $newPath
+               }
+            }
+            }
 			if {$selected_pool != ""} then {
 				pool $selected_pool
 				return
 			}
-		}`)
+		}`, dgPath, rsVSName)
 	}
 
 	return iRule
@@ -1631,14 +1698,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				port,
-				"",
-				"",
-				be.Cluster,
-			)
+			poolName := ctlr.formatPoolName(svcNamespace, be.Name, port, "", "", be.Cluster, "")
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
@@ -2032,14 +2092,10 @@ func (ctlr *Controller) updateDataGroupForABVirtualServer(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				port,
-				"",
-				host,
-				be.Cluster,
-			)
+			poolName := pool.Name
+			if poolName == "" {
+				poolName = ctlr.formatPoolName(svcNamespace, be.Name, port, "", host, be.Cluster, pool.Path)
+			}
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
@@ -2094,11 +2150,7 @@ func (ctlr *Controller) updateDataGroupForAdvancedSvcTypeLB(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				be.SvcPort,
-				"", "", be.Cluster)
+			poolName := ctlr.formatPoolName(svcNamespace, be.Name, be.SvcPort, "", "", be.Cluster, "")
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
@@ -2147,11 +2199,7 @@ func (ctlr *Controller) updateDataGroupForIngressLink(
 			if be.SvcNamespace != "" {
 				svcNamespace = be.SvcNamespace
 			}
-			poolName := ctlr.formatPoolName(
-				svcNamespace,
-				be.Name,
-				be.SvcPort,
-				"", "", be.Cluster)
+			poolName := ctlr.formatPoolName(svcNamespace, be.Name, be.SvcPort, "", "", be.Cluster, "")
 			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}

@@ -1,6 +1,32 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.20.1
+-------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * Multi Cluster
+        * `Issue 3839 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3839>`_:  Calico-CNI support added for multiCluster
+    * CRD
+        *  Support for CIS deployment parameter `shared-default-route-domain` with `default-route-domain` to configure useCommonRouteDomainTenant in AS3 declaration.
+
+
+Bug Fixes
+````````````
+* `Issue 3724 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3724>`_: All customResource status set to standby on secondary cluster
+* `Issue 3857 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3857>`_: Secrets referenced in TLSProfile are not processed on update when hybrid mode is used
+* `Issue 3859 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3859>`_: Fix ctlr agent crash without gtm credentials
+* `Issue 3851 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3851>`_: Fix crash issue with hostless and hostAliases vs
+* Fix host and path rewrite for multiCluster and AB deployment with virtualServer
+* `Issue 3877 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3877>`_: Fix serviceTypeLB processing issue in multiCluster mode
+* `Issue 3871 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3871>`_: Fix serviceTypeLB status update
+
+
+Upgrade notes
+``````````````
+
 2.20.0
 -------------
 

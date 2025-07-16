@@ -419,6 +419,8 @@ func (am *AS3Handler) handleResponseStatusServiceUnavailable(responseMap map[str
 		log.Errorf("%v[AS3]%v Big-IP Responded with error code: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, err["code"])
 		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 		unknownResponse = true
+	} else {
+		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", http.StatusServiceUnavailable)
 	}
 	// increase the timeout to recover the BigIP
 	cfg.increaseTimeout()
@@ -435,7 +437,7 @@ func (am *AS3Handler) handleResponseStatusNotFound(responseMap map[string]interf
 		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", err["code"])
 	} else {
 		unknownResponse = true
-		message = "Big-IP Responded with error -- verify the logs for detailed error"
+		message = fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", http.StatusNotFound)
 	}
 	am.updateTenantResponseCode(http.StatusNotFound, cfg, "", false, message)
 	return unknownResponse
@@ -628,6 +630,9 @@ func (am *AS3Handler) createLTMConfigADC(config ResourceConfigRequest) as3ADC {
 			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
 			"label":              cisLabel,
+		}
+		if am.AS3VersionInfo.bigIPAS3Version >= 3.52 {
+			tenantDecl["useCommonRouteDomainTenant"] = config.sharedDefaultRouteDomain
 		}
 		adc[tenantName] = tenantDecl
 	}

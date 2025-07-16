@@ -1867,7 +1867,7 @@ var _ = Describe("Worker Tests", func() {
 				//check html profile
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HTMLProfile).To(Equal("/Common/htmlProfile"))
 				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
-					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
+					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com_foo" {
 						Expect(len(rule.Actions)).To(Equal(3))
 					} else if rule.Name == "vs_test_com_redirectto__home" {
 						Expect(len(rule.Actions)).To(Equal(1))
@@ -4117,6 +4117,103 @@ extendedRouteSpec:
 			Expect(mockCtlr.isAddingPoolRestricted("")).To(BeTrue(),
 				"Pool should be skipped in multiCluster mode if adminState is set to no-pool for a cluster")
 
+		})
+	})
+	Describe("TLS Profile and Secret Handling", func() {
+		It("Verifies cis correctly updates TLS profiles referencing a secret", func() {
+			// Define test constants
+			const (
+				Secret   = "secret"
+				Hybrid   = "hybrid"
+				BigIPRef = "bigip"
+			)
+
+			// Create a test secret
+			secretName := "test-secret"
+
+			// Test case 1: Secret reference with matching ClientSSL
+			tlsProfile1 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{
+					TLS: cisapiv1.TLS{
+						Reference: Secret,
+						ClientSSL: secretName,
+					},
+				},
+			}
+			Expect(matchesSecret(tlsProfile1, secretName)).To(BeTrue(), "Should match when ClientSSL equals secret name")
+
+			// Test case 2: Secret reference with matching ClientSSLs list
+			tlsProfile2 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{
+					TLS: cisapiv1.TLS{
+						Reference:  Secret,
+						ClientSSLs: []string{"other-secret", secretName, "another-secret"},
+					},
+				},
+			}
+			Expect(matchesSecret(tlsProfile2, secretName)).To(BeTrue(), "Should match when ClientSSLs contains secret name")
+
+			// Test case 3: Secret reference with no match
+			tlsProfile3 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{
+					TLS: cisapiv1.TLS{
+						Reference: Secret,
+						ClientSSL: "other-secret",
+					},
+				},
+			}
+			Expect(matchesSecret(tlsProfile3, secretName)).To(BeFalse(), "Should not match when ClientSSL doesn't equal secret name")
+
+			// Test case 4: Hybrid reference with matching ClientSSL and Secret reference
+			tlsProfile4 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{
+					TLS: cisapiv1.TLS{
+						Reference: Hybrid,
+						ClientSSL: secretName,
+						ClientSSLParams: cisapiv1.ClientSSLParams{
+							ProfileReference: Secret,
+						},
+					},
+				},
+			}
+			Expect(matchesSecret(tlsProfile4, secretName)).To(BeTrue(), "Should match when Hybrid with ClientSSL equals secret name")
+
+			// Test case 5: Hybrid reference with non-Secret ProfileReference
+			tlsProfile5 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{
+					TLS: cisapiv1.TLS{
+						Reference: Hybrid,
+						ClientSSL: secretName,
+						ClientSSLParams: cisapiv1.ClientSSLParams{
+							ProfileReference: BigIPRef,
+						},
+					},
+				},
+			}
+			Expect(matchesSecret(tlsProfile5, secretName)).To(BeFalse(), "Should not match when ProfileReference is not Secret")
+
+			// Test case 6: Nil checks
+			var tlsProfile6 *cisapiv1.TLSProfile
+			Expect(matchesSecret(tlsProfile6, secretName)).To(BeFalse(), "Should handle nil TLSProfile")
+
+			tlsProfile7 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{},
+			}
+			Expect(matchesSecret(tlsProfile7, secretName)).To(BeFalse(), "Should handle empty TLS field")
+
+			// Test case 7: Hybrid reference with ServerSSL match
+			tlsProfile8 := &cisapiv1.TLSProfile{
+				Spec: cisapiv1.TLSProfileSpec{
+					TLS: cisapiv1.TLS{
+						Reference: Hybrid,
+						ServerSSL: secretName,
+						ServerSSLParams: cisapiv1.ServerSSLParams{
+							ProfileReference: Secret,
+						},
+					},
+				},
+			}
+			Expect(matchesSecret(tlsProfile8, secretName)).To(BeTrue(), "Should match when Hybrid with ServerSSL equals secret name")
 		})
 	})
 })

@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
 	"sync"
+	"time"
 )
 
 // NewClusterHandler initializes the ClusterHandler with the required structures for each cluster.
@@ -210,6 +211,39 @@ func (ch *ClusterHandler) getAllNodesUsingRestClient() []interface{} {
 	return nodes
 }
 
+// function to return the list of all nodes from all the active clusters
+func (ch *ClusterHandler) getAllBlockAffinitiesUsingInformers() []interface{} {
+	ch.RLock()
+	defer ch.RUnlock()
+	var ba []interface{}
+	for _, infSet := range ch.ClusterConfigs {
+		if infSet.InformerStore == nil || infSet.InformerStore.dynamicInformers == nil ||
+			infSet.InformerStore.dynamicInformers.CalicoBlockAffinityInformer == nil {
+			continue
+		}
+		ba = append(ba, infSet.dynamicInformers.CalicoBlockAffinityInformer.Informer().GetIndexer().List()...)
+	}
+	return ba
+}
+
+// function to return the list of all nodes using the rest client
+func (ch *ClusterHandler) getAllBlockAffinitiesUsingRestClient() []interface{} {
+	ch.RLock()
+	defer ch.RUnlock()
+	var blockAffinitiesStore []interface{}
+	for clusterName, config := range ch.ClusterConfigs {
+		blockAffinities, err := config.dynamicClient.Resource(CalicoBlockaffinity).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Debugf("[MultiCluster] Unable to fetch blockaffinities for cluster %v with err %v", clusterName, err)
+		} else {
+			for _, ba := range blockAffinities.Items {
+				blockAffinitiesStore = append(blockAffinitiesStore, &ba)
+			}
+		}
+	}
+	return blockAffinitiesStore
+}
+
 // function to return the cluster counts
 func (ch *ClusterHandler) getClusterCount() int {
 	ch.RLock()
@@ -280,6 +314,12 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 		return
 	}
 
+	if rscStatus.UpdateAttempts > 0 {
+		// Waiting for few milliseconds before retrying the status update mitigates chances of hitting resource version
+		// modified error especially in scenarios where the resource is getting updated very rapidly.
+		log.Debugf("Waiting for %d Milliseconds before retrying status update for %+v", rscStatus.UpdateAttempts, rscStatus.ResourceKey)
+		time.Sleep(time.Duration(rscStatus.UpdateAttempts) * time.Millisecond)
+	}
 	var updateErr error
 	switch rscStatus.ResourceKey.kind {
 	case VirtualServer:
@@ -527,7 +567,7 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 	}
 	// Retry the update if it fails
 	if nil != updateErr {
-		log.Errorf("Failed to update the status of %s:%s/%s in Cluster %s. Error: %v. Retry will be attempted.", rscStatus.ResourceKey.kind,
+		log.Warningf("Failed to update the status of %s:%s/%s in Cluster %s. Error: %v. Retry will be attempted.", rscStatus.ResourceKey.kind,
 			rscStatus.ResourceKey.namespace, rscStatus.ResourceKey.name, rscStatus.ResourceKey.clusterName, updateErr)
 		rscStatus.UpdateAttempts++
 		ch.statusUpdate.ResourceStatusUpdateChan <- rscStatus

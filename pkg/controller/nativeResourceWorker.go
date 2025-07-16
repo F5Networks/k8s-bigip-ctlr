@@ -180,7 +180,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 							httpTraffic = strings.ToLower(string(rt.Spec.TLS.InsecureEdgeTerminationPolicy))
 						}
 					}
-					ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "", httpTraffic, isSecureRoute(rt))
+					ctlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "", httpTraffic, isSecureRoute(rt), extdSpec.VServerAddr)
 				}
 			}
 			if isSecureRoute(rt) {
@@ -476,14 +476,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			svcNamespace = bs.SvcNamespace
 		}
 		pool := Pool{
-			Name: ctlr.formatPoolName(
-				svcNamespace,
-				bs.Name,
-				servicePort,
-				"",
-				"",
-				bs.Cluster,
-			),
+			Name:             ctlr.formatPoolName(svcNamespace, bs.Name, servicePort, "", "", bs.Cluster, ""),
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      bs.Name,
 			ServiceNamespace: svcNamespace,
@@ -587,14 +580,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		}
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
-	poolName := ctlr.formatPoolName(
-		route.Namespace,
-		route.Spec.To.Name,
-		servicePort,
-		"",
-		"",
-		"",
-	)
+	poolName := ctlr.formatPoolName(route.Namespace, route.Spec.To.Name, servicePort, "", "", "", "")
 	// skip the policy creation for passthrough termination
 	if !isPassthroughRoute(route) {
 		var rules *Rules
@@ -789,14 +775,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(svcKey MultiClusterServiceKey) 
 	}
 
 	servicePort := intstr.IntOrString{IntVal: port}
-	poolName := ctlr.formatPoolName(
-		svcKey.namespace,
-		svcKey.serviceName,
-		servicePort,
-		"",
-		"",
-		"",
-	)
+	poolName := ctlr.formatPoolName(svcKey.namespace, svcKey.serviceName, servicePort, "", "", "", "")
 	// for each cluster -> referred svcs -> for each svc -> port info and bigip vs and dependant resource(route)
 	if serviceKeys, ok := ctlr.multiClusterResources.clusterSvcMap[svcKey.clusterName]; ok {
 		if svcPorts, ok2 := serviceKeys[svcKey]; ok2 {
@@ -2128,6 +2107,7 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 		log.Debugf("kubeconfig deleted for cluster %s.Informers are stopped", mcc.ClusterName)
 		ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
 		ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
+		ctlr.stopMultiClusterDynamicInformer(mcc.ClusterName)
 		return nil
 	}
 	// Extract the kubeconfig from the secret
@@ -2144,6 +2124,9 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 	if clusterConfig == nil {
 		clusterConfig = newClusterConfig()
 	}
+	// update CNI information in cluster config
+	clusterConfig.orchestrationCNI = ctlr.multiClusterHandler.orchestrationCNI
+	clusterConfig.staticRoutingMode = ctlr.multiClusterHandler.staticRoutingMode
 	// Create clientset using the provided kubeconfig for the respective cluster
 	err = ctlr.setupClientsforCluster(config, false, false, mcc.ClusterName, clusterConfig)
 	// update externalclusterconfig in clusterconfig

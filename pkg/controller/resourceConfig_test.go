@@ -130,25 +130,25 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 		It("Pool name for TS", func() {
 			var name string
-			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1", "")
 			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = PrimaryCIS
 			mockCtlr.discoveryMode = ""
-			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1", "")
 			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name for TS")
 			mockCtlr.discoveryMode = DefaultMode
-			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1")
+			name = mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "", "cluster1", "")
 			Expect(name).To(Equal("svc1_80_default_app_test_cluster1"), "Invalid Pool Name for TS")
 			mockCtlr.multiClusterMode = ""
 			mockCtlr.discoveryMode = ""
 		})
 		It("Pool Name", func() {
-			name := mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "")
+			name := mockCtlr.formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo", "", "")
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
-			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")
-			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
+			name := formatMonitorName(namespace, "1.2.3.4", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")
+			Expect(name).To(Equal("default_1_2_3_4_foo_com_path_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
 			name := formatVirtualServerRuleName("test.com", "", "", "sample_pool", false)
@@ -747,7 +747,7 @@ var _ = Describe("Resource Config Tests", func() {
 			svc.Annotations = make(map[string]string)
 			svc.Annotations[HealthMonitorAnnotation] = `{"interval": 5, "timeout": 10}`
 
-			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil, "1.2.3.4")
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to Prepare Resource Config from Service")
@@ -769,7 +769,7 @@ var _ = Describe("Resource Config Tests", func() {
 			It("Verifies multiple monitors support in LB Service", func() {
 				svc.Annotations = make(map[string]string)
 				svc.Annotations[HealthMonitorAnnotation] = `[{"interval": 5, "name": "mon1", "timeout": 10, "targetPort": 80},{"name": "mon2", "interval": 15, "timeout": 20, "targetPort": 8080}]`
-				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil, "1.2.3.4")
 				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 				Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 				Expect(len(rsCfg.Monitors)).To(Equal(2), "Failed to Prepare Resource Config from Service")
@@ -780,7 +780,7 @@ var _ = Describe("Resource Config Tests", func() {
 			It("Verifies support for bigip reference monitor in health annotation in LB Service", func() {
 				svc.Annotations = make(map[string]string)
 				svc.Annotations[HealthMonitorAnnotation] = `{"name": "/Common/tcp", "reference": "bigip"}`
-				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil, "1.2.3.4")
 				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 				Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 				Expect(rsCfg.Monitors).To(BeNil(), "Failed to Prepare Resource Config from Service")
@@ -792,7 +792,7 @@ var _ = Describe("Resource Config Tests", func() {
 				"annotation in LB Service", func() {
 				svc.Annotations = make(map[string]string)
 				svc.Annotations[HealthMonitorAnnotation] = `[{"interval": 5, "name": "mon1", "timeout": 10, "targetPort": 80},{"name": "/Common/udp", "reference": "bigip"}]`
-				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil)
+				err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort, "", nil, "1.2.3.4")
 				Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 				Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 				Expect(rsCfg.Monitors).NotTo(BeNil(), "Failed to Prepare Resource Config from Service")
@@ -1966,7 +1966,7 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace: "default",
 				kind:      VirtualServer,
 			}
-			mockCtlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "test.com", "allow", true)
+			mockCtlr.handleDefaultPoolForPolicy(rsCfg, plc, rsRef, "test.com", "allow", true, "")
 			Expect(rsCfg.Virtual.PoolName).To(Equal("svc1_80_default_test_com"), "Failed to set default pool from policy")
 			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to process default pool for VirtualServer")
 		})

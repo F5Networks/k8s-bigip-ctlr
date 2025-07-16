@@ -1599,7 +1599,7 @@ type (
 	}
 
 	MultiClusterResourceStore struct {
-		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
+		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]struct{}
 		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
 		sync.Mutex
 	}

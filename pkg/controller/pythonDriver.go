@@ -20,17 +20,12 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/securecreds"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
@@ -191,8 +186,6 @@ func (agent *Agent) startPythonDriver(
 
 	subPid := <-subPidCh
 	agent.PythonDriverPID = subPid
-	//Enable "/health" and "/metrics" endpoint with controller
-	go agent.healthCheckPythonDriver()
 
 	return
 }
@@ -209,23 +202,4 @@ func (agent *Agent) stopPythonDriver() {
 			log.Warningf("Could not stop sub-process on exit: %d - %v", agent.PythonDriverPID, err)
 		}
 	}
-}
-
-func (agent *Agent) healthCheckPythonDriver() {
-	// Expose Prometheus metrics
-	http.Handle("/metrics", promhttp.Handler())
-	// Add health check to track whether Python process still alive
-	hc := &health.HealthChecker{
-		SubPID: agent.PythonDriverPID,
-	}
-	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics(agent.APIHandler.LTM.HTTPClientMetrics)
-	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
-}
-
-func (agent *Agent) enableMetrics() {
-	// Expose Prometheus metrics
-	http.Handle("/metrics", promhttp.Handler())
-	bigIPPrometheus.RegisterMetrics(agent.APIHandler.LTM.HTTPClientMetrics)
-	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
 }

@@ -105,6 +105,8 @@ type (
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
 		respChan                    chan *agentPostConfig
+		healthServer                *http.Server
+		webhookServer               *http.Server
 		resourceContext
 	}
 	resourceContext struct {
@@ -875,13 +877,11 @@ type (
 		ConfigWriter        writer.Writer
 		EventChan           chan interface{}
 		userAgent           string
-		HttpAddress         string
 		EnableIPV6          bool
 		ccclGTMAgent        bool
 		gtmOnSeparateServer bool
 		disableARP          bool
 		Type                string
-		httpClientMetrics   bool
 		PythonDriverPID     int
 		StopChan            chan struct{}
 	}
@@ -918,6 +918,7 @@ type (
 		PythonBaseDir        string
 		UserAgent            string
 		HttpAddress          string
+		HttpsAddress         string
 		EnableIPV6           bool
 		DisableARP           bool
 		CCCLGTMAgent         bool

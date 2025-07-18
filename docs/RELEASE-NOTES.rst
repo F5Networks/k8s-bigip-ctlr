@@ -12,6 +12,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
 
 Upgrade notes
 ``````````````

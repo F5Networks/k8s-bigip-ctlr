@@ -185,7 +185,7 @@ func (ctlr *Controller) checkValidVirtualServer(
 		} else {
 			ipamLabel := vsResource.Spec.IPAMLabel
 			if ipamLabel == "" && bindAddr == "" {
-				errChan <- fmt.Sprintf("No ipamLabel was specified for the virtual server %s", vsName)
+				errChan <- fmt.Sprintf("No ipamLabel/IP was specified for the virtual server %s", vsName)
 				cancel()
 			}
 		}
@@ -333,7 +333,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		} else {
 			ipamLabel := tsResource.Spec.IPAMLabel
 			if ipamLabel == "" && bindAddr == "" {
-				errChan <- fmt.Sprintf("No ipamLabel was specified for the transport server %s", vsName)
+				errChan <- fmt.Sprintf("No ipamLabel/IP was specified for the transport server %s", vsName)
 				cancel()
 				return
 			}
@@ -460,7 +460,7 @@ func (ctlr *Controller) checkValidIngressLink(
 		} else {
 			ipamLabel := il.Spec.IPAMLabel
 			if ipamLabel == "" && bindAddr == "" {
-				errChan <- fmt.Sprintf("No ipamLabel was specified for the il server %s", ilName)
+				errChan <- fmt.Sprintf("No ipamLabel/IP was specified for the il server %s", ilName)
 				cancel()
 			}
 		}

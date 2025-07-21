@@ -12,6 +12,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -19,11 +20,19 @@ import (
 
 var _ = Describe("Informers Tests", func() {
 	var mockCtlr *mockController
+	var mockPM *mockPostManager
 	namespace := "default"
 
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockWriter := &test.MockWriter{}
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
+		mockPM = newMockPostManger()
+		mockPM.TokenManagerInterface = test.NewMockTokenManager("test-token")
+		mockPM.BIGIPURL = "bigip.com"
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		mockCtlr.webhookServer = &mockWebHookServer{}
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -70,15 +79,16 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
-			mockWriter := &test.MockWriter{FailStyle: test.Success}
-			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
 			mockCtlr.resources.ltmConfig = make(map[string]*PartitionConfig, 0)
 			mockCtlr.Partition = "test"
 			mockCtlr.TeemData = &teem.TeemsData{
 				ResourceType: teem.ResourceTypes{
-					VirtualServer: make(map[string]int),
+					VirtualServer:   make(map[string]int),
+					TransportServer: make(map[string]int),
 				},
 			}
+			mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 
 		})
 		AfterEach(func() {
@@ -226,6 +236,10 @@ var _ = Describe("Informers Tests", func() {
 				cisapiv1.TransportServerSpec{
 					SNAT:                 "auto",
 					VirtualServerAddress: "1.2.3.4",
+					Pool: cisapiv1.TSPool{
+						Service:     "svc-1",
+						ServicePort: intstr.IntOrString{IntVal: DEFAULT_HTTP_PORT},
+					},
 				})
 			mockCtlr.enqueueTransportServer(ts)
 			key, quit := mockCtlr.resourceQueue.Get()
@@ -238,6 +252,10 @@ var _ = Describe("Informers Tests", func() {
 				cisapiv1.TransportServerSpec{
 					SNAT:                 "auto",
 					VirtualServerAddress: "1.2.3.5",
+					Pool: cisapiv1.TSPool{
+						Service:     "svc-1",
+						ServicePort: intstr.IntOrString{IntVal: DEFAULT_HTTP_PORT},
+					},
 				})
 			mockCtlr.enqueueUpdatedTransportServer(ts, newTS)
 			key, quit = mockCtlr.resourceQueue.Get()

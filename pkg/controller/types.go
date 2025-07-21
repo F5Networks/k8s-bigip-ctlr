@@ -57,6 +57,11 @@ import (
 )
 
 type (
+	WebHookServerInterface interface {
+		IsWebhookServerRunning() bool
+		GetWebhookServer() *http.Server
+	}
+
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
 		mode      ControllerMode
@@ -106,7 +111,7 @@ type (
 		ResourceStatusVSAddressMap  map[resourceRef]string
 		respChan                    chan *agentPostConfig
 		healthServer                *http.Server
-		webhookServer               *http.Server
+		webhookServer               WebHookServerInterface
 		resourceContext
 	}
 	resourceContext struct {

@@ -857,7 +857,7 @@ func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 
 func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
-	if !ctlr.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := vs.ObjectMeta.Namespace + "/" + vs.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidVirtualServer(vs)
 		if !valid {
@@ -881,7 +881,7 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
-	if !ctlr.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := newVS.ObjectMeta.Namespace + "/" + newVS.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidVirtualServer(newVS)
 		if !valid {
@@ -972,7 +972,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 	ts := obj.(*cisapiv1.TransportServer)
-	if !ctlr.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidTransportServer(ts)
 		if !valid {
@@ -996,7 +996,7 @@ func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
-	if !ctlr.IsWebhookServerRunning() {
+	if !ctlr.webhookServer.IsWebhookServerRunning() {
 		// check if the virutal server matches all the requirements.
 		vkey := newVS.ObjectMeta.Namespace + "/" + newVS.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidTransportServer(newVS)
@@ -1102,7 +1102,7 @@ func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}, clusterName string
 
 func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
-	if !ctlr.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidIngressLink(ingLink)
 		if !valid {
@@ -1145,7 +1145,7 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
-	if !ctlr.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := newIngLink.ObjectMeta.Namespace + "/" + newIngLink.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidIngressLink(newIngLink)
 		if !valid {

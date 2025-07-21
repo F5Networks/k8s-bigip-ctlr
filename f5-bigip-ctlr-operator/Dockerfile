@@ -19,4 +19,9 @@ COPY f5-bigip-ctlr-operator/watches.yaml ${HOME}/watches.yaml
 COPY helm-charts/f5-bigip-ctlr  ${HOME}/helm-charts/f5-bigip-ctlr
 COPY f5-bigip-ctlr-operator/watches.yaml ${HOME}/helm-charts/f5-bigip-ctlr/oscp-operator.txt
 
+# Remove shell access
+USER root
+RUN rm -f /bin/sh /bin/bash
+USER 1001
+
 WORKDIR ${HOME}

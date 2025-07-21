@@ -10,6 +10,7 @@ import (
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -162,4 +163,17 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 			}
 		}
 	})
+}
+
+// function to check if the webhook server is running
+func (ctlr *Controller) IsWebhookServerRunning() bool {
+	if ctlr.webhookServer == nil {
+		return false
+	}
+	conn, err := net.Dial("tcp", ctlr.agentParams.HttpsAddress)
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	return true
 }

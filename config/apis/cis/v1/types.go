@@ -103,6 +103,7 @@ type DefaultPool struct {
 	ReselectTries     int32              `json:"reselectTries,omitempty"`
 	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
 	Reference         string             `json:"reference,omitempty"`
+	StaticPoolMembers []StaticPoolMember `json:"staticPoolMembers,omitempty"`
 }
 
 // VSPool defines a pool object for Virtual Server in BIG-IP.
@@ -125,6 +126,7 @@ type VSPool struct {
 	Weight               *int32                         `json:"weight,omitempty"`
 	AlternateBackends    []AlternateBackend             `json:"alternateBackends"`
 	MultiClusterServices []MultiClusterServiceReference `json:"multiClusterServices,omitempty"`
+	StaticPoolMembers    []StaticPoolMember             `json:"staticPoolMembers,omitempty"`
 }
 
 // TSPool defines a pool object for Transport Server in BIG-IP.
@@ -150,9 +152,15 @@ type TSPool struct {
 
 // AlternateBackends lists backend svc of A/B
 type AlternateBackend struct {
-	Service          string `json:"service"`
-	ServiceNamespace string `json:"serviceNamespace,omitempty"`
-	Weight           *int32 `json:"weight,omitempty"`
+	Service           string             `json:"service"`
+	ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
+	Weight            *int32             `json:"weight,omitempty"`
+	StaticPoolMembers []StaticPoolMember `json:"staticPoolMembers,omitempty"`
+}
+
+type StaticPoolMember struct {
+	Address string `json:"address"`
+	Port    int32  `json:"port"`
 }
 
 type MultiClusterServiceReference struct {

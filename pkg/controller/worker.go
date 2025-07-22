@@ -2524,6 +2524,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 			pool.NodeMemberLabel, ctlr.multiClusterHandler.LocalClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
+		poolMembers = ctlr.processStaticPoolMembers(pool.StaticPoolMembers, poolMembers)
 		if len(ctlr.clusterRatio) > 0 {
 			pool.Members = pms
 			return
@@ -2597,6 +2598,7 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
+			poolMembers = ctlr.processStaticPoolMembers(svc.StaticPoolMembers, poolMembers)
 
 			// for HA cluster pair service
 			// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
@@ -2627,6 +2629,23 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 
 	pool.Members = poolMembers
+}
+
+func (ctlr *Controller) processStaticPoolMembers(staticPoolMembers []StaticPoolMember, members []PoolMember) []PoolMember {
+	// not supported in multi cluster mode
+	if ctlr.multiClusterMode != "" {
+		return members
+	}
+	// currently supported for
+	// - virtual server
+	for _, v := range staticPoolMembers {
+		member := PoolMember{
+			Address: v.Address, // Using IP from additionalMember
+			Port:    v.Port,    // Using Port from additionalMember
+		}
+		members = append(members, member)
+	}
+	return members
 }
 
 func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) {

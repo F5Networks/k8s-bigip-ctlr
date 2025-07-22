@@ -1960,6 +1960,13 @@ var _ = Describe("Resource Config Tests", func() {
 				Reference:   ServiceRef,
 				Service:     "svc1",
 				ServicePort: intstr.IntOrString{IntVal: 80},
+				Monitors: []cisapiv1.Monitor{
+					{
+						Type:     "HTTP",
+						Interval: 5,
+						Timeout:  10,
+					},
+				},
 			}
 			rsRef := resourceRef{
 				name:      "test-vs",

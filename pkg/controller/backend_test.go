@@ -59,34 +59,5 @@ var _ = Describe("Backend Tests", func() {
 			close(agent.LTM.PostManager.postChan)
 			close(agent.LTM.PostManager.respChan)
 		})
-		It("Update ARP entries test", func() {
-			agent.EventChan = make(chan interface{})
-			mem1 := PoolMember{
-				Address: "1.2.3.5",
-				Port:    8080,
-			}
-			mem2 := PoolMember{
-				Address: "1.2.3.6",
-				Port:    8081,
-			}
-			rsCfg := &ResourceConfig{}
-			rsCfg.MetaData.Active = true
-			rsCfg.Pools = Pools{
-				Pool{
-					Name:    "pool1",
-					Members: []PoolMember{mem1, mem2},
-				},
-			}
-			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
-			ltmConfig := make(LTMConfig)
-			zero := 0
-			ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
-			ltmConfig["default"].ResourceMap[rsCfg.Virtual.Name] = rsCfg
-			rsConfigRequest := ResourceConfigRequest{
-				ltmConfig: ltmConfig,
-			}
-			go agent.updateARPsForPoolMembers(rsConfigRequest)
-			//close(agent.EventChan)
-		})
 	})
 })

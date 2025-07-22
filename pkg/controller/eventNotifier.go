@@ -80,26 +80,26 @@ func (en *EventNotifier) CreateNotifierForNamespace(
 	return evNotifier
 }
 
-// Get the notifier for a namespace
-func (en *EventNotifier) GetNotifierForNamespace(
-	namespace string,
-) *NamespaceEventNotifier {
-
-	en.mutex.Lock()
-	defer en.mutex.Unlock()
-
-	evNotifier, found := en.notifierMap[namespace]
-	if !found {
-		return nil
-	}
-	return evNotifier
-}
-
-func (en *EventNotifier) DeleteNotifierForNamespace(namespace string) {
-	en.mutex.Lock()
-	defer en.mutex.Unlock()
-	delete(en.notifierMap, namespace)
-}
+//// Get the notifier for a namespace
+//func (en *EventNotifier) GetNotifierForNamespace(
+//	namespace string,
+//) *NamespaceEventNotifier {
+//
+//	en.mutex.Lock()
+//	defer en.mutex.Unlock()
+//
+//	evNotifier, found := en.notifierMap[namespace]
+//	if !found {
+//		return nil
+//	}
+//	return evNotifier
+//}
+//
+//func (en *EventNotifier) DeleteNotifierForNamespace(namespace string) {
+//	en.mutex.Lock()
+//	defer en.mutex.Unlock()
+//	delete(en.notifierMap, namespace)
+//}
 
 func (nen *NamespaceEventNotifier) RecordEvent(
 	obj runtime.Object,

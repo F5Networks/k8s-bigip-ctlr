@@ -20,15 +20,16 @@ var _ = Describe("Response Handler Tests", func() {
 	var mockCtlr *mockController
 	var postConfig *agentPostConfig
 	var tenantResponseMap map[string]tenantResponse
-	var vrt *cisapiv1.VirtualServer
+	var vs *cisapiv1.VirtualServer
 	var ts *cisapiv1.TransportServer
 	var il *cisapiv1.IngressLink
+	var mcVs *cisapiv1.VirtualServer
+	var mcTs *cisapiv1.TransportServer
 	var svc *v1.Service
 	namespace := "default"
 
 	BeforeEach(func() {
-		// mockBaseAPIHandler = newMockBaseAPIHandler()
-		vrt = test.NewVirtualServer(
+		vs = test.NewVirtualServer(
 			"SampleVS",
 			namespace,
 			cisapiv1.VirtualServerSpec{
@@ -42,6 +43,24 @@ var _ = Describe("Response Handler Tests", func() {
 					},
 				},
 			})
+		mcVs = test.NewVirtualServer(
+			"SampleMCVS",
+			namespace,
+			cisapiv1.VirtualServerSpec{
+				Host:                 "test.com",
+				VirtualServerAddress: "1.2.3.7",
+				Pools: []cisapiv1.VSPool{
+					cisapiv1.VSPool{
+						MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+							{
+								SvcName:     "svc",
+								Namespace:   "default",
+								ServicePort: intstr.IntOrString{IntVal: 80},
+							},
+						},
+					},
+				},
+			})
 		ts = test.NewTransportServer(
 			"SampleTS",
 			namespace,
@@ -50,6 +69,21 @@ var _ = Describe("Response Handler Tests", func() {
 				VirtualServerAddress: "1.2.3.6",
 			},
 		)
+		mcTs = test.NewTransportServer(
+			"SampleMCTS",
+			namespace,
+			cisapiv1.TransportServerSpec{
+				SNAT: "auto",
+				Pool: cisapiv1.TSPool{
+					MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+						{
+							SvcName:     "svc",
+							Namespace:   "default",
+							ServicePort: intstr.IntOrString{IntVal: 80},
+						},
+					},
+				},
+			})
 		label := make(map[string]string)
 		label["app"] = "ingresslink"
 		selector := &metav1.LabelSelector{
@@ -95,13 +129,18 @@ var _ = Describe("Response Handler Tests", func() {
 			Sections:  make(map[string]interface{}),
 		}
 		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.disableARP = false
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
 		mockCtlr.Partition = "test"
 		mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset(svc)
-		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(vrt)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(vs)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(ts)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(il)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(mcVs)
+		mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(mcTs)
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
 		mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
@@ -136,9 +175,63 @@ var _ = Describe("Response Handler Tests", func() {
 			},
 		)
 		mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
-		mockCtlr.addVirtualServer(vrt)
+		mockCtlr.addVirtualServer(vs)
 		mockCtlr.addTransportServer(ts)
 		mockCtlr.addIngressLink(il)
+		mem1 := PoolMember{
+			Address: "1.2.3.5",
+			Port:    8080,
+		}
+		mem2 := PoolMember{
+			Address: "1.2.3.6",
+			Port:    8081,
+		}
+		rsCfg := &ResourceConfig{}
+		rsCfg.MetaData.Active = true
+		rsCfg.Pools = Pools{
+			Pool{
+				Name:    "pool1",
+				Members: []PoolMember{mem1, mem2},
+			},
+		}
+		rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+		ltmConfig := make(LTMConfig)
+		zero := 0
+		ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
+		ltmConfig["default"].ResourceMap[rsCfg.Virtual.Name] = rsCfg
+		monitors := []Monitor{
+			{
+				Name:     "pool1_monitor",
+				Interval: 10,
+				Timeout:  10,
+				Type:     "http",
+				Send:     "GET /health",
+			},
+		}
+		gtmConfig := GTMConfig{
+			DEFAULT_PARTITION: GTMPartitionConfig{
+				WideIPs: map[string]WideIP{
+					"test.com": {
+						DomainName: "test.com",
+						RecordType: "A",
+						LBMethod:   "round-robin",
+						Pools: []GSLBPool{
+							{
+								Name:       "pool1",
+								RecordType: "A",
+								LBMethod:   "round-robin",
+								Members:    []string{"vs1", "vs2"},
+								Monitors:   monitors,
+							},
+						},
+					},
+				},
+			},
+		}
+		rsConfigRequest := ResourceConfigRequest{
+			ltmConfig: ltmConfig,
+			gtmConfig: gtmConfig,
+		}
 		postConfig = &agentPostConfig{
 			reqMeta: requestMeta{
 				id: 1,
@@ -148,6 +241,7 @@ var _ = Describe("Response Handler Tests", func() {
 			incomingTenantDeclMap: tenantDeclMap,
 			tenantResponseMap:     make(map[string]tenantResponse),
 			agentKind:             PrimaryBigIP,
+			rscConfigRequest:      rsConfigRequest,
 		}
 		postConfig.reqMeta.partitionMap = make(map[string]map[string]string)
 		postConfig.reqMeta.partitionMap["test"] = make(map[string]string)
@@ -160,7 +254,7 @@ var _ = Describe("Response Handler Tests", func() {
 		go mockCtlr.responseHandler()
 		mockCtlr.respChan <- postConfig
 	})
-	It("Resource Status update tests for VS, TS and IL for failed tenants", func() {
+	It("Resource Status update tests for VS, TS and IL for failed tenants with CCCL GTM", func() {
 		postConfig.failedTenants = make(map[string]tenantResponse)
 		postConfig.timeout = 30
 		mockCtlr.requestCounter = 1
@@ -168,6 +262,36 @@ var _ = Describe("Response Handler Tests", func() {
 			message:           "failed",
 			agentResponseCode: 500,
 		}
+		go mockCtlr.responseHandler()
+		mockCtlr.respChan <- postConfig
+	})
+	It("Resource Status update tests for VS, TS and IL for GTM Config", func() {
+		postConfig.failedTenants = make(map[string]tenantResponse)
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.ccclGTMAgent = true
+		postConfig.timeout = 30
+		mockCtlr.requestCounter = 1
+		postConfig.failedTenants = make(map[string]tenantResponse)
+		// postConfig.failedTenants["test"] = tenantResponse{
+		// 	message:           "failed",
+		// 	agentResponseCode: 500,
+		// }
+		go mockCtlr.responseHandler()
+		mockCtlr.respChan <- postConfig
+	})
+	It("Resource Status update tests for VS, TS and IL for multicluster Standalone mode discovery", func() {
+		mockCtlr.multiClusterMode = PrimaryCIS
+		mockCtlr.discoveryMode = StandAloneCIS
+		mockCtlr.addVirtualServer(mcVs)
+		mockCtlr.addTransportServer(mcTs)
+		postConfig.failedTenants = make(map[string]tenantResponse)
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.ccclGTMAgent = false
+		postConfig.timeout = 30
+		mockCtlr.requestCounter = 1
+		postConfig.failedTenants = make(map[string]tenantResponse)
+		// postConfig.failedTenants["test"] = tenantResponse{
+		// 	message:           "failed",
+		// 	agentResponseCode: 500,
+		// }
 		go mockCtlr.responseHandler()
 		mockCtlr.respChan <- postConfig
 	})

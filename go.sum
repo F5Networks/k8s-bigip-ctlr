@@ -96,6 +96,8 @@ github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.m
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/evanphx/json-patch v4.9.0+incompatible h1:kLcOMZeuLAJvL2BPWLMIj5oaZQobrkAqrL+WFZwQses=
 github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
+github.com/f5devcentral/go-bigip v0.0.0-20250702152414-3ab735e221a2 h1:YUvrJeDh0g4/WR3P3gO0rnOFvIL5Xv4I6mh3/m3r1mc=
+github.com/f5devcentral/go-bigip v0.0.0-20250702152414-3ab735e221a2/go.mod h1:0Lkr0fBU6O1yBxF2mt9JFwXpaFbIb/wAY7oM3dMJDdA=
 github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913 h1:/VVpfRxdUZk0l6mPOVxL8EDST8OnLepd1y33uxyYZrg=
 github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913/go.mod h1:r7o5I22EvO+fps2u10bz4ZUlTlNHopQSWzVcW19hK3U=
 github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051 h1:q2HUQbEFbJ4EIECxyKpnZ5+wz/HLAndzSYmd0VS8c4M=

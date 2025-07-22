@@ -1,20 +1,35 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"net/http"
+	"net/http/httptest"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 )
 
 var _ = Describe("Validation Tests", func() {
 	var mockCtlr *mockController
+	var mockPM *mockPostManager
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		mockWriter := &test.MockWriter{}
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
+		mockPM = newMockPostManger()
+		mockPM.TokenManagerInterface = test.NewMockTokenManager("test-token")
+		mockPM.BIGIPURL = "bigip.com"
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
+		mockCtlr.resources = NewResourceStore()
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -96,6 +111,166 @@ var _ = Describe("Validation Tests", func() {
 			//	ServicePort: intstr.IntOrString{IntVal: 80},
 			//}, true)).Error().To(Equal(fmt.Errorf("service is running in HA cluster, currently CIS doesn't support services running in " +
 			//	"HA clusters to be defined in extendedServiceReference")))
+		})
+	})
+
+	Describe("AdmissionReview validation handler", func() {
+		var (
+			w *httptest.ResponseRecorder
+			r *http.Request
+		)
+
+		BeforeEach(func() {
+			w = httptest.NewRecorder()
+		})
+
+		It("should allow valid VirtualServer", func() {
+			obj := map[string]interface{}{
+				"apiVersion": "cis.f5.com/v1",
+				"kind":       "VirtualServer",
+				"metadata":   map[string]interface{}{"name": "vs1"},
+				"spec":       map[string]interface{}{"virtualServerAddress": "1.2.3.4"},
+			}
+			objRaw, _ := json.Marshal(obj)
+			admission := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					UID:    "vs-uid",
+					Kind:   metav1.GroupVersionKind{Kind: "VirtualServer"},
+					Object: runtime.RawExtension{Raw: objRaw},
+				},
+			}
+			body, _ := json.Marshal(admission)
+			r = httptest.NewRequest("POST", "/validate", bytes.NewBuffer(body))
+			mockCtlr.handleValidate(w, r)
+			Expect(w.Code).To(Equal(http.StatusOK))
+			var resp v1.AdmissionReview
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(resp.Response.Allowed).To(BeTrue())
+		})
+
+		It("should deny invalid VirtualServer", func() {
+			obj := map[string]interface{}{
+				"apiVersion": "cis.f5.com/v1",
+				"kind":       "VirtualServer",
+				"metadata":   map[string]interface{}{"name": "vs1"},
+				"spec":       map[string]interface{}{}, // missing required fields
+			}
+			objRaw, _ := json.Marshal(obj)
+			admission := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					UID:    "vs-uid2",
+					Kind:   metav1.GroupVersionKind{Kind: "VirtualServer"},
+					Object: runtime.RawExtension{Raw: objRaw},
+				},
+			}
+			body, _ := json.Marshal(admission)
+			r = httptest.NewRequest("POST", "/validate", bytes.NewBuffer(body))
+			mockCtlr.handleValidate(w, r)
+			Expect(w.Code).To(Equal(http.StatusOK))
+			var resp v1.AdmissionReview
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(resp.Response.Allowed).To(BeFalse())
+			Expect(resp.Response.Result.Message).NotTo(BeEmpty())
+		})
+
+		It("should allow valid TransportServer", func() {
+			obj := map[string]interface{}{
+				"apiVersion": "cis.f5.com/v1",
+				"kind":       "TransportServer",
+				"metadata":   map[string]interface{}{"name": "ts1"},
+				"spec": map[string]interface{}{"virtualServerAddress": "1.2.3.4",
+					"pool": map[string]interface{}{"service": "pool1", "servicePort": intstr.IntOrString{IntVal: 80}}},
+			}
+			objRaw, _ := json.Marshal(obj)
+			admission := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					UID:    "ts-uid",
+					Kind:   metav1.GroupVersionKind{Kind: "TransportServer"},
+					Object: runtime.RawExtension{Raw: objRaw},
+				},
+			}
+			body, _ := json.Marshal(admission)
+			r = httptest.NewRequest("POST", "/validate", bytes.NewBuffer(body))
+			mockCtlr.handleValidate(w, r)
+			Expect(w.Code).To(Equal(http.StatusOK))
+			var resp v1.AdmissionReview
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(resp.Response.Allowed).To(BeTrue())
+		})
+
+		It("should deny invalid TransportServer", func() {
+			obj := map[string]interface{}{
+				"apiVersion": "cis.f5.com/v1",
+				"kind":       "TransportServer",
+				"metadata":   map[string]interface{}{"name": "ts1"},
+				"spec":       map[string]interface{}{}, // missing required fields
+			}
+			objRaw, _ := json.Marshal(obj)
+			admission := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					UID:    "ts-uid2",
+					Kind:   metav1.GroupVersionKind{Kind: "TransportServer"},
+					Object: runtime.RawExtension{Raw: objRaw},
+				},
+			}
+			body, _ := json.Marshal(admission)
+			r = httptest.NewRequest("POST", "/validate", bytes.NewBuffer(body))
+			mockCtlr.handleValidate(w, r)
+			Expect(w.Code).To(Equal(http.StatusOK))
+			var resp v1.AdmissionReview
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(resp.Response.Allowed).To(BeFalse())
+			Expect(resp.Response.Result.Message).NotTo(BeEmpty())
+		})
+
+		It("should allow valid IngressLink", func() {
+			obj := map[string]interface{}{
+				"apiVersion": "cis.f5.com/v1",
+				"kind":       "IngressLink",
+				"metadata":   map[string]interface{}{"name": "il1"},
+				"spec": map[string]interface{}{"virtualServerAddress": "1.2.3.4",
+					"selector": map[string]interface{}{"matchLabels": map[string]interface{}{"app": "ingresslink"}}},
+			}
+			objRaw, _ := json.Marshal(obj)
+			admission := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					UID:    "il-uid",
+					Kind:   metav1.GroupVersionKind{Kind: "IngressLink"},
+					Object: runtime.RawExtension{Raw: objRaw},
+				},
+			}
+			body, _ := json.Marshal(admission)
+			r = httptest.NewRequest("POST", "/validate", bytes.NewBuffer(body))
+			mockCtlr.handleValidate(w, r)
+			Expect(w.Code).To(Equal(http.StatusOK))
+			var resp v1.AdmissionReview
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(resp.Response.Allowed).To(BeTrue())
+		})
+
+		It("should deny unsupported Kind", func() {
+			obj := map[string]interface{}{
+				"apiVersion": "cis.f5.com/v1",
+				"kind":       "UnknownKind",
+				"metadata":   map[string]interface{}{"name": "uk1"},
+				"spec":       map[string]interface{}{},
+			}
+			objRaw, _ := json.Marshal(obj)
+			admission := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					UID:    "uk-uid",
+					Kind:   metav1.GroupVersionKind{Kind: "UnknownKind"},
+					Object: runtime.RawExtension{Raw: objRaw},
+				},
+			}
+			body, _ := json.Marshal(admission)
+			r = httptest.NewRequest("POST", "/validate", bytes.NewBuffer(body))
+			mockCtlr.handleValidate(w, r)
+			Expect(w.Code).To(Equal(http.StatusOK))
+			var resp v1.AdmissionReview
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(resp.Response.Allowed).To(BeFalse())
+			Expect(resp.Response.Result.Message).NotTo(BeEmpty())
 		})
 	})
 })

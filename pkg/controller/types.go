@@ -57,6 +57,11 @@ import (
 )
 
 type (
+	WebHookServerInterface interface {
+		IsWebhookServerRunning() bool
+		GetWebhookServer() *http.Server
+	}
+
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
 		mode      ControllerMode
@@ -105,6 +110,8 @@ type (
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
 		respChan                    chan *agentPostConfig
+		healthServer                *http.Server
+		webhookServer               WebHookServerInterface
 		resourceContext
 	}
 	resourceContext struct {
@@ -875,13 +882,11 @@ type (
 		ConfigWriter        writer.Writer
 		EventChan           chan interface{}
 		userAgent           string
-		HttpAddress         string
 		EnableIPV6          bool
 		ccclGTMAgent        bool
 		gtmOnSeparateServer bool
 		disableARP          bool
 		Type                string
-		httpClientMetrics   bool
 		PythonDriverPID     int
 		StopChan            chan struct{}
 	}
@@ -918,6 +923,7 @@ type (
 		PythonBaseDir        string
 		UserAgent            string
 		HttpAddress          string
+		HttpsAddress         string
 		EnableIPV6           bool
 		DisableARP           bool
 		CCCLGTMAgent         bool

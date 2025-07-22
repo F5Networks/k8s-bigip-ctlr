@@ -40,6 +40,9 @@ type (
 		RespIndex int
 	}
 
+	mockWebHookServer struct {
+	}
+
 	responseCtx struct {
 		tenant string
 		status float64
@@ -477,6 +480,18 @@ func (m *mockController) addBlockAffinity(name, namespace, nodeName, cidr string
 		Namespace(namespace).
 		Create(context.TODO(), ba, metav1.CreateOptions{})
 	return err
+}
+
+func (w *mockWebHookServer) IsWebhookServerRunning() bool {
+	// Mock implementation, always return true for testing purposes
+	return true
+}
+
+func (w *mockWebHookServer) GetWebhookServer() *http.Server {
+	// Mock implementation, return a new HTTP Server instance
+	return &http.Server{
+		Addr: ":8080", // Example address, can be adjusted as needed
+	}
 }
 
 //func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {

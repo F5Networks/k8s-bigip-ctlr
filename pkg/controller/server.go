@@ -10,6 +10,7 @@ import (
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -21,14 +22,22 @@ var (
 	healthCheckOnce   sync.Once
 )
 
+type webHook struct {
+	Server  *http.Server
+	address string
+}
+
 func (ctlr *Controller) startWebhook() {
 	webhookServerOnce.Do(func() {
 		webhookMux := http.NewServeMux()
 		webhookMux.HandleFunc("/mutate", ctlr.handleMutate)
 		webhookMux.HandleFunc("/validate", ctlr.handleValidate)
-		ctlr.webhookServer = &http.Server{
-			Addr:    ctlr.agentParams.HttpsAddress,
-			Handler: webhookMux,
+		ctlr.webhookServer = webHook{
+			Server: &http.Server{
+				Addr:    ctlr.agentParams.HttpsAddress,
+				Handler: webhookMux,
+			},
+			address: ctlr.agentParams.HttpsAddress,
 		}
 		webhookShutdownCh := make(chan struct{})
 
@@ -51,14 +60,14 @@ func (ctlr *Controller) startWebhook() {
 			<-webhookShutdownCh
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if err := ctlr.webhookServer.Shutdown(ctx); err != nil {
+			if err := ctlr.webhookServer.GetWebhookServer().Shutdown(ctx); err != nil {
 				log.Errorf("Webhook server graceful shutdown failed: %v", err)
 			} else {
 				log.Infof("Webhook server gracefully stopped")
 			}
 		}()
 		log.Infof("Starting webhook server on :%s", ctlr.agentParams.HttpsAddress)
-		if err := ctlr.webhookServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+		if err := ctlr.webhookServer.GetWebhookServer().ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Webhook server failed: %v", err)
 		}
 	})
@@ -99,7 +108,7 @@ func (ctlr *Controller) CISHealthCheck() {
 				log.Infof("Health server gracefully stopped")
 			}
 		}()
-		log.Infof("Starting health server server on :%s", ctlr.agentParams.HttpAddress)
+		log.Infof("Starting health server on :%s", ctlr.agentParams.HttpAddress)
 		if err := ctlr.healthServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Health server failed: %v", err)
 		}
@@ -162,4 +171,19 @@ func (ctlr *Controller) CISHealthCheckHandler() http.Handler {
 			}
 		}
 	})
+}
+
+// function to check if the webhook server is running
+func (w webHook) IsWebhookServerRunning() bool {
+	conn, err := net.Dial("tcp", w.address)
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	return true
+}
+
+// function to get the webhook server
+func (w webHook) GetWebhookServer() *http.Server {
+	return w.Server
 }

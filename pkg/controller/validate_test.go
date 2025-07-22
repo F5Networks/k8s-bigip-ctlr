@@ -4,24 +4,32 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/http"
-	"net/http/httptest"
-
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"net/http"
+	"net/http/httptest"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 )
 
 var _ = Describe("Validation Tests", func() {
 	var mockCtlr *mockController
+	var mockPM *mockPostManager
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.multiClusterHandler = NewClusterHandler("")
+		mockWriter := &test.MockWriter{}
+		mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
+		mockPM = newMockPostManger()
+		mockPM.TokenManagerInterface = test.NewMockTokenManager("test-token")
+		mockPM.BIGIPURL = "bigip.com"
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
+		mockCtlr.resources = NewResourceStore()
 		go mockCtlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates
 		go mockCtlr.multiClusterHandler.ResourceStatusUpdater()
@@ -108,14 +116,11 @@ var _ = Describe("Validation Tests", func() {
 
 	Describe("AdmissionReview validation handler", func() {
 		var (
-			mockCtlr *mockController
-			w        *httptest.ResponseRecorder
-			r        *http.Request
+			w *httptest.ResponseRecorder
+			r *http.Request
 		)
 
 		BeforeEach(func() {
-			mockCtlr = newMockController()
-			mockCtlr.resources = NewResourceStore()
 			w = httptest.NewRecorder()
 		})
 

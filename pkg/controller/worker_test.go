@@ -37,6 +37,7 @@ import (
 
 var _ = Describe("Worker Tests", func() {
 	var mockCtlr *mockController
+	var mockPM *mockPostManager
 	var vrt1 *cisapiv1.VirtualServer
 	var svc1 *v1.Service
 	namespace := "default"
@@ -127,7 +128,12 @@ var _ = Describe("Worker Tests", func() {
 				options.LabelSelector = mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector.String()
 			},
 		)
+		mockPM = newMockPostManger()
+		mockPM.TokenManagerInterface = test.NewMockTokenManager("test-token")
+		mockPM.BIGIPURL = "bigip.com"
+		mockCtlr.RequestHandler.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
 		mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
+		mockCtlr.webhookServer = &mockWebHookServer{}
 	})
 
 	Describe("Validating Ingress link functions", func() {
@@ -1551,7 +1557,6 @@ var _ = Describe("Worker Tests", func() {
 	//	})
 	//})
 	Describe("Processing Custom Resources", func() {
-		var mockPM *mockPostManager
 		var policy *cisapiv1.Policy
 		BeforeEach(func() {
 			mockCtlr.mode = CustomResourceMode
@@ -1586,13 +1591,6 @@ var _ = Describe("Worker Tests", func() {
 				Sections:  make(map[string]interface{}),
 			}
 			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
-			mockPM = newMockPostManger()
-			mockPM.BIGIPURL = "bigip.com"
-			mockPM.BIGIPUsername = "user"
-			mockPM.BIGIPPassword = "pswd"
-			//mockPM.tenantResponseMap = make(map[string]tenantResponse)
-			//mockPM.LogAS3Response = true
-			//					mockPM.PostDelay =
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
 			mockPM.setResponses([]responseCtx{{
@@ -1785,10 +1783,6 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.setInitialResourceCount()
 				mockCtlr.migrateIPAM()
 
-				mockCtlr.addVirtualServer(vs)
-				mockCtlr.processResources()
-				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
-
 				vs.Spec.VirtualServerAddress = "10.8.0.1"
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
@@ -1831,10 +1825,6 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
 
-				//check valid virtual server
-				valid, _ := mockCtlr.checkValidVirtualServer(vs)
-				Expect(valid).To(BeTrue())
-
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
@@ -1843,11 +1833,6 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
 
-				vs.Spec.VirtualServerAddress = ""
-				mockCtlr.ipamCli = nil
-				mockCtlr.addVirtualServer(vs)
-				mockCtlr.processResources()
-				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid VS")
 				vs.Spec.VirtualServerAddress = "10.8.0.1"
 				// set HttpMrfRoutingEnabled to true
 				httpMrfRoutingEnabled := true
@@ -1893,16 +1878,37 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
 				_, ok := mockCtlr.multiClusterHandler.ClusterConfigs[""].nsInformers[namespace]
 				Expect(ok).To(Equal(false), "Namespace not deleted")
+			})
+
+			It("Check Virtual Server validations", func() {
+
+				// check invalid virtual server
+				valid, errMsg := mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse(), "Virtual Server should be invalid")
+				Expect(errMsg).To(ContainSubstring("No ipamLabel/IP was specified"), "Invalid error message for invalid VS")
+
+				vs.Spec.VirtualServerAddress = ""
+				mockCtlr.ipamCli = nil
+				// check invalid virtual server when no IPAM client is set and no IP is specified
+				valid, errMsg = mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse(), "Virtual Server should be invalid")
+				Expect(errMsg).To(ContainSubstring("No IP was specified for the virtual server"), "Invalid error message for invalid VS")
+
+				//check invalid virtual server as bigip objects varification should fail
+				vs.Spec.VirtualServerAddress = "192.168.1.1"
+				valid, errMsg = mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse())
+				Expect(errMsg).To(ContainSubstring("Referenced iRule '/Common/SampleIRule' does not exist on BIGIP for VirtualServer SampleVS"), "Invalid error message for invalid VS")
 
 				// verify HTTPTraffic is not set for insecure virtual server
 				vs.Spec.HTTPTraffic = TLSAllowInsecure
 				vs.Spec.TLSProfileName = ""
-				valid, _ = mockCtlr.checkValidVirtualServer(vs)
+				valid, errMsg = mockCtlr.checkValidVirtualServer(vs)
 				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
+				Expect(errMsg).To(ContainSubstring("HTTPTraffic not allowed to be set for insecure VirtualServer"), "Invalid error message for invalid VS")
 				vs.Spec.HTTPTraffic = TLSRedirectInsecure
-				valid, _ = mockCtlr.checkValidVirtualServer(vs)
-				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
-
+				valid, errMsg = mockCtlr.checkValidVirtualServer(vs)
+				Expect(errMsg).To(ContainSubstring("HTTPTraffic not allowed to be set for insecure VirtualServer"), "Invalid error message for invalid VS")
 			})
 
 			//It("test Virtual Server with http profile analytics from policy", func() {
@@ -2346,10 +2352,6 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addService(svc, "")
 				mockCtlr.processResources()
 
-				//check if virtual server exist
-				valid, _ := mockCtlr.checkValidTransportServer(ts)
-				Expect(valid).To(BeTrue())
-
 				// with invalid type
 				ts.Spec.Type = "sctp1"
 				mockCtlr.addTransportServer(ts)
@@ -2401,6 +2403,13 @@ var _ = Describe("Worker Tests", func() {
 
 				time.Sleep(10 * time.Millisecond)
 
+			})
+
+			It("Check Valid Transport Server", func() {
+				//Transport Server is not valid
+				valid, errMsg := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeFalse())
+				Expect(errMsg).To(ContainSubstring("Referenced iRule '/Common/SampleIRule' does not exist on BIGIP for VirtualServer SampleTS"), "Invalid error message for invalid TS")
 			})
 
 			It("Transport Server with IPAM", func() {
@@ -2963,7 +2972,6 @@ var _ = Describe("Worker Tests", func() {
 	})
 
 	Describe("Processing Native Resources", func() {
-		var mockPM *mockPostManager
 		BeforeEach(func() {
 			mockCtlr.mode = OpenShiftMode
 			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
@@ -3004,10 +3012,6 @@ var _ = Describe("Worker Tests", func() {
 				Sections:  make(map[string]interface{}),
 			}
 			mockCtlr.RequestHandler = newMockRequestHandler(mockWriter)
-			mockPM = newMockPostManger()
-			mockPM.BIGIPURL = "bigip.com"
-			mockPM.BIGIPUsername = "user"
-			mockPM.BIGIPPassword = "pswd"
 			mockPM.setupBIGIPRESTClient()
 			tnt := "test"
 			mockPM.setResponses([]responseCtx{{
@@ -3947,6 +3951,7 @@ extendedRouteSpec:
 				},
 			)
 			mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
+			mockCtlr.webhookServer = &mockWebHookServer{}
 		})
 		It("Virtual Server processing on pod update", func() {
 			mockCtlr.PoolMemberType = NodePortLocal

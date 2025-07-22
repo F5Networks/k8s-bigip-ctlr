@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -856,6 +857,15 @@ func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 
 func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+		vkey := vs.ObjectMeta.Namespace + "/" + vs.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidVirtualServer(vs)
+		if !valid {
+			log.Errorf("VirtualServer %s, is not valid: %s", vkey, errMsg)
+			ctlr.updateVSStatus(vs, "", StatusError, errors.New(errMsg))
+			return
+		}
+	}
 	log.Debugf("Enqueueing VirtualServer: %v", vs)
 	key := &rqKey{
 		namespace: vs.ObjectMeta.Namespace,
@@ -871,6 +881,15 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+		vkey := newVS.ObjectMeta.Namespace + "/" + newVS.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidVirtualServer(newVS)
+		if !valid {
+			log.Errorf("VirtualServer %s, is not valid: %s", vkey, errMsg)
+			ctlr.updateVSStatus(newVS, "", StatusError, errors.New(errMsg))
+			return
+		}
+	}
 	// Skip virtual servers on status updates
 	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
 		return
@@ -953,6 +972,15 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 	ts := obj.(*cisapiv1.TransportServer)
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+		vkey := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidTransportServer(ts)
+		if !valid {
+			log.Errorf("TransportServer %s is not valid: %s", vkey, errMsg)
+			ctlr.updateTSStatus(ts, "", "", errors.New(errMsg))
+			return
+		}
+	}
 	log.Debugf("Enqueueing TransportServer: %v", ts)
 	key := &rqKey{
 		namespace: ts.ObjectMeta.Namespace,
@@ -968,6 +996,16 @@ func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
+	if !ctlr.webhookServer.IsWebhookServerRunning() {
+		// check if the virutal server matches all the requirements.
+		vkey := newVS.ObjectMeta.Namespace + "/" + newVS.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidTransportServer(newVS)
+		if !valid {
+			log.Errorf("TransportServer %s is not valid: %s", vkey, errMsg)
+			ctlr.updateTSStatus(newVS, "", "", errors.New(errMsg))
+			return
+		}
+	}
 	// Skip transport servers on status updates
 	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
 		return
@@ -1064,6 +1102,16 @@ func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}, clusterName string
 
 func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidIngressLink(ingLink)
+		if !valid {
+			log.Errorf("ingressLink %s, is not valid: %s",
+				vkey, errMsg)
+			ctlr.updateILStatus(ingLink, "", StatusError, errors.New(errMsg))
+			return
+		}
+	}
 	log.Debugf("Enqueueing IngressLink: %v", ingLink)
 	key := &rqKey{
 		namespace: ingLink.ObjectMeta.Namespace,
@@ -1097,7 +1145,16 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
-
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+		vkey := newIngLink.ObjectMeta.Namespace + "/" + newIngLink.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidIngressLink(newIngLink)
+		if !valid {
+			log.Errorf("ingressLink %s, is not valid: %s",
+				vkey, errMsg)
+			ctlr.updateILStatus(newIngLink, "", StatusError, errors.New(errMsg))
+			return
+		}
+	}
 	oldILPartition := ctlr.getCRPartition(oldIngLink.Spec.Partition)
 	newILPartition := ctlr.getCRPartition(newIngLink.Spec.Partition)
 	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress ||

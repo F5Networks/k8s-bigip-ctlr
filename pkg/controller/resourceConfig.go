@@ -3814,6 +3814,7 @@ func (ctlr *Controller) GetPoolBackendsForVS(pool *cisapiv1.VSPool, rscNamespace
 		}
 		sbcs[beIdx].SvcNamespace = svcNamespace
 		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
+		sbcs[beIdx].StaticPoolMembers = convertStaticPoolMembers(pool.StaticPoolMembers)
 		if pool.AlternateBackends != nil {
 			for _, svc := range pool.AlternateBackends {
 				beIdx = beIdx + 1

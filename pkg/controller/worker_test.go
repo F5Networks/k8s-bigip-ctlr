@@ -4442,17 +4442,39 @@ extendedRouteSpec:
 			mockCtlr.multiClusterHandler = NewClusterHandler("")
 			mockCtlr.Partition = "test"
 			mockCtlr.resources = NewResourceStore()
-			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = make(map[string]struct{})
+
 			namespace = "default"
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces[namespace] = struct{}{}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = map[string]struct{}{
+				namespace: {},
+			}
 			mockCtlr.mode = CustomResourceMode
 			mockCtlr.PoolMemberType = NodePort
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset(svc1)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+			mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+
+			selector, _ := createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector = selector
+			mockCtlr.multiClusterHandler.customResourceSelector = selector
+
+			_ = mockCtlr.addNamespacedInformers(namespace, false, "")
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller",
+			)
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					VirtualServer: map[string]int{},
+				},
+			}
+			mockCtlr.webhookServer = &mockWebHookServer{}
+			mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
 		})
 
 		It("processes staticPoolMembers for normal pool", func() {
-			vs := test.NewVirtualServer("vs-normal", "1", cisapiv1.VirtualServerSpec{
+			vs := test.NewVirtualServer("vs-normal", "default", cisapiv1.VirtualServerSpec{
 				Host: "test.com",
 				Pools: []cisapiv1.VSPool{
 					{
@@ -4465,6 +4487,7 @@ extendedRouteSpec:
 					},
 				},
 			})
+			mockCtlr.addVirtualServer(vs)
 			err := mockCtlr.processVirtualServers(vs, false)
 			Expect(err).To(BeNil())
 			rsConfig := mockCtlr.getVirtualServer("test", formatVirtualServerName(vs.Spec.VirtualServerAddress, 80))
@@ -4478,59 +4501,111 @@ extendedRouteSpec:
 			Expect(members["192.168.0.2:8080"]).To(BeTrue())
 		})
 
-		It("processes staticPoolMembers for default pool", func() {
-			vs := test.NewVirtualServer("vs-default", "1", cisapiv1.VirtualServerSpec{
+		It("processes staticPoolMembers for both named pool and default pool", func() {
+			vs := test.NewVirtualServer("vs-combo", "default", cisapiv1.VirtualServerSpec{
 				Host: "test.com",
 				Pools: []cisapiv1.VSPool{
 					{
+						Name: "named-pool",
 						StaticPoolMembers: []cisapiv1.StaticPoolMember{
-							{Address: "192.168.1.1", Port: 8080},
-							{Address: "192.168.1.2", Port: 8080},
+							{Address: "192.168.10.1", Port: 8080},
+							{Address: "192.168.10.2", Port: 8080},
 						},
 					},
 				},
+				DefaultPool: cisapiv1.DefaultPool{
+					StaticPoolMembers: []cisapiv1.StaticPoolMember{
+						{Address: "192.168.1.1", Port: 8080},
+						{Address: "192.168.1.2", Port: 8080},
+					},
+					Reference: "service",
+				},
 			})
+			mockCtlr.addVirtualServer(vs)
 			err := mockCtlr.processVirtualServers(vs, false)
 			Expect(err).To(BeNil())
 			rsConfig := mockCtlr.getVirtualServer("test", formatVirtualServerName(vs.Spec.VirtualServerAddress, 80))
 			Expect(rsConfig).ToNot(BeNil())
-			Expect(rsConfig.Pools[0].Members).To(HaveLen(2))
-			members := map[string]bool{}
-			for _, m := range rsConfig.Pools[0].Members {
-				members[fmt.Sprintf("%s:%d", m.Address, m.Port)] = true
+
+			// Check named pool members
+			namedPool := rsConfig.Pools[0]
+			Expect(namedPool.Members).To(HaveLen(2))
+			namedMembers := map[string]bool{}
+			for _, m := range namedPool.Members {
+				namedMembers[fmt.Sprintf("%s:%d", m.Address, m.Port)] = true
 			}
-			Expect(members["192.168.1.1:8080"]).To(BeTrue())
-			Expect(members["192.168.1.2:8080"]).To(BeTrue())
+			Expect(namedMembers["192.168.10.1:8080"]).To(BeTrue())
+			Expect(namedMembers["192.168.10.2:8080"]).To(BeTrue())
+
+			// Check default pool members
+			defaultPool := rsConfig.Pools[1]
+			Expect(defaultPool.Members).To(HaveLen(2))
+			defaultMembers := map[string]bool{}
+			for _, m := range defaultPool.Members {
+				defaultMembers[fmt.Sprintf("%s:%d", m.Address, m.Port)] = true
+			}
+			Expect(defaultMembers["192.168.1.1:8080"]).To(BeTrue())
+			Expect(defaultMembers["192.168.1.2:8080"]).To(BeTrue())
 		})
 
-		It("processes staticPoolMembers for default pool with policy config", func() {
+		It("processes default pool precedence between VS and Policy", func() {
+			namespace := "default"
+			// Policy with DefaultPool
 			policy := &cisapiv1.Policy{
 				ObjectMeta: metav1.ObjectMeta{Name: "test-policy", Namespace: namespace},
-				Spec:       cisapiv1.PolicySpec{},
-			}
-			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(policy)
-			vs := test.NewVirtualServer("vs-policy", "1", cisapiv1.VirtualServerSpec{
-				Host: "test.com",
-				Pools: []cisapiv1.VSPool{
-					{
+				Spec: cisapiv1.PolicySpec{
+					DefaultPool: cisapiv1.DefaultPool{
 						StaticPoolMembers: []cisapiv1.StaticPoolMember{
-							{Address: "192.168.2.1", Port: 8080},
-							{Address: "192.168.2.2", Port: 8080},
+							{Address: "10.1.1.1", Port: 8080},
+							{Address: "10.1.1.2", Port: 8080},
 						},
+						Reference: "service",
 					},
 				},
+			}
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(policy)
+
+			// Scenario 1: VS without DefaultPool, should use Policy's DefaultPool
+			vs1 := test.NewVirtualServer("vs-policy", namespace, cisapiv1.VirtualServerSpec{
+				Host:       "test.com",
 				PolicyName: "test-policy",
 			})
-			err := mockCtlr.processVirtualServers(vs, false)
+			mockCtlr.addVirtualServer(vs1)
+			mockCtlr.addPolicy(policy)
+			err := mockCtlr.processVirtualServers(vs1, false)
 			Expect(err).To(BeNil())
-			rsConfig := mockCtlr.getVirtualServer("test", formatVirtualServerName(vs.Spec.VirtualServerAddress, 80))
+			rsConfig := mockCtlr.getVirtualServer("test", formatVirtualServerName(vs1.Spec.VirtualServerAddress, 80))
 			Expect(rsConfig).ToNot(BeNil())
+			Expect(rsConfig.Pools).To(HaveLen(1))
 			Expect(rsConfig.Pools[0].Members).To(HaveLen(2))
-			Expect(rsConfig.Virtual.AllowVLANs).To(ContainElement("/Common/internal"))
+			Expect(rsConfig.Pools[0].Members[0].Address).To(Equal("10.1.1.1"))
+			Expect(rsConfig.Pools[0].Members[1].Address).To(Equal("10.1.1.2"))
+
+			// Scenario 2: VS with its own DefaultPool, should use VS's DefaultPool
+			vs2 := test.NewVirtualServer("vs-vsdefault", namespace, cisapiv1.VirtualServerSpec{
+				Host:       "test.com",
+				PolicyName: "test-policy",
+				DefaultPool: cisapiv1.DefaultPool{
+					StaticPoolMembers: []cisapiv1.StaticPoolMember{
+						{Address: "20.2.2.1", Port: 8080},
+						{Address: "20.2.2.2", Port: 8080},
+					},
+					Reference: "service",
+				},
+			})
+			mockCtlr.addVirtualServer(vs2)
+			err = mockCtlr.processVirtualServers(vs2, false)
+			Expect(err).To(BeNil())
+			rsConfig = mockCtlr.getVirtualServer("test", formatVirtualServerName(vs2.Spec.VirtualServerAddress, 80))
+			Expect(rsConfig).ToNot(BeNil())
+			Expect(rsConfig.Pools).To(HaveLen(1))
+			Expect(rsConfig.Pools[0].Members).To(HaveLen(2))
+			Expect(rsConfig.Pools[0].Members[0].Address).To(Equal("20.2.2.1"))
+			Expect(rsConfig.Pools[0].Members[1].Address).To(Equal("20.2.2.2"))
 		})
 
 		It("processes staticPoolMembers for alternateBackend", func() {
-			vs := test.NewVirtualServer("vs-alt", "1", cisapiv1.VirtualServerSpec{
+			vs := test.NewVirtualServer("vs-alt", "default", cisapiv1.VirtualServerSpec{
 				Host: "test.com",
 				Pools: []cisapiv1.VSPool{
 					{
@@ -4542,12 +4617,14 @@ extendedRouteSpec:
 						},
 						AlternateBackends: []cisapiv1.AlternateBackend{
 							{
+								Service: "svc-1",
 								StaticPoolMembers: []cisapiv1.StaticPoolMember{
 									{Address: "192.168.40.1", Port: 8080},
 									{Address: "192.168.40.2", Port: 8080},
 								},
 							},
 							{
+								Service: "svc-2",
 								StaticPoolMembers: []cisapiv1.StaticPoolMember{
 									{Address: "192.168.50.1", Port: 8080},
 									{Address: "192.168.50.2", Port: 8080},
@@ -4557,11 +4634,14 @@ extendedRouteSpec:
 					},
 				},
 			})
+			mockCtlr.addVirtualServer(vs)
 			err := mockCtlr.processVirtualServers(vs, false)
 			Expect(err).To(BeNil())
 			rsConfig := mockCtlr.getVirtualServer("test", formatVirtualServerName(vs.Spec.VirtualServerAddress, 80))
 			Expect(rsConfig).ToNot(BeNil())
-			Expect(rsConfig.Pools[0].Members).To(HaveLen(6))
+			Expect(rsConfig.Pools[0].Members).To(HaveLen(2))
+			Expect(rsConfig.Pools[1].Members).To(HaveLen(2))
+			Expect(rsConfig.Pools[2].Members).To(HaveLen(2))
 			members := map[string]bool{
 				"192.168.30.1:8090": false,
 				"192.168.30.2:8090": false,
@@ -4570,10 +4650,12 @@ extendedRouteSpec:
 				"192.168.50.1:8080": false,
 				"192.168.50.2:8080": false,
 			}
-			for _, m := range rsConfig.Pools[0].Members {
-				key := fmt.Sprintf("%s:%d", m.Address, m.Port)
-				if _, ok := members[key]; ok {
-					members[key] = true
+			for _, pool := range rsConfig.Pools {
+				for _, m := range pool.Members {
+					key := fmt.Sprintf("%s:%d", m.Address, m.Port)
+					if _, ok := members[key]; ok {
+						members[key] = true
+					}
 				}
 			}
 			for _, found := range members {

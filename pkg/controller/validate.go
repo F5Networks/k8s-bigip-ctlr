@@ -610,7 +610,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if !reflect.DeepEqual(pl.Spec.L7Policies.ProfileAdapt, ProfileAdapt{}) {
+		if !reflect.DeepEqual(pl.Spec.L7Policies.ProfileAdapt, cisapiv1.ProfileAdapt{}) {
 			// Check profileAdapt request
 			if pl.Spec.L7Policies.ProfileAdapt.Request != "" {
 				if _, err := handler.GetProfileAdaptRequest(pl.Spec.L7Policies.PolicyPerRequestAccess); err != nil {
@@ -788,7 +788,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if !reflect.DeepEqual(pl.Spec.Profiles.TCP, ProfileTCP{}) {
+		if !reflect.DeepEqual(pl.Spec.Profiles.TCP, cisapiv1.ProfileTCP{}) {
 			// If TCPProfile is set, check if it exists on BIG-IP
 			if pl.Spec.Profiles.TCP.Client != "" {
 				if _, err := handler.GetTCPProfile(pl.Spec.Profiles.TCP.Client); err != nil {
@@ -840,7 +840,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if !reflect.DeepEqual(pl.Spec.Profiles.HTTP2, ProfileHTTP2{}) {
+		if !reflect.DeepEqual(pl.Spec.Profiles.HTTP2, cisapiv1.ProfileHTTP2{}) {
 			// If HTTP2 Profile is set, check if it exists on BIG-IP
 			if pl.Spec.Profiles.HTTP2.Client != "" {
 				if _, err := handler.GetHTTP2Profile(pl.Spec.Profiles.HTTP2.Client); err != nil {

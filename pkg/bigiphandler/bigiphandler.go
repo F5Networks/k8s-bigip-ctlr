@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+// BigIPClient interface defines the methods needed from bigip.BigIP
+type BigIPClient interface {
+	IRule(name string) (*bigip.IRule, error)
+	GetClientSSLProfile(name string) (*bigip.ClientSSLProfile, error)
+	GetServerSSLProfile(name string) (*bigip.ServerSSLProfile, error)
+	GetWafPolicy(name string) (*bigip.WafPolicy, error)
+	GetBotDefenseProfile(name string) (*bigip.BotDefenseProfile, error)
+	Vlan(name string) (*bigip.Vlan, error)
+	GetSnat(name string) (*bigip.Snat, error)
+	GetPool(name string) (*bigip.Pool, error)
+	GetTcp(name string) (*bigip.Tcp, error)
+	GetHttp2(name string) (*bigip.Http2, error)
+	GetHttpProfile(name string) (*bigip.HttpProfile, error)
+	GetRewriteProfile(name string) (*bigip.RewriteProfile, error)
+	GetFastl4(name string) (*bigip.Fastl4, error)
+	GetFtp(name string) (*bigip.Ftp, error)
+	GetHttpCompressionProfile(name string) (*bigip.HttpCompressionProfile, error)
+}
+
 func CreateSession(host, token, userAgent, trustedCerts string, insecure, teem bool) *bigip.BigIP {
 	// Connect to the BIG-IP system.
 	// Get the SystemCertPool, continue with an empty pool on error
@@ -80,7 +99,7 @@ type BigIPHandlerInterface interface {
 }
 
 type BigIPHandler struct {
-	Bigip *bigip.BigIP
+	Bigip BigIPClient
 }
 
 func (handler *BigIPHandler) GetIRule(name string) (*bigip.IRule, error) {

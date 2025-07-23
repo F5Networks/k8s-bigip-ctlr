@@ -61,7 +61,7 @@ const (
 	// ExternalDNS is a F5 Custom Resource Kind
 	ExternalDNS = "ExternalDNS"
 	// Policy is collection of BIG-IP profiles, LTM policies and iRules
-	CustomPolicy = "CustomPolicy"
+	CustomPolicy = "Policy"
 	// IPAM is a F5 Custom Resource Kind
 	IPAM = "IPAM"
 	// Service is a k8s native Service Resource.

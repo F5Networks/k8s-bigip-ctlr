@@ -881,6 +881,10 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
+	// Skip virtual servers on status updates
+	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
+		return
+	}
 	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := newVS.ObjectMeta.Namespace + "/" + newVS.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidVirtualServer(newVS)
@@ -889,10 +893,6 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 			ctlr.updateVSStatus(newVS, "", StatusError, errors.New(errMsg))
 			return
 		}
-	}
-	// Skip virtual servers on status updates
-	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
-		return
 	}
 	updateEvent := true
 	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
@@ -996,6 +996,10 @@ func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
+	// Skip transport servers on status updates
+	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
+		return
+	}
 	if !ctlr.webhookServer.IsWebhookServerRunning() {
 		// check if the virutal server matches all the requirements.
 		vkey := newVS.ObjectMeta.Namespace + "/" + newVS.ObjectMeta.Name
@@ -1005,10 +1009,6 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 			ctlr.updateTSStatus(newVS, "", "", errors.New(errMsg))
 			return
 		}
-	}
-	// Skip transport servers on status updates
-	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
-		return
 	}
 	updateEvent := true
 	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
@@ -1072,6 +1072,15 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 
 func (ctlr *Controller) enqueuePolicy(obj interface{}, event string, clusterName string) {
 	pol := obj.(*cisapiv1.Policy)
+	if !ctlr.webhookServer.IsWebhookServerRunning() {
+		// check if the virutal server matches all the requirements.
+		key := pol.ObjectMeta.Namespace + "/" + pol.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidPolicy(pol, nil)
+		if !valid {
+			log.Errorf("TransportServer %s is not valid: %s", key, errMsg)
+			return
+		}
+	}
 	log.Debugf("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace:   pol.ObjectMeta.Namespace,
@@ -1145,6 +1154,10 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
+	// Skip ingressLink servers on status updates
+	if reflect.DeepEqual(oldIngLink.Spec, newIngLink.Spec) && reflect.DeepEqual(oldIngLink.Labels, newIngLink.Labels) {
+		return
+	}
 	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
 		vkey := newIngLink.ObjectMeta.Namespace + "/" + newIngLink.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidIngressLink(newIngLink)

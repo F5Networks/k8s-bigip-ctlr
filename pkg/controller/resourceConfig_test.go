@@ -1950,6 +1950,40 @@ var _ = Describe("Resource Config Tests", func() {
 
 		})
 
+		It("should add correct HTTP profile based on policy and protocol", func() {
+			rsCfg := &ResourceConfig{}
+			plc := &cisapiv1.Policy{}
+
+			// Case 1: HTTP profile is set directly
+			plc.Spec.Profiles.HTTP = "http-direct"
+			rsCfg.MetaData.Protocol = HTTP
+			rsCfg.Virtual.Profiles = []ProfileRef{}
+
+			_ = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1))
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("http-direct"))
+
+			// Case 2: HTTPS protocol, Secure profile set
+			plc.Spec.Profiles.HTTP = ""
+			plc.Spec.Profiles.HTTPProfiles.Secure = "http-secure"
+			rsCfg.MetaData.Protocol = HTTPS
+			rsCfg.Virtual.Profiles = []ProfileRef{}
+
+			_ = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1))
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("http-secure"))
+
+			// Case 3: HTTP protocol, Insecure profile set
+			plc.Spec.Profiles.HTTPProfiles.Secure = ""
+			plc.Spec.Profiles.HTTPProfiles.Insecure = "http-insecure"
+			rsCfg.MetaData.Protocol = HTTP
+			rsCfg.Virtual.Profiles = []ProfileRef{}
+
+			_ = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1))
+			Expect(rsCfg.Virtual.Profiles[0].Name).To(Equal("http-insecure"))
+		})
 		It("verify defaultPool is set from policy", func() {
 			rsCfg.MetaData.ResourceType = VirtualServer
 			rsCfg.Virtual.Enabled = true

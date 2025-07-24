@@ -23,6 +23,9 @@ github.com/davecgh/go-spew/spew
 # github.com/evanphx/json-patch v4.9.0+incompatible
 ## explicit
 github.com/evanphx/json-patch
+# github.com/f5devcentral/go-bigip v0.0.0-20250702152414-3ab735e221a2
+## explicit; go 1.20
+github.com/f5devcentral/go-bigip
 # github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 ## explicit; go 1.13
 github.com/f5devcentral/go-bigip/f5teem

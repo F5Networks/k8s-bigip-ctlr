@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/F5Networks/f5-ipam-controller v0.1.8
+	github.com/f5devcentral/go-bigip v0.0.0-20250702152414-3ab735e221a2
 	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
 	github.com/google/uuid v1.3.0

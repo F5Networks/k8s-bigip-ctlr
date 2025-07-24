@@ -1322,18 +1322,6 @@ func (ctlr *Controller) processVirtualServers(
 			virtual, endTime.Sub(startTime))
 	}()
 
-	// Skip validation for a deleted Virtual Server
-	if !isVSDeleted {
-		// check if the virutal server matches all the requirements.
-		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
-		valid, errMsg := ctlr.checkValidVirtualServer(virtual)
-		if !valid {
-			log.Errorf("VirtualServer %s, is not valid: %s", vkey, errMsg)
-			ctlr.updateVSStatus(virtual, "", StatusError, errors.New(errMsg))
-			return nil
-		}
-	}
-
 	var allVirtuals []*cisapiv1.VirtualServer
 	if virtual.Spec.HostGroup != "" {
 		// grouping by hg across all namespaces
@@ -3129,17 +3117,6 @@ func (ctlr *Controller) processTransportServers(
 			virtual, endTime.Sub(startTime))
 	}()
 
-	// Skip validation for a deleted Virtual Server
-	if !isTSDeleted {
-		// check if the virutal server matches all the requirements.
-		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
-		valid, errMsg := ctlr.checkValidTransportServer(virtual)
-		if !valid {
-			log.Errorf("TransportServer %s is not valid: %s", vkey, errMsg)
-			ctlr.updateTSStatus(virtual, "", "", errors.New(errMsg))
-			return nil
-		}
-	}
 	ctlr.TeemData.Lock()
 	ctlr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace] = len(ctlr.getAllTransportServers(virtual.Namespace))
 	ctlr.TeemData.Unlock()
@@ -4270,18 +4247,7 @@ func (ctlr *Controller) processIngressLink(
 		log.Debugf("Finished syncing Ingress Links %+v (%v)",
 			ingLink, endTime.Sub(startTime))
 	}()
-	// Skip validation for a deleted ingressLink
-	if !isILDeleted {
-		// check if the virutal server matches all the requirements.
-		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
-		valid, errMsg := ctlr.checkValidIngressLink(ingLink)
-		if !valid {
-			log.Errorf("ingressLink %s, is not valid: %s",
-				vkey, errMsg)
-			ctlr.updateILStatus(ingLink, "", StatusError, errors.New(errMsg))
-			return nil
-		}
-	}
+
 	var ingLinks []*cisapiv1.IngressLink
 	if ingLink.Spec.Host != "" {
 		ingLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()

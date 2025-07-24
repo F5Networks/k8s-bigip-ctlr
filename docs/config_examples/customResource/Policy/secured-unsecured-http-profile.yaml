@@ -1,0 +1,20 @@
+# Note: If both `http` and `httpProfiles` are specified, the `http` field takes precedence over `httpProfiles`.
+# Use `httpProfiles` to reference custom HTTP profiles for secure and insecure traffic.
+# Use the `http` field only when you want to override all HTTP profile settings with a single profile.
+
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy-http
+  namespace: default
+spec:
+  iRuleList: []
+  iRules: {}
+  l3Policies: {}
+  l7Policies: {}
+  profiles:
+    httpProfiles:
+      insecure: /Common/httpProfile1
+      secure: /Common/httpProfile2

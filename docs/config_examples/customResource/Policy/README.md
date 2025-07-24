@@ -72,6 +72,7 @@ This is used to apply existing BIG-IP profiles and policy with Routes, Virtual S
 | tcp                   | Object         | Optional | N/A                                                               | TCP Client & Server Profiles                                                                                                                                                                                                               |
 | udp                   | String         | Optional | N/A                                                               | Pathname of existing BIG-IP UDP profile.                                                                                                                                                                                                   |
 | http                  | String         | Optional | N/A                                                               | Pathname of existing BIG-IP HTTP profile.                                                                                                                                                                                                  |
+| httpProfiles          | Object         | Optional | N/A                                                               | Pathname of existing BIG-IP HTTP profile for secured and unsecured virtual server.                                                                                                                                                         |
 | https                 | String         | Optional | N/A                                                               | Pathname of existing BIG-IP SSL profile.                                                                                                                                                                                                   |
 | http2                 | Object         | Optional | N/A                                                               | HTTP2 Client & Server Profiles                                                                                                                                                                                                             |
 | logProfiles           | List of string | Optional | N/A                                                               | Pathname of existing BIG-IP log profile.                                                                                                                                                                                                   |
@@ -83,11 +84,19 @@ This is used to apply existing BIG-IP profiles and policy with Routes, Virtual S
 | analyticsProfiles     | Object         | Optional | N/A                                                               | Configures different analytics profiles on BIGIP virtual server.                                                                                                                                                                           |
 | profileWebSocket      | String         | Optional | N/A                                                               | Reference to existing BIG-IP websocket profile                                                                                                                                                                                             |
 | htmlProfile           | String         | Optional | NA                                                                | Pathname of existing BIG-IP HTML profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP HTML profiles.                                                                                   |
-| ftpProfile      | String         | Optional | N/A                                                               | Reference to existing BIG-IP FTP profile and is supported only for Transport Server                                                                                                                                                                                             |
-| httpCompressionProfile      | String         | Optional | N/A                                                               | Reference to existing BIG-IP HTTP Compression profile and is supported only for Virtual Server                                                                                                                                                                                             |
+| ftpProfile      | String         | Optional | N/A                                                               | Reference to existing BIG-IP FTP profile and is supported only for Transport Server                                                                                                                                                        |
+| httpCompressionProfile | String         | Optional | N/A                                                               | Reference to existing BIG-IP HTTP Compression profile and is supported only for Virtual Server                                                                                                                                             |
 
 **Note**:
 * sslProfiles is only applicable to NextGen routes
+
+### httpProfiles Components
+
+| Parameter | Type   | Required | Default | Description                                   |
+|-----------| ------ |----------|---------|-----------------------------------------------|
+| insecure  | String | Optional | N/A     | Reference to existing HTTP profile on BIG-IP  |
+| secure    | String | Optional | N/A     | Reference to existing HTTP profile on BIG-IP  |
+
 
 ### HTTP2 Profile Components
 

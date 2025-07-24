@@ -174,6 +174,7 @@ var _ = Describe("Response Handler Tests", func() {
 				options.LabelSelector = mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector.String()
 			},
 		)
+		mockCtlr.webhookServer = &mockWebHookServer{}
 		mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
 		mockCtlr.addVirtualServer(vs)
 		mockCtlr.addTransportServer(ts)

@@ -184,7 +184,7 @@ var _ = Describe("handleMutate", func() {
 			admission := admissionv1.AdmissionReview{
 				Request: &admissionv1.AdmissionRequest{
 					UID:    "202",
-					Kind:   metav1.GroupVersionKind{Kind: "CustomPolicy"},
+					Kind:   metav1.GroupVersionKind{Kind: CustomPolicy},
 					Object: runtime.RawExtension{Raw: objRaw},
 				},
 			}

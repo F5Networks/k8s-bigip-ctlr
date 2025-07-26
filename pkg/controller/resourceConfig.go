@@ -2791,22 +2791,22 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 
 }
 
-func (ctlr *Controller) isSinglePoolRatioEnabled(ts *cisapiv1.TransportServer) bool {
-	if ts.Spec.Pool.Weight != nil {
-		return true
-	}
-	for _, svc := range ts.Spec.Pool.AlternateBackends {
-		if svc.Weight != nil {
-			return true
-		}
-	}
-	for _, svc := range ts.Spec.Pool.MultiClusterServices {
-		if svc.Weight != nil {
-			return true
-		}
-	}
-	return false
-}
+//func (ctlr *Controller) isSinglePoolRatioEnabled(ts *cisapiv1.TransportServer) bool {
+//	if ts.Spec.Pool.Weight != nil {
+//		return true
+//	}
+//	for _, svc := range ts.Spec.Pool.AlternateBackends {
+//		if svc.Weight != nil {
+//			return true
+//		}
+//	}
+//	for _, svc := range ts.Spec.Pool.MultiClusterServices {
+//		if svc.Weight != nil {
+//			return true
+//		}
+//	}
+//	return false
+//}
 
 // Prepares resource config based on VirtualServer resource config
 func (ctlr *Controller) prepareRSConfigFromLBService(

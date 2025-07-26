@@ -50,6 +50,8 @@ var _ = Describe("Backend Tests", func() {
 					BaseAPIHandler: mockBaseAPIHandler,
 				},
 			}
+			agent.GTM.PostManager.firstPost = true
+			agent.GTM.PostManager.PostDelay = 30
 			go agent.gtmWorker()
 			agent.GTM.PostManager.postChan <- postConfig
 			response := <-agent.GTM.PostManager.respChan
@@ -57,6 +59,8 @@ var _ = Describe("Backend Tests", func() {
 			Expect(response).NotTo(BeNil(), "response should not be nil")
 			Expect(response.tenantResponseMap["test_gtm"].agentResponseCode).To(Equal(http.StatusOK), "response code should be 200")
 
+			postConfig.incomingTenantDeclMap = make(map[string]as3Tenant)
+			agent.GTM.PostManager.postChan <- postConfig
 			close(agent.LTM.PostManager.postChan)
 			close(agent.LTM.PostManager.respChan)
 		})

@@ -1132,6 +1132,92 @@ var _ = Describe("Worker Tests", func() {
 				"Invalid Resource Config")
 
 		})
+		It("Processing IngressLink for multicluster default discovery mode", func() {
+			mockCtlr.multiClusterMode = PrimaryBigIP
+			mockCtlr.discoveryMode = DefaultMode
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 443,
+					Name: "port0",
+				},
+			}
+			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
+			label1 := make(map[string]string)
+			label1["app"] = "ingresslink"
+			foo.ObjectMeta.Labels = label1
+			var (
+				selctor = &metav1.LabelSelector{
+					MatchLabels: label1,
+				}
+			)
+			var iRules []string
+			IngressLink1 := test.NewIngressLink("ingresslink1", namespace, "1",
+				cisapiv1.IngressLinkSpec{
+					Host:                 "test.com",
+					VirtualServerAddress: "1.2.3.4",
+					Selector:             selctor,
+					IRules:               iRules,
+					MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+						{
+							ClusterName: "",
+							SvcName:     "foo",
+							Namespace:   "default",
+						},
+					},
+				})
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers["default"].ilInformer.GetIndexer().Add(IngressLink1)
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					IngressLink: make(map[string]int),
+				},
+			}
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].svcInformer.GetIndexer().Add(foo)
+			err := mockCtlr.processIngressLink(IngressLink1, false)
+			Expect(err).To(BeNil(), "Failed to process IngressLink while deletion")
+		})
+		It("Processing IngressLink for multicluster active-active discovery mode", func() {
+			mockCtlr.multiClusterMode = PrimaryBigIP
+			mockCtlr.discoveryMode = Active
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 443,
+					Name: "port0",
+				},
+			}
+			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
+			label1 := make(map[string]string)
+			label1["app"] = "ingresslink"
+			foo.ObjectMeta.Labels = label1
+			var (
+				selctor = &metav1.LabelSelector{
+					MatchLabels: label1,
+				}
+			)
+			var iRules []string
+			IngressLink1 := test.NewIngressLink("ingresslink1", namespace, "1",
+				cisapiv1.IngressLinkSpec{
+					Host:                 "test.com",
+					VirtualServerAddress: "1.2.3.4",
+					Selector:             selctor,
+					IRules:               iRules,
+					MultiClusterServices: []cisapiv1.MultiClusterServiceReference{
+						{
+							ClusterName: "",
+							SvcName:     "foo",
+							Namespace:   "default",
+						},
+					},
+				})
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].crInformers["default"].ilInformer.GetIndexer().Add(IngressLink1)
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					IngressLink: make(map[string]int),
+				},
+			}
+			_ = mockCtlr.multiClusterHandler.ClusterConfigs[""].comInformers["default"].svcInformer.GetIndexer().Add(foo)
+			err := mockCtlr.processIngressLink(IngressLink1, false)
+			Expect(err).To(BeNil(), "Failed to process IngressLink while deletion")
+		})
 	})
 
 	It("get node port", func() {

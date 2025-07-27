@@ -2,7 +2,9 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/f5devcentral/go-bigip"
 	"io"
 	"net/http"
 	"strings"
@@ -43,6 +45,9 @@ type (
 	mockWebHookServer struct {
 	}
 
+	mockBigIPHandler struct {
+		// Mock methods for BigIP handler
+	}
 	responseCtx struct {
 		tenant string
 		status float64
@@ -504,3 +509,277 @@ func (w *mockWebHookServer) GetWebhookServer() *http.Server {
 //	}
 //	return nil, 80
 //}
+
+func NewMockBigIPHandler() *mockBigIPHandler {
+	return &mockBigIPHandler{}
+}
+
+// Mock implementations of the BigIPHandler methods can be added here
+// For example:
+func (m *mockBigIPHandler) GetIRule(name string) (*bigip.IRule, error) {
+	// Mock implementation
+	if name != "errorIRule" {
+		return &bigip.IRule{
+			Name: name,
+		}, nil
+	} else {
+		return nil, errors.New("invalid-irule")
+	}
+}
+
+func (m *mockBigIPHandler) GetClientSSLProfile(name string) (*bigip.ClientSSLProfile, error) {
+	// Mock implementation
+	if name != "errorClientSSL" {
+		return &bigip.ClientSSLProfile{
+			Name: name,
+		}, nil
+	} else {
+		return nil, errors.New("invalid-client-ssl-profile")
+	}
+}
+
+func (m *mockBigIPHandler) GetServerSSLProfile(name string) (*bigip.ServerSSLProfile, error) {
+	if name != "errorServerSSL" {
+		return &bigip.ServerSSLProfile{
+			Name: name,
+		}, nil
+	} else {
+		return nil, errors.New("invalid-server-ssl-profile")
+	}
+}
+
+// mock getWAF method
+func (m *mockBigIPHandler) GetWAF(name string) (*bigip.WafPolicy, error) {
+	if name != "errorWAFPolicy" {
+		return &bigip.WafPolicy{
+			Name: name,
+		}, nil
+	} else {
+		return nil, errors.New("invalid-waf")
+	}
+}
+
+// mock getProfileAccess method
+func (m *mockBigIPHandler) GetProfileAccess(name string) (any, error) {
+	if name != "errorProfileAccess" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-profile-access")
+	}
+}
+
+// getPolicyPerRequestAccess is a mock implementation
+func (m *mockBigIPHandler) GetPolicyPerRequestAccess(name string) (any, error) {
+	if name != "errorPolicyPerRequestAccess" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-policy-per-request-access")
+	}
+}
+
+// mock getProfileAdaptRequest method
+func (m *mockBigIPHandler) GetProfileAdaptRequest(name string) (any, error) {
+	if name != "errorProfileAdaptRequest" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-profile-adapt-request")
+	}
+}
+
+// mock getProfileAdaptResponse method
+func (m *mockBigIPHandler) GetProfileAdaptResponse(name string) (any, error) {
+	if name != "errorProfileAdaptResponse" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-profile-adapt-response")
+	}
+}
+
+// mock getDNOProfile method
+func (m *mockBigIPHandler) GetDOSProfile(name string) (any, error) {
+	if name != "errorDOSProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-dos-profile")
+	}
+}
+
+// mock getBotDefenseProfile method
+func (m *mockBigIPHandler) GetBotDefenseProfile(name string) (any, error) {
+	if name != "errorBotDefenseProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-bot-defense-profile")
+	}
+}
+
+// mock getFirewallPolicy method
+func (m *mockBigIPHandler) GetFirewallPolicy(name string) (any, error) {
+	if name != "errorFirewallPolicy" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-firewall-policy")
+	}
+}
+
+// mock getVLAN method
+func (m *mockBigIPHandler) GetVLAN(name string) (any, error) {
+	if name != "errorVLAN" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-vlan")
+	}
+}
+
+// mock getIPIntelligencePolicy method
+func (m *mockBigIPHandler) GetIPIntelligencePolicy(name string) (any, error) {
+	if name != "errorIPIntelligencePolicy" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-ip-intelligence-policy")
+	}
+}
+
+// mock getSNATPool method
+func (m *mockBigIPHandler) GetSNATPool(name string) (any, error) {
+	if name != "errorSNATPool" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-snat-pool")
+	}
+}
+
+// mock getLTMPool method
+func (m *mockBigIPHandler) GetLTMPool(name string) (any, error) {
+	if name != "errorPool" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-pool")
+	}
+}
+
+// mock getTCPProfile method
+func (m *mockBigIPHandler) GetTCPProfile(name string) (any, error) {
+	if name != "errorTCPProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-tcp-profile")
+	}
+}
+
+// mock getUDPProfile method
+func (m *mockBigIPHandler) GetUDPProfile(name string) (any, error) {
+	if name != "errorUDPProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-udp-profile")
+	}
+}
+
+// mock getHTTP2Profile method
+func (m *mockBigIPHandler) GetHTTP2Profile(name string) (any, error) {
+	if name != "errorHTTP2Profile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-http2-profile")
+	}
+}
+
+// mock getHTTPProfile method
+func (m *mockBigIPHandler) GetHTTPProfile(name string) (any, error) {
+	if name != "errorHTTPProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-http-profile")
+	}
+}
+
+// mock getRewriteProfile method
+func (m *mockBigIPHandler) GetRewriteProfile(name string) (any, error) {
+	if name != "errorRewriteProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-rewrite-profile")
+	}
+}
+
+// mock getPersistenceProfile method
+func (m *mockBigIPHandler) GetPersistenceProfile(name string) (any, error) {
+	if name != "errorPersistenceProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-persistence-profile")
+	}
+}
+
+// mock getLogProfile method
+func (m *mockBigIPHandler) GetLogProfile(name string) (any, error) {
+	if name != "errorLogProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-log-profile")
+	}
+}
+
+// mock getL4Profile method
+func (m *mockBigIPHandler) GetL4Profile(name string) (any, error) {
+	if name != "errorProfileL4" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-l4-profile")
+	}
+}
+
+// mock getMultiplexProfile method
+func (m *mockBigIPHandler) GetMultiplexProfile(name string) (any, error) {
+	if name != "errorMultiplexProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-multiplex-profile")
+	}
+}
+
+// mock getAnalyticsProfile method
+func (m *mockBigIPHandler) GetAnalyticsProfile(name string) (any, error) {
+	if name != "errorAnalyticsProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-analytics-profile")
+	}
+}
+
+// mock getProfileWebSocket method
+func (m *mockBigIPHandler) GetProfileWebSocket(name string) (any, error) {
+	if name != "errorWebSocketProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-websocket-profile")
+	}
+}
+
+// mock getHTMLProfile method
+func (m *mockBigIPHandler) GetHTMLProfile(name string) (any, error) {
+	if name != "errorHTMLProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-html-profile")
+	}
+}
+
+// mock getFTPProfile method
+func (m *mockBigIPHandler) GetFTPProfile(name string) (any, error) {
+	if name != "errorFTPProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-ftp-profile")
+	}
+}
+
+// mock getHTTPCompressionProfile method
+func (m *mockBigIPHandler) GetHTTPCompressionProfile(name string) (any, error) {
+	if name != "errorHTTPCompressionProfile" {
+		return struct{}{}, nil
+	} else {
+		return nil, errors.New("invalid-http-compression-profile")
+	}
+}

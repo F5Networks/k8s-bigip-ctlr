@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/bigiphandler"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -271,6 +272,334 @@ var _ = Describe("Validation Tests", func() {
 			_ = json.Unmarshal(w.Body.Bytes(), &resp)
 			Expect(resp.Response.Allowed).To(BeFalse())
 			Expect(resp.Response.Result.Message).NotTo(BeEmpty())
+		})
+	})
+
+	Describe("checkValidPolicy", func() {
+		var validator bigiphandler.BigIPHandlerInterface
+		BeforeEach(func() {
+			validator = NewMockBigIPHandler()
+		})
+		It("should return nil for valid policy", func() {
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "valid-policy"},
+				Spec:       cisapiv1.PolicySpec{},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+		})
+
+		// check L7 policy validation
+		It("validate L7 policy processing", func() {
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "policy"},
+				Spec: cisapiv1.PolicySpec{
+					L7Policies: cisapiv1.L7PolicySpec{
+						WAF: "errorWAFPolicy",
+					},
+				},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L7Policies.WAF = "testWAFPolicy"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L7Policies.PolicyPerRequestAccess = "errorPolicyPerRequestAccess"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L7Policies.PolicyPerRequestAccess = "testPolicyPerRequestAccess"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L7Policies.ProfileAccess = "errorProfileAccess"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L7Policies.ProfileAccess = "testProfileAccess"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L7Policies.ProfileAdapt = cisapiv1.ProfileAdapt{
+				Request: "errorProfileAdaptRequest",
+			}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L7Policies.ProfileAdapt.Request = "testProfileAdaptRequest"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L7Policies.ProfileAdapt.Response = "errorProfileAdaptResponse"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L7Policies.ProfileAdapt.Response = "testProfileAdaptResponse"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+		})
+
+		// check L3 policy validation
+		It("validate L3 policy processing", func() {
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "policy"},
+				Spec: cisapiv1.PolicySpec{
+					L3Policies: cisapiv1.L3PolicySpec{
+						DOS: "errorDOSProfile",
+					},
+				},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L3Policies.DOS = "testDOSProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L3Policies.BotDefense = "errorBotDefenseProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L3Policies.BotDefense = "testBotDefenseProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L3Policies.FirewallPolicy = "errorFirewallPolicy"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			policy.Spec.L3Policies.FirewallPolicy = "testFirewallPolicy"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L3Policies.AllowSourceRange = []string{"errorSourceRange"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L3Policies.AllowSourceRange = []string{"192.168.0.1/24"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L3Policies.AllowVlans = []string{"errorVLAN"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L3Policies.AllowVlans = []string{"vlan1"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.L3Policies.IpIntelligencePolicy = "errorIpIntelligencePolicy"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.L3Policies.IpIntelligencePolicy = "testIpIntelligencePolicy"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+		})
+
+		// check LTM Policy is not supported
+		It("validate LTM policy processing", func() {
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "policy"},
+				Spec: cisapiv1.PolicySpec{
+					LtmPolicies: cisapiv1.LtmIRulesSpec{
+						Secure: "errorSecure",
+					},
+				},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.LtmPolicies.Secure = ""
+			policy.Spec.LtmPolicies.InSecure = ""
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+		})
+
+		//  check iRule validation
+		It("validate iRule processing", func() {
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "policy"},
+				Spec: cisapiv1.PolicySpec{
+					IRuleList: []string{"errorIRule"},
+				},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.IRuleList = []string{"testIRule"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policySecure := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "secure-policy"},
+				Spec: cisapiv1.PolicySpec{
+					IRules: cisapiv1.LtmIRulesSpec{
+						Secure: "errorIRule",
+					},
+				},
+			}
+			_, err = mockCtlr.checkValidPolicy(policySecure, validator)
+			Expect(err).NotTo(BeNil())
+			policySecure.Spec.IRules.Secure = "testIRule"
+			_, err = mockCtlr.checkValidPolicy(policySecure, validator)
+			Expect(err).To(BeEmpty())
+			policyInsecure := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "insecure-policy"},
+				Spec: cisapiv1.PolicySpec{
+					IRules: cisapiv1.LtmIRulesSpec{
+						InSecure: "errorIRule",
+					},
+				},
+			}
+			_, err = mockCtlr.checkValidPolicy(policyInsecure, validator)
+			Expect(err).NotTo(BeNil())
+			policyInsecure.Spec.IRules.InSecure = "testIRule"
+			_, err = mockCtlr.checkValidPolicy(policyInsecure, validator)
+			Expect(err).To(BeEmpty())
+		})
+
+		// ProfileSpec validation
+		It("validate ProfileSpec processing", func() {
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "policy"},
+				Spec: cisapiv1.PolicySpec{
+					Profiles: cisapiv1.ProfileSpec{
+						TCP: cisapiv1.ProfileTCP{
+							Client: "errorTCPProfile",
+						},
+					},
+				},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.TCP.Client = "testTCPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.Profiles.TCP.Server = "errorTCPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.TCP.Server = "testTCPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// udp check
+			policy.Spec.Profiles.UDP = "errorUDPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.UDP = "testUDPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// http check
+			policy.Spec.Profiles.HTTP = "errorHTTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTTP = "testHTTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// http2 check
+			policy.Spec.Profiles.HTTP2 = cisapiv1.ProfileHTTP2{
+				Client: "errorHTTP2Profile",
+			}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTTP2.Client = "testHTTP2Profile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.Profiles.HTTP2.Server = "errorHTTP2Profile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTTP2.Server = "testHTTP2Profile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// rewrite profile check
+			policy.Spec.Profiles.RewriteProfile = "errorRewriteProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.RewriteProfile = "testRewriteProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// persistent profile
+			policy.Spec.Profiles.PersistenceProfile = "errorPersistenceProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.PersistenceProfile = "testPersistenceProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// log profiles
+			policy.Spec.Profiles.LogProfiles = []string{"errorLogProfile"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.LogProfiles = []string{"testLogProfile"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// profileL4
+			policy.Spec.Profiles.ProfileL4 = "errorProfileL4"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.ProfileL4 = "testProfileL4"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// ProfileMultiplex
+			policy.Spec.Profiles.ProfileMultiplex = "errorMultiplexProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.ProfileMultiplex = "testProfileMultiplex"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// SSLProfiles
+			policy.Spec.Profiles.SSLProfiles = cisapiv1.SSLProfiles{
+				ClientProfiles: []string{"errorClientSSL"},
+			}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.SSLProfiles.ClientProfiles = []string{"testClientSSL"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			policy.Spec.Profiles.SSLProfiles.ServerProfiles = []string{"errorServerSSL"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.SSLProfiles.ServerProfiles = []string{"testServerSSL"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// AnalyticsProfiles
+			policy.Spec.Profiles.AnalyticsProfiles = cisapiv1.AnalyticsProfiles{HTTPAnalyticsProfile: "errorAnalyticsProfile"}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile = "testAnalyticsProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// ProfileWebSocket
+			policy.Spec.Profiles.ProfileWebSocket = "errorWebSocketProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.ProfileWebSocket = "testWebSocketProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// HTMLProfile
+			policy.Spec.Profiles.HTMLProfile = "errorHTMLProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTMLProfile = "testHTMLProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// FTPProfile
+			policy.Spec.Profiles.FTPProfile = "errorFTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.FTPProfile = "testFTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// HTTPCompressionProfile
+			policy.Spec.Profiles.HTTPCompressionProfile = "errorHTTPCompressionProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTTPCompressionProfile = "testHTTPCompressionProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+		})
+
+		// other policy attributes validation
+		It("validate other policy attributes", func() {
+			// 	SNAT check
+			policy := &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{Name: "policy"},
+				Spec: cisapiv1.PolicySpec{
+					SNAT: "errorSNATPool",
+				},
+			}
+			_, err := mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.SNAT = "testSNATPool"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
+			// 	DefaultPool check
+			policy.Spec.DefaultPool = cisapiv1.DefaultPool{
+				Name:      "errorPool",
+				Reference: BIGIP,
+			}
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.DefaultPool.Name = "testPool"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).To(BeEmpty())
 		})
 	})
 })

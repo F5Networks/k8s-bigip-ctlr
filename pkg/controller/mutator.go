@@ -7,6 +7,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
+	"reflect"
 )
 
 func (ctlr *Controller) handleMutate(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +105,7 @@ func (ctlr *Controller) handleMutate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if obj.Spec.PoolSettings.MultiPoolPersistence.TimeOut == 0 {
+		if !reflect.DeepEqual(obj.Spec.PoolSettings, cisapiv1.PoolSettingsSpec{}) && !reflect.DeepEqual(obj.Spec.PoolSettings.MultiPoolPersistence, cisapiv1.MultiPoolPersistence{}) && obj.Spec.PoolSettings.MultiPoolPersistence.TimeOut == 0 {
 			patches = append(patches, map[string]interface{}{
 				"op":    "add",
 				"path":  "/spec/poolSettings/multiPoolPersistence/timeOut",

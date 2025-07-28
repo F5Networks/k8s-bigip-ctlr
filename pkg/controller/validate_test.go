@@ -472,6 +472,17 @@ var _ = Describe("Validation Tests", func() {
 			_, err = mockCtlr.checkValidPolicy(policy, validator)
 			Expect(err).NotTo(BeNil())
 			policy.Spec.Profiles.HTTP = "testHTTPProfile"
+			// secure http profile check
+			policy.Spec.Profiles.HTTPProfiles.Secure = "errorHTTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTTPProfiles.Secure = "testHTTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			// insecure http profile check
+			policy.Spec.Profiles.HTTPProfiles.Insecure = "errorHTTPProfile"
+			_, err = mockCtlr.checkValidPolicy(policy, validator)
+			Expect(err).NotTo(BeNil())
+			policy.Spec.Profiles.HTTPProfiles.Insecure = "testHTTPProfile"
 			_, err = mockCtlr.checkValidPolicy(policy, validator)
 			Expect(err).To(BeEmpty())
 			// http2 check

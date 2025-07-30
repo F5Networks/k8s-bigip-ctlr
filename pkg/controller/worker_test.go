@@ -4302,136 +4302,136 @@ extendedRouteSpec:
 			Expect(hasStatic1).To(BeTrue(), "Static pool member 192.168.0.1 should be added")
 			Expect(hasStatic2).To(BeTrue(), "Static pool member 192.168.0.2 should be added")
 		})
-	})
-	It("should add static pool members with default virtual pool", func() {
-		// Create a test pool with static pool members - default virtual pool config
-		pool := Pool{
-			ServiceNamespace: "default",
-			ServicePort:      intstr.FromInt(80),
-			// No ServiceName specified - represents default virtual pool
-			Cluster: mockCtlr.multiClusterHandler.LocalClusterName,
-			StaticPoolMembers: []StaticPoolMember{
-				{
-					Address: "192.168.1.1",
-					Port:    8080,
+		It("should add static pool members with default virtual pool", func() {
+			// Create a test pool with static pool members - default virtual pool config
+			pool := Pool{
+				ServiceNamespace: "default",
+				ServicePort:      intstr.FromInt(80),
+				// No ServiceName specified - represents default virtual pool
+				Cluster: mockCtlr.multiClusterHandler.LocalClusterName,
+				StaticPoolMembers: []StaticPoolMember{
+					{
+						Address: "192.168.1.1",
+						Port:    8080,
+					},
+					{
+						Address: "192.168.1.2",
+						Port:    8081,
+					},
 				},
-				{
-					Address: "192.168.1.2",
-					Port:    8081,
-				},
-			},
-		}
-
-		// Test with multiCluster mode disabled (standalone CIS)
-		mockCtlr.multiClusterMode = ""
-
-		// Static pool members should be added in non-multiCluster mode
-		mockCtlr.updatePoolMembersForResources(&pool)
-
-		// Verify the static pool members were added correctly
-		Expect(pool.Members).To(HaveLen(2), "Static pool members should be added in default virtual pool")
-
-		hasStatic1 := false
-		hasStatic2 := false
-
-		for _, member := range pool.Members {
-			switch member.Address {
-			case "192.168.1.1":
-				hasStatic1 = true
-				Expect(member.Port).To(Equal(int32(8080)))
-			case "192.168.1.2":
-				hasStatic2 = true
-				Expect(member.Port).To(Equal(int32(8081)))
 			}
-		}
 
-		Expect(hasStatic1).To(BeTrue(), "First static pool member should be added")
-		Expect(hasStatic2).To(BeTrue(), "Second static pool member should be added")
-	})
-	It("should process static pool members with alternate backends in non-multiCluster mode", func() {
-		// Create a test pool with both static pool members and alternate backends
-		pool := Pool{
-			ServiceNamespace: "default",
-			ServiceName:      "test-service",
-			ServicePort:      intstr.FromInt(80),
-			Cluster:          mockCtlr.multiClusterHandler.LocalClusterName,
-			// Add static pool members to the main pool
-			StaticPoolMembers: []StaticPoolMember{
-				{
-					Address: "192.168.30.1",
-					Port:    8090,
+			// Test with multiCluster mode disabled (standalone CIS)
+			mockCtlr.multiClusterMode = ""
+
+			// Static pool members should be added in non-multiCluster mode
+			mockCtlr.updatePoolMembersForResources(&pool)
+
+			// Verify the static pool members were added correctly
+			Expect(pool.Members).To(HaveLen(2), "Static pool members should be added in default virtual pool")
+
+			hasStatic1 := false
+			hasStatic2 := false
+
+			for _, member := range pool.Members {
+				switch member.Address {
+				case "192.168.1.1":
+					hasStatic1 = true
+					Expect(member.Port).To(Equal(int32(8080)))
+				case "192.168.1.2":
+					hasStatic2 = true
+					Expect(member.Port).To(Equal(int32(8081)))
+				}
+			}
+
+			Expect(hasStatic1).To(BeTrue(), "First static pool member should be added")
+			Expect(hasStatic2).To(BeTrue(), "Second static pool member should be added")
+		})
+		It("should process static pool members with alternate backends in non-multiCluster mode", func() {
+			// Create a test pool with both static pool members and alternate backends
+			pool := Pool{
+				ServiceNamespace: "default",
+				ServiceName:      "test-service",
+				ServicePort:      intstr.FromInt(80),
+				Cluster:          mockCtlr.multiClusterHandler.LocalClusterName,
+				// Add static pool members to the main pool
+				StaticPoolMembers: []StaticPoolMember{
+					{
+						Address: "192.168.30.1",
+						Port:    8090,
+					},
+					{
+						Address: "192.168.30.2",
+						Port:    8090,
+					},
 				},
-				{
-					Address: "192.168.30.2",
-					Port:    8090,
-				},
-			},
-			// Define alternate backends with their own static pool members
-			AlternateBackends: []AlternateBackend{
-				{
-					Service:          "alt-service-1",
-					ServiceNamespace: "default",
-					Weight:           50,
-					StaticPoolMembers: []StaticPoolMember{
-						{
-							Address: "192.168.40.1",
-							Port:    8080,
+				// Define alternate backends with their own static pool members
+				AlternateBackends: []AlternateBackend{
+					{
+						Service:          "alt-service-1",
+						ServiceNamespace: "default",
+						Weight:           50,
+						StaticPoolMembers: []StaticPoolMember{
+							{
+								Address: "192.168.40.1",
+								Port:    8080,
+							},
+							{
+								Address: "192.168.40.2",
+								Port:    8080,
+							},
 						},
-						{
-							Address: "192.168.40.2",
-							Port:    8080,
+					},
+					{
+						Service:          "alt-service-2",
+						ServiceNamespace: "default",
+						Weight:           50,
+						StaticPoolMembers: []StaticPoolMember{
+							{
+								Address: "192.168.50.1",
+								Port:    8080,
+							},
+							{
+								Address: "192.168.50.2",
+								Port:    8080,
+							},
 						},
 					},
 				},
-				{
-					Service:          "alt-service-2",
-					ServiceNamespace: "default",
-					Weight:           50,
-					StaticPoolMembers: []StaticPoolMember{
-						{
-							Address: "192.168.50.1",
-							Port:    8080,
-						},
-						{
-							Address: "192.168.50.2",
-							Port:    8080,
-						},
-					},
-				},
-			},
-		}
-
-		// Test with multiCluster mode disabled (standalone CIS)
-		mockCtlr.multiClusterMode = ""
-
-		// Static pool members should be added in non-multiCluster mode
-		mockCtlr.updatePoolMembersForResources(&pool)
-
-		// Verify the static pool members were added correctly (6 total - 2 from main + 4 from alternates)
-		Expect(pool.Members).To(HaveLen(6), "All static pool members should be added")
-
-		// Create maps to track which members are found
-		membersFound := map[string]bool{
-			"192.168.30.1:8090": false,
-			"192.168.30.2:8090": false,
-			"192.168.40.1:8080": false,
-			"192.168.40.2:8080": false,
-			"192.168.50.1:8080": false,
-			"192.168.50.2:8080": false,
-		}
-
-		// Verify all expected members are present
-		for _, member := range pool.Members {
-			key := fmt.Sprintf("%s:%d", member.Address, member.Port)
-			if _, exists := membersFound[key]; exists {
-				membersFound[key] = true
 			}
-		}
 
-		// Check that all expected members were found
-		for endpoint, found := range membersFound {
-			Expect(found).To(BeTrue(), fmt.Sprintf("Pool member %s should be added", endpoint))
-		}
+			// Test with multiCluster mode disabled (standalone CIS)
+			mockCtlr.multiClusterMode = ""
+
+			// Static pool members should be added in non-multiCluster mode
+			mockCtlr.updatePoolMembersForResources(&pool)
+
+			// Verify the static pool members were added correctly (6 total - 2 from main + 4 from alternates)
+			Expect(pool.Members).To(HaveLen(6), "All static pool members should be added")
+
+			// Create maps to track which members are found
+			membersFound := map[string]bool{
+				"192.168.30.1:8090": false,
+				"192.168.30.2:8090": false,
+				"192.168.40.1:8080": false,
+				"192.168.40.2:8080": false,
+				"192.168.50.1:8080": false,
+				"192.168.50.2:8080": false,
+			}
+
+			// Verify all expected members are present
+			for _, member := range pool.Members {
+				key := fmt.Sprintf("%s:%d", member.Address, member.Port)
+				if _, exists := membersFound[key]; exists {
+					membersFound[key] = true
+				}
+			}
+
+			// Check that all expected members were found
+			for endpoint, found := range membersFound {
+				Expect(found).To(BeTrue(), fmt.Sprintf("Pool member %s should be added", endpoint))
+			}
+		})
 	})
 	Describe("processVirtualServers static pool members", func() {
 		var mockCtlr *mockController
@@ -4663,5 +4663,111 @@ extendedRouteSpec:
 			}
 		})
 	})
+	Describe("processStaticPoolMembers", func() {
+		var mockCtlr *mockController
+		var namespace string
 
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			mockCtlr.Partition = "test"
+			mockCtlr.resources = NewResourceStore()
+
+			namespace = "default"
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = map[string]struct{}{
+				namespace: {},
+			}
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.PoolMemberType = NodePort
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset(svc1)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+			mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+
+			selector, _ := createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector = selector
+			mockCtlr.multiClusterHandler.customResourceSelector = selector
+
+			_ = mockCtlr.addNamespacedInformers(namespace, false, "")
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller",
+			)
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					VirtualServer: map[string]int{},
+				},
+			}
+			mockCtlr.webhookServer = &mockWebHookServer{}
+			mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		})
+		It("adds static members to pool members, skipping duplicates", func() {
+			existing := []PoolMember{
+				{Address: "10.4.4.4", Port: 1234},
+			}
+			static := []StaticPoolMember{
+				{Address: "10.4.4.4", Port: 1234}, // duplicate
+				{Address: "10.5.5.5", Port: 5678}, // new
+			}
+			merged := mockCtlr.processStaticPoolMembers(static, existing)
+			Expect(merged).To(HaveLen(2))
+			Expect(merged).To(ContainElement(PoolMember{Address: "10.5.5.5", Port: 5678}))
+		})
+
+		It("adds static members to empty pool", func() {
+			static := []StaticPoolMember{
+				{Address: "10.8.8.8", Port: 8080},
+			}
+			merged := mockCtlr.processStaticPoolMembers(static, nil)
+			Expect(merged).To(HaveLen(1))
+			Expect(merged[0].Address).To(Equal("10.8.8.8"))
+		})
+
+		It("handles empty static members", func() {
+			existing := []PoolMember{
+				{Address: "10.4.4.4", Port: 1234},
+			}
+			merged := mockCtlr.processStaticPoolMembers(nil, existing)
+			Expect(merged).To(HaveLen(1))
+			Expect(merged[0].Address).To(Equal("10.4.4.4"))
+		})
+
+		It("skips all static members if multiClusterMode is enabled", func() {
+			mockCtlr.multiClusterMode = "some-mode"
+			existing := []PoolMember{
+				{Address: "10.6.6.6", Port: 1111},
+			}
+			static := []StaticPoolMember{
+				{Address: "10.7.7.7", Port: 2222},
+			}
+			merged := mockCtlr.processStaticPoolMembers(static, existing)
+			Expect(merged).To(HaveLen(1))
+			Expect(merged[0].Address).To(Equal("10.6.6.6"))
+		})
+
+		It("skips static members with empty address", func() {
+			var existing []PoolMember
+			static := []StaticPoolMember{
+				{Address: "", Port: 1111},
+				{Address: "10.9.9.9", Port: 9999},
+			}
+			merged := mockCtlr.processStaticPoolMembers(static, existing)
+			Expect(merged).To(HaveLen(1))
+			Expect(merged[0].Address).To(Equal("10.9.9.9"))
+		})
+
+		It("handles duplicate between static and existing members", func() {
+			existing := []PoolMember{
+				{Address: "10.10.10.10", Port: 8080},
+			}
+			static := []StaticPoolMember{
+				{Address: "10.10.10.10", Port: 8080},
+				{Address: "10.11.11.11", Port: 81},
+			}
+			merged := mockCtlr.processStaticPoolMembers(static, existing)
+			Expect(merged).To(HaveLen(2))
+			Expect(merged).To(ContainElement(PoolMember{Address: "10.11.11.11", Port: 81}))
+		})
+	})
 })

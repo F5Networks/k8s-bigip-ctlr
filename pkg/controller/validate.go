@@ -485,6 +485,55 @@ func (ctlr *Controller) checkValidIngressLink(
 		}
 	}()
 
+	bigiIPSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL,
+		ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
+	validator := &bigiphandler.BigIPHandler{Bigip: bigiIPSession}
+
+	// Validate ClientSSL Profile if TLSProfileName is set
+	if il.Spec.TLS.Reference == BIGIP {
+		for _, clientSSL := range il.Spec.TLS.ClientSSLs {
+			wg.Add(1)
+			go func(clientSSL string) {
+				defer wg.Done()
+				if _, err := validator.GetClientSSLProfile(clientSSL); err != nil {
+					errChan <- fmt.Sprintf("Referenced ClientSSL Profile '%s' does not exist on "+
+						"BIGIP for IngressLink %s: %v", clientSSL, il.Name, err)
+					cancel()
+					return
+				}
+			}(clientSSL)
+		}
+
+		// Validate ServerSSL Profile if TLSProfileName is set
+		for _, serverSSL := range il.Spec.TLS.ServerSSLs {
+			wg.Add(1)
+			go func(serverSSL string) {
+				defer wg.Done()
+				if _, err := validator.GetServerSSLProfile(serverSSL); err != nil {
+					errChan <- fmt.Sprintf("Referenced ServerSSL Profile '%s' does not exist on "+
+						"BIGIP for IngressLink %s: %v", serverSSL, il.Name, err)
+					cancel()
+					return
+				}
+			}(serverSSL)
+		}
+	}
+
+	// Validate iRules
+	for _, iRule := range il.Spec.IRules {
+		wg.Add(1)
+		go func(iRule string) {
+			defer wg.Done()
+			if _, err := validator.GetIRule(iRule); err != nil {
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on "+
+					"BIGIP for IngressLink %s: %v", iRule, il.Name, err)
+				cancel()
+				return
+			}
+		}(iRule)
+	}
+
 	go func() {
 		wg.Wait()
 		close(doneChan)
@@ -496,6 +545,89 @@ func (ctlr *Controller) checkValidIngressLink(
 	case <-doneChan:
 		close(errChan)
 		return true, ""
+	}
+}
+
+func (ctlr *Controller) checkValidTLSProfile(tlsProfile *cisapiv1.TLSProfile) (bool, string) {
+	if tlsProfile.Spec.TLS.Reference == Secret {
+		return true, ""
+	}
+
+	bigipSession := bigiphandler.CreateSession(
+		ctlr.agentParams.PrimaryParams.BIGIPURL,
+		ctlr.PrimaryBigIPWorker.getPostManager().GetToken(),
+		ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts,
+		ctlr.agentParams.PrimaryParams.SSLInsecure,
+		false,
+	)
+	var wg sync.WaitGroup
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
+
+	// Collect serverSSLs and clientSSLs into arrays, giving precedence to plural forms
+	var serverSSLs []string
+	if len(tlsProfile.Spec.TLS.ServerSSLs) > 0 {
+		serverSSLs = append(serverSSLs, tlsProfile.Spec.TLS.ServerSSLs...)
+	} else if tlsProfile.Spec.TLS.ServerSSL != "" {
+		serverSSLs = append(serverSSLs, tlsProfile.Spec.TLS.ServerSSL)
+	}
+
+	var clientSSLs []string
+	if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
+		clientSSLs = append(clientSSLs, tlsProfile.Spec.TLS.ClientSSLs...)
+	} else if tlsProfile.Spec.TLS.ClientSSL != "" {
+		clientSSLs = append(clientSSLs, tlsProfile.Spec.TLS.ClientSSL)
+	}
+
+	if tlsProfile.Spec.TLS.Reference == BIGIP {
+		validateSSLProfiles(clientSSLs, func(name string) (interface{}, error) {
+			return validator.GetClientSSLProfile(name)
+		}, "ClientSSL", errChan, &wg)
+
+		validateSSLProfiles(serverSSLs, func(name string) (interface{}, error) {
+			return validator.GetServerSSLProfile(name)
+		}, "ServerSSL", errChan, &wg)
+	} else if tlsProfile.Spec.TLS.Reference == Hybrid {
+		if tlsProfile.Spec.TLS.ClientSSLParams.ProfileReference == BIGIP {
+			validateSSLProfiles(clientSSLs, func(name string) (interface{}, error) {
+				return validator.GetClientSSLProfile(name)
+			}, "ClientSSL", errChan, &wg)
+		}
+		if tlsProfile.Spec.TLS.ServerSSLParams.ProfileReference == BIGIP {
+			validateSSLProfiles(serverSSLs, func(name string) (interface{}, error) {
+				return validator.GetServerSSLProfile(name)
+			}, "ServerSSL", errChan, &wg)
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg := <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
+	}
+}
+
+func validateSSLProfiles(profiles []string, validateFunc func(string) (interface{}, error), profileType string, errChan chan<- string, wg *sync.WaitGroup) {
+	for _, profile := range profiles {
+		wg.Add(1)
+		go func(p string) {
+			defer wg.Done()
+			if _, err := validateFunc(p); err != nil {
+				errChan <- fmt.Sprintf("%s Profile '%s' does not exist on BIG-IP: %v", profileType, p, err)
+			}
+		}(profile)
 	}
 }
 

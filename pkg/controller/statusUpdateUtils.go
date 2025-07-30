@@ -55,6 +55,27 @@ func (ctlr *Controller) updateTSStatus(ts *cisapiv1.TransportServer, ip string, 
 	}
 }
 
+// updateTLSProfileStatus prepares the status update for TLSProfile
+func (ctlr *Controller) updateTLSProfileStatus(tlsProfile *cisapiv1.TLSProfile, status string, err error) {
+	tlsStatus := cisapiv1.CustomResourceStatus{
+		Status:      status,
+		LastUpdated: metav1.Now(),
+	}
+	if err != nil {
+		tlsStatus.Error = err.Error()
+	}
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+		ResourceObj: tlsStatus,
+		ResourceKey: resourceRef{
+			kind:        TLSProfile,
+			name:        tlsProfile.Name,
+			namespace:   tlsProfile.Namespace,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
+		},
+		Timestamp: metav1.Now(),
+	}
+}
+
 // updateILStatus prepares the status update IL
 func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, status string, err error) {
 	ilStatus := cisapiv1.CustomResourceStatus{

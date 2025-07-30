@@ -32,7 +32,7 @@ spec:
         - name: k8s-bigip-ctlr
           image: "f5networks/k8s-bigip-ctlr:latest"
           livenessProbe:
-            failureThreshold: 3
+            failureThreshold: 60
             httpGet:
               path: /health
               port: 8080
@@ -42,7 +42,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 15
           readinessProbe:
-            failureThreshold: 3
+            failureThreshold: 60
             httpGet:
               path: /health
               port: 8080

@@ -29,7 +29,7 @@ spec:
           image: f5networksdevel/test-nginx:latest
           imagePullPolicy: IfNotPresent
           livenessProbe:
-            failureThreshold: 3
+            failureThreshold: 60
             httpGet:
               path: /
               port: 80
@@ -38,7 +38,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 10
           readinessProbe:
-            failureThreshold: 3
+            failureThreshold: 60
             httpGet:
               path: /
               port: 80

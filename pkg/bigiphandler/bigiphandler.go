@@ -121,6 +121,11 @@ type BigIPHandlerInterface interface {
 	GetFTPProfile(name string) (any, error)
 	GetHTTPCompressionProfile(name string) (any, error)
 	// Add more methods as needed for other BIG-IP resources
+	// DataGroup methods for leader election
+	GetInternalDataGroup(name string) (*bigip.DataGroup, error)
+	CreateInternalDataGroup(config *bigip.DataGroup) error
+	ModifyInternalDataGroupRecords(config *bigip.DataGroup) error
+	DeleteInternalDataGroup(name string) error
 }
 
 type BigIPHandler struct {
@@ -527,4 +532,25 @@ func (handler *BigIPHandler) GetHTTPCompressionProfile(name string) (any, error)
 		return nil, err
 	}
 	return profile, nil
+}
+
+// TODO: Implement DataGroup methods for leader election
+func (handler *BigIPHandler) GetInternalDataGroup(name string) (any, error) {
+	// Get the Data Group by name
+	return struct{}{}, nil
+}
+
+func (handler *BigIPHandler) CreateInternalDataGroup(config *bigip.DataGroup) error {
+	// Create a new Data Group
+	return nil
+}
+
+func (handler *BigIPHandler) ModifyInternalDataGroupRecords(config *bigip.DataGroup) error {
+	// Modify records in an existing Data Group
+	return nil
+}
+
+func (handler *BigIPHandler) DeleteInternalDataGroup(name string) error {
+	// Delete a Data Group by name
+	return nil
 }

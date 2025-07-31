@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/leaderelection"
 	"os"
 	"strings"
 	"time"
@@ -74,6 +75,12 @@ func (reqHandler *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRe
 func (reqHandler *RequestHandler) requestHandler() {
 	log.Debug("Starting requestHandler")
 	for rsConfig := range reqHandler.reqChan {
+		// Check if leader election is enabled and if this instance is the leader
+		if reqHandler.hasLeaderElection() && !reqHandler.isLeader() {
+			log.Debugf("%s Leader election enabled but this instance is not the leader, skipping request processing", getRequestPrefix(rsConfig.reqMeta.id))
+			continue
+		}
+
 		// If CIS is running in non multi-cluster mode,primary or its the secondary and the Primary CIS status down
 		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && !reqHandler.PrimaryClusterHealthProbeParams.statusRunning) {
 			// Post LTM config based on HA mode
@@ -236,4 +243,22 @@ func (reqHandler *RequestHandler) NewAgent(kind string, baseAPIHandler *BaseAPIH
 		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, baseAPIHandler, reqHandler.respChan)
 	}
 	return agent
+}
+
+// hasLeaderElection checks if leader election is enabled
+func (reqHandler *RequestHandler) hasLeaderElection() bool {
+	return reqHandler.leaderElector != nil
+}
+
+// isLeader checks if this instance is currently the leader
+func (reqHandler *RequestHandler) isLeader() bool {
+	if reqHandler.leaderElector == nil {
+		return true // If no leader election, assume we're the leader
+	}
+	return reqHandler.leaderElector.IsLeader()
+}
+
+// setLeaderElector sets the leader elector instance
+func (reqHandler *RequestHandler) setLeaderElector(le *leaderelection.LeaderElector) {
+	reqHandler.leaderElector = le
 }

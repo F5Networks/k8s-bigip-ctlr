@@ -226,6 +226,10 @@ var (
 	userAgentInfo      string
 	multiClusterMode   *string
 	localClusterName   *string
+
+	// Leader election flags
+	leaderElectionEnabled = globalFlags.Bool("enable-leader-election", false, "Enable leader election for CIS instances")
+	leaderElectionID      = globalFlags.String("leader-election-id", "", "Unique ID for this CIS instance (e.g., pod name)")
 )
 
 func _init() {

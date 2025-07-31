@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/leaderelection"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -112,6 +113,7 @@ type (
 		respChan                    chan *agentPostConfig
 		healthServer                *http.Server
 		webhookServer               WebHookServerInterface
+		leaderElector               *leaderelection.LeaderElector
 		resourceContext
 	}
 	resourceContext struct {
@@ -865,6 +867,7 @@ type (
 		agentParams                     AgentParams
 		disableARP                      bool
 		HAMode                          bool
+		leaderElector                   *leaderelection.LeaderElector
 	}
 
 	agentPostConfig struct {

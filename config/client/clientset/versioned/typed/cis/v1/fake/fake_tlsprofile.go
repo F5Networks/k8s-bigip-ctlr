@@ -102,6 +102,18 @@ func (c *FakeTLSProfiles) Update(ctx context.Context, tLSProfile *cisv1.TLSProfi
 	return obj.(*cisv1.TLSProfile), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeTLSProfiles) UpdateStatus(ctx context.Context, tLSProfile *cisv1.TLSProfile, opts v1.UpdateOptions) (*cisv1.TLSProfile, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(tlsprofilesResource, "status", c.ns, tLSProfile), &cisv1.TLSProfile{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*cisv1.TLSProfile), err
+}
+
 // Delete takes name of the tLSProfile and deletes it. Returns an error if one occurs.
 func (c *FakeTLSProfiles) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.

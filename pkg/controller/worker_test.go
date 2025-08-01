@@ -1895,14 +1895,11 @@ var _ = Describe("Worker Tests", func() {
 				Expect(errMsg).To(ContainSubstring("No IP was specified for the virtual server"), "Invalid error message for invalid VS")
 
 				//check invalid virtual server as bigip objects varification should fail
-				vs.Spec.VirtualServerAddress = "192.168.1.1"
-				valid, errMsg = mockCtlr.checkValidVirtualServer(vs)
-				Expect(valid).To(BeFalse())
-				Expect(errMsg).To(ContainSubstring("Referenced iRule '/Common/SampleIRule' does not exist on BIGIP for VirtualServer SampleVS"), "Invalid error message for invalid VS")
-
 				// verify HTTPTraffic is not set for insecure virtual server
 				vs.Spec.HTTPTraffic = TLSAllowInsecure
+				vs.Spec.VirtualServerAddress = "192.168.1.1"
 				vs.Spec.TLSProfileName = ""
+				vs.Spec.IRules = []string{""}
 				valid, errMsg = mockCtlr.checkValidVirtualServer(vs)
 				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
 				Expect(errMsg).To(ContainSubstring("HTTPTraffic not allowed to be set for insecure VirtualServer"), "Invalid error message for invalid VS")
@@ -2409,7 +2406,7 @@ var _ = Describe("Worker Tests", func() {
 				//Transport Server is not valid
 				valid, errMsg := mockCtlr.checkValidTransportServer(ts)
 				Expect(valid).To(BeFalse())
-				Expect(errMsg).To(ContainSubstring("Referenced iRule '/Common/SampleIRule' does not exist on BIGIP for VirtualServer SampleTS"), "Invalid error message for invalid TS")
+				Expect(errMsg).To(ContainSubstring("Referenced iRule '/Common/SampleIRule' does not exist on BIGIP for TransportServer SampleTS (iRules: [/Common/SampleIRule])"))
 			})
 
 			It("Transport Server with IPAM", func() {

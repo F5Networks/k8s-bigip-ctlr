@@ -963,7 +963,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 		valid, errMsg := ctlr.checkValidTLSProfile(tls)
 		if !valid {
 			log.Errorf("IngressLink %s is not valid: %s", tlsKey, errMsg)
-			ctlr.updateTLSProfileStatus(tls, "", errors.New(errMsg))
+			ctlr.updateTLSProfileStatus(tls, StatusError, errors.New(errMsg))
 			return
 		}
 	}

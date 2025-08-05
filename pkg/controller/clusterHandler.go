@@ -485,7 +485,12 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			found = true
 		}
 		if found {
-			tlsProfile.Status = rscStatus.ResourceObj.(cisv1.TLSProfileStatus)
+			tlsStatus := rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
+			tlsProfile.Status = cisv1.TLSProfileStatus{
+				Status:      tlsStatus.Status,
+				Error:       tlsStatus.Error,
+				LastUpdated: tlsStatus.LastUpdated,
+			}
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().TLSProfiles(tlsProfile.ObjectMeta.Namespace).
 			UpdateStatus(context.TODO(), tlsProfile, metav1.UpdateOptions{})

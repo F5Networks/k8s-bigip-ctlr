@@ -2,36 +2,35 @@
 package leaderelection
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/bigiphandler"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/httpclient"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/f5devcentral/go-bigip"
 )
 
 const (
-	dataGroupName     = "leader_election"
-	heartbeatInterval = 10 * time.Second
-	heartbeatTimeout  = 50 * time.Second
-	leaderRecordName  = "leader"
+	leaderRecordName = "leader"
 )
 
 // LeaderElectorConfig holds the configuration for LeaderElector
 type LeaderElectorConfig struct {
-	CandidateID  string
-	BigipHost    string
-	Username     string
-	Password     string
-	TrustedCerts string
-	SslInsecure  bool
-	UserAgent    string
-	Teem         bool
+	CandidateID       string
+	DataGroupName     string
+	HeartbeatTimeout  time.Duration
+	HeartbeatInterval time.Duration
+	BigipHost         string
+	Username          string
+	Password          string
+	TrustedCerts      string
+	SslInsecure       bool
+	UserAgent         string
+	Teem              bool
 }
 
 // LeaderElector implements leader election using BIG-IP datagroups with secure token-based authentication
@@ -43,33 +42,33 @@ type LeaderElector struct {
 	mu           sync.Mutex
 	isLeader     bool
 	httpClient   *http.Client
+	stopped      bool
 }
 
-// NewLeaderElector creates a new LeaderElector instance with tokenmanager and bigiphandler integration
+// NewLeaderElector creates a new LeaderElector instance with shared tokenmanager and bigiphandler integration
 func NewLeaderElector(config LeaderElectorConfig) (*LeaderElector, error) {
-	// Create HTTP client with TLS configuration
-	httpClient := createHTTPClient(config.TrustedCerts, config.SslInsecure)
-
-	// Create tokenmanager credentials
-	credentials := tokenmanager.Credentials{
-		Username:          config.Username,
-		Password:          config.Password,
-		LoginProviderName: "tmos",
+	// Create HTTP client configuration
+	clientConfig := httpclient.ClientConfig{
+		TrustedCerts: config.TrustedCerts,
+		SSLInsecure:  config.SslInsecure,
+		Timeout:      30 * time.Second,
 	}
 
-	// Initialize tokenmanager
-	tm := tokenmanager.NewTokenManager(
-		fmt.Sprintf("https://%s", config.BigipHost),
-		credentials,
+	// Get HTTP client from factory
+	factory := httpclient.GetFactory()
+	clientKey := fmt.Sprintf("leaderelection-%s", config.BigipHost)
+	httpClient := factory.GetOrCreateClient(clientKey, clientConfig)
+
+	// Use shared token manager instead of creating a new instance
+	sharedTM := tokenmanager.GetSharedTokenManager()
+	tm := sharedTM.GetOrCreateTokenManager(
+		config.BigipHost,
+		config.Username,
+		config.Password,
 		httpClient,
 	)
 
-	// Initialize token synchronously to ensure we have a valid token
-	if err := tm.SyncToken(); err != nil {
-		return nil, fmt.Errorf("failed to initialize token: %v", err)
-	}
-
-	// Create BIG-IP session using tokenmanager
+	// Create BIG-IP session using shared tokenmanager
 	bigipSession := bigiphandler.CreateSession(
 		config.BigipHost,
 		tm.GetToken(),
@@ -95,8 +94,8 @@ func NewLeaderElector(config LeaderElectorConfig) (*LeaderElector, error) {
 
 // Start begins the leader election process
 func (le *LeaderElector) Start() {
-	// Start token manager to maintain valid tokens
-	go le.tokenManager.Start(le.stopCh, 15*time.Minute)
+	// Token manager lifecycle is handled automatically by the shared token manager
+	// No need to manually start token refresh - it's handled when GetToken() is called
 
 	// Start leader election processes
 	go le.monitorLeader()
@@ -107,7 +106,14 @@ func (le *LeaderElector) Start() {
 
 // Stop stops the leader election process
 func (le *LeaderElector) Stop() {
+	le.mu.Lock()
+	defer le.mu.Unlock()
+
+	if le.stopped {
+		return
+	}
 	close(le.stopCh)
+	le.stopped = true
 	log.Infof("[Leader Election] Stopped leader election for candidate %s", le.config.CandidateID)
 }
 
@@ -118,9 +124,14 @@ func (le *LeaderElector) IsLeader() bool {
 	return le.isLeader
 }
 
+// GetCandidateID returns the candidate ID for this leader elector instance
+func (le *LeaderElector) GetCandidateID() string {
+	return le.config.CandidateID
+}
+
 // heartbeatLoop sends periodic heartbeats when this instance is the leader
 func (le *LeaderElector) heartbeatLoop() {
-	ticker := time.NewTicker(heartbeatInterval)
+	ticker := time.NewTicker(le.config.HeartbeatInterval)
 	defer ticker.Stop()
 
 	for {
@@ -153,7 +164,7 @@ func (le *LeaderElector) monitorLeader() {
 		currentLeader, modTime, err := le.readLeader()
 		if err != nil {
 			log.Debugf("[Leader Election] Error reading leader data: %v", err)
-			time.Sleep(heartbeatInterval)
+			time.Sleep(le.config.HeartbeatInterval)
 			continue
 		}
 
@@ -161,7 +172,7 @@ func (le *LeaderElector) monitorLeader() {
 		le.mu.Lock()
 
 		// Check if current leader's heartbeat has expired
-		if modTime.IsZero() || now.Sub(modTime) > heartbeatTimeout {
+		if modTime.IsZero() || now.Sub(modTime) > le.config.HeartbeatTimeout {
 			if !le.isLeader {
 				log.Infof("[Leader Election] No active leader found. Candidate %s becoming leader", le.config.CandidateID)
 				le.isLeader = true
@@ -181,7 +192,7 @@ func (le *LeaderElector) monitorLeader() {
 		}
 
 		le.mu.Unlock()
-		time.Sleep(heartbeatInterval)
+		time.Sleep(le.config.HeartbeatInterval)
 	}
 }
 
@@ -200,7 +211,7 @@ func (le *LeaderElector) readLeader() (string, time.Time, error) {
 	// Update BIG-IP session token before making API calls
 	le.updateBigIPToken()
 
-	data, err := le.getDataGroupValue(dataGroupName)
+	data, err := le.getDataGroupValue(le.config.DataGroupName)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -261,7 +272,7 @@ func (le *LeaderElector) updateDataGroupValue(content string) error {
 
 	// Create the datagroup structure
 	datagroup := &bigip.DataGroup{
-		Name: dataGroupName,
+		Name: le.config.DataGroupName,
 		Type: "string",
 		Records: []bigip.DataGroupRecord{
 			{
@@ -272,50 +283,21 @@ func (le *LeaderElector) updateDataGroupValue(content string) error {
 	}
 
 	// Check if datagroup exists
-	existing, err := bigipClient.GetInternalDataGroup(dataGroupName)
+	existing, err := bigipClient.GetInternalDataGroup(le.config.DataGroupName)
 	if err != nil || existing == nil {
 		// Create new datagroup - using AddInternalDataGroup instead of CreateInternalDataGroup
 		if err := bigipClient.AddInternalDataGroup(datagroup); err != nil {
-			return fmt.Errorf("failed to create datagroup %s: %v", dataGroupName, err)
+			return fmt.Errorf("failed to create datagroup %s: %v", le.config.DataGroupName, err)
 		}
-		log.Debugf("[Leader Election] Created datagroup %s", dataGroupName)
+		log.Debugf("[Leader Election] Created datagroup %s", le.config.DataGroupName)
 	} else {
 		// Update existing datagroup
 		/*if err := bigipClient.ModifyInternalDataGroup(dataGroupName, datagroup); err != nil {
 			return fmt.Errorf("failed to update datagroup %s: %v", dataGroupName, err)
 		}*/
-		log.Debugf("[Leader Election] Updated datagroup %s", dataGroupName)
+		log.Debugf("[Leader Election] Updated datagroup %s", le.config.DataGroupName)
 	}
 
 	log.Debugf("[Leader Election] Leader %s wrote heartbeat", le.config.CandidateID)
 	return nil
-}
-
-// createHTTPClient creates an HTTP client with proper TLS configuration
-func createHTTPClient(trustedCerts string, insecure bool) *http.Client {
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
-
-	// Append trusted certificates to the system pool
-	if trustedCerts != "" {
-		certs := []byte(trustedCerts)
-		if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-			log.Debugf("[Leader Election] No certs appended, using only system certs")
-		}
-	}
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: insecure,
-			RootCAs:            rootCAs,
-		},
-	}
-
-	return &http.Client{
-		Transport: tr,
-		Timeout:   30 * time.Second,
-	}
 }

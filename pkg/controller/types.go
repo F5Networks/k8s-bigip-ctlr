@@ -231,6 +231,8 @@ type (
 		IpamNamespace               string
 		LocalClusterName            string
 		CustomResourceLabel         string
+		LeaderHeartbeatInterval     int
+		LeaderHeartbeatTimeout      int
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer

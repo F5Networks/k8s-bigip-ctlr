@@ -122,6 +122,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | reselectTries       | Integer           | Optional | 0           | Maximum number of attempts to find a responsive member for a connection                                                                 |
 | reference           | String            | Required | NA          | Allowed values are **bigip** or **service**                                                                                             |
 | name                | String            | Optional | NA          | pool name or reference to the pool name existing on bigip                                                                               |
+| staticPoolMembers   | Object            | Optional | NA          | List of static pool member objects specifying fixed IP addresses and ports for default pool                                             |
 
 **Pool Components**
 
@@ -147,13 +148,21 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 **Note**: **monitors** take priority over **monitor** if both are provided in VS spec.
 
+### Static Pool Member Object Components
+
+| PARAMETER   | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                      |
+|-------------|---------|----------|---------|--------------------------------------------------|
+| address     | String  | Required | NA      | IP address of the pool member                    |
+| port        | Integer | Required | NA      | Port number for the pool member                  |
+
 **alternateBackends Components**
 
-| PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                   |
-|------------------|---------|----------|---------|-----------------------------------------------------------------------------------------------|
-| service          | String  | Required | NA      | service name for alternate backend                                                            |
-| serviceNamespace | String  | Optional | NA      | namespace of the backend service if its present in namespace different than virtual server CR |
-| weight           | Integer | Optional | 100     | weight allocated for the alternate backend service                                            |
+| PARAMETER         | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                       |
+|-------------------|---------|----------|---------|---------------------------------------------------------------------------------------------------|
+| service           | String  | Required | NA      | service name for alternate backend                                                                |
+| serviceNamespace  | String  | Optional | NA      | namespace of the backend service if its present in namespace different than virtual server CR     |
+| weight            | Integer | Optional | 100     | weight allocated for the alternate backend service                                                |
+| staticPoolMembers | Object  | Optional | NA      | List of static pool member objects specifying fixed IP addresses and ports for alternate backends |
 
 **Service_Address Components**
 
@@ -420,6 +429,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | monitor           | Monitor | Optional | NA            | Monitor for GSLB Pool                                                                                      |
 | monitors          | Monitor | Optional | NA            | Specifies multiple monitors for GSLB Pool                                                                  |
 | ratio             | Integer | Optional | 1             | Ratio weight assigned to GSLB pool                                                                         |
+| staticPoolMembers | Object  | Optional | NA            | List of static pool member objects specifying fixed IP addresses and ports for pool                        |
 
 
 

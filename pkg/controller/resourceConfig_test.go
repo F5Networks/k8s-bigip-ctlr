@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"k8s.io/client-go/util/workqueue"
 	"sort"
 	"strings"
 
@@ -2379,6 +2381,123 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test.com", "test1.com", "test2.com"}), "Incorrect unique hosts")
 			vs.Spec.Host = "test1.com"
 			Expect(getUniqueHosts(vs.Spec.Host, vs.Spec.HostAliases)).To(ConsistOf([]string{"test1.com", "test2.com"}), "Incorrect unique hosts")
+		})
+	})
+	Describe("convertStaticPoolMembers", func() {
+		var mockCtlr *mockController
+		var namespace string
+
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.multiClusterHandler = NewClusterHandler("")
+			mockCtlr.Partition = "test"
+			mockCtlr.resources = NewResourceStore()
+
+			namespace = "default"
+			mockCtlr.multiClusterHandler.ClusterConfigs[""] = newClusterConfig()
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].namespaces = map[string]struct{}{
+				namespace: {},
+			}
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.PoolMemberType = NodePort
+			svc1 := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeClusterIP,
+				[]v1.ServicePort{
+					{
+						Port: 80,
+						Name: "port0",
+					},
+				},
+			)
+			vrt1 := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:                   "test.com",
+					VirtualServerAddress:   "1.2.3.4",
+					IPAMLabel:              "",
+					VirtualServerName:      "",
+					VirtualServerHTTPPort:  0,
+					VirtualServerHTTPSPort: 0,
+					Pools: []cisapiv1.VSPool{
+						cisapiv1.VSPool{
+							Path:    "/path",
+							Service: "svc1",
+						},
+					},
+					TLSProfileName:   "",
+					HTTPTraffic:      "",
+					SNAT:             "",
+					WAF:              "",
+					RewriteAppRoot:   "",
+					AllowVLANs:       nil,
+					IRules:           nil,
+					ServiceIPAddress: nil,
+				})
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeClient = k8sfake.NewSimpleClientset(svc1)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+			mockCtlr.globalExtendedCMKey = "kube-system/global-cm"
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].InformerStore = initInformerStore()
+
+			selector, _ := createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.multiClusterHandler.ClusterConfigs[""].nativeResourceSelector = selector
+			mockCtlr.multiClusterHandler.customResourceSelector = selector
+
+			_ = mockCtlr.addNamespacedInformers(namespace, false, "")
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller",
+			)
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					VirtualServer: map[string]int{},
+				},
+			}
+			mockCtlr.webhookServer = &mockWebHookServer{}
+			mockCtlr.ResourceStatusVSAddressMap = make(map[resourceRef]string)
+			mockCtlr.multiClusterResources = newMultiClusterResourceStore()
+		})
+		It("converts all valid static pool members", func() {
+			in := []cisapiv1.StaticPoolMember{
+				{Address: "10.1.1.1", Port: 80},
+				{Address: "10.1.1.2", Port: 8080},
+			}
+			out := convertStaticPoolMembers(in)
+			Expect(out).To(HaveLen(2))
+			Expect(out[0].Address).To(Equal("10.1.1.1"))
+			Expect(out[1].Port).To(Equal(int32(8080)))
+		})
+
+		It("skips duplicates based on address and port", func() {
+			in := []cisapiv1.StaticPoolMember{
+				{Address: "10.2.2.2", Port: 443},
+				{Address: "10.2.2.2", Port: 443},
+				{Address: "10.2.2.2", Port: 80},
+			}
+			out := convertStaticPoolMembers(in)
+			Expect(out).To(HaveLen(2))
+			addressPorts := map[string]int32{}
+			for _, m := range out {
+				addressPorts[m.Address] = m.Port
+			}
+			Expect(addressPorts).To(HaveKeyWithValue("10.2.2.2", int32(80)))
+		})
+
+		It("skips entries with empty address", func() {
+			in := []cisapiv1.StaticPoolMember{
+				{Address: "", Port: 8080},
+				{Address: "10.3.3.3", Port: 8081},
+			}
+			out := convertStaticPoolMembers(in)
+			Expect(out).To(HaveLen(1))
+			Expect(out[0].Address).To(Equal("10.3.3.3"))
+		})
+
+		It("returns empty for empty input", func() {
+			out := convertStaticPoolMembers([]cisapiv1.StaticPoolMember{})
+			Expect(out).To(BeEmpty())
 		})
 	})
 })

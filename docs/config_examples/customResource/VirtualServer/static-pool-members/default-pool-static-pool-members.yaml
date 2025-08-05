@@ -1,0 +1,38 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-vs-foo-pytest-svc-1
+  namespace: default
+spec:
+  additionalVirtualServerAddresses: []
+  allowVlans: []
+  bigipRouteDomain: 0
+  defaultPool:
+    reference: service
+    service: pytest-svc-2
+    servicePort: 80
+    staticPoolMembers:
+      - address: 10.0.0.30
+        port: 80
+  host: foo.com
+  httpTraffic: allow
+  iRules: []
+  partition: test
+  pools:
+      monitor:
+        interval: 20
+        recv: ""
+        send: /
+        timeout: 10
+        type: http
+      path: /foo
+      service: pytest-svc-1
+      servicePort: 80
+      staticPoolMembers:
+        - address: 10.0.0.10
+          port: 80
+  snat: auto
+  tlsProfileName: cr-tls-foo-pytest-svc-1
+  virtualServerAddress: 10.8.0.4

@@ -18,19 +18,17 @@ package as3
 
 import (
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/httpclient"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -87,45 +85,31 @@ func NewPostManager(params PostParams) *PostManager {
 }
 
 func (postMgr *PostManager) setupBIGIPRESTClient() {
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
-	// TODO: Make sure appMgr sets certificates in bigipInfo
-	certs := []byte(postMgr.TrustedCerts)
-
-	// Append our certs to the system pool
-	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-		log.Debug("[AS3] No certs appended, using only system certs")
+	// Create HTTP client configuration
+	clientConfig := httpclient.ClientConfig{
+		TrustedCerts:  postMgr.TrustedCerts,
+		SSLInsecure:   postMgr.SSLInsecure,
+		Timeout:       timeoutLarge,
+		EnableMetrics: postMgr.HTTPClientMetrics,
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: postMgr.SSLInsecure,
-			RootCAs:            rootCAs,
-		},
-	}
-
+	// Add metrics configuration if enabled
 	if postMgr.HTTPClientMetrics {
+		clientConfig.MetricsConfig = &httpclient.MetricsConfig{
+			InFlightGauge:   prometheus.ClientInFlightGauge,
+			RequestsCounter: prometheus.ClientAPIRequestsCounter,
+			Trace:           prometheus.ClientTrace,
+			HistogramVec:    prometheus.ClientHistVec,
+		}
 		log.Debug("[BIGIP] Http client instrumented with metrics!")
-		instrumentedRoundTripper := promhttp.InstrumentRoundTripperInFlight(prometheus.ClientInFlightGauge,
-			promhttp.InstrumentRoundTripperCounter(prometheus.ClientAPIRequestsCounter,
-				promhttp.InstrumentRoundTripperTrace(prometheus.ClientTrace,
-					promhttp.InstrumentRoundTripperDuration(prometheus.ClientHistVec, tr),
-				),
-			),
-		)
-		postMgr.HttpClient = &http.Client{
-			Transport: instrumentedRoundTripper,
-			Timeout:   timeoutLarge,
-		}
-	} else {
-		postMgr.HttpClient = &http.Client{
-			Transport: tr,
-			Timeout:   timeoutLarge,
-		}
 	}
+
+	// Generate a unique key for this configuration
+	clientKey := fmt.Sprintf("as3-postmgr-%s", postMgr.BIGIPURL)
+
+	// Get HTTP client from factory
+	factory := httpclient.GetFactory()
+	postMgr.HttpClient = factory.GetOrCreateClient(clientKey, clientConfig)
 }
 
 func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
@@ -291,7 +275,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	}
 	defer httpResp.Body.Close()
 
-	body, err := ioutil.ReadAll(httpResp.Body)
+	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		log.Errorf("[AS3] REST call response error: %v ", err)
 		return nil, nil

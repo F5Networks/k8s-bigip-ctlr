@@ -226,10 +226,8 @@ var (
 	userAgentInfo      string
 	multiClusterMode   *string
 	localClusterName   *string
-
-	// Leader election flags
-	leaderElectionEnabled = globalFlags.Bool("enable-leader-election", false, "Enable leader election for CIS instances")
-	leaderElectionID      = globalFlags.String("leader-election-id", "", "Unique ID for this CIS instance (e.g., pod name)")
+	heartbeatInterval  *int
+	heartbeatTimeout   *int
 )
 
 func _init() {
@@ -493,6 +491,8 @@ func _init() {
 		"Optional, determines in multi cluster env cis running as standalone/primary/secondary")
 	localClusterName = multiClusterFlags.String("local-cluster-name", "",
 		"Optional, name of the local cluster")
+	heartbeatInterval = multiClusterFlags.Int("heartbeat-interval", 10, "Optional, interval (in seconds) at which to check and write active cis leader heartbeat.")
+	heartbeatTimeout = multiClusterFlags.Int("heartbeat-timeout", 50, "Optional, interval (in seconds) at which to reconfigure leader election if heartbeat is not received from active leader.")
 
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
@@ -1019,6 +1019,8 @@ func initController(
 			LoadBalancerClass:           *loadBalancerClass,
 			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
 			CustomResourceLabel:         *customResourceLabel,
+			LeaderHeartbeatInterval:     *heartbeatInterval,
+			LeaderHeartbeatTimeout:      *heartbeatTimeout,
 		},
 		true,
 		agentParams,

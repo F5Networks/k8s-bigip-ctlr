@@ -2,23 +2,29 @@ package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/leaderelection"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"os"
 	"strings"
 	"time"
-
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 var OsExit = os.Exit
 
 func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, baseAPIHandler *BaseAPIHandler) *RequestHandler {
+	// Calculate refresh token interval
 	var refreshTokenInterval time.Duration
 	if agentParams.RefreshTokenInterval != 0 {
 		refreshTokenInterval = time.Duration(agentParams.RefreshTokenInterval) * time.Hour
 	} else {
 		refreshTokenInterval = 10 * time.Hour
 	}
+
+	// Set the refresh token interval in the shared token manager
+	sharedTM := tokenmanager.GetSharedTokenManager()
+	sharedTM.SetRefreshTokenInterval(refreshTokenInterval)
+
 	reqHandler := &RequestHandler{
 		reqChan:                         make(chan ResourceConfigRequest, 1),
 		respChan:                        ctlr.respChan,
@@ -26,27 +32,22 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, baseAPIHandle
 		PrimaryClusterHealthProbeParams: ctlr.multiClusterHandler.PrimaryClusterHealthProbeParams,
 	}
 	gtmOnSeparateBigIPServer := isGTMOnSeparateServer(agentParams)
+
 	if (agentParams.PrimaryParams != PostParams{}) {
 		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
-		// start the token manager
-		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
 		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
-		// start the token manager
-		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	// Run the GTM Agent only in case of separate server and not in cccl mode
 	if gtmOnSeparateBigIPServer && !agentParams.CCCLGTMAgent {
 		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
-		// start the token manager
-		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.GTMBigIPWorker.gtmWorker()
 	}

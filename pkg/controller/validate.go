@@ -254,11 +254,15 @@ func (ctlr *Controller) checkValidVirtualServer(
 
 	// Validate iRules
 	for _, irule := range vsResource.Spec.IRules {
+		// if Irule is set to none, skip the check
+		if irule == "none" {
+			continue
+		}
 		wg.Add(1)
 		go func(irule string) {
 			defer wg.Done()
 			if _, err := validator.GetIRule(irule); err != nil {
-				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s: %v", irule, vsName, err)
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s (iRules: %v): %v", irule, vsName, vsResource.Spec.IRules, err)
 				cancel()
 				return
 			}
@@ -397,7 +401,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		go func(irule string) {
 			defer wg.Done()
 			if _, err := validator.GetIRule(irule); err != nil {
-				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s: %v", irule, vsName, err)
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for TransportServer %s (iRules: %v): %v", irule, vsName, tsResource.Spec.IRules, err)
 				cancel()
 				return
 			}
@@ -410,7 +414,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		go func(clientssl string) {
 			defer wg.Done()
 			if _, err := validator.GetClientSSLProfile(clientssl); err != nil {
-				errChan <- fmt.Sprintf("Referenced ClientSSL Profile '%s' does not exist on BIGIP for VirtualServer %s: %v", clientssl, vsName, err)
+				errChan <- fmt.Sprintf("Referenced ClientSSL Profile '%s' does not exist on BIGIP for TransportServer %s (tls.clientSSLs: %v): %v", clientssl, vsName, tsResource.Spec.TLS.ClientSSLs, err)
 				cancel()
 				return
 			}
@@ -561,7 +565,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	doneChan := make(chan struct{})
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	log.Debugf("Creating session to BIG-IP for TransportServer %s/%s", pl.ObjectMeta.Name, pl.ObjectMeta.Name)
+	log.Debugf("Creating session to BIG-IP for Policy %s/%s", pl.ObjectMeta.Name, pl.ObjectMeta.Name)
 	if handler == nil {
 		bigipSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL, ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent, ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
 		handler = &bigiphandler.BigIPHandler{Bigip: bigipSession}
@@ -573,7 +577,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L7Policies.WAF != "" {
 			if _, err := handler.GetWAF(pl.Spec.L7Policies.WAF); err != nil {
-				errChan <- fmt.Sprintf("Referenced WAF policy '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L7Policies.WAF, policyName, err)
+				errChan <- fmt.Sprintf("Referenced WAF policy '%s' does not exist on BIGIP for Policy %s (l7Policies.waf: %s): %v", pl.Spec.L7Policies.WAF, policyName, pl.Spec.L7Policies.WAF, err)
 				cancel()
 				return
 			}
@@ -586,7 +590,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L7Policies.ProfileAccess != "" {
 			if _, err := handler.GetProfileAccess(pl.Spec.L7Policies.ProfileAccess); err != nil {
-				errChan <- fmt.Sprintf("Referenced profileAccess '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L7Policies.ProfileAccess, policyName, err)
+				errChan <- fmt.Sprintf("Referenced profileAccess '%s' does not exist on BIGIP for Policy %s (l7Policies.profileAccess: %s): %v", pl.Spec.L7Policies.ProfileAccess, policyName, pl.Spec.L7Policies.ProfileAccess, err)
 				cancel()
 				return
 			}
@@ -599,7 +603,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L7Policies.PolicyPerRequestAccess != "" {
 			if _, err := handler.GetPolicyPerRequestAccess(pl.Spec.L7Policies.PolicyPerRequestAccess); err != nil {
-				errChan <- fmt.Sprintf("Referenced policyPerRequestAccess '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L7Policies.PolicyPerRequestAccess, policyName, err)
+				errChan <- fmt.Sprintf("Referenced policyPerRequestAccess '%s' does not exist on BIGIP for Policy %s (l7Policies.policyPerRequestAccess: %s): %v", pl.Spec.L7Policies.PolicyPerRequestAccess, policyName, pl.Spec.L7Policies.PolicyPerRequestAccess, err)
 				cancel()
 				return
 			}
@@ -613,16 +617,16 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		if !reflect.DeepEqual(pl.Spec.L7Policies.ProfileAdapt, cisapiv1.ProfileAdapt{}) {
 			// Check profileAdapt request
 			if pl.Spec.L7Policies.ProfileAdapt.Request != "" {
-				if _, err := handler.GetProfileAdaptRequest(pl.Spec.L7Policies.PolicyPerRequestAccess); err != nil {
-					errChan <- fmt.Sprintf("Referenced profileAdapt request '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L7Policies.ProfileAdapt.Request, policyName, err)
+				if _, err := handler.GetProfileAdaptRequest(pl.Spec.L7Policies.ProfileAdapt.Request); err != nil {
+					errChan <- fmt.Sprintf("Referenced profileAdapt request '%s' does not exist on BIGIP for Policy %s (l7Policies.profileAdapt.request: %s): %v", pl.Spec.L7Policies.ProfileAdapt.Request, policyName, pl.Spec.L7Policies.ProfileAdapt.Request, err)
 					cancel()
 					return
 				}
 			}
 			// Check profileAdapt response
 			if pl.Spec.L7Policies.ProfileAdapt.Response != "" {
-				if _, err := handler.GetProfileAdaptResponse(pl.Spec.L7Policies.PolicyPerRequestAccess); err != nil {
-					errChan <- fmt.Sprintf("Referenced profileAdapt response '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L7Policies.ProfileAdapt.Response, policyName, err)
+				if _, err := handler.GetProfileAdaptResponse(pl.Spec.L7Policies.ProfileAdapt.Response); err != nil {
+					errChan <- fmt.Sprintf("Referenced profileAdapt response '%s' does not exist on BIGIP for Policy %s (l7Policies.profileAdapt.response: %s): %v", pl.Spec.L7Policies.ProfileAdapt.Response, policyName, pl.Spec.L7Policies.ProfileAdapt.Response, err)
 					cancel()
 					return
 				}
@@ -636,7 +640,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L3Policies.DOS != "" {
 			if _, err := handler.GetDOSProfile(pl.Spec.L3Policies.DOS); err != nil {
-				errChan <- fmt.Sprintf("Referenced dos profile '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L3Policies.DOS, policyName, err)
+				errChan <- fmt.Sprintf("Referenced dos profile '%s' does not exist on BIGIP for Policy %s (l3Policies.dos: %s): %v", pl.Spec.L3Policies.DOS, policyName, pl.Spec.L3Policies.DOS, err)
 				cancel()
 				return
 			}
@@ -649,7 +653,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L3Policies.BotDefense != "" {
 			if _, err := handler.GetBotDefenseProfile(pl.Spec.L3Policies.BotDefense); err != nil {
-				errChan <- fmt.Sprintf("Referenced botDefense profile '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L3Policies.BotDefense, policyName, err)
+				errChan <- fmt.Sprintf("Referenced botDefense profile '%s' does not exist on BIGIP for Policy %s (l3Policies.botDefense: %s): %v", pl.Spec.L3Policies.BotDefense, policyName, pl.Spec.L3Policies.BotDefense, err)
 				cancel()
 				return
 			}
@@ -662,7 +666,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L3Policies.FirewallPolicy != "" {
 			if _, err := handler.GetFirewallPolicy(pl.Spec.L3Policies.FirewallPolicy); err != nil {
-				errChan <- fmt.Sprintf("Referenced firewall policy '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L3Policies.FirewallPolicy, policyName, err)
+				errChan <- fmt.Sprintf("Referenced firewall policy '%s' does not exist on BIGIP for Policy %s (l3Policies.firewallPolicy: %s): %v", pl.Spec.L3Policies.FirewallPolicy, policyName, pl.Spec.L3Policies.FirewallPolicy, err)
 				cancel()
 				return
 			}
@@ -672,11 +676,10 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	// Check vlans exists on the BIGIP
 	for _, vlan := range pl.Spec.L3Policies.AllowVlans {
 		wg.Add(1)
-		go func(string) {
+		go func(vlan string) {
 			defer wg.Done()
-
 			if _, err := handler.GetVLAN(vlan); err != nil {
-				errChan <- fmt.Sprintf("Referenced vlan '%s' does not exist on BIGIP for Policy %s: %v", vlan, policyName, err)
+				errChan <- fmt.Sprintf("Referenced vlan '%s' does not exist on BIGIP for Policy %s (l3Policies.allowVlans: %v): %v", vlan, policyName, pl.Spec.L3Policies.AllowVlans, err)
 				cancel()
 				return
 			}
@@ -704,7 +707,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.L3Policies.IpIntelligencePolicy != "" {
 			if _, err := handler.GetIPIntelligencePolicy(pl.Spec.L3Policies.IpIntelligencePolicy); err != nil {
-				errChan <- fmt.Sprintf("Referenced IpIntelligence policy '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.L3Policies.IpIntelligencePolicy, policyName, err)
+				errChan <- fmt.Sprintf("Referenced IpIntelligence policy '%s' does not exist on BIGIP for Policy %s (l3Policies.ipIntelligencePolicy: %s): %v", pl.Spec.L3Policies.IpIntelligencePolicy, policyName, pl.Spec.L3Policies.IpIntelligencePolicy, err)
 				cancel()
 				return
 			}
@@ -725,10 +728,10 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	// check iRuleList and validate each iRule
 	for _, irule := range pl.Spec.IRuleList {
 		wg.Add(1)
-		go func(string) {
+		go func(irule string) {
 			defer wg.Done()
 			if _, err := handler.GetIRule(irule); err != nil {
-				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for Policy %s: %v", irule, policyName, err)
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for Policy %s (iRuleList: %v): %v", irule, policyName, pl.Spec.IRuleList, err)
 				cancel()
 				return
 			}
@@ -740,16 +743,18 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 	go func() {
 		defer wg.Done()
 		if !reflect.DeepEqual(pl.Spec.IRules, cisapiv1.LtmIRulesSpec{}) {
-			if pl.Spec.IRules.InSecure != "" {
+			// if Irule is set to none, skip the check
+			if pl.Spec.IRules.InSecure != "" && pl.Spec.IRules.InSecure != "none" {
 				if _, err := handler.GetIRule(pl.Spec.IRules.InSecure); err != nil {
-					errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.IRules.InSecure, policyName, err)
+					errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for Policy %s (iRules.inSecure: %s): %v", pl.Spec.IRules.InSecure, policyName, pl.Spec.IRules.InSecure, err)
 					cancel()
 					return
 				}
 			}
-			if pl.Spec.IRules.Secure != "" {
+			// if Irule is set to none, skip the check
+			if pl.Spec.IRules.Secure != "" && pl.Spec.IRules.Secure != "none" {
 				if _, err := handler.GetIRule(pl.Spec.IRules.Secure); err != nil {
-					errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.IRules.Secure, policyName, err)
+					errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for Policy %s (iRules.secure: %s): %v", pl.Spec.IRules.Secure, policyName, pl.Spec.IRules.Secure, err)
 					cancel()
 					return
 				}
@@ -764,7 +769,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.SNAT != Auto {
 			if _, err := handler.GetSNATPool(pl.Spec.SNAT); err != nil {
-				errChan <- fmt.Sprintf("Referenced SNAT '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.SNAT, policyName, err)
+				errChan <- fmt.Sprintf("Referenced SNAT '%s' does not exist on BIGIP for Policy %s (snat: %s): %v", pl.Spec.SNAT, policyName, pl.Spec.SNAT, err)
 				cancel()
 				return
 			}
@@ -777,7 +782,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.DefaultPool.Reference == BIGIP {
 			if _, err := handler.GetLTMPool(pl.Spec.DefaultPool.Name); err != nil {
-				errChan <- fmt.Sprintf("Referenced LTM pool '%s' does not exist on BIGIP for Policy %s: %v", pl.Spec.DefaultPool.Name, policyName, err)
+				errChan <- fmt.Sprintf("Referenced LTM pool '%s' does not exist on BIGIP for Policy %s (defaultPool.name: %s): %v", pl.Spec.DefaultPool.Name, policyName, pl.Spec.DefaultPool.Name, err)
 				cancel()
 				return
 			}
@@ -792,7 +797,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 			// If TCPProfile is set, check if it exists on BIG-IP
 			if pl.Spec.Profiles.TCP.Client != "" {
 				if _, err := handler.GetTCPProfile(pl.Spec.Profiles.TCP.Client); err != nil {
-					errChan <- fmt.Sprintf("Referenced client side tcp profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.TCP.Client, policyName, err)
+					errChan <- fmt.Sprintf("Referenced client side tcp profile %s does not exist on BIGIP for Policy %s (profiles.tcp.client: %s): %v", pl.Spec.Profiles.TCP.Client, policyName, pl.Spec.Profiles.TCP.Client, err)
 					cancel()
 					return
 				}
@@ -800,7 +805,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 			// If TCPProfile is set, check if it exists on BIG-IP
 			if pl.Spec.Profiles.TCP.Server != "" {
 				if _, err := handler.GetTCPProfile(pl.Spec.Profiles.TCP.Server); err != nil {
-					errChan <- fmt.Sprintf("Referenced server side tcp profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.TCP.Server, policyName, err)
+					errChan <- fmt.Sprintf("Referenced server side tcp profile %s does not exist on BIGIP for Policy %s (profiles.tcp.server: %s): %v", pl.Spec.Profiles.TCP.Server, policyName, pl.Spec.Profiles.TCP.Server, err)
 					cancel()
 					return
 				}
@@ -815,7 +820,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		if pl.Spec.Profiles.UDP != "" {
 			// If UDP Profile is set, check if it exists on BIG-IP
 			if _, err := handler.GetUDPProfile(pl.Spec.Profiles.UDP); err != nil {
-				errChan <- fmt.Sprintf("Referenced udp profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.UDP, policyName, err)
+				errChan <- fmt.Sprintf("Referenced udp profile %s does not exist on BIGIP for Policy %s (profiles.udp: %s): %v", pl.Spec.Profiles.UDP, policyName, pl.Spec.Profiles.UDP, err)
 				cancel()
 				return
 			}
@@ -829,9 +834,33 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		if pl.Spec.Profiles.HTTP != "" {
 			// If HTTP Profile is set, check if it exists on BIG-IP
 			if _, err := handler.GetHTTPProfile(pl.Spec.Profiles.HTTP); err != nil {
-				errChan <- fmt.Sprintf("Referenced http profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.HTTP, policyName, err)
+				errChan <- fmt.Sprintf("Referenced http profile %s does not exist on BIGIP for Policy %s (profiles.http: %s): %v", pl.Spec.Profiles.HTTP, policyName, pl.Spec.Profiles.HTTP, err)
 				cancel()
 				return
+			}
+		}
+	}()
+
+	// check httpProfile secure and insecure
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if !reflect.DeepEqual(pl.Spec.Profiles.HTTPProfiles, cisapiv1.HTTPProfiles{}) {
+			// check the secure http profile
+			if pl.Spec.Profiles.HTTPProfiles.Secure != "" {
+				if _, err := handler.GetHTTPProfile(pl.Spec.Profiles.HTTPProfiles.Secure); err != nil {
+					errChan <- fmt.Sprintf("Referenced secure http profile %s does not exist on BIGIP for Policy %s (profiles.httpProfiles.secure: %s): %v", pl.Spec.Profiles.HTTPProfiles.Secure, policyName, pl.Spec.Profiles.HTTPProfiles.Secure, err)
+					cancel()
+					return
+				}
+			}
+			// check the insecure http profile
+			if pl.Spec.Profiles.HTTPProfiles.Insecure != "" {
+				if _, err := handler.GetHTTPProfile(pl.Spec.Profiles.HTTPProfiles.Insecure); err != nil {
+					errChan <- fmt.Sprintf("Referenced insecure http profile %s does not exist on BIGIP for Policy %s (profiles.httpProfiles.insecure: %s): %v", pl.Spec.Profiles.HTTPProfiles.Insecure, policyName, pl.Spec.Profiles.HTTPProfiles.Insecure, err)
+					cancel()
+					return
+				}
 			}
 		}
 	}()
@@ -844,7 +873,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 			// If HTTP2 Profile is set, check if it exists on BIG-IP
 			if pl.Spec.Profiles.HTTP2.Client != "" {
 				if _, err := handler.GetHTTP2Profile(pl.Spec.Profiles.HTTP2.Client); err != nil {
-					errChan <- fmt.Sprintf("Referenced client side http2 profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.HTTP2.Client, policyName, err)
+					errChan <- fmt.Sprintf("Referenced client side http2 profile %s does not exist on BIGIP for Policy %s (profiles.http2.client: %s): %v", pl.Spec.Profiles.HTTP2.Client, policyName, pl.Spec.Profiles.HTTP2.Client, err)
 					cancel()
 					return
 				}
@@ -852,7 +881,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 			// If HTTP2 Profile is set, check if it exists on BIG-IP
 			if pl.Spec.Profiles.HTTP2.Server != "" {
 				if _, err := handler.GetHTTP2Profile(pl.Spec.Profiles.HTTP2.Server); err != nil {
-					errChan <- fmt.Sprintf("Referenced server side http2 profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.HTTP2.Server, policyName, err)
+					errChan <- fmt.Sprintf("Referenced server side http2 profile %s does not exist on BIGIP for Policy %s (profiles.http2.server: %s): %v", pl.Spec.Profiles.HTTP2.Server, policyName, pl.Spec.Profiles.HTTP2.Server, err)
 					cancel()
 					return
 				}
@@ -866,7 +895,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.RewriteProfile != "" {
 			if _, err := handler.GetRewriteProfile(pl.Spec.Profiles.RewriteProfile); err != nil {
-				errChan <- fmt.Sprintf("Referenced rewrite profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.RewriteProfile, policyName, err)
+				errChan <- fmt.Sprintf("Referenced rewrite profile %s does not exist on BIGIP for Policy %s (profiles.rewriteProfile: %s): %v", pl.Spec.Profiles.RewriteProfile, policyName, pl.Spec.Profiles.RewriteProfile, err)
 				cancel()
 				return
 			}
@@ -879,7 +908,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.PersistenceProfile != "" {
 			if _, err := handler.GetPersistenceProfile(pl.Spec.Profiles.PersistenceProfile); err != nil {
-				errChan <- fmt.Sprintf("Referenced persistence profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.PersistenceProfile, policyName, err)
+				errChan <- fmt.Sprintf("Referenced persistence profile %s does not exist on BIGIP for Policy %s (profiles.persistenceProfile: %s): %v", pl.Spec.Profiles.PersistenceProfile, policyName, pl.Spec.Profiles.PersistenceProfile, err)
 				cancel()
 				return
 			}
@@ -892,7 +921,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		go func(logProfile string) {
 			defer wg.Done()
 			if _, err := handler.GetLogProfile(logProfile); err != nil {
-				errChan <- fmt.Sprintf("Referenced log profile %s does not exist on BIGIP for Policy %s: %v", logProfile, policyName, err)
+				errChan <- fmt.Sprintf("Referenced log profile %s does not exist on BIGIP for Policy %s (profiles.logProfiles: %v): %v", logProfile, policyName, pl.Spec.Profiles.LogProfiles, err)
 				cancel()
 				return
 			}
@@ -905,7 +934,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.ProfileL4 != "" {
 			if _, err := handler.GetL4Profile(pl.Spec.Profiles.ProfileL4); err != nil {
-				errChan <- fmt.Sprintf("Referenced fast L4 profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.ProfileL4, policyName, err)
+				errChan <- fmt.Sprintf("Referenced fast L4 profile %s does not exist on BIGIP for Policy %s (profiles.profileL4: %s): %v", pl.Spec.Profiles.ProfileL4, policyName, pl.Spec.Profiles.ProfileL4, err)
 				cancel()
 				return
 			}
@@ -918,7 +947,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.ProfileMultiplex != "" {
 			if _, err := handler.GetMultiplexProfile(pl.Spec.Profiles.ProfileMultiplex); err != nil {
-				errChan <- fmt.Sprintf("Referenced multiplex profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.ProfileMultiplex, policyName, err)
+				errChan <- fmt.Sprintf("Referenced multiplex profile %s does not exist on BIGIP for Policy %s (profiles.profileMultiplex: %s): %v", pl.Spec.Profiles.ProfileMultiplex, policyName, pl.Spec.Profiles.ProfileMultiplex, err)
 				cancel()
 				return
 			}
@@ -932,7 +961,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 			go func(sslProfile string) {
 				defer wg.Done()
 				if _, err := handler.GetClientSSLProfile(sslProfile); err != nil {
-					errChan <- fmt.Sprintf("Referenced client SSL profile %s does not exist on BIGIP for Policy %s: %v", sslProfile, policyName, err)
+					errChan <- fmt.Sprintf("Referenced client SSL profile %s does not exist on BIGIP for Policy %s (profiles.sslProfiles.clientProfiles: %v): %v", sslProfile, policyName, pl.Spec.Profiles.SSLProfiles.ClientProfiles, err)
 					cancel()
 					return
 				}
@@ -943,7 +972,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 			go func(sslProfile string) {
 				defer wg.Done()
 				if _, err := handler.GetServerSSLProfile(sslProfile); err != nil {
-					errChan <- fmt.Sprintf("Referenced server SSL profile %s does not exist on BIGIP for Policy %s: %v", sslProfile, policyName, err)
+					errChan <- fmt.Sprintf("Referenced server SSL profile %s does not exist on BIGIP for Policy %s (profiles.sslProfiles.serverProfiles: %v): %v", sslProfile, policyName, pl.Spec.Profiles.SSLProfiles.ServerProfiles, err)
 					cancel()
 					return
 				}
@@ -958,7 +987,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		if !reflect.DeepEqual(pl.Spec.Profiles.AnalyticsProfiles, cisapiv1.AnalyticsProfiles{}) {
 			if pl.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile != "" {
 				if _, err := handler.GetAnalyticsProfile(pl.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile); err != nil {
-					errChan <- fmt.Sprintf("Referenced analytic profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile, policyName, err)
+					errChan <- fmt.Sprintf("Referenced analytic profile %s does not exist on BIGIP for Policy %s (profiles.analyticsProfiles.httpAnalyticsProfile: %s): %v", pl.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile, policyName, pl.Spec.Profiles.AnalyticsProfiles.HTTPAnalyticsProfile, err)
 					cancel()
 					return
 				}
@@ -972,7 +1001,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.ProfileWebSocket != "" {
 			if _, err := handler.GetProfileWebSocket(pl.Spec.Profiles.ProfileWebSocket); err != nil {
-				errChan <- fmt.Sprintf("Referenced WebSocket profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.ProfileWebSocket, policyName, err)
+				errChan <- fmt.Sprintf("Referenced WebSocket profile %s does not exist on BIGIP for Policy %s (profiles.profileWebSocket: %s): %v", pl.Spec.Profiles.ProfileWebSocket, policyName, pl.Spec.Profiles.ProfileWebSocket, err)
 				cancel()
 				return
 			}
@@ -985,7 +1014,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.HTMLProfile != "" {
 			if _, err := handler.GetHTMLProfile(pl.Spec.Profiles.HTMLProfile); err != nil {
-				errChan <- fmt.Sprintf("Referenced HTML profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.HTMLProfile, policyName, err)
+				errChan <- fmt.Sprintf("Referenced HTML profile %s does not exist on BIGIP for Policy %s (profiles.htmlProfile: %s): %v", pl.Spec.Profiles.HTMLProfile, policyName, pl.Spec.Profiles.HTMLProfile, err)
 				cancel()
 				return
 			}
@@ -998,7 +1027,7 @@ func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandl
 		defer wg.Done()
 		if pl.Spec.Profiles.FTPProfile != "" {
 			if _, err := handler.GetFTPProfile(pl.Spec.Profiles.FTPProfile); err != nil {
-				errChan <- fmt.Sprintf("Referenced FTP profile %s does not exist on BIGIP for Policy %s: %v", pl.Spec.Profiles.FTPProfile, policyName, err)
+				errChan <- fmt.Sprintf("Referenced FTP profile %s does not exist on BIGIP for Policy %s (profiles.ftpProfile: %s): %v", pl.Spec.Profiles.FTPProfile, policyName, pl.Spec.Profiles.FTPProfile, err)
 				cancel()
 				return
 			}

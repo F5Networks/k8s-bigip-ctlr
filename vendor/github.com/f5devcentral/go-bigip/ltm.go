@@ -1798,6 +1798,12 @@ type UdpProfiles struct {
 }
 
 type UdpProfile struct {
+	Kind                  string `json:"kind,omitempty"`
+	Name                  string `json:"name,omitempty"`
+	Partition             string `json:"partition,omitempty"`
+	FullPath              string `json:"fullPath,omitempty"`
+	Generation            int    `json:"generation,omitempty"`
+	SelfLink              string `json:"selfLink,omitempty"`
 	AllowNoPayload        string `json:"allowNoPayload,omitempty"`
 	AppService            string `json:"appService,omitempty"`
 	BufferMaxBytes        int    `json:"bufferMaxBytes,omitempty"`
@@ -1806,16 +1812,121 @@ type UdpProfile struct {
 	DefaultsFrom          string `json:"defaultsFrom,omitempty"`
 	Description           string `json:"description,omitempty"`
 	IdleTimeout           string `json:"idleTimeout,omitempty"`
-	IpDfMode              string `json:"ipDfMode,omitempty"`
-	IpTosToClient         string `json:"ipTosToClient,omitempty"`
-	IpTtlMode             string `json:"ipTtlMode,omitempty"`
-	IpTtlV4               int    `json:"ipTtlV4,omitempty"`
-	IpTtlV6               int    `json:"ipTtlV6,omitempty"`
+	IPDfMode              string `json:"ipDfMode,omitempty"`
+	IPTosToClient         string `json:"ipTosToClient,omitempty"`
+	IPTTLMode             string `json:"ipTtlMode,omitempty"`
+	IPTTLV4               int    `json:"ipTtlV4,omitempty"`
+	IPTTLV6               int    `json:"ipTtlV6,omitempty"`
 	LinkQosToClient       string `json:"linkQosToClient,omitempty"`
-	Name                  string `json:"name,omitempty"`
 	NoChecksum            string `json:"noChecksum,omitempty"`
-	TmPartition           string `json:"tmPartition,omitempty"`
 	ProxyMss              string `json:"proxyMss,omitempty"`
+	SendBufferSize        int    `json:"sendBufferSize,omitempty"`
+	TmPartition           string `json:"tmPartition,omitempty"`
+}
+
+// WebsocketProfiles contains a list of every websocket profile on the BIG-IP system.
+type WebsocketProfiles struct {
+	WebsocketProfiles []WebsocketProfile `json:"items"`
+}
+
+// WebsocketProfile contains information about each websocket profile. You can use all
+// of these fields when modifying a websocket profile.
+type WebsocketProfile struct {
+	Kind                   string `json:"kind,omitempty"`
+	Name                   string `json:"name,omitempty"`
+	Partition              string `json:"partition,omitempty"`
+	FullPath               string `json:"fullPath,omitempty"`
+	Generation             int    `json:"generation,omitempty"`
+	SelfLink               string `json:"selfLink,omitempty"`
+	AppService             string `json:"appService,omitempty"`
+	CompressMode           string `json:"compressMode,omitempty"`
+	Compression            string `json:"compression,omitempty"`
+	DefaultsFrom           string `json:"defaultsFrom,omitempty"`
+	Description            string `json:"description,omitempty"`
+	Masking                string `json:"masking,omitempty"`
+	NoDelay                string `json:"noDelay,omitempty"`
+	PayloadProcessingMode  string `json:"payloadProcessingMode,omitempty"`
+	PayloadProtocolProfile string `json:"payloadProtocolProfile,omitempty"`
+	WindowBits             int    `json:"windowBits,omitempty"`
+}
+
+// HTMLProfiles contains a list of every html profile on the BIG-IP system.
+type HTMLProfiles struct {
+	HTMLProfiles []HTMLProfile `json:"items"`
+}
+
+// HTMLProfile contains information about each html profile. You can use all
+// of these fields when modifying a html profile.
+type HTMLProfile struct {
+	Kind             string   `json:"kind,omitempty"`
+	Name             string   `json:"name,omitempty"`
+	Partition        string   `json:"partition,omitempty"`
+	FullPath         string   `json:"fullPath,omitempty"`
+	Generation       int      `json:"generation,omitempty"`
+	SelfLink         string   `json:"selfLink,omitempty"`
+	AppService       string   `json:"appService,omitempty"`
+	ContentDetection string   `json:"contentDetection,omitempty"`
+	ContentSelection []string `json:"contentSelection,omitempty"`
+	DefaultsFrom     string   `json:"defaultsFrom,omitempty"`
+	Description      string   `json:"description,omitempty"`
+}
+
+// AnalyticsProfiles contains a list of every analytics profile on the BIG-IP system.
+type AnalyticsProfiles struct {
+	AnalyticsProfiles []AnalyticsProfile `json:"items"`
+}
+
+// AnalyticsProfile contains information about each analytics profile. You can use all
+// of these fields when modifying an analytics profile.
+type AnalyticsProfile struct {
+	Kind                           string                    `json:"kind,omitempty"`
+	Name                           string                    `json:"name,omitempty"`
+	Partition                      string                    `json:"partition,omitempty"`
+	FullPath                       string                    `json:"fullPath,omitempty"`
+	Generation                     int                       `json:"generation,omitempty"`
+	SelfLink                       string                    `json:"selfLink,omitempty"`
+	AppService                     string                    `json:"appService,omitempty"`
+	CapturedTrafficExternalLogging string                    `json:"capturedTrafficExternalLogging,omitempty"`
+	CapturedTrafficInternalLogging string                    `json:"capturedTrafficInternalLogging,omitempty"`
+	CollectDestIpGeo               string                    `json:"collectDestIpGeo,omitempty"`
+	CollectGeo                     string                    `json:"collectGeo,omitempty"`
+	CollectHttpTimingMetrics       string                    `json:"collectHttpTimingMetrics,omitempty"`
+	CollectIp                      string                    `json:"collectIp,omitempty"`
+	CollectMaxTpsAndThroughput     string                    `json:"collectMaxTpsAndThroughput,omitempty"`
+	CollectMethods                 string                    `json:"collectMethods,omitempty"`
+	CollectOsAndBrowser            string                    `json:"collectOsAndBrowser,omitempty"`
+	CollectPageLoadTime            string                    `json:"collectPageLoadTime,omitempty"`
+	CollectResponseCodes           string                    `json:"collectResponseCodes,omitempty"`
+	CollectSubnets                 string                    `json:"collectSubnets,omitempty"`
+	CollectUrl                     string                    `json:"collectUrl,omitempty"`
+	CollectUserAgent               string                    `json:"collectUserAgent,omitempty"`
+	CollectUserSessions            string                    `json:"collectUserSessions,omitempty"`
+	CollectedStatsExternalLogging  string                    `json:"collectedStatsExternalLogging,omitempty"`
+	CollectedStatsInternalLogging  string                    `json:"collectedStatsInternalLogging,omitempty"`
+	CountriesForStatCollection     []string                  `json:"countriesForStatCollection,omitempty"`
+	DefaultsFrom                   string                    `json:"defaultsFrom,omitempty"`
+	Description                    string                    `json:"description,omitempty"`
+	ExternalLoggingPublisher       string                    `json:"externalLoggingPublisher,omitempty"`
+	IpsForStatCollection           []string                  `json:"ipsForStatCollection,omitempty"`
+	NotificationByEmail            string                    `json:"notificationByEmail,omitempty"`
+	NotificationBySnmp             string                    `json:"notificationBySnmp,omitempty"`
+	NotificationBySyslog           string                    `json:"notificationBySyslog,omitempty"`
+	NotificationEmailAddresses     []string                  `json:"notificationEmailAddresses,omitempty"`
+	PublishIruleStatistics         string                    `json:"publishIruleStatistics,omitempty"`
+	Sampling                       string                    `json:"sampling,omitempty"`
+	SessionCookieSecurity          string                    `json:"sessionCookieSecurity,omitempty"`
+	SessionTimeoutMinutes          string                    `json:"sessionTimeoutMinutes,omitempty"`
+	SmtpConfig                     string                    `json:"smtpConfig,omitempty"`
+	SubnetsForStatCollection       []string                  `json:"subnetsForStatCollection,omitempty"`
+	UrlsForStatCollection          []string                  `json:"urlsForStatCollection,omitempty"`
+	AlertsReference                AnalyticsProfileReference `json:"alertsReference,omitempty"`
+	TrafficCaptureReference        AnalyticsProfileReference `json:"trafficCaptureReference,omitempty"`
+}
+
+// AnalyticsProfileReference contains reference information for analytics profile sub-collections
+type AnalyticsProfileReference struct {
+	Link            string `json:"link,omitempty"`
+	IsSubcollection bool   `json:"isSubcollection,omitempty"`
 }
 
 type HttpProfiles struct {
@@ -2011,6 +2122,50 @@ type RewriteProfileCookieRules struct {
 	Server RewriteProfileCookieClSrv `json:"server,omitempty"`
 }
 
+// RequestAdaptProfiles contains a list of every request adapt profile on the BIG-IP system.
+type RequestAdaptProfiles struct {
+	RequestAdaptProfiles []RequestAdaptProfile `json:"items"`
+}
+
+// RequestAdaptProfile contains information about each request adapt profile. You can use all
+// of these fields when modifying a request adapt profile.
+type RequestAdaptProfile struct {
+	Name              string `json:"name,omitempty"`
+	Partition         string `json:"partition,omitempty"`
+	FullPath          string `json:"fullPath,omitempty"`
+	Generation        int    `json:"generation,omitempty"`
+	AppService        string `json:"appService,omitempty"`
+	DefaultsFrom      string `json:"defaultsFrom,omitempty"`
+	AllowHttp10       string `json:"allowHttp_10,omitempty"`
+	Enabled           string `json:"enabled,omitempty"`
+	InternalVirtual   string `json:"internalVirtual,omitempty"`
+	PreviewSize       int    `json:"previewSize,omitempty"`
+	ServiceDownAction string `json:"serviceDownAction,omitempty"`
+	Timeout           int    `json:"timeout,omitempty"`
+}
+
+// ResponseAdaptProfiles contains a list of every response adapt profile on the BIG-IP system.
+type ResponseAdaptProfiles struct {
+	ResponseAdaptProfiles []ResponseAdaptProfile `json:"items"`
+}
+
+// ResponseAdaptProfile contains information about each response adapt profile. You can use all
+// of these fields when modifying a response adapt profile.
+type ResponseAdaptProfile struct {
+	Name              string `json:"name,omitempty"`
+	Partition         string `json:"partition,omitempty"`
+	FullPath          string `json:"fullPath,omitempty"`
+	Generation        int    `json:"generation,omitempty"`
+	AppService        string `json:"appService,omitempty"`
+	DefaultsFrom      string `json:"defaultsFrom,omitempty"`
+	AllowHttp10       string `json:"allowHttp_10,omitempty"`
+	Enabled           string `json:"enabled,omitempty"`
+	InternalVirtual   string `json:"internalVirtual,omitempty"`
+	PreviewSize       int    `json:"previewSize,omitempty"`
+	ServiceDownAction string `json:"serviceDownAction,omitempty"`
+	Timeout           int    `json:"timeout,omitempty"`
+}
+
 const (
 	uriLtm             = "ltm"
 	uriNode            = "node"
@@ -2039,6 +2194,7 @@ const (
 	uriRewrite         = "rewrite"
 	uriRewriteRules    = "uri-rules"
 	uriTcp             = "tcp"
+	uriUDP             = "udp"
 	uriFtp             = "ftp"
 	uriFasthttp        = "fasthttp"
 	uriFastl4          = "fastl4"
@@ -2064,6 +2220,11 @@ const (
 	uriBotDefense      = "bot-defense"
 	uriSaas            = "saas"
 	uriSaasBotDefense  = "bd"
+	uriRequestAdapt    = "request-adapt"
+	uriResponseAdapt   = "response-adapt"
+	uriWebsocket       = "websocket"
+	uriHTML            = "html"
+	uriAnalytics       = "analytics"
 )
 
 var cidr = map[string]string{
@@ -4141,6 +4302,90 @@ func (b *BigIP) ModifyHttpCompressionProfile(name string, config *HttpCompressio
 	return b.put(config, uriLtm, uriProfile, uriHttpcompress, name)
 }
 
+// RequestAdaptProfiles returns a list of request adapt profiles
+func (b *BigIP) RequestAdaptProfiles() (*RequestAdaptProfiles, error) {
+	var requestAdaptProfiles RequestAdaptProfiles
+	err, _ := b.getForEntity(&requestAdaptProfiles, uriLtm, uriProfile, uriRequestAdapt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &requestAdaptProfiles, nil
+}
+
+// GetRequestAdaptProfile gets a request adapt profile by name. Returns nil if the request adapt profile does not exist
+func (b *BigIP) GetRequestAdaptProfile(name string) (*RequestAdaptProfile, error) {
+	var requestAdaptProfile RequestAdaptProfile
+	err, ok := b.getForEntity(&requestAdaptProfile, uriLtm, uriProfile, uriRequestAdapt, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &requestAdaptProfile, nil
+}
+
+// AddRequestAdaptProfile creates a new request adapt profile on the BIG-IP system.
+func (b *BigIP) AddRequestAdaptProfile(config *RequestAdaptProfile) error {
+	return b.post(config, uriLtm, uriProfile, uriRequestAdapt)
+}
+
+// DeleteRequestAdaptProfile removes a request adapt profile.
+func (b *BigIP) DeleteRequestAdaptProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriRequestAdapt, name)
+}
+
+// ModifyRequestAdaptProfile allows you to change any attribute of a request adapt profile.
+// Fields that can be modified are referenced in the RequestAdaptProfile struct.
+func (b *BigIP) ModifyRequestAdaptProfile(name string, config *RequestAdaptProfile) error {
+	return b.patch(config, uriLtm, uriProfile, uriRequestAdapt, name)
+}
+
+// ResponseAdaptProfiles returns a list of response adapt profiles
+func (b *BigIP) ResponseAdaptProfiles() (*ResponseAdaptProfiles, error) {
+	var responseAdaptProfiles ResponseAdaptProfiles
+	err, _ := b.getForEntity(&responseAdaptProfiles, uriLtm, uriProfile, uriResponseAdapt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &responseAdaptProfiles, nil
+}
+
+// GetResponseAdaptProfile gets a response adapt profile by name. Returns nil if the response adapt profile does not exist
+func (b *BigIP) GetResponseAdaptProfile(name string) (*ResponseAdaptProfile, error) {
+	var responseAdaptProfile ResponseAdaptProfile
+	err, ok := b.getForEntity(&responseAdaptProfile, uriLtm, uriProfile, uriResponseAdapt, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &responseAdaptProfile, nil
+}
+
+// AddResponseAdaptProfile creates a new response adapt profile on the BIG-IP system.
+func (b *BigIP) AddResponseAdaptProfile(config *ResponseAdaptProfile) error {
+	return b.post(config, uriLtm, uriProfile, uriResponseAdapt)
+}
+
+// DeleteResponseAdaptProfile removes a response adapt profile.
+func (b *BigIP) DeleteResponseAdaptProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriResponseAdapt, name)
+}
+
+// ModifyResponseAdaptProfile allows you to change any attribute of a response adapt profile.
+// Fields that can be modified are referenced in the ResponseAdaptProfile struct.
+func (b *BigIP) ModifyResponseAdaptProfile(name string, config *ResponseAdaptProfile) error {
+	return b.patch(config, uriLtm, uriProfile, uriResponseAdapt, name)
+}
+
 type CipherRuleReq struct {
 	Name                string `json:"name,omitempty"`
 	Partition           string `json:"partition,omitempty"`
@@ -4450,4 +4695,172 @@ func (b *BigIP) GetSaasBotDefenseProfile(name string) (*SaasBotDefenseProfile, e
 		return nil, nil
 	}
 	return &saasBotDefense, nil
+}
+
+// UDPProfiles returns a list of UDP profiles
+func (b *BigIP) UDPProfiles() (*UdpProfiles, error) {
+	var udpProfiles UdpProfiles
+	err, _ := b.getForEntity(&udpProfiles, uriLtm, uriProfile, uriUDP)
+	if err != nil {
+		return nil, err
+	}
+
+	return &udpProfiles, nil
+}
+
+// GetUDPProfile gets a UDP profile by name. Returns nil if the UDP profile does not exist
+func (b *BigIP) GetUDPProfile(name string) (*UdpProfile, error) {
+	var udpProfile UdpProfile
+	err, ok := b.getForEntity(&udpProfile, uriLtm, uriProfile, uriUDP, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &udpProfile, nil
+}
+
+// AddUDPProfile creates a new UDP profile on the BIG-IP system.
+func (b *BigIP) AddUDPProfile(config *UdpProfile) error {
+	return b.post(config, uriLtm, uriProfile, uriUDP)
+}
+
+// DeleteUDPProfile removes a UDP profile.
+func (b *BigIP) DeleteUDPProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriUDP, name)
+}
+
+// ModifyUDPProfile allows you to change any attribute of a UDP profile.
+// Fields that can be modified are referenced in the UdpProfile struct.
+func (b *BigIP) ModifyUDPProfile(name string, config *UdpProfile) error {
+	return b.patch(config, uriLtm, uriProfile, uriUDP, name)
+}
+
+// WebsocketProfiles returns a list of websocket profiles.
+func (b *BigIP) WebsocketProfiles() (*WebsocketProfiles, error) {
+	var websocketProfiles WebsocketProfiles
+	err, _ := b.getForEntity(&websocketProfiles, uriLtm, uriProfile, uriWebsocket)
+	if err != nil {
+		return nil, err
+	}
+
+	return &websocketProfiles, nil
+}
+
+// GetWebsocketProfile gets a websocket profile by name. Returns nil if the websocket profile does not exist
+func (b *BigIP) GetWebsocketProfile(name string) (*WebsocketProfile, error) {
+	var websocketProfile WebsocketProfile
+	err, ok := b.getForEntity(&websocketProfile, uriLtm, uriProfile, uriWebsocket, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &websocketProfile, nil
+}
+
+// AddWebsocketProfile creates a new websocket profile on the BIG-IP system.
+func (b *BigIP) AddWebsocketProfile(config *WebsocketProfile) error {
+	return b.post(config, uriLtm, uriProfile, uriWebsocket)
+}
+
+// DeleteWebsocketProfile removes a websocket profile.
+func (b *BigIP) DeleteWebsocketProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriWebsocket, name)
+}
+
+// ModifyWebsocketProfile allows you to change any attribute of a websocket profile.
+// Fields that can be modified are referenced in the WebsocketProfile struct.
+func (b *BigIP) ModifyWebsocketProfile(name string, config *WebsocketProfile) error {
+	return b.patch(config, uriLtm, uriProfile, uriWebsocket, name)
+}
+
+// HTMLProfiles returns a list of html profiles.
+func (b *BigIP) HTMLProfiles() (*HTMLProfiles, error) {
+	var htmlProfiles HTMLProfiles
+	err, _ := b.getForEntity(&htmlProfiles, uriLtm, uriProfile, uriHTML)
+	if err != nil {
+		return nil, err
+	}
+
+	return &htmlProfiles, nil
+}
+
+// GetHTMLProfile gets a html profile by name. Returns nil if the html profile does not exist
+func (b *BigIP) GetHTMLProfile(name string) (*HTMLProfile, error) {
+	var htmlProfile HTMLProfile
+	err, ok := b.getForEntity(&htmlProfile, uriLtm, uriProfile, uriHTML, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &htmlProfile, nil
+}
+
+// AddHTMLProfile creates a new html profile on the BIG-IP system.
+func (b *BigIP) AddHTMLProfile(config *HTMLProfile) error {
+	return b.post(config, uriLtm, uriProfile, uriHTML)
+}
+
+// DeleteHTMLProfile removes a html profile.
+func (b *BigIP) DeleteHTMLProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriHTML, name)
+}
+
+// ModifyHTMLProfile allows you to change any attribute of a html profile.
+// Fields that can be modified are referenced in the HTMLProfile struct.
+func (b *BigIP) ModifyHTMLProfile(name string, config *HTMLProfile) error {
+	return b.patch(config, uriLtm, uriProfile, uriHTML, name)
+}
+
+// AnalyticsProfiles returns a list of analytics profiles.
+func (b *BigIP) AnalyticsProfiles() (*AnalyticsProfiles, error) {
+	var analyticsProfiles AnalyticsProfiles
+	err, _ := b.getForEntity(&analyticsProfiles, uriLtm, uriProfile, uriAnalytics)
+	if err != nil {
+		return nil, err
+	}
+
+	return &analyticsProfiles, nil
+}
+
+// GetAnalyticsProfile gets an analytics profile by name. Returns nil if the analytics profile does not exist
+func (b *BigIP) GetAnalyticsProfile(name string) (*AnalyticsProfile, error) {
+	var analyticsProfile AnalyticsProfile
+	err, ok := b.getForEntity(&analyticsProfile, uriLtm, uriProfile, uriAnalytics, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &analyticsProfile, nil
+}
+
+// AddAnalyticsProfile creates a new analytics profile on the BIG-IP system.
+func (b *BigIP) AddAnalyticsProfile(config *AnalyticsProfile) error {
+	return b.post(config, uriLtm, uriProfile, uriAnalytics)
+}
+
+// DeleteAnalyticsProfile removes an analytics profile.
+func (b *BigIP) DeleteAnalyticsProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriAnalytics, name)
+}
+
+// ModifyAnalyticsProfile allows you to change any attribute of an analytics profile.
+// Fields that can be modified are referenced in the AnalyticsProfile struct.
+func (b *BigIP) ModifyAnalyticsProfile(name string, config *AnalyticsProfile) error {
+	return b.patch(config, uriLtm, uriProfile, uriAnalytics, name)
 }

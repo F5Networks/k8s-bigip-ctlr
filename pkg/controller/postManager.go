@@ -18,10 +18,9 @@ package controller
 
 import (
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/httpclient"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	"io"
 	"net/http"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -65,56 +63,44 @@ func NewPostManager(params AgentParams, kind string, respChan chan *agentPostCon
 		pm.postManagerPrefix = secondaryPostmanagerPrefix
 	}
 	pm.setupBIGIPRESTClient()
-	pm.TokenManagerInterface = tokenmanager.NewTokenManager(
-		pm.BIGIPURL,
-		tokenmanager.Credentials{
-			Username:          pm.BIGIPUsername,
-			Password:          pm.BIGIPPassword,
-			LoginProviderName: loginProviderName,
-		}, pm.httpClient)
+
+	// Use shared token manager instead of creating a new instance
+	sharedTM := tokenmanager.GetSharedTokenManager()
+	pm.TokenManagerInterface = sharedTM.GetOrCreateTokenManager(
+		extractHostFromURL(pm.BIGIPURL),
+		pm.BIGIPUsername,
+		pm.BIGIPPassword,
+		pm.httpClient,
+	)
 	return pm
 }
 
 func (postMgr *PostManager) setupBIGIPRESTClient() {
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
-	// TODO: Make sure appMgr sets certificates in bigipInfo
-	certs := []byte(postMgr.TrustedCerts)
-
-	// Append our certs to the system pool
-	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-		log.Debugf("[%s]%v No certs appended, using only system certs", postMgr.apiType, postMgr.postManagerPrefix)
+	// Create HTTP client configuration
+	clientConfig := httpclient.ClientConfig{
+		TrustedCerts:  postMgr.TrustedCerts,
+		SSLInsecure:   postMgr.SSLInsecure,
+		Timeout:       timeoutLarge,
+		EnableMetrics: postMgr.HTTPClientMetrics,
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: postMgr.SSLInsecure,
-			RootCAs:            rootCAs,
-		},
-	}
-
+	// Add metrics configuration if enabled
 	if postMgr.HTTPClientMetrics {
+		clientConfig.MetricsConfig = &httpclient.MetricsConfig{
+			InFlightGauge:   prometheus.ClientInFlightGauge,
+			RequestsCounter: prometheus.ClientAPIRequestsCounter,
+			Trace:           prometheus.ClientTrace,
+			HistogramVec:    prometheus.ClientHistVec,
+		}
 		log.Debug("[BIGIP] Http client instrumented with metrics!")
-		instrumentedRoundTripper := promhttp.InstrumentRoundTripperInFlight(prometheus.ClientInFlightGauge,
-			promhttp.InstrumentRoundTripperCounter(prometheus.ClientAPIRequestsCounter,
-				promhttp.InstrumentRoundTripperTrace(prometheus.ClientTrace,
-					promhttp.InstrumentRoundTripperDuration(prometheus.ClientHistVec, tr),
-				),
-			),
-		)
-		postMgr.httpClient = &http.Client{
-			Transport: instrumentedRoundTripper,
-			Timeout:   timeoutLarge,
-		}
-	} else {
-		postMgr.httpClient = &http.Client{
-			Transport: tr,
-			Timeout:   timeoutLarge,
-		}
 	}
+
+	// Generate a unique key for this configuration including SSL settings
+	clientKey := fmt.Sprintf("postmgr-%s-%s-ssl-%t-metrics-%t", postMgr.apiType, postMgr.postManagerPrefix, postMgr.SSLInsecure, postMgr.HTTPClientMetrics)
+
+	// Get HTTP client from factory
+	factory := httpclient.GetFactory()
+	postMgr.httpClient = factory.GetOrCreateClient(clientKey, clientConfig)
 }
 
 func (postMgr *PostManager) postConfig(cfg *agentPostConfig) (*http.Response, map[string]interface{}) {
@@ -263,4 +249,24 @@ func updateTenantDeletion(tenant string, declaration map[string]interface{}) boo
 		return true
 	}
 	return false
+}
+
+// extractHostFromURL extracts the hostname from a URL string
+func extractHostFromURL(url string) string {
+	// Remove protocol prefix if present
+	if strings.HasPrefix(url, "https://") {
+		url = strings.TrimPrefix(url, "https://")
+	} else if strings.HasPrefix(url, "http://") {
+		url = strings.TrimPrefix(url, "http://")
+	}
+
+	// Extract just the hostname (remove port and path)
+	if idx := strings.Index(url, ":"); idx != -1 {
+		url = url[:idx]
+	}
+	if idx := strings.Index(url, "/"); idx != -1 {
+		url = url[:idx]
+	}
+
+	return url
 }

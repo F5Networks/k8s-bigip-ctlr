@@ -51,6 +51,11 @@ type BigIPClient interface {
 	GetUniversalPersistenceProfile(name string) (*bigip.UniversalPersistenceProfile, error)
 	GetSSLPersistenceProfile(name string) (*bigip.SSLPersistenceProfile, error)
 	GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error)
+	// DataGroup methods for leader election
+	GetInternalDataGroup(name string) (*bigip.DataGroup, error)
+	AddInternalDataGroup(config *bigip.DataGroup) error
+	ModifyInternalDataGroupRecords(config *bigip.DataGroup) error
+	DeleteInternalDataGroup(name string) error
 }
 
 func CreateSession(host, token, userAgent, trustedCerts string, insecure, teem bool) *bigip.BigIP {
@@ -122,7 +127,7 @@ type BigIPHandlerInterface interface {
 	GetHTTPCompressionProfile(name string) (any, error)
 	// Add more methods as needed for other BIG-IP resources
 	// DataGroup methods for leader election
-	GetInternalDataGroup(name string) (*bigip.DataGroup, error)
+	GetInternalDataGroup(name string) (any, error)
 	CreateInternalDataGroup(config *bigip.DataGroup) error
 	ModifyInternalDataGroupRecords(config *bigip.DataGroup) error
 	DeleteInternalDataGroup(name string) error
@@ -534,23 +539,27 @@ func (handler *BigIPHandler) GetHTTPCompressionProfile(name string) (any, error)
 	return profile, nil
 }
 
-// TODO: Implement DataGroup methods for leader election
+// DataGroup methods for leader election - implemented using go-bigip package
 func (handler *BigIPHandler) GetInternalDataGroup(name string) (any, error) {
-	// Get the Data Group by name
-	return struct{}{}, nil
+	// Get the Data Group by name using go-bigip package
+	dataGroup, err := handler.Bigip.GetInternalDataGroup(name)
+	if err != nil {
+		return nil, err
+	}
+	return dataGroup, nil
 }
 
 func (handler *BigIPHandler) CreateInternalDataGroup(config *bigip.DataGroup) error {
-	// Create a new Data Group
-	return nil
+	// Create a new Data Group using go-bigip package
+	return handler.Bigip.AddInternalDataGroup(config)
 }
 
 func (handler *BigIPHandler) ModifyInternalDataGroupRecords(config *bigip.DataGroup) error {
-	// Modify records in an existing Data Group
-	return nil
+	// Modify records in an existing Data Group using go-bigip package
+	return handler.Bigip.ModifyInternalDataGroupRecords(config)
 }
 
 func (handler *BigIPHandler) DeleteInternalDataGroup(name string) error {
-	// Delete a Data Group by name
-	return nil
+	// Delete a Data Group by name using go-bigip package
+	return handler.Bigip.DeleteInternalDataGroup(name)
 }

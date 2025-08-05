@@ -2,74 +2,75 @@
 package leaderelection
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/bigiphandler"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/httpclient"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/f5devcentral/go-bigip"
 )
 
 const (
-	dataGroupName     = "leader_election"
-	heartbeatInterval = 10 * time.Second
-	heartbeatTimeout  = 50 * time.Second
-	leaderRecordName  = "leader"
+	leaderRecordName = "leader"
 )
 
 // LeaderElectorConfig holds the configuration for LeaderElector
 type LeaderElectorConfig struct {
-	CandidateID  string
-	BigipHost    string
-	Username     string
-	Password     string
-	TrustedCerts string
-	SslInsecure  bool
-	UserAgent    string
-	Teem         bool
+	CandidateID       string
+	DataGroupName     string
+	HeartbeatTimeout  time.Duration
+	HeartbeatInterval time.Duration
+	BigipHost         string
+	Username          string
+	Password          string
+	TrustedCerts      string
+	SslInsecure       bool
+	UserAgent         string
+	Teem              bool
 }
 
 // LeaderElector implements leader election using BIG-IP datagroups with secure token-based authentication
 type LeaderElector struct {
-	config       LeaderElectorConfig
-	tokenManager tokenmanager.TokenManagerInterface
-	bigipHandler *bigiphandler.BigIPHandler
-	stopCh       chan struct{}
-	mu           sync.Mutex
-	isLeader     bool
-	httpClient   *http.Client
+	config             LeaderElectorConfig
+	tokenManager       tokenmanager.TokenManagerInterface
+	bigipHandler       *bigiphandler.BigIPHandler
+	stopCh             chan struct{}
+	mu                 sync.Mutex
+	isLeader           bool
+	httpClient         *http.Client
+	stopped            bool
+	leadershipCallback func(isLeader bool)
 }
 
-// NewLeaderElector creates a new LeaderElector instance with tokenmanager and bigiphandler integration
+// NewLeaderElector creates a new LeaderElector instance with shared tokenmanager and bigiphandler integration
 func NewLeaderElector(config LeaderElectorConfig) (*LeaderElector, error) {
-	// Create HTTP client with TLS configuration
-	httpClient := createHTTPClient(config.TrustedCerts, config.SslInsecure)
-
-	// Create tokenmanager credentials
-	credentials := tokenmanager.Credentials{
-		Username:          config.Username,
-		Password:          config.Password,
-		LoginProviderName: "tmos",
+	// Create HTTP client configuration
+	clientConfig := httpclient.ClientConfig{
+		TrustedCerts: config.TrustedCerts,
+		SSLInsecure:  config.SslInsecure,
+		Timeout:      30 * time.Second,
 	}
 
-	// Initialize tokenmanager
-	tm := tokenmanager.NewTokenManager(
-		fmt.Sprintf("https://%s", config.BigipHost),
-		credentials,
+	// Get HTTP client from factory
+	factory := httpclient.GetFactory()
+	clientKey := fmt.Sprintf("leaderelection-%s", config.BigipHost)
+	httpClient := factory.GetOrCreateClient(clientKey, clientConfig)
+
+	// Use shared token manager instead of creating a new instance
+	sharedTM := tokenmanager.GetSharedTokenManager()
+	tm := sharedTM.GetOrCreateTokenManager(
+		config.BigipHost,
+		config.Username,
+		config.Password,
 		httpClient,
 	)
 
-	// Initialize token synchronously to ensure we have a valid token
-	if err := tm.SyncToken(); err != nil {
-		return nil, fmt.Errorf("failed to initialize token: %v", err)
-	}
-
-	// Create BIG-IP session using tokenmanager
+	// Create BIG-IP session using shared tokenmanager
 	bigipSession := bigiphandler.CreateSession(
 		config.BigipHost,
 		tm.GetToken(),
@@ -95,8 +96,8 @@ func NewLeaderElector(config LeaderElectorConfig) (*LeaderElector, error) {
 
 // Start begins the leader election process
 func (le *LeaderElector) Start() {
-	// Start token manager to maintain valid tokens
-	go le.tokenManager.Start(le.stopCh, 15*time.Minute)
+	// Token manager lifecycle is handled automatically by the shared token manager
+	// No need to manually start token refresh - it's handled when GetToken() is called
 
 	// Start leader election processes
 	go le.monitorLeader()
@@ -107,7 +108,14 @@ func (le *LeaderElector) Start() {
 
 // Stop stops the leader election process
 func (le *LeaderElector) Stop() {
+	le.mu.Lock()
+	defer le.mu.Unlock()
+
+	if le.stopped {
+		return
+	}
 	close(le.stopCh)
+	le.stopped = true
 	log.Infof("[Leader Election] Stopped leader election for candidate %s", le.config.CandidateID)
 }
 
@@ -118,9 +126,21 @@ func (le *LeaderElector) IsLeader() bool {
 	return le.isLeader
 }
 
+// GetCandidateID returns the candidate ID for this leader elector instance
+func (le *LeaderElector) GetCandidateID() string {
+	return le.config.CandidateID
+}
+
+// SetLeadershipCallback sets the callback function to be called when becoming leader
+func (le *LeaderElector) SetLeadershipCallback(callback func(isLeader bool)) {
+	le.mu.Lock()
+	defer le.mu.Unlock()
+	le.leadershipCallback = callback
+}
+
 // heartbeatLoop sends periodic heartbeats when this instance is the leader
 func (le *LeaderElector) heartbeatLoop() {
-	ticker := time.NewTicker(heartbeatInterval)
+	ticker := time.NewTicker(le.config.HeartbeatInterval)
 	defer ticker.Stop()
 
 	for {
@@ -153,15 +173,17 @@ func (le *LeaderElector) monitorLeader() {
 		currentLeader, modTime, err := le.readLeader()
 		if err != nil {
 			log.Debugf("[Leader Election] Error reading leader data: %v", err)
-			time.Sleep(heartbeatInterval)
+			time.Sleep(le.config.HeartbeatInterval)
 			continue
 		}
 
 		now := time.Now()
 		le.mu.Lock()
 
+		previousLeaderStatus := le.isLeader
+
 		// Check if current leader's heartbeat has expired
-		if modTime.IsZero() || now.Sub(modTime) > heartbeatTimeout {
+		if modTime.IsZero() || now.Sub(modTime) > le.config.HeartbeatTimeout {
 			if !le.isLeader {
 				log.Infof("[Leader Election] No active leader found. Candidate %s becoming leader", le.config.CandidateID)
 				le.isLeader = true
@@ -180,8 +202,17 @@ func (le *LeaderElector) monitorLeader() {
 			}
 		}
 
+		// Trigger callback only when becoming leader (not when stepping down)
+		if !previousLeaderStatus && le.isLeader && le.leadershipCallback != nil {
+			// Call callback without holding the lock to avoid deadlocks
+			callback := le.leadershipCallback
+			le.mu.Unlock()
+			callback(true)
+			le.mu.Lock()
+		}
+
 		le.mu.Unlock()
-		time.Sleep(heartbeatInterval)
+		time.Sleep(le.config.HeartbeatInterval)
 	}
 }
 
@@ -200,8 +231,17 @@ func (le *LeaderElector) readLeader() (string, time.Time, error) {
 	// Update BIG-IP session token before making API calls
 	le.updateBigIPToken()
 
-	data, err := le.getDataGroupValue(dataGroupName)
+	data, err := le.getDataGroupValue(le.config.DataGroupName)
 	if err != nil {
+		// Check if this is a "no data group" or "empty data group" scenario
+		errorStr := strings.ToLower(err.Error())
+		if strings.Contains(errorStr, "404") ||
+			strings.Contains(errorStr, "not found") ||
+			strings.Contains(errorStr, "is empty") {
+			// Return zero time to indicate no current leader - this will trigger election
+			return "", time.Time{}, nil
+		}
+		// For other errors (network, auth, etc.), return the error
 		return "", time.Time{}, err
 	}
 
@@ -209,7 +249,9 @@ func (le *LeaderElector) readLeader() (string, time.Time, error) {
 	var timestamp int64
 	_, err = fmt.Sscanf(data, "%s %d", &leader, &timestamp)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to parse leader data: %v", err)
+		// If we can't parse the data, treat it as no current leader
+		log.Warningf("Warning: Could not parse leader data '%s': %v", data, err)
+		return "", time.Time{}, nil
 	}
 
 	return leader, time.Unix(timestamp, 0), nil
@@ -224,12 +266,12 @@ func (le *LeaderElector) updateBigIPToken() {
 
 // getDataGroupValue retrieves a value from the leader election datagroup
 func (le *LeaderElector) getDataGroupValue(name string) (string, error) {
-	bigipClient, ok := le.bigipHandler.Bigip.(*bigip.BigIP)
-	if !ok {
-		return "", fmt.Errorf("invalid bigip client type")
-	}
+	var datagroup interface{}
+	var err error
 
-	datagroup, err := bigipClient.GetInternalDataGroup(name)
+	datagroup, err = le.bigipHandler.GetInternalDataGroup(name)
+
+	// If API call returned an error, return it
 	if err != nil {
 		return "", fmt.Errorf("failed to get datagroup %s: %v", name, err)
 	}
@@ -238,12 +280,18 @@ func (le *LeaderElector) getDataGroupValue(name string) (string, error) {
 		return "", fmt.Errorf("datagroup %s not found", name)
 	}
 
-	if len(datagroup.Records) == 0 {
+	// Type assert to get the actual datagroup structure
+	dg, ok := datagroup.(*bigip.DataGroup)
+	if !ok {
+		return "", fmt.Errorf("unexpected datagroup type for %s", name)
+	}
+
+	if len(dg.Records) == 0 {
 		return "", fmt.Errorf("datagroup %s is empty", name)
 	}
 
 	// Find the leader record
-	for _, record := range datagroup.Records {
+	for _, record := range dg.Records {
 		if record.Name == leaderRecordName {
 			return record.Data, nil
 		}
@@ -254,14 +302,9 @@ func (le *LeaderElector) getDataGroupValue(name string) (string, error) {
 
 // updateDataGroupValue updates the leader election datagroup with new content
 func (le *LeaderElector) updateDataGroupValue(content string) error {
-	bigipClient, ok := le.bigipHandler.Bigip.(*bigip.BigIP)
-	if !ok {
-		return fmt.Errorf("invalid bigip client type")
-	}
-
 	// Create the datagroup structure
 	datagroup := &bigip.DataGroup{
-		Name: dataGroupName,
+		Name: le.config.DataGroupName,
 		Type: "string",
 		Records: []bigip.DataGroupRecord{
 			{
@@ -271,51 +314,15 @@ func (le *LeaderElector) updateDataGroupValue(content string) error {
 		},
 	}
 
+	var existing interface{}
+	var getErr error
+	existing, getErr = le.bigipHandler.GetInternalDataGroup(le.config.DataGroupName)
 	// Check if datagroup exists
-	existing, err := bigipClient.GetInternalDataGroup(dataGroupName)
-	if err != nil || existing == nil {
-		// Create new datagroup - using AddInternalDataGroup instead of CreateInternalDataGroup
-		if err := bigipClient.AddInternalDataGroup(datagroup); err != nil {
-			return fmt.Errorf("failed to create datagroup %s: %v", dataGroupName, err)
-		}
-		log.Debugf("[Leader Election] Created datagroup %s", dataGroupName)
+	if getErr != nil || existing == nil {
+		log.Debugf("[Leader Election] Creating datagroup %s", le.config.DataGroupName)
+		return le.bigipHandler.CreateInternalDataGroup(datagroup)
 	} else {
-		// Update existing datagroup
-		/*if err := bigipClient.ModifyInternalDataGroup(dataGroupName, datagroup); err != nil {
-			return fmt.Errorf("failed to update datagroup %s: %v", dataGroupName, err)
-		}*/
-		log.Debugf("[Leader Election] Updated datagroup %s", dataGroupName)
-	}
-
-	log.Debugf("[Leader Election] Leader %s wrote heartbeat", le.config.CandidateID)
-	return nil
-}
-
-// createHTTPClient creates an HTTP client with proper TLS configuration
-func createHTTPClient(trustedCerts string, insecure bool) *http.Client {
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
-
-	// Append trusted certificates to the system pool
-	if trustedCerts != "" {
-		certs := []byte(trustedCerts)
-		if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-			log.Debugf("[Leader Election] No certs appended, using only system certs")
-		}
-	}
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: insecure,
-			RootCAs:            rootCAs,
-		},
-	}
-
-	return &http.Client{
-		Transport: tr,
-		Timeout:   30 * time.Second,
+		log.Debugf("[Leader Election] Updating datagroup %s", le.config.DataGroupName)
+		return le.bigipHandler.ModifyInternalDataGroupRecords(datagroup)
 	}
 }

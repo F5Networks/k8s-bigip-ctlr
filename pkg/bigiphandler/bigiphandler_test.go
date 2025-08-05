@@ -14,410 +14,344 @@ func TestBigiphandler(t *testing.T) {
 	RunSpecs(t, "BigIPHandler Suite")
 }
 
-// MockBigIPClient implements BigIPClient interface for testing
-type MockBigIPClient struct {
+// BaseMockBigIPClient provides common mock functionality that can be embedded
+type BaseMockBigIPClient struct {
 	shouldError bool
 	errorMsg    string
 }
 
-func NewMockBigIPClient(shouldError bool, errorMsg string) *MockBigIPClient {
-	return &MockBigIPClient{
+// NewBaseMockBigIPClient creates a new base mock client
+func NewBaseMockBigIPClient(shouldError bool, errorMsg string) *BaseMockBigIPClient {
+	return &BaseMockBigIPClient{
 		shouldError: shouldError,
 		errorMsg:    errorMsg,
 	}
 }
 
-// Mock methods implementing BigIPClient interface
-func (m *MockBigIPClient) IRule(name string) (*bigip.IRule, error) {
+// Common mock methods implementing BigIPClient interface
+func (m *BaseMockBigIPClient) IRule(name string) (*bigip.IRule, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.IRule{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetClientSSLProfile(name string) (*bigip.ClientSSLProfile, error) {
+func (m *BaseMockBigIPClient) GetClientSSLProfile(name string) (*bigip.ClientSSLProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.ClientSSLProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetServerSSLProfile(name string) (*bigip.ServerSSLProfile, error) {
+func (m *BaseMockBigIPClient) GetServerSSLProfile(name string) (*bigip.ServerSSLProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.ServerSSLProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetWafPolicy(name string) (*bigip.WafPolicy, error) {
+func (m *BaseMockBigIPClient) GetWafPolicy(name string) (*bigip.WafPolicy, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.WafPolicy{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetBotDefenseProfile(name string) (*bigip.BotDefenseProfile, error) {
+func (m *BaseMockBigIPClient) GetBotDefenseProfile(name string) (*bigip.BotDefenseProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.BotDefenseProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) Vlan(name string) (*bigip.Vlan, error) {
+func (m *BaseMockBigIPClient) Vlan(name string) (*bigip.Vlan, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Vlan{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetSnat(name string) (*bigip.Snat, error) {
+func (m *BaseMockBigIPClient) GetSnat(name string) (*bigip.Snat, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Snat{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetPool(name string) (*bigip.Pool, error) {
+func (m *BaseMockBigIPClient) GetPool(name string) (*bigip.Pool, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Pool{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetTcp(name string) (*bigip.Tcp, error) {
+func (m *BaseMockBigIPClient) GetTcp(name string) (*bigip.Tcp, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Tcp{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetHttp2(name string) (*bigip.Http2, error) {
+func (m *BaseMockBigIPClient) GetHttp2(name string) (*bigip.Http2, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Http2{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetHttpProfile(name string) (*bigip.HttpProfile, error) {
+func (m *BaseMockBigIPClient) GetHttpProfile(name string) (*bigip.HttpProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.HttpProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetRewriteProfile(name string) (*bigip.RewriteProfile, error) {
+func (m *BaseMockBigIPClient) GetRewriteProfile(name string) (*bigip.RewriteProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.RewriteProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetFastl4(name string) (*bigip.Fastl4, error) {
+func (m *BaseMockBigIPClient) GetFastl4(name string) (*bigip.Fastl4, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Fastl4{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetFtp(name string) (*bigip.Ftp, error) {
+func (m *BaseMockBigIPClient) GetFtp(name string) (*bigip.Ftp, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Ftp{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetHttpCompressionProfile(name string) (*bigip.HttpCompressionProfile, error) {
+func (m *BaseMockBigIPClient) GetHttpCompressionProfile(name string) (*bigip.HttpCompressionProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.HttpCompressionProfile{Name: name}, nil
 }
 
-// Additional mock methods for missing interface implementations
-func (m *MockBigIPClient) GetAccessProfile(name string) (*bigip.AccessProfile, error) {
+func (m *BaseMockBigIPClient) GetAccessProfile(name string) (*bigip.AccessProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
-	// Return a generic AccessProfile struct for testing
 	return &bigip.AccessProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetOneconnect(name string) (*bigip.Oneconnect, error) {
+func (m *BaseMockBigIPClient) GetOneconnect(name string) (*bigip.Oneconnect, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.Oneconnect{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetAccessPolicy(name string) (*bigip.AccessPolicy, error) {
+func (m *BaseMockBigIPClient) GetAccessPolicy(name string) (*bigip.AccessPolicy, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.AccessPolicy{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetRequestAdaptProfile(name string) (*bigip.RequestAdaptProfile, error) {
+func (m *BaseMockBigIPClient) GetRequestAdaptProfile(name string) (*bigip.RequestAdaptProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.RequestAdaptProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetResponseAdaptProfile(name string) (*bigip.ResponseAdaptProfile, error) {
+func (m *BaseMockBigIPClient) GetResponseAdaptProfile(name string) (*bigip.ResponseAdaptProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.ResponseAdaptProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetDOSProfile(name string) (*bigip.DOSProfile, error) {
+func (m *BaseMockBigIPClient) GetDOSProfile(name string) (*bigip.DOSProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.DOSProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetFirewallPolicy(name string) (*bigip.FirewallPolicy, error) {
+func (m *BaseMockBigIPClient) GetFirewallPolicy(name string) (*bigip.FirewallPolicy, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.FirewallPolicy{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetIPIntelligencePolicy(name string) (*bigip.IPIntelligencePolicy, error) {
+func (m *BaseMockBigIPClient) GetIPIntelligencePolicy(name string) (*bigip.IPIntelligencePolicy, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.IPIntelligencePolicy{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetUDPProfile(name string) (*bigip.UdpProfile, error) {
+func (m *BaseMockBigIPClient) GetUDPProfile(name string) (*bigip.UdpProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.UdpProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetSecurityLogProfile(name string) (*bigip.SecurityLogProfile, error) {
+func (m *BaseMockBigIPClient) GetSecurityLogProfile(name string) (*bigip.SecurityLogProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.SecurityLogProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetWebsocketProfile(name string) (*bigip.WebsocketProfile, error) {
+func (m *BaseMockBigIPClient) GetWebsocketProfile(name string) (*bigip.WebsocketProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.WebsocketProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetHTMLProfile(name string) (*bigip.HTMLProfile, error) {
+func (m *BaseMockBigIPClient) GetHTMLProfile(name string) (*bigip.HTMLProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.HTMLProfile{Name: name}, nil
 }
 
-func (m *MockBigIPClient) GetCookiePersistenceProfile(name string) (*bigip.CookiePersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.CookiePersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetDestAddrPersistenceProfile(name string) (*bigip.DestAddrPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.DestAddrPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetHashPersistenceProfile(name string) (*bigip.HashPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.HashPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetHostPersistenceProfile(name string) (*bigip.HostPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.HostPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetMSRDPPersistenceProfile(name string) (*bigip.MSRDPPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.MSRDPPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetSIPPersistenceProfile(name string) (*bigip.SIPPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.SIPPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetSourceAddrPersistenceProfile(name string) (*bigip.SourceAddrPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.SourceAddrPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetUniversalPersistenceProfile(name string) (*bigip.UniversalPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.UniversalPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetSSLPersistenceProfile(name string) (*bigip.SSLPersistenceProfile, error) {
-	if m.shouldError {
-		return nil, errors.New(m.errorMsg)
-	}
-	return &bigip.SSLPersistenceProfile{}, nil
-}
-
-func (m *MockBigIPClient) GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error) {
+func (m *BaseMockBigIPClient) GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 	return &bigip.AnalyticsProfile{}, nil
 }
 
-// MockBigIPClientForPersistence is a specialized mock for testing persistence profile logic
+// Default persistence profile methods - return generic success responses
+func (m *BaseMockBigIPClient) GetCookiePersistenceProfile(name string) (*bigip.CookiePersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.CookiePersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetDestAddrPersistenceProfile(name string) (*bigip.DestAddrPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.DestAddrPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetHashPersistenceProfile(name string) (*bigip.HashPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.HashPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetHostPersistenceProfile(name string) (*bigip.HostPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.HostPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetMSRDPPersistenceProfile(name string) (*bigip.MSRDPPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.MSRDPPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetSIPPersistenceProfile(name string) (*bigip.SIPPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.SIPPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetSourceAddrPersistenceProfile(name string) (*bigip.SourceAddrPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.SourceAddrPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetUniversalPersistenceProfile(name string) (*bigip.UniversalPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.UniversalPersistenceProfile{}, nil
+}
+
+func (m *BaseMockBigIPClient) GetSSLPersistenceProfile(name string) (*bigip.SSLPersistenceProfile, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.SSLPersistenceProfile{}, nil
+}
+
+// DataGroup methods for leader election
+func (m *BaseMockBigIPClient) GetInternalDataGroup(name string) (*bigip.DataGroup, error) {
+	if m.shouldError {
+		return nil, errors.New(m.errorMsg)
+	}
+	return &bigip.DataGroup{
+		Name: name,
+		Type: "string",
+		Records: []bigip.DataGroupRecord{
+			{
+				Name: "leader",
+				Data: "test-candidate 1692547200",
+			},
+		},
+	}, nil
+}
+
+func (m *BaseMockBigIPClient) AddInternalDataGroup(config *bigip.DataGroup) error {
+	if m.shouldError {
+		return errors.New(m.errorMsg)
+	}
+	return nil
+}
+
+func (m *BaseMockBigIPClient) ModifyInternalDataGroupRecords(config *bigip.DataGroup) error {
+	if m.shouldError {
+		return errors.New(m.errorMsg)
+	}
+	return nil
+}
+
+func (m *BaseMockBigIPClient) DeleteInternalDataGroup(name string) error {
+	if m.shouldError {
+		return errors.New(m.errorMsg)
+	}
+	return nil
+}
+
+// MockBigIPClient embeds BaseMockBigIPClient for standard testing
+type MockBigIPClient struct {
+	*BaseMockBigIPClient
+}
+
+func NewMockBigIPClient(shouldError bool, errorMsg string) *MockBigIPClient {
+	return &MockBigIPClient{
+		BaseMockBigIPClient: NewBaseMockBigIPClient(shouldError, errorMsg),
+	}
+}
+
+// MockBigIPClientForPersistence specializes the base client for persistence profile testing
 type MockBigIPClientForPersistence struct {
+	*BaseMockBigIPClient
 	successfulProfile string // which profile type should succeed
-	shouldError       bool
-	errorMsg          string
 }
 
 func NewMockBigIPClientForPersistence(successfulProfile string, shouldError bool, errorMsg string) *MockBigIPClientForPersistence {
 	return &MockBigIPClientForPersistence{
-		successfulProfile: successfulProfile,
-		shouldError:       shouldError,
-		errorMsg:          errorMsg,
+		BaseMockBigIPClient: NewBaseMockBigIPClient(shouldError, errorMsg),
+		successfulProfile:   successfulProfile,
 	}
 }
 
-// Implement all required methods for the persistence mock
-func (m *MockBigIPClientForPersistence) IRule(name string) (*bigip.IRule, error) {
-	return &bigip.IRule{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetClientSSLProfile(name string) (*bigip.ClientSSLProfile, error) {
-	return &bigip.ClientSSLProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetServerSSLProfile(name string) (*bigip.ServerSSLProfile, error) {
-	return &bigip.ServerSSLProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetWafPolicy(name string) (*bigip.WafPolicy, error) {
-	return &bigip.WafPolicy{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetBotDefenseProfile(name string) (*bigip.BotDefenseProfile, error) {
-	return &bigip.BotDefenseProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) Vlan(name string) (*bigip.Vlan, error) {
-	return &bigip.Vlan{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetSnat(name string) (*bigip.Snat, error) {
-	return &bigip.Snat{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetPool(name string) (*bigip.Pool, error) {
-	return &bigip.Pool{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetTcp(name string) (*bigip.Tcp, error) {
-	return &bigip.Tcp{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetHttp2(name string) (*bigip.Http2, error) {
-	return &bigip.Http2{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetHttpProfile(name string) (*bigip.HttpProfile, error) {
-	return &bigip.HttpProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetRewriteProfile(name string) (*bigip.RewriteProfile, error) {
-	return &bigip.RewriteProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetFastl4(name string) (*bigip.Fastl4, error) {
-	return &bigip.Fastl4{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetFtp(name string) (*bigip.Ftp, error) {
-	return &bigip.Ftp{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetHttpCompressionProfile(name string) (*bigip.HttpCompressionProfile, error) {
-	return &bigip.HttpCompressionProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetAccessProfile(name string) (*bigip.AccessProfile, error) {
-	return &bigip.AccessProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetOneconnect(name string) (*bigip.Oneconnect, error) {
-	return &bigip.Oneconnect{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetAccessPolicy(name string) (*bigip.AccessPolicy, error) {
-	return &bigip.AccessPolicy{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetRequestAdaptProfile(name string) (*bigip.RequestAdaptProfile, error) {
-	return &bigip.RequestAdaptProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetResponseAdaptProfile(name string) (*bigip.ResponseAdaptProfile, error) {
-	return &bigip.ResponseAdaptProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetDOSProfile(name string) (*bigip.DOSProfile, error) {
-	return &bigip.DOSProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetFirewallPolicy(name string) (*bigip.FirewallPolicy, error) {
-	return &bigip.FirewallPolicy{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetIPIntelligencePolicy(name string) (*bigip.IPIntelligencePolicy, error) {
-	return &bigip.IPIntelligencePolicy{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetUDPProfile(name string) (*bigip.UdpProfile, error) {
-	return &bigip.UdpProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetSecurityLogProfile(name string) (*bigip.SecurityLogProfile, error) {
-	return &bigip.SecurityLogProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetWebsocketProfile(name string) (*bigip.WebsocketProfile, error) {
-	return &bigip.WebsocketProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetHTMLProfile(name string) (*bigip.HTMLProfile, error) {
-	return &bigip.HTMLProfile{Name: name}, nil
-}
-
-func (m *MockBigIPClientForPersistence) GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error) {
-	return &bigip.AnalyticsProfile{Name: name}, nil
-}
-
-// Persistence profile methods that control the test behavior
+// Override persistence profile methods with specialized behavior
 func (m *MockBigIPClientForPersistence) GetCookiePersistenceProfile(name string) (*bigip.CookiePersistenceProfile, error) {
 	if m.successfulProfile == "cookie" && !m.shouldError {
 		return &bigip.CookiePersistenceProfile{
@@ -1384,6 +1318,140 @@ BAMMCWxvY2FsaG9zdDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC1SFI0kj12aJnB
 			Expect(session.Token).To(Equal(token))
 			Expect(session.UserAgent).To(Equal(userAgent))
 			Expect(session.Teem).To(Equal(teem))
+		})
+	})
+
+	// DataGroup tests for leader election functionality
+	Context("DataGroup Operations", func() {
+		It("should successfully retrieve an internal datagroup", func() {
+			mockClient = NewMockBigIPClient(false, "")
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			result, err := handler.GetInternalDataGroup(testResource)
+
+			Expect(err).To(BeNil())
+			Expect(result).ToNot(BeNil())
+			dataGroup := result.(*bigip.DataGroup)
+			Expect(dataGroup.Name).To(Equal(testResource))
+			Expect(dataGroup.Type).To(Equal("string"))
+			Expect(len(dataGroup.Records)).To(Equal(1))
+			Expect(dataGroup.Records[0].Name).To(Equal("leader"))
+		})
+
+		It("should return error when datagroup retrieval fails", func() {
+			errorMsg := "DataGroup not found"
+			mockClient = NewMockBigIPClient(true, errorMsg)
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			result, err := handler.GetInternalDataGroup(testResource)
+
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(Equal(errorMsg))
+			Expect(result).To(BeNil())
+		})
+
+		It("should successfully create an internal datagroup", func() {
+			mockClient = NewMockBigIPClient(false, "")
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			dataGroup := &bigip.DataGroup{
+				Name: testResource,
+				Type: "string",
+				Records: []bigip.DataGroupRecord{
+					{
+						Name: "leader",
+						Data: "test-candidate 1692547200",
+					},
+				},
+			}
+
+			err := handler.CreateInternalDataGroup(dataGroup)
+
+			Expect(err).To(BeNil())
+		})
+
+		It("should return error when datagroup creation fails", func() {
+			errorMsg := "Failed to create DataGroup"
+			mockClient = NewMockBigIPClient(true, errorMsg)
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			dataGroup := &bigip.DataGroup{
+				Name: testResource,
+				Type: "string",
+				Records: []bigip.DataGroupRecord{
+					{
+						Name: "leader",
+						Data: "test-candidate 1692547200",
+					},
+				},
+			}
+
+			err := handler.CreateInternalDataGroup(dataGroup)
+
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(Equal(errorMsg))
+		})
+
+		It("should successfully modify datagroup records", func() {
+			mockClient = NewMockBigIPClient(false, "")
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			dataGroup := &bigip.DataGroup{
+				Name: testResource,
+				Type: "string",
+				Records: []bigip.DataGroupRecord{
+					{
+						Name: "leader",
+						Data: "updated-candidate 1692547300",
+					},
+				},
+			}
+
+			err := handler.ModifyInternalDataGroupRecords(dataGroup)
+
+			Expect(err).To(BeNil())
+		})
+
+		It("should return error when datagroup record modification fails", func() {
+			errorMsg := "Failed to modify DataGroup records"
+			mockClient = NewMockBigIPClient(true, errorMsg)
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			dataGroup := &bigip.DataGroup{
+				Name: testResource,
+				Type: "string",
+				Records: []bigip.DataGroupRecord{
+					{
+						Name: "leader",
+						Data: "updated-candidate 1692547300",
+					},
+				},
+			}
+
+			err := handler.ModifyInternalDataGroupRecords(dataGroup)
+
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(Equal(errorMsg))
+		})
+
+		It("should successfully delete an internal datagroup", func() {
+			mockClient = NewMockBigIPClient(false, "")
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			err := handler.DeleteInternalDataGroup(testResource)
+
+			Expect(err).To(BeNil())
+		})
+
+		It("should return error when datagroup deletion fails", func() {
+			errorMsg := "Failed to delete DataGroup"
+			mockClient = NewMockBigIPClient(true, errorMsg)
+			handler = &BigIPHandler{Bigip: mockClient}
+
+			err := handler.DeleteInternalDataGroup(testResource)
+
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(Equal(errorMsg))
 		})
 	})
 })

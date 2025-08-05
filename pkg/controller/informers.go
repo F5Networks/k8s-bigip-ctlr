@@ -1719,7 +1719,11 @@ func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
 }
 
 func (ctlr *Controller) enqueuePrimaryClusterProbeEvent() {
-	log.Infof("[MultiCluster] Enqueueing primary CIS/cluster down event")
+	if ctlr.multiClusterMode == ArbitratorCIS {
+		log.Infof("[MultiCluster] Enqueueing config sync event on acquiring leadership")
+	} else {
+		log.Infof("[MultiCluster] Enqueueing primary CIS/cluster down event")
+	}
 	key := &rqKey{
 		kind: HACIS,
 	}

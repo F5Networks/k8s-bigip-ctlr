@@ -905,7 +905,11 @@ func (ctlr *Controller) processResources() bool {
 			}
 		}
 	case HACIS:
-		log.Infof("posting declaration on primary cluster down event")
+		if ctlr.multiClusterMode == ArbitratorCIS {
+			log.Infof("Arbitrator mode: posting declaration on acquiring leadership")
+		} else {
+			log.Infof("posting declaration on primary cluster down event")
+		}
 	case NodeUpdate:
 		if &ctlr.multiClusterResources.clusterSvcMap != nil {
 			if svcKeys, ok := ctlr.multiClusterResources.clusterSvcMap[rKey.clusterName]; ok {
@@ -936,7 +940,7 @@ func (ctlr *Controller) processResources() bool {
 	}
 
 	if (ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated()) ||
-		(ctlr.multiClusterMode == SecondaryCIS && rKey.kind == HACIS) {
+		((ctlr.multiClusterMode == SecondaryCIS || ctlr.multiClusterMode == ArbitratorCIS) && rKey.kind == HACIS) {
 		config := ResourceConfigRequest{
 			ltmConfig:                ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:               ctlr.shareNodes,
@@ -960,7 +964,11 @@ func (ctlr *Controller) processResources() bool {
 		config.reqMeta = ctlr.enqueueReq(config)
 		config.poolMemberType = ctlr.PoolMemberType
 		if rKey.kind == HACIS {
-			log.Infof("[Request: %v] primary cluster down event requested %v", config.reqMeta.id, strings.ToTitle(Update))
+			if ctlr.multiClusterMode == ArbitratorCIS {
+				log.Infof("[Request: %v] arbitrator mode: leadership acquired event requested %v", config.reqMeta.id, strings.ToTitle(Update))
+			} else {
+				log.Infof("[Request: %v] primary cluster down event requested %v", config.reqMeta.id, strings.ToTitle(Update))
+			}
 		} else if rKey.clusterName == ctlr.multiClusterHandler.LocalClusterName {
 			log.Infof("[Request: %v] cluster local requested %v in %v %v/%v", config.reqMeta.id, strings.ToTitle(rKey.event), strings.ToTitle(rKey.kind), rKey.namespace, rKey.rscName)
 		} else {
@@ -5051,7 +5059,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			es.HAClusterConfig = HAClusterConfig{}
 		}
 		// Check if HA configurations are specified properly
-		if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" {
+		if ctlr.multiClusterMode != StandAloneCIS && ctlr.multiClusterMode != "" && ctlr.multiClusterMode != ArbitratorCIS {
 			if es.HAClusterConfig == (HAClusterConfig{}) || es.HAClusterConfig.PrimaryCluster == (ClusterDetails{}) ||
 				es.HAClusterConfig.SecondaryCluster == (ClusterDetails{}) {
 				log.Errorf("[MultiCluster] CIS High availability cluster config not provided properly.")

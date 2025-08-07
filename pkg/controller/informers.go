@@ -962,7 +962,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 		tlsKey := tls.ObjectMeta.Namespace + "/" + tls.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidTLSProfile(tls)
 		if !valid {
-			log.Errorf("IngressLink %s is not valid: %s", tlsKey, errMsg)
+			log.Errorf("TLSProfile %s is not valid: %s", tlsKey, errMsg)
 			ctlr.updateTLSProfileStatus(tls, StatusError, errors.New(errMsg))
 			return
 		}

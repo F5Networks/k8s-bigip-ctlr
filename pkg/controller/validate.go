@@ -111,7 +111,16 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 		}
 		allowed, errMsg = ctlr.checkValidIngressLink(il)
 	case TLSProfile:
-		allowed = true
+		tlsProf := &cisapiv1.TLSProfile{}
+		if _, _, err := deserializer.Decode(req.Object.Raw, nil, tlsProf); err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: fmt.Sprintf("could not decode object: %v", err),
+				},
+			}
+		}
+		allowed, errMsg = ctlr.checkValidTLSProfile(tlsProf)
 
 	case CustomPolicy:
 		pl := &cisapiv1.Policy{}
@@ -536,7 +545,7 @@ func (ctlr *Controller) checkValidIngressLink(
 
 	// Validate monitors
 	for _, monitor := range il.Spec.Monitors {
-		if monitor.Type != BIGIP {
+		if monitor.Reference != BIGIP {
 			continue
 		}
 		wg.Add(1)
@@ -566,6 +575,11 @@ func (ctlr *Controller) checkValidIngressLink(
 }
 
 func (ctlr *Controller) checkValidTLSProfile(tlsProfile *cisapiv1.TLSProfile) (bool, string) {
+	isValid, err := validateTLSProfile(tlsProfile)
+	if !isValid {
+		return false, err.Error()
+	}
+
 	if tlsProfile.Spec.TLS.Reference == Secret {
 		return true, ""
 	}

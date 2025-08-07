@@ -122,6 +122,7 @@ type BigIPHandlerInterface interface {
 	GetHTMLProfile(name string) (any, error)
 	GetFTPProfile(name string) (any, error)
 	GetHTTPCompressionProfile(name string) (any, error)
+	GetMonitor(name string) (*bigip.Monitor, error)
 	// Add more methods as needed for other BIG-IP resources
 }
 
@@ -555,6 +556,7 @@ func (handler *BigIPHandler) GetMonitor(name string) (*bigip.Monitor, error) {
 			default:
 				monitor, err := handler.Bigip.GetMonitor(name, mType)
 				if err == nil {
+					log.Debugf("Found monitor %s of type %s,monitor: %v", name, mType, monitor)
 					// Found a valid monitor, send result and cancel others
 					resultCh <- result{monitor, nil}
 					cancel()

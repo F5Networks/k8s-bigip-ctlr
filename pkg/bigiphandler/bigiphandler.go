@@ -1,6 +1,7 @@
 package bigiphandler
 
 import (
+	"context" //
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -51,6 +52,7 @@ type BigIPClient interface {
 	GetUniversalPersistenceProfile(name string) (*bigip.UniversalPersistenceProfile, error)
 	GetSSLPersistenceProfile(name string) (*bigip.SSLPersistenceProfile, error)
 	GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error)
+	GetMonitor(name string, parent string) (*bigip.Monitor, error)
 }
 
 func CreateSession(host, token, userAgent, trustedCerts string, insecure, teem bool) *bigip.BigIP {
@@ -120,6 +122,7 @@ type BigIPHandlerInterface interface {
 	GetHTMLProfile(name string) (any, error)
 	GetFTPProfile(name string) (any, error)
 	GetHTTPCompressionProfile(name string) (any, error)
+	GetMonitor(name string) (*bigip.Monitor, error)
 	// Add more methods as needed for other BIG-IP resources
 }
 
@@ -527,4 +530,54 @@ func (handler *BigIPHandler) GetHTTPCompressionProfile(name string) (any, error)
 		return nil, err
 	}
 	return profile, nil
+}
+
+func (handler *BigIPHandler) GetMonitor(name string) (*bigip.Monitor, error) {
+	monitorTypes := []string{"http", "tcp", "icmp", "https", "gateway icmp"}
+
+	type result struct {
+		monitor *bigip.Monitor
+		err     error
+	}
+
+	resultCh := make(chan result, len(monitorTypes))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	for _, mType := range monitorTypes {
+		wg.Add(1)
+		go func(mType string) {
+			defer wg.Done()
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				monitor, err := handler.Bigip.GetMonitor(name, mType)
+				if err == nil {
+					log.Debugf("Found monitor %s of type %s,monitor: %v", name, mType, monitor)
+					// Found a valid monitor, send result and cancel others
+					resultCh <- result{monitor, nil}
+					cancel()
+				}
+			}
+		}(mType)
+	}
+
+	// Close result channel once all goroutines are done
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for res := range resultCh {
+		// Return the first successful monitor
+		if res.err == nil {
+			return res.monitor, nil
+		}
+	}
+
+	// If no monitor found
+	return nil, fmt.Errorf("monitor %s not found", name)
 }

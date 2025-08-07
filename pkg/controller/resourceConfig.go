@@ -1746,36 +1746,37 @@ func (ctlr *Controller) handleVirtualServerTLS(
 
 // validate TLSProfile
 // validation includes valid parameters for the type of termination(edge, re-encrypt and Pass-through)
-func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
+func validateTLSProfile(tls *cisapiv1.TLSProfile) (bool, error) {
 	// validation for re-encrypt termination
+	var err error
 	if tls.Spec.TLS.Termination == "reencrypt" {
 		// Should contain both client and server SSL profiles
 		if (tls.Spec.TLS.ClientSSL == "" || tls.Spec.TLS.ServerSSL == "") && (len(tls.Spec.TLS.ClientSSLs) == 0 || len(tls.Spec.TLS.ServerSSLs) == 0) {
-			log.Errorf("TLSProfile %s of type re-encrypt termination should contain both "+
+			err = fmt.Errorf("TLSProfile %s of type re-encrypt termination should contain both "+
 				"ClientSSLs and ServerSSLs", tls.ObjectMeta.Name)
-			return false
+			return false, err
 		}
 	} else if tls.Spec.TLS.Termination == "edge" {
 		// Should contain only client SSL
 		if tls.Spec.TLS.ClientSSL == "" && len(tls.Spec.TLS.ClientSSLs) == 0 {
-			log.Errorf("TLSProfile %s of type edge termination should contain ClientSSLs",
+			err = fmt.Errorf("TLSProfile %s of type edge termination should contain ClientSSLs",
 				tls.ObjectMeta.Name)
-			return false
+			return false, err
 		}
 		if tls.Spec.TLS.ServerSSL != "" || len(tls.Spec.TLS.ServerSSLs) != 0 {
-			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSLs",
+			err = fmt.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSLs",
 				tls.ObjectMeta.Name)
-			return false
+			return false, err
 		}
 	} else {
 		// Pass-through
 		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") || len(tls.Spec.TLS.ClientSSLs) != 0 || len(tls.Spec.TLS.ServerSSLs) != 0 {
-			log.Errorf("TLSProfile %s of type Pass-through termination should NOT contain either "+
+			err = fmt.Errorf("TLSProfile %s of type Pass-through termination should NOT contain either "+
 				"ClientSSLs or ServerSSLs", tls.ObjectMeta.Name)
-			return false
+			return false, err
 		}
 	}
-	return true
+	return true, nil
 }
 
 // ConvertStringToProfileRef converts strings to profile references

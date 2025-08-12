@@ -28,23 +28,23 @@ spec:
         - name: cntr-ingress-svcs
           image: registry.connect.redhat.com/f5networks/cntr-ingress-svcs:latest
           livenessProbe:
-            failureThreshold: 60
+            failureThreshold: 3
             httpGet:
               path: /health
               port: 8080
               scheme: HTTP
             initialDelaySeconds: 15
-            periodSeconds: 15
+            periodSeconds: 120
             successThreshold: 1
             timeoutSeconds: 15
           readinessProbe:
-            failureThreshold: 60
+            failureThreshold: 3
             httpGet:
               path: /health
               port: 8080
               scheme: HTTP
             initialDelaySeconds: 30
-            periodSeconds: 30
+            periodSeconds: 120
             successThreshold: 1
             timeoutSeconds: 15
           volumeMounts:

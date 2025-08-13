@@ -19,13 +19,16 @@ limitations under the License.
 package v1
 
 import (
-	v1 "k8s.io/api/policy/v1"
-	"k8s.io/client-go/kubernetes/scheme"
+	http "net/http"
+
+	policyv1 "k8s.io/api/policy/v1"
+	scheme "k8s.io/client-go/kubernetes/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
 type PolicyV1Interface interface {
 	RESTClient() rest.Interface
+	EvictionsGetter
 	PodDisruptionBudgetsGetter
 }
 
@@ -34,17 +37,33 @@ type PolicyV1Client struct {
 	restClient rest.Interface
 }
 
+func (c *PolicyV1Client) Evictions(namespace string) EvictionInterface {
+	return newEvictions(c, namespace)
+}
+
 func (c *PolicyV1Client) PodDisruptionBudgets(namespace string) PodDisruptionBudgetInterface {
 	return newPodDisruptionBudgets(c, namespace)
 }
 
 // NewForConfig creates a new PolicyV1Client for the given config.
+// NewForConfig is equivalent to NewForConfigAndClient(c, httpClient),
+// where httpClient was generated with rest.HTTPClientFor(c).
 func NewForConfig(c *rest.Config) (*PolicyV1Client, error) {
 	config := *c
-	if err := setConfigDefaults(&config); err != nil {
+	setConfigDefaults(&config)
+	httpClient, err := rest.HTTPClientFor(&config)
+	if err != nil {
 		return nil, err
 	}
-	client, err := rest.RESTClientFor(&config)
+	return NewForConfigAndClient(&config, httpClient)
+}
+
+// NewForConfigAndClient creates a new PolicyV1Client for the given config and http client.
+// Note the http client provided takes precedence over the configured transport values.
+func NewForConfigAndClient(c *rest.Config, h *http.Client) (*PolicyV1Client, error) {
+	config := *c
+	setConfigDefaults(&config)
+	client, err := rest.RESTClientForConfigAndClient(&config, h)
 	if err != nil {
 		return nil, err
 	}
@@ -66,17 +85,15 @@ func New(c rest.Interface) *PolicyV1Client {
 	return &PolicyV1Client{c}
 }
 
-func setConfigDefaults(config *rest.Config) error {
-	gv := v1.SchemeGroupVersion
+func setConfigDefaults(config *rest.Config) {
+	gv := policyv1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
 	}
-
-	return nil
 }
 
 // RESTClient returns a RESTClient that is used to communicate

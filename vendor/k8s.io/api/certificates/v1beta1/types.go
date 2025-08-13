@@ -36,18 +36,17 @@ type CertificateSigningRequest struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	// The certificate request itself and any additional information.
-	// +optional
-	Spec CertificateSigningRequestSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+	// spec contains the certificate request, and is immutable after creation.
+	// Only the request, signerName, expirationSeconds, and usages fields can be set on creation.
+	// Other fields are derived by Kubernetes and cannot be modified by users.
+	Spec CertificateSigningRequestSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`
 
 	// Derived information about the request.
 	// +optional
 	Status CertificateSigningRequestStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-// This information is immutable after the request is created. Only the Request
-// and Usages fields can be set on creation, other fields are derived by
-// Kubernetes and cannot be modified by users.
+// CertificateSigningRequestSpec contains the certificate request.
 type CertificateSigningRequestSpec struct {
 	// Base64-encoded PKCS#10 CSR data
 	// +listType=atomic
@@ -66,10 +65,34 @@ type CertificateSigningRequestSpec struct {
 	// +optional
 	SignerName *string `json:"signerName,omitempty" protobuf:"bytes,7,opt,name=signerName"`
 
+	// expirationSeconds is the requested duration of validity of the issued
+	// certificate. The certificate signer may issue a certificate with a different
+	// validity duration so a client must check the delta between the notBefore and
+	// and notAfter fields in the issued certificate to determine the actual duration.
+	//
+	// The v1.22+ in-tree implementations of the well-known Kubernetes signers will
+	// honor this field as long as the requested duration is not greater than the
+	// maximum duration they will honor per the --cluster-signing-duration CLI
+	// flag to the Kubernetes controller manager.
+	//
+	// Certificate signers may not honor this field for various reasons:
+	//
+	//   1. Old signer that is unaware of the field (such as the in-tree
+	//      implementations prior to v1.22)
+	//   2. Signer whose configured maximum is shorter than the requested duration
+	//   3. Signer whose configured minimum is longer than the requested duration
+	//
+	// The minimum valid value for expirationSeconds is 600, i.e. 10 minutes.
+	//
+	// +optional
+	ExpirationSeconds *int32 `json:"expirationSeconds,omitempty" protobuf:"varint,8,opt,name=expirationSeconds"`
+
 	// allowedUsages specifies a set of usage contexts the key will be
 	// valid for.
-	// See: https://tools.ietf.org/html/rfc5280#section-4.2.1.3
-	//      https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+	// See:
+	//	https://tools.ietf.org/html/rfc5280#section-4.2.1.3
+	//	https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+	//
 	// Valid values are:
 	//  "signing",
 	//  "digital signature",
@@ -208,8 +231,10 @@ type CertificateSigningRequestList struct {
 }
 
 // KeyUsages specifies valid usage contexts for keys.
-// See: https://tools.ietf.org/html/rfc5280#section-4.2.1.3
-//      https://tools.ietf.org/html/rfc5280#section-4.2.1.12
+// See:
+//
+//	https://tools.ietf.org/html/rfc5280#section-4.2.1.3
+//	https://tools.ietf.org/html/rfc5280#section-4.2.1.12
 type KeyUsage string
 
 const (
@@ -237,3 +262,88 @@ const (
 	UsageMicrosoftSGC      KeyUsage = "microsoft sgc"
 	UsageNetscapeSGC       KeyUsage = "netscape sgc"
 )
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:prerelease-lifecycle-gen:introduced=1.33
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterTrustBundle is a cluster-scoped container for X.509 trust anchors
+// (root certificates).
+//
+// ClusterTrustBundle objects are considered to be readable by any authenticated
+// user in the cluster, because they can be mounted by pods using the
+// `clusterTrustBundle` projection.  All service accounts have read access to
+// ClusterTrustBundles by default.  Users who only have namespace-level access
+// to a cluster can read ClusterTrustBundles by impersonating a serviceaccount
+// that they have access to.
+//
+// It can be optionally associated with a particular assigner, in which case it
+// contains one valid set of trust anchors for that signer. Signers may have
+// multiple associated ClusterTrustBundles; each is an independent set of trust
+// anchors for that signer. Admission control is used to enforce that only users
+// with permissions on the signer can create or modify the corresponding bundle.
+type ClusterTrustBundle struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata contains the object metadata.
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// spec contains the signer (if any) and trust anchors.
+	Spec ClusterTrustBundleSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`
+}
+
+// ClusterTrustBundleSpec contains the signer and trust anchors.
+type ClusterTrustBundleSpec struct {
+	// signerName indicates the associated signer, if any.
+	//
+	// In order to create or update a ClusterTrustBundle that sets signerName,
+	// you must have the following cluster-scoped permission:
+	// group=certificates.k8s.io resource=signers resourceName=<the signer name>
+	// verb=attest.
+	//
+	// If signerName is not empty, then the ClusterTrustBundle object must be
+	// named with the signer name as a prefix (translating slashes to colons).
+	// For example, for the signer name `example.com/foo`, valid
+	// ClusterTrustBundle object names include `example.com:foo:abc` and
+	// `example.com:foo:v1`.
+	//
+	// If signerName is empty, then the ClusterTrustBundle object's name must
+	// not have such a prefix.
+	//
+	// List/watch requests for ClusterTrustBundles can filter on this field
+	// using a `spec.signerName=NAME` field selector.
+	//
+	// +optional
+	SignerName string `json:"signerName,omitempty" protobuf:"bytes,1,opt,name=signerName"`
+
+	// trustBundle contains the individual X.509 trust anchors for this
+	// bundle, as PEM bundle of PEM-wrapped, DER-formatted X.509 certificates.
+	//
+	// The data must consist only of PEM certificate blocks that parse as valid
+	// X.509 certificates.  Each certificate must include a basic constraints
+	// extension with the CA bit set.  The API server will reject objects that
+	// contain duplicate certificates, or that use PEM block headers.
+	//
+	// Users of ClusterTrustBundles, including Kubelet, are free to reorder and
+	// deduplicate certificate blocks in this file according to their own logic,
+	// as well as to drop PEM block headers and inter-block data.
+	TrustBundle string `json:"trustBundle" protobuf:"bytes,2,opt,name=trustBundle"`
+}
+
+// +k8s:prerelease-lifecycle-gen:introduced=1.33
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterTrustBundleList is a collection of ClusterTrustBundle objects
+type ClusterTrustBundleList struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata contains the list metadata.
+	//
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// items is a collection of ClusterTrustBundle objects
+	Items []ClusterTrustBundle `json:"items" protobuf:"bytes,2,rep,name=items"`
+}

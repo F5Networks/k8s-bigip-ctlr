@@ -10,6 +10,7 @@ import (
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"net/http"
 	"os"
 	"sync"
@@ -27,32 +28,63 @@ type webHook struct {
 }
 
 func (ctlr *Controller) startWebhook() {
+
+	// Check cert/key existence and validity before starting server
+	if _, err := os.Stat(certFile); err != nil {
+		log.Errorf("Webhook server failed as TLS certificate file not found: %s, error: %v", certFile, err)
+		return
+	}
+	if _, err := os.Stat(keyFile); err != nil {
+		log.Errorf("Webhook server failed as TLS key file not found: %s, error: %v", keyFile, err)
+		return
+	}
+	if err := validateTLSCertificate(certFile, keyFile); err != nil {
+		log.Errorf("Webhook server failed as Invalid TLS certificate or key: %v", err)
+		return
+	}
+
+	// Create dynamic certificate provider for webhook server
+	certProvider, err := dynamiccertificates.NewDynamicServingContentFromFiles(
+		"webhook-cert",
+		certFile,
+		keyFile,
+	)
+	if err != nil {
+		log.Errorf("Webhook server failed to create dynamic certificate provider: %v", err)
+		return
+	}
+	// Start the dynamic certificate provider to watch for changes
+	ctx := context.Background()
+	go certProvider.Run(ctx, 1) // 1 worker goroutine to watch for changes
+	// Create TLS config using the dynamic certificate provider
+	tlsCfg := &tls.Config{
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			// Get the current certificate and key content from the provider, this will be called for each new connection
+			cert, key := certProvider.CurrentCertKeyContent()
+			if cert == nil || key == nil {
+				return nil, fmt.Errorf("no TLS cert loaded yet")
+			}
+			tlsCert, err := tls.X509KeyPair(cert, key)
+			if err != nil {
+				return nil, err
+			}
+			return &tlsCert, nil
+		},
+	}
+
 	webhookServerOnce.Do(func() {
 		webhookMux := http.NewServeMux()
 		webhookMux.HandleFunc("/mutate", ctlr.handleMutate)
 		webhookMux.HandleFunc("/validate", ctlr.handleValidate)
 		ctlr.webhookServer = webHook{
 			Server: &http.Server{
-				Addr:    ctlr.agentParams.HttpsAddress,
-				Handler: webhookMux,
+				Addr:      ctlr.agentParams.HttpsAddress,
+				Handler:   webhookMux,
+				TLSConfig: tlsCfg,
 			},
 			address: ctlr.agentParams.HttpsAddress,
 		}
 		webhookShutdownCh := make(chan struct{})
-
-		// Check cert/key existence and validity before starting server
-		if _, err := os.Stat(certFile); err != nil {
-			log.Errorf("Webhook server failed as TLS certificate file not found: %s, error: %v", certFile, err)
-			return
-		}
-		if _, err := os.Stat(keyFile); err != nil {
-			log.Errorf("Webhook server failed as TLS key file not found: %s, error: %v", keyFile, err)
-			return
-		}
-		if err := validateTLSCertificate(certFile, keyFile); err != nil {
-			log.Errorf("Webhook server failed as Invalid TLS certificate or key: %v", err)
-			return
-		}
 
 		// Graceful shutdown goroutine
 		go func() {
@@ -65,8 +97,9 @@ func (ctlr *Controller) startWebhook() {
 				log.Infof("Webhook server gracefully stopped")
 			}
 		}()
+
 		log.Infof("Starting webhook server on :%s", ctlr.agentParams.HttpsAddress)
-		if err := ctlr.webhookServer.GetWebhookServer().ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+		if err := ctlr.webhookServer.GetWebhookServer().ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Webhook server failed: %v", err)
 		}
 	})

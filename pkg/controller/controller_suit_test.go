@@ -54,6 +54,10 @@ type (
 	}
 )
 
+func (m *mockBigIPHandler) GetMonitor(name string) (*bigip.Monitor, error) {
+	return nil, nil
+}
+
 func newMockController() *mockController {
 	return &mockController{
 		Controller: &Controller{

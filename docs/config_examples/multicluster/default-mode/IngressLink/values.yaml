@@ -234,7 +234,7 @@ controller:
   # nodeSelector: {}
 
   ## The termination grace period of the Ingress Controller pod.
-  terminationGracePeriodSeconds: 30
+  terminationGraceperiodSeconds: 120
 
   ## HorizontalPodAutoscaling (HPA)
   autoscaling:

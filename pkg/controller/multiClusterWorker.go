@@ -46,11 +46,14 @@ func (ctlr *Controller) processResourceExternalClusterServices(rscKey resourceRe
 
 			// update the multi cluster resource map
 			if _, ok := ctlr.multiClusterResources.rscSvcMap[rscKey]; !ok {
-				ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+				ctlr.multiClusterResources.rscSvcMap[rscKey] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]struct{})
 			}
-			ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey] = MultiClusterServiceConfig{
+			if _, ok := ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey]; !ok {
+				ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey] = make(map[MultiClusterServiceConfig]struct{})
+			}
+			ctlr.multiClusterResources.rscSvcMap[rscKey][svcKey][MultiClusterServiceConfig{
 				svcPort: svc.ServicePort,
-			}
+			}] = struct{}{}
 
 			// if informer not found for cluster, setup and start informer
 			if len(informerStore.comInformers) == 0 {
@@ -82,39 +85,41 @@ func (ctlr *Controller) deleteResourceExternalClusterSvcRouteReference(rsKey res
 	// remove resource and service mapping
 	if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsKey]; ok {
 		// for service referring to resource, remove the resource from clusterSvcMap
-		for mSvcKey, port := range svcs {
-			if _, ok = ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName]; ok {
-				if _, ok = ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey]; ok {
-					if poolIdsMap, found := ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][port]; found {
-						for poolId := range poolIdsMap {
-							if poolId.rsKey == rsKey {
-								delete(poolIdsMap, poolId)
-							}
-						}
-						if len(poolIdsMap) == 0 {
-							delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey], port)
-							//delete the poolMem Cache as well
-							log.Debugf("Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
-							delete(ctlr.resources.poolMemCache, mSvcKey)
-							// delete the pod cache as well in nodePortLocal mode
-							if ctlr.PoolMemberType == NodePortLocal {
-								pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, mSvcKey.clusterName, true)
-								for _, pod := range pods {
-									ctlr.processPod(pod, true)
+		for mSvcKey, mSvcCfg := range svcs {
+			for portConfig, _ := range mSvcCfg {
+				if _, ok = ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName]; ok {
+					if _, ok = ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey]; ok {
+						if poolIdsMap, found := ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][portConfig]; found {
+							for poolId := range poolIdsMap {
+								if poolId.rsKey == rsKey {
+									delete(poolIdsMap, poolId)
 								}
 							}
-						} else {
-							ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][port] = poolIdsMap
+							if len(poolIdsMap) == 0 {
+								delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey], portConfig)
+								//delete the poolMem Cache as well
+								log.Debugf("Deleting Service '%v' from CIS cache as it's not referenced by monitored resources", mSvcKey)
+								delete(ctlr.resources.poolMemCache, mSvcKey)
+								// delete the pod cache as well in nodePortLocal mode
+								if ctlr.PoolMemberType == NodePortLocal {
+									pods := ctlr.GetPodsForService(mSvcKey.namespace, mSvcKey.serviceName, mSvcKey.clusterName, true)
+									for _, pod := range pods {
+										ctlr.processPod(pod, true)
+									}
+								}
+							} else {
+								ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey][portConfig] = poolIdsMap
+							}
 						}
 					}
 				}
+				if len(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey]) == 0 {
+					delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
+				}
 			}
-			if len(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName][mSvcKey]) == 0 {
-				delete(ctlr.multiClusterResources.clusterSvcMap[mSvcKey.clusterName], mSvcKey)
-			}
+			//remove resource entry
+			delete(ctlr.multiClusterResources.rscSvcMap, rsKey)
 		}
-		//remove resource entry
-		delete(ctlr.multiClusterResources.rscSvcMap, rsKey)
 	}
 }
 
@@ -216,11 +221,13 @@ func (ctlr *Controller) deleteVirtualsForResourceRef(rsKey resourceRef) {
 	defer ctlr.multiClusterResources.Unlock()
 	if mcsMap, ok := ctlr.multiClusterResources.rscSvcMap[rsKey]; ok {
 		for msvc, mcsConfig := range mcsMap {
-			if _, ok = ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName]; ok {
-				if _, ok = ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName][msvc]; ok {
-					if poolIds, ok := ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName][msvc][mcsConfig]; ok {
-						for poolId := range poolIds {
-							ctlr.deleteVirtualServer(poolId.partition, poolId.rsName)
+			for portConfig, _ := range mcsConfig {
+				if _, ok = ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName]; ok {
+					if _, ok = ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName][msvc]; ok {
+						if poolIds, ok := ctlr.multiClusterResources.clusterSvcMap[msvc.clusterName][msvc][portConfig]; ok {
+							for poolId := range poolIds {
+								ctlr.deleteVirtualServer(poolId.partition, poolId.rsName)
+							}
 						}
 					}
 				}

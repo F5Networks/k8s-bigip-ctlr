@@ -18,15 +18,16 @@ limitations under the License.
 
 package v1
 
-// WindowsSecurityContextOptionsApplyConfiguration represents an declarative configuration of the WindowsSecurityContextOptions type for use
+// WindowsSecurityContextOptionsApplyConfiguration represents a declarative configuration of the WindowsSecurityContextOptions type for use
 // with apply.
 type WindowsSecurityContextOptionsApplyConfiguration struct {
 	GMSACredentialSpecName *string `json:"gmsaCredentialSpecName,omitempty"`
 	GMSACredentialSpec     *string `json:"gmsaCredentialSpec,omitempty"`
 	RunAsUserName          *string `json:"runAsUserName,omitempty"`
+	HostProcess            *bool   `json:"hostProcess,omitempty"`
 }
 
-// WindowsSecurityContextOptionsApplyConfiguration constructs an declarative configuration of the WindowsSecurityContextOptions type for use with
+// WindowsSecurityContextOptionsApplyConfiguration constructs a declarative configuration of the WindowsSecurityContextOptions type for use with
 // apply.
 func WindowsSecurityContextOptions() *WindowsSecurityContextOptionsApplyConfiguration {
 	return &WindowsSecurityContextOptionsApplyConfiguration{}
@@ -53,5 +54,13 @@ func (b *WindowsSecurityContextOptionsApplyConfiguration) WithGMSACredentialSpec
 // If called multiple times, the RunAsUserName field is set to the value of the last call.
 func (b *WindowsSecurityContextOptionsApplyConfiguration) WithRunAsUserName(value string) *WindowsSecurityContextOptionsApplyConfiguration {
 	b.RunAsUserName = &value
+	return b
+}
+
+// WithHostProcess sets the HostProcess field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HostProcess field is set to the value of the last call.
+func (b *WindowsSecurityContextOptionsApplyConfiguration) WithHostProcess(value bool) *WindowsSecurityContextOptionsApplyConfiguration {
+	b.HostProcess = &value
 	return b
 }

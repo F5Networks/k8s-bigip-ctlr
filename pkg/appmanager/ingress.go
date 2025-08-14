@@ -231,7 +231,7 @@ func (appMgr *Manager) setV1IngressStatus(
 ) {
 	// Set the ingress status to include the virtual IP
 	ip, _, _ := Split_ip_with_route_domain_cidr(rsCfg.Virtual.VirtualAddress.BindAddr)
-	lbIngress := v1.LoadBalancerIngress{IP: ip}
+	lbIngress := netv1.IngressLoadBalancerIngress{IP: ip}
 	if len(ing.Status.LoadBalancer.Ingress) == 0 {
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
 	} else if ing.Status.LoadBalancer.Ingress[0].IP != ip {

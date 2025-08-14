@@ -29,7 +29,7 @@ import (
 type (
 	NamespaceEventNotifierMap map[string]*NamespaceEventNotifier
 
-	NewBroadcasterFunc func() record.EventBroadcaster
+	NewBroadcasterFunc func(opts ...record.BroadcasterOption) record.EventBroadcaster
 
 	EventNotifier struct {
 		mutex           sync.Mutex

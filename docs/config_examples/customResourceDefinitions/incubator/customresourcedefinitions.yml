@@ -604,6 +604,19 @@ spec:
                           enum: [ bigip, secret ]
                   required:
                     - termination
+            status:
+              type: object
+              properties:
+                status:
+                  type: string
+                  default: Pending
+                lastUpdated:
+                  type: string
+                error:
+                  type: string
+      subresources:
+        status: { }
+
 
 ---
 apiVersion: apiextensions.k8s.io/v1

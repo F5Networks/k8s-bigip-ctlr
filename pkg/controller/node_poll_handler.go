@@ -181,6 +181,39 @@ func ciliumPodCidr(annotation map[string]string) string {
 	return ""
 }
 
+// setCISIdentifierForRoutes sets the CIS identifier for route section based on cluster configuration
+func (ctlr *Controller) setCISIdentifierForRoutes(routes *routeSection) {
+	var routeClusterName string
+	// Use local cluster name to create unique CIS identifier across clusters
+	if ctlr.multiClusterMode == SecondaryCIS {
+		// For secondary CIS, use the HA pair cluster name
+		// so that static routes are not overwritten from the HA pair during failover
+		routeClusterName = ctlr.multiClusterHandler.HAPairClusterName
+	} else {
+		routeClusterName = ctlr.multiClusterHandler.LocalClusterName
+	}
+	var nodeLabelSelector string
+	if clusterConfig, ok := ctlr.multiClusterHandler.ClusterConfigs[routeClusterName]; ok {
+		nodeLabelSelector = clusterConfig.nodeLabelSelector
+	}
+	if routeClusterName != "" {
+		routes.CISIdentifier = strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://") + "_" + routeClusterName
+		if nodeLabelSelector != "" {
+			routes.CISIdentifier += "_" + nodeLabelSelector
+		}
+		log.Infof("Using cluster-specific CIS identifier: %s (cluster: %s, nodeLabelSelector: %s)", routes.CISIdentifier, routeClusterName, nodeLabelSelector)
+	} else {
+		if nodeLabelSelector != "" {
+			routes.CISIdentifier = strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")
+			routes.CISIdentifier += "_" + nodeLabelSelector
+		} else {
+			// Don't set CIS identifier when no cluster name or no nodelabelselctor is configured
+			routes.CISIdentifier = ""
+			log.Warningf("Local cluster name not set. Multiple CIS instances across clusters may still cause route conflicts with shared-static-routes writing to same BIGIP instance!")
+		}
+	}
+}
+
 func (ctlr *Controller) processStaticRouteUpdate(
 	nodes []interface{},
 ) {
@@ -193,7 +226,9 @@ func (ctlr *Controller) processStaticRouteUpdate(
 	}
 	log.Debugf("Processing Node Updates for static routes")
 	routes := routeSection{}
-	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")
+	// Set CIS identifier for routes
+	ctlr.setCISIdentifierForRoutes(&routes)
+
 	nodePodCIDRMap := ctlr.GetNodePodCIDRMap()
 	for _, obj := range nodes {
 		node := obj.(*v1.Node)
@@ -444,7 +479,9 @@ func (ctlr *Controller) processBlockAffinities(clusterName string) {
 	var baListInf []interface{}
 	baListInf = ctlr.getBlockAffinitiesFromAllClusters()
 	routes := routeSection{}
-	routes.CISIdentifier = ctlr.Partition + "_" + strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")
+	// Set CIS identifier for routes
+	ctlr.setCISIdentifierForRoutes(&routes)
+
 	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(clusterName)
 	for _, obj := range baListInf {
 		blockAffinity := obj.(*unstructured.Unstructured)

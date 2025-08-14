@@ -1250,7 +1250,7 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 	}
 
 	// validate TLSProfile
-	validation := validateTLSProfile(tlsProfile)
+	validation, _ := validateTLSProfile(tlsProfile)
 	if validation == false {
 		return nil
 	}

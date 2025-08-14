@@ -1108,6 +1108,7 @@ type monitorDTO struct {
 	RecvRow        string `json:"recvRow,omitempty"`
 	RecvColumn     string `json:"recvColumn,omitempty"`
 	SSLProfile     string `json:"sslProfile,omitempty"`
+	Domain         string `json:"domain,omitempty"`
 	// ldap specifics
 	Base                string `json:"base,omitempty"`
 	Filter              string `json:"filter,omitempty"`
@@ -1623,8 +1624,8 @@ type Originsrecords struct {
 }
 
 type Originsrecord struct {
-	Name        string `json:"name"`
-	app_service string `json:"appService,omitempty"`
+	Name       string `json:"name"`
+	AppService string `json:"appService,omitempty"`
 }
 
 func (p *Snat) MarshalJSON() ([]byte, error) {

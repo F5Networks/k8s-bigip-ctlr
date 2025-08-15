@@ -59,12 +59,12 @@ func (ch *ClusterHandler) addClusterConfig(clusterName string, config *ClusterCo
 	ch.Unlock()
 }
 
-// deleteClusterConfig removes a cluster configuration from the ClusterHandler.
-func (ch *ClusterHandler) deleteClusterConfig(clusterName string) {
-	ch.Lock()
-	delete(ch.ClusterConfigs, clusterName)
-	ch.Unlock()
-}
+//// deleteClusterConfig removes a cluster configuration from the ClusterHandler.
+//func (ch *ClusterHandler) deleteClusterConfig(clusterName string) {
+//	ch.Lock()
+//	delete(ch.ClusterConfigs, clusterName)
+//	ch.Unlock()
+//}
 
 // getClusterConfig returns the cluster configuration for the specified cluster.
 func (ch *ClusterHandler) getClusterConfig(clusterName string) *ClusterConfig {
@@ -96,37 +96,37 @@ func (ch *ClusterHandler) getInformerStore(clusterName string) *InformerStore {
 }
 
 // enqueueEvent adds an event to the eventQueue after checking for uniqueness.
-func (ch *ClusterHandler) enqueueEvent(clusterName string, obj interface{}) {
-	key := fmt.Sprintf("%s/%s", clusterName, "")
-	if _, exists := ch.uniqueAppIdentifier[key]; exists {
-		fmt.Printf("Duplicate event discarded: %s\n", key)
-		return
-	}
-	ch.uniqueAppIdentifier[key] = struct{}{}
-	ch.eventQueue.Add(obj)
-	fmt.Printf("Event queued: %s\n", key)
-}
+//func (ch *ClusterHandler) enqueueEvent(clusterName string, obj interface{}) {
+//	key := fmt.Sprintf("%s/%s", clusterName, "")
+//	if _, exists := ch.uniqueAppIdentifier[key]; exists {
+//		fmt.Printf("Duplicate event discarded: %s\n", key)
+//		return
+//	}
+//	ch.uniqueAppIdentifier[key] = struct{}{}
+//	ch.eventQueue.Add(obj)
+//	fmt.Printf("Event queued: %s\n", key)
+//}
 
-// ProcessEvents processes events from the eventQueue, applying deduplication and passing unique events to the controller.
-func (ch *ClusterHandler) ProcessEvents() {
-	for {
-		obj, shutdown := ch.eventQueue.Get()
-		if shutdown {
-			break
-		}
-
-		// Process event
-		ch.processEvent(obj)
-		ch.eventQueue.Done(obj)
-	}
-}
+//// ProcessEvents processes events from the eventQueue, applying deduplication and passing unique events to the controller.
+//func (ch *ClusterHandler) ProcessEvents() {
+//	for {
+//		obj, shutdown := ch.eventQueue.Get()
+//		if shutdown {
+//			break
+//		}
+//
+//		// Process event
+//		ch.processEvent(obj)
+//		ch.eventQueue.Done(obj)
+//	}
+//}
 
 // processEvent handles individual events, simulating sending to a controller.
-func (ch *ClusterHandler) processEvent(obj interface{}) {
-	// Here you would handle the business logic for the event.
-	fmt.Printf("Processing event: %v\n", obj)
-	// Add actual controller handling logic here.
-}
+//func (ch *ClusterHandler) processEvent(obj interface{}) {
+//	// Here you would handle the business logic for the event.
+//	fmt.Printf("Processing event: %v\n", obj)
+//	// Add actual controller handling logic here.
+//}
 
 // remove any cluster which is not provided in externalClustersConfig or not part of the HA cluster
 func (ch *ClusterHandler) cleanClusterCache(primaryClusterName, secondaryClusterName string, activeClusters map[string]bool) {
@@ -262,17 +262,17 @@ func (ch *ClusterHandler) getMonitoredNamespaces(clusterName string) map[string]
 	return ns
 }
 
-func (ch *ClusterHandler) getClusterNames() map[string]struct{} {
-	ch.RLock()
-	defer ch.RUnlock()
-	clusterNames := make(map[string]struct{})
-	for clusterName, config := range ch.ClusterConfigs {
-		if config.clusterDetails.ServiceTypeLBDiscovery {
-			clusterNames[clusterName] = struct{}{}
-		}
-	}
-	return clusterNames
-}
+//func (ch *ClusterHandler) getClusterNames() map[string]struct{} {
+//	ch.RLock()
+//	defer ch.RUnlock()
+//	clusterNames := make(map[string]struct{})
+//	for clusterName, config := range ch.ClusterConfigs {
+//		if config.clusterDetails.ServiceTypeLBDiscovery {
+//			clusterNames[clusterName] = struct{}{}
+//		}
+//	}
+//	return clusterNames
+//}
 
 // ResourceStatusUpdater is a go routine that listens to the resourceStatusUpdateChan
 func (ch *ClusterHandler) ResourceStatusUpdater() {

@@ -1634,3 +1634,27 @@ var (
 		Resource: "blockaffinities",
 	}
 )
+
+type BIGIPReferenceType string
+
+const (
+	BIGIPIRule                BIGIPReferenceType = "IRule"
+	BIGIPLTMPool              BIGIPReferenceType = "ltmPool"
+	BIGIPMonitor              BIGIPReferenceType = "monitor"
+	BIGIPVLAN                 BIGIPReferenceType = "vlan"
+	BIGIPPersistence          BIGIPReferenceType = "persistence"
+	BIGIPHTTPCompression      BIGIPReferenceType = "httpCompression"
+	BIGIPMultiplex            BIGIPReferenceType = "multiplex"
+	BIGIPDOS                  BIGIPReferenceType = "dos"
+	BIGIPBotDefense           BIGIPReferenceType = "botDefense"
+	BIGIPWAF                  BIGIPReferenceType = "waf"
+	BIGIPHTML                 BIGIPReferenceType = "html"
+	BIGIPProfileAccess        BIGIPReferenceType = "profileAccess"
+	BIGIPPolicyPerRequest     BIGIPReferenceType = "policyPerRequestAccess"
+	BIGIPProfileAdaptRequest  BIGIPReferenceType = "profileAdaptRequest"
+	BIGIPProfileAdaptResponse BIGIPReferenceType = "profileAdaptResponse"
+	BIGIPTCPClient            BIGIPReferenceType = "tcpClient"
+	BIGIPTCPServer            BIGIPReferenceType = "tcpServer"
+	BIGIPHTTP2Client          BIGIPReferenceType = "http2Client"
+	BIGIPHTTP2Server          BIGIPReferenceType = "http2Server"
+)

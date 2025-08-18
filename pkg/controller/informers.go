@@ -958,7 +958,7 @@ func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 
 func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 	tls := obj.(*cisapiv1.TLSProfile)
-	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the virutal server matches all the requirements.
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the TLS profile matches all the requirements.
 		tlsKey := tls.ObjectMeta.Namespace + "/" + tls.ObjectMeta.Name
 		valid, errMsg := ctlr.checkValidTLSProfile(tls)
 		if !valid {

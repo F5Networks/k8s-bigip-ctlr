@@ -14,10 +14,11 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
 
 Upgrade notes
 ``````````````
-
+* Upgrading to CIS 2.21, static routes are deleted and recreated with new description added to fix the issue(`Github#3719`) of static routes overriding each other with multiple CIS instances writing to Common Partition. This may cause a brief disruption in traffic while the routes are being recreated.
 2.20.1
 -------------
 

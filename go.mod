@@ -7,6 +7,7 @@ require (
 	github.com/f5devcentral/go-bigip v0.0.0-20250731061239-628be0470a84
 	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20250731061239-628be0470a84
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
+	github.com/fsnotify/fsnotify v1.4.9
 	github.com/google/uuid v1.3.0
 	github.com/miekg/dns v1.1.42
 	github.com/onsi/ginkgo/v2 v2.19.1

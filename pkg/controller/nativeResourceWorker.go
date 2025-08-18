@@ -492,18 +492,20 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				var multiClusterServices []cisapiv1.MultiClusterServiceReference
 				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 					for svc, config := range svcs {
-						// if service port not specified for the multiCluster service then use the route's servicePort
-						if config.svcPort == (intstr.IntOrString{}) {
-							config.svcPort = servicePort
+						for portConfig, _ := range config {
+							// if service port not specified for the multiCluster service then use the route's servicePort
+							if portConfig.svcPort == (intstr.IntOrString{}) {
+								portConfig.svcPort = servicePort
+							}
+							multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
+								ClusterName: svc.clusterName,
+								SvcName:     svc.serviceName,
+								Namespace:   svc.namespace,
+								ServicePort: portConfig.svcPort,
+							})
+							// update the clusterSvcMap
+							ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
 						}
-						multiClusterServices = append(multiClusterServices, cisapiv1.MultiClusterServiceReference{
-							ClusterName: svc.clusterName,
-							SvcName:     svc.serviceName,
-							Namespace:   svc.namespace,
-							ServicePort: config.svcPort,
-						})
-						// update the clusterSvcMap
-						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, route.Spec.Path)
 					}
 					pool.MultiClusterServices = multiClusterServices
 				}
@@ -2143,14 +2145,18 @@ func (ctlr *Controller) updateClusterConfigStore(kubeConfigSecret *v1.Secret, mc
 func (ctlr *Controller) updateMultiClusterResourceServiceMap(rsCfg *ResourceConfig, rsRef resourceRef, serviceName, path string,
 	pool Pool, servicePort intstr.IntOrString, clusterName string) {
 	if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; !ok {
-		ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]MultiClusterServiceConfig)
+		ctlr.multiClusterResources.rscSvcMap[rsRef] = make(map[MultiClusterServiceKey]map[MultiClusterServiceConfig]struct{})
 	}
 	svcKey := MultiClusterServiceKey{
 		clusterName: clusterName,
 		serviceName: serviceName,
 		namespace:   pool.ServiceNamespace,
 	}
-	ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = MultiClusterServiceConfig{svcPort: servicePort}
+	if _, ok := ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey]; !ok {
+		ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey] = make(map[MultiClusterServiceConfig]struct{})
+	}
+	// Add the service port to the multiCluster rscSvcMap
+	ctlr.multiClusterResources.rscSvcMap[rsRef][svcKey][MultiClusterServiceConfig{svcPort: servicePort}] = struct{}{}
 	// update the clusterSvcMap
 	ctlr.updatePoolIdentifierForService(svcKey, rsRef, pool.ServicePort, pool.Name, pool.Partition, rsCfg.Virtual.Name, path)
 }

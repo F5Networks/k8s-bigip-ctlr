@@ -538,24 +538,27 @@ func getL4AppConfig(ipaddress, ipamKey string, port, routeDomain int32) l4AppCon
 }
 
 // function to fetch the l4appconfig
-func getL4AppConfigForService(svc *v1.Service, ipamClusterLabel string, routeDomain int32) l4AppConfig {
+func getL4AppConfigForService(svc *v1.Service, ipamClusterLabel string, routeDomain int32) []l4AppConfig {
+	var l4AppConfigs []l4AppConfig
+	if svc == nil {
+		return l4AppConfigs
+	}
+	ipOrIPAMKey := ""
 	if ip, ok := svc.Annotations[LBServiceIPAnnotation]; ok {
-		return l4AppConfig{
-			ipOrIPAMKey: ip,
-			port:        svc.Spec.Ports[0].Port,
+		ipOrIPAMKey = ip
+	} else if _, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]; ok {
+		ipOrIPAMKey = ipamClusterLabel + svc.Namespace + "/" + svc.Name + "_svc"
+	}
+	// for LB service with multiple ports, l4AppConfig for each port needs to be created
+	for _, port := range svc.Spec.Ports {
+		l4AppConfigs = append(l4AppConfigs, l4AppConfig{
+			ipOrIPAMKey: ipOrIPAMKey,
+			port:        port.Port,
 			routeDomain: routeDomain,
 			protocol:    strings.ToLower(string(svc.Spec.Ports[0].Protocol)),
-		}
+		})
 	}
-	if _, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]; ok {
-		return l4AppConfig{
-			ipOrIPAMKey: ipamClusterLabel + svc.Namespace + "/" + svc.Name + "_svc",
-			port:        svc.Spec.Ports[0].Port,
-			routeDomain: routeDomain,
-			protocol:    strings.ToLower(string(svc.Spec.Ports[0].Protocol)),
-		}
-	}
-	return l4AppConfig{}
+	return l4AppConfigs
 }
 
 func (ctlr *Controller) checkValidPolicy(pl *cisapiv1.Policy, handler bigiphandler.BigIPHandlerInterface) (bool, string) {

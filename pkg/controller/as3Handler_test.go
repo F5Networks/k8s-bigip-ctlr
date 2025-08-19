@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	"sync"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sync"
 )
 
 var _ = Describe("AS3Handler Tests", func() {
@@ -853,5 +854,4 @@ var _ = Describe("AS3Handler Tests", func() {
 			Expect(config.tenantResponseMap["test"].agentResponseCode).To(Equal(http.StatusUnprocessableEntity), "Response code should be 422")
 		})
 	})
-
 })

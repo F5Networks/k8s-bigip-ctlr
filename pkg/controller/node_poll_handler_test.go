@@ -421,6 +421,7 @@ var _ = Describe("Node Poller Handler", func() {
 		}
 
 		mockCtlr.SetupNodeProcessing("")
+		mockCtlr.processBlockAffinities("")
 		mockWriter, ok = mockCtlr.PrimaryBigIPWorker.ConfigWriter.(*test.MockWriter)
 		Expect(ok).To(Equal(true))
 		Expect(len(mockWriter.Sections)).To(Equal(1))

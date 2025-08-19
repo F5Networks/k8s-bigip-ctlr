@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"crypto/tls"
+	"net/http"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,7 +13,6 @@ import (
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"net/http"
 )
 
 var _ = Describe("Multi Cluster Health Probe", func() {
@@ -124,7 +126,9 @@ extendedRouteSpec:
 		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
 		mockCtlr.getPrimaryClusterHealthStatus()
 		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
-
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.statusChanged = false
+		mockCtlr.getPrimaryClusterHealthStatus()
+		Expect(mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.statusRunning).To(BeFalse(), "incorrect primary cluster health status")
 	})
 	It("Check Primary Cluster HealthProbe with valid http endpoint", func() {
 		server := ghttp.NewServer()
@@ -138,6 +142,30 @@ extendedRouteSpec:
 		mockCtlr.updateHealthProbeConfig(es.HAClusterConfig)
 		Expect(mockCtlr.RequestHandler.checkPrimaryClusterHealthStatus()).To(BeTrue(), "incorrect primary cluster health status")
 		server.Close()
+	})
+	It("Check Primary Cluster HealthProbe with valid https endpoint", func() {
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		server := ghttp.NewTLSServer()
+		statusCode := 200
+		server.AppendHandlers(
+			ghttp.CombineHandlers(
+				ghttp.VerifyRequest("GET", "/"),
+				ghttp.RespondWithJSONEncoded(statusCode, ""),
+			))
+		es.HAClusterConfig.PrimaryClusterEndPoint = "https://" + server.Addr()
+		mockCtlr.updateHealthProbeConfig(es.HAClusterConfig)
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPointType = "https"
+		Expect(mockCtlr.RequestHandler.checkPrimaryClusterHealthStatus()).To(BeTrue(), "incorrect primary cluster health status")
+		server.Close()
+	})
+	It("Check Primary Cluster HealthProbe with invalid https endpoint", func() {
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromHTTPSEndPoint()).To(BeFalse())
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint = "http://0.0.0.0:80"
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromHTTPSEndPoint()).To(BeFalse())
+		mockCtlr.RequestHandler.PrimaryClusterHealthProbeParams.EndPoint = "https://"
+		Expect(mockCtlr.RequestHandler.getPrimaryClusterHealthStatusFromHTTPSEndPoint()).To(BeFalse())
 	})
 
 	It("Check Primary Cluster HealthProbe with invalid http endpoint", func() {

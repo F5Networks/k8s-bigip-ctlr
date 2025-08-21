@@ -153,18 +153,16 @@ func NewTokenSession(bigipConfig *Config) (b *BigIP, err error) {
 		Timeout struct {
 			Timeout int64
 		}
+		RefreshToken any `json:"refreshToken,omitempty"`
 	}
 
 	type timeoutReq struct {
 		Timeout int64 `json:"timeout"`
 	}
 
-	// type timeoutResp struct {
-	// 	Timeout struct {
-	// 		Timeout int64
-	// 	}
-	// }
-
+	if bigipConfig.LoginReference == "" {
+		bigipConfig.LoginReference = "tmos"
+	}
 	auth := authReq{
 		bigipConfig.Username,
 		bigipConfig.Password,
@@ -227,7 +225,7 @@ func NewTokenSession(bigipConfig *Config) (b *BigIP, err error) {
 	b.Token = aresp.Token.Token
 
 	//Once we have obtained a token, we should actually apply the configured timeout to it
-	if time.Duration(aresp.Timeout.Timeout)*time.Second != bigipConfig.ConfigOptions.TokenTimeout { // The inital value is the max timespan
+	if aresp.RefreshToken == nil && time.Duration(aresp.Timeout.Timeout)*time.Second != bigipConfig.ConfigOptions.TokenTimeout { // The inital value is the max timespan
 		timeout := timeoutReq{
 			int64(bigipConfig.ConfigOptions.TokenTimeout.Seconds()),
 		}

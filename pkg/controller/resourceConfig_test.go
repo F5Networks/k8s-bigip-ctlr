@@ -1017,13 +1017,13 @@ var _ = Describe("Resource Config Tests", func() {
 			},
 		)
 
-		ok := validateTLSProfile(tlsRenc)
+		ok, _ := validateTLSProfile(tlsRenc)
 		Expect(ok).To(BeTrue(), "TLS Re-encryption Validation Failed")
 
-		ok = validateTLSProfile(tlsEdge)
+		ok, _ = validateTLSProfile(tlsEdge)
 		Expect(ok).To(BeTrue(), "TLS Edge Validation Failed")
 
-		ok = validateTLSProfile(tlsPst)
+		ok, _ = validateTLSProfile(tlsPst)
 		Expect(ok).To(BeTrue(), "TLS Passthrough Validation Failed")
 
 		// Negative cases
@@ -1031,17 +1031,17 @@ var _ = Describe("Resource Config Tests", func() {
 		tlsEdge.Spec.TLS.Termination = TLSReencrypt
 		tlsRenc.Spec.TLS.Termination = TLSPassthrough
 
-		ok = validateTLSProfile(tlsRenc)
+		ok, _ = validateTLSProfile(tlsRenc)
 		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
 
-		ok = validateTLSProfile(tlsEdge)
+		ok, _ = validateTLSProfile(tlsEdge)
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 
-		ok = validateTLSProfile(tlsPst)
+		ok, _ = validateTLSProfile(tlsPst)
 		Expect(ok).To(BeFalse(), "TLS Passthrough Validation Failed")
 
 		tlsRenc.Spec.TLS.Termination = TLSEdge
-		ok = validateTLSProfile(tlsRenc)
+		ok, _ = validateTLSProfile(tlsRenc)
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 	})
 
@@ -1095,16 +1095,16 @@ var _ = Describe("Resource Config Tests", func() {
 			},
 		)
 
-		ok := validateTLSProfile(tlsRenc)
+		ok, _ := validateTLSProfile(tlsRenc)
 		Expect(ok).To(BeTrue(), "TLS Re-encryption Validation Failed")
 
-		ok = validateTLSProfile(tlsRencComb)
+		ok, _ = validateTLSProfile(tlsRencComb)
 		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
 
-		ok = validateTLSProfile(tlsEdge)
+		ok, _ = validateTLSProfile(tlsEdge)
 		Expect(ok).To(BeTrue(), "TLS Edge Validation Failed")
 
-		ok = validateTLSProfile(tlsPst)
+		ok, _ = validateTLSProfile(tlsPst)
 		Expect(ok).To(BeTrue(), "TLS Passthrough Validation Failed")
 
 		// Negative cases
@@ -1112,17 +1112,17 @@ var _ = Describe("Resource Config Tests", func() {
 		tlsEdge.Spec.TLS.Termination = TLSReencrypt
 		tlsRenc.Spec.TLS.Termination = TLSPassthrough
 
-		ok = validateTLSProfile(tlsRenc)
+		ok, _ = validateTLSProfile(tlsRenc)
 		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
 
-		ok = validateTLSProfile(tlsEdge)
+		ok, _ = validateTLSProfile(tlsEdge)
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 
-		ok = validateTLSProfile(tlsPst)
+		ok, _ = validateTLSProfile(tlsPst)
 		Expect(ok).To(BeFalse(), "TLS Passthrough Validation Failed")
 
 		tlsRenc.Spec.TLS.Termination = TLSEdge
-		ok = validateTLSProfile(tlsRenc)
+		ok, _ = validateTLSProfile(tlsRenc)
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 	})
 

@@ -296,6 +296,11 @@ type MockBigIPClientForPersistence struct {
 	errorMsg          string
 }
 
+func (m *MockBigIPClientForPersistence) GetMonitor(name string, parent string) (*bigip.Monitor, error) {
+	//TODO implement me
+	return nil, nil
+}
+
 func NewMockBigIPClientForPersistence(successfulProfile string, shouldError bool, errorMsg string) *MockBigIPClientForPersistence {
 	return &MockBigIPClientForPersistence{
 		successfulProfile: successfulProfile,
@@ -415,6 +420,10 @@ func (m *MockBigIPClientForPersistence) GetHTMLProfile(name string) (*bigip.HTML
 
 func (m *MockBigIPClientForPersistence) GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error) {
 	return &bigip.AnalyticsProfile{Name: name}, nil
+}
+
+func (m *MockBigIPClient) GetMonitor(name, parent string) (*bigip.Monitor, error) {
+	return &bigip.Monitor{Name: name}, nil
 }
 
 // Persistence profile methods that control the test behavior

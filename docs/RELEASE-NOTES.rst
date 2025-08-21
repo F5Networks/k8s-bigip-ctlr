@@ -9,7 +9,8 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
-        * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
+        * `Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
+        * `Issue 3892 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3892>`_: GRPC support for VirtualServer CRD
 
 Bug Fixes
 ````````````

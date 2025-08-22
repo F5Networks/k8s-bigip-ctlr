@@ -443,6 +443,7 @@ type ProfileSpec struct {
 	TCP                    ProfileTCP        `json:"tcp,omitempty"`
 	UDP                    string            `json:"udp,omitempty"`
 	HTTP                   string            `json:"http,omitempty"`
+	HTTPProfiles           HTTPProfiles      `json:"httpProfiles,omitempty"`
 	HTTP2                  ProfileHTTP2      `json:"http2,omitempty"`
 	RewriteProfile         string            `json:"rewriteProfile,omitempty"`
 	PersistenceProfile     string            `json:"persistenceProfile,omitempty"`
@@ -479,6 +480,11 @@ type ProfileTCP struct {
 type ProfileHTTP2 struct {
 	Client string `json:"client,omitempty"`
 	Server string `json:"server,omitempty"`
+}
+
+type HTTPProfiles struct {
+	Insecure string `json:"insecure,omitempty"`
+	Secure   string `json:"secure,omitempty"`
 }
 
 // +genclient

@@ -68,6 +68,7 @@ rules:
       - transportservers/status
       - virtualservers/status
       - ingresslinks/status
+      - tlsprofiles/status
       - policies
 {{- if .Values.args.ipam }}
   - verbs:

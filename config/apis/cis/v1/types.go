@@ -27,6 +27,12 @@ type CustomResourceStatus struct {
 	Error       string      `json:"error,omitempty"`
 }
 
+type TLSProfileStatus struct {
+	Status      string      `json:"status,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
+}
+
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
 	Host                             string           `json:"host,omitempty"`
@@ -196,13 +202,15 @@ type VirtualServerList struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:subresource:status
 
 // TLSProfile is a Custom Resource for TLS server
 type TLSProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec TLSProfileSpec `json:"spec"`
+	Spec   TLSProfileSpec   `json:"spec"`
+	Status TLSProfileStatus `json:"status,omitempty"`
 }
 
 // TLSProfileSpec is spec for TLSServer

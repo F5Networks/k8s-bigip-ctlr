@@ -4479,9 +4479,12 @@ func (ctlr *Controller) processIngressLink(
 		rsCfg.MetaData.baseResources[ingLink.ObjectMeta.Namespace+"/"+ingLink.ObjectMeta.Name] = IngressLink
 		//update serviceport for multiclusterservices
 		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
-			for i := range ingLink.Spec.MultiClusterServices {
-				ingLink.Spec.MultiClusterServices[i].ServicePort = intstr.IntOrString{IntVal: port.Port}
+			// Copy the IngressLink to avoid modifying the original object in the informer cache.
+			ingLinkCopy := ingLink.DeepCopy()
+			for i := range ingLinkCopy.Spec.MultiClusterServices {
+				ingLinkCopy.Spec.MultiClusterServices[i].ServicePort = intstr.IntOrString{IntVal: port.Port}
 			}
+			ingLink = ingLinkCopy
 		}
 		_ = ctlr.prepareRSConfigFromIngressLink(rsCfg, ingLink, port, ingLink.Spec.MultiClusterServices, svc)
 		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {

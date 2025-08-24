@@ -1,6 +1,7 @@
 package bigiphandler
 
 import (
+	"context" //
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -51,6 +52,8 @@ type BigIPClient interface {
 	GetUniversalPersistenceProfile(name string) (*bigip.UniversalPersistenceProfile, error)
 	GetSSLPersistenceProfile(name string) (*bigip.SSLPersistenceProfile, error)
 	GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error)
+	GetMonitor(name string, parent string) (*bigip.Monitor, error)
+	GetGtmserver(name string) (*bigip.Server, error)
 }
 
 func CreateSession(host, token, userAgent, trustedCerts string, insecure, teem bool) *bigip.BigIP {
@@ -120,6 +123,7 @@ type BigIPHandlerInterface interface {
 	GetHTMLProfile(name string) (any, error)
 	GetFTPProfile(name string) (any, error)
 	GetHTTPCompressionProfile(name string) (any, error)
+	GetMonitor(name string) (*bigip.Monitor, error)
 	// Add more methods as needed for other BIG-IP resources
 }
 
@@ -527,4 +531,72 @@ func (handler *BigIPHandler) GetHTTPCompressionProfile(name string) (any, error)
 		return nil, err
 	}
 	return profile, nil
+}
+
+func (handler *BigIPHandler) GetMonitor(name string) (*bigip.Monitor, error) {
+	// monitorTypes := []string{"http", "tcp", "icmp", "https", "gateway icmp"}
+
+	var f5MonitorParentTypes = []string{
+		"http", "https", "tcp", "icmp", "gateway_icmp", "dns", "external", "ftp", "imap",
+		"inband", "ldap", "mssql", "mysql", "oracle", "pop3", "postgresql", "radius",
+		"radius_accounting", "real_server", "rpc", "sip", "smtp", "snmp_dca", "snmp_dca_base",
+		"soap", "tcp_echo", "tcp_half_open", "udp", "virtual_location",
+		"diameter", "firepass", "http2", "module_score", "mqtt", "nntp",
+		"sasp", "scripted", "smb", "wap", "wmi",
+	}
+
+	type result struct {
+		monitor *bigip.Monitor
+		err     error
+	}
+
+	resultCh := make(chan result, len(f5MonitorParentTypes))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	for _, mType := range f5MonitorParentTypes {
+		wg.Add(1)
+		go func(mType string) {
+			defer wg.Done()
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				monitor, err := handler.Bigip.GetMonitor(name, mType)
+				if err == nil {
+					log.Debugf("Found monitor %s of type %s,monitor: %v", name, mType, monitor)
+					// Found a valid monitor, send result and cancel others
+					resultCh <- result{monitor, nil}
+					cancel()
+				}
+			}
+		}(mType)
+	}
+
+	// Close result channel once all goroutines are done
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for res := range resultCh {
+		// Return the first successful monitor
+		if res.err == nil {
+			return res.monitor, nil
+		}
+	}
+
+	// If no monitor found
+	return nil, fmt.Errorf("monitor %s not found", name)
+}
+
+func (handler *BigIPHandler) GetGtmserver(name string) (*bigip.Server, error) {
+	// Get the GTM Server by name
+	server, err := handler.Bigip.GetGtmserver(name)
+	if err != nil {
+		return nil, err
+	}
+	return server, nil
 }

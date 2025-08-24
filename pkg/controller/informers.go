@@ -664,7 +664,7 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 		crInf.tlsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueTLSProfile(obj, Create) },
-				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueTLSProfile(cur, Update) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedTLSProfile(oldObj, newObj) },
 				// DeleteFunc: func(obj interface{}) { ctlr.enqueueTLSProfile(obj) },
 			},
 		)
@@ -958,6 +958,16 @@ func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 
 func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 	tls := obj.(*cisapiv1.TLSProfile)
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the TLS profile matches all the requirements.
+		tlsKey := tls.ObjectMeta.Namespace + "/" + tls.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidTLSProfile(tls)
+		if !valid {
+			log.Errorf("TLSProfile %s is not valid: %s", tlsKey, errMsg)
+			ctlr.updateTLSProfileStatus(tls, StatusError, errors.New(errMsg))
+			return
+		}
+	}
+	ctlr.updateTLSProfileStatus(tls, "Ok", nil)
 	log.Debugf("Enqueueing TLSProfile: %v", tls)
 	key := &rqKey{
 		namespace: tls.ObjectMeta.Namespace,
@@ -965,6 +975,37 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 		rscName:   tls.ObjectMeta.Name,
 		rsc:       obj,
 		event:     event,
+	}
+
+	ctlr.resourceQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueueUpdatedTLSProfile(oldObj, newObj interface{}) {
+	oldTLS := oldObj.(*cisapiv1.TLSProfile)
+	tls := newObj.(*cisapiv1.TLSProfile)
+
+	// Skip TLS profiles on status updates
+	if reflect.DeepEqual(oldTLS.Spec, tls.Spec) {
+		return
+	}
+
+	if !ctlr.webhookServer.IsWebhookServerRunning() { // check if the TLS profile matches all the requirements.
+		tlsKey := tls.ObjectMeta.Namespace + "/" + tls.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidTLSProfile(tls)
+		if !valid {
+			log.Errorf("TLSProfile %s is not valid: %s", tlsKey, errMsg)
+			ctlr.updateTLSProfileStatus(tls, StatusError, errors.New(errMsg))
+			return
+		}
+	}
+	ctlr.updateTLSProfileStatus(tls, "Ok", nil)
+	log.Debugf("Enqueueing TLSProfile: %v", tls)
+	key := &rqKey{
+		namespace: tls.ObjectMeta.Namespace,
+		kind:      TLSProfile,
+		rscName:   tls.ObjectMeta.Name,
+		rsc:       newObj,
+		event:     Update,
 	}
 
 	ctlr.resourceQueue.Add(key)
@@ -1205,6 +1246,16 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 
 func (ctlr *Controller) enqueueExternalDNS(obj interface{}, clusterName string) {
 	edns := obj.(*cisapiv1.ExternalDNS)
+	if !ctlr.webhookServer.IsWebhookServerRunning() {
+		ednsKey := edns.ObjectMeta.Namespace + "/" + edns.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidExternalDNS(edns)
+		if !valid {
+			log.Errorf("ExternalDNS %s is not valid: %s", ednsKey, errMsg)
+			ctlr.updateExternalDNSStatus(edns, StatusError, errors.New(errMsg))
+			return
+		}
+	}
+	ctlr.updateExternalDNSStatus(edns, StatusOk, nil)
 	log.Debugf("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
 		namespace:   edns.ObjectMeta.Namespace,
@@ -1221,6 +1272,22 @@ func (ctlr *Controller) enqueueExternalDNS(obj interface{}, clusterName string) 
 func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}, clusterName string) {
 	oldEDNS := oldObj.(*cisapiv1.ExternalDNS)
 	edns := newObj.(*cisapiv1.ExternalDNS)
+
+	// Skip externalDNS on status updates
+	if reflect.DeepEqual(oldEDNS.Spec, edns.Spec) {
+		return
+	}
+
+	if !ctlr.webhookServer.IsWebhookServerRunning() {
+		ednsKey := edns.ObjectMeta.Namespace + "/" + edns.ObjectMeta.Name
+		valid, errMsg := ctlr.checkValidExternalDNS(edns)
+		if !valid {
+			log.Errorf("ExternalDNS %s is not valid: %s", ednsKey, errMsg)
+			ctlr.updateExternalDNSStatus(edns, StatusError, errors.New(errMsg))
+			return
+		}
+	}
+	ctlr.updateExternalDNSStatus(edns, StatusOk, nil)
 
 	if oldEDNS.Spec.DomainName != edns.Spec.DomainName {
 		key := &rqKey{

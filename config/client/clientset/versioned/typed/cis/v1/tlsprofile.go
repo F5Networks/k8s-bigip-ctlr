@@ -40,6 +40,7 @@ type TLSProfilesGetter interface {
 type TLSProfileInterface interface {
 	Create(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.CreateOptions) (*v1.TLSProfile, error)
 	Update(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.UpdateOptions) (*v1.TLSProfile, error)
+	UpdateStatus(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.UpdateOptions) (*v1.TLSProfile, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.TLSProfile, error)
@@ -128,6 +129,22 @@ func (c *tLSProfiles) Update(ctx context.Context, tLSProfile *v1.TLSProfile, opt
 		Namespace(c.ns).
 		Resource("tlsprofiles").
 		Name(tLSProfile.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(tLSProfile).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *tLSProfiles) UpdateStatus(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.UpdateOptions) (result *v1.TLSProfile, err error) {
+	result = &v1.TLSProfile{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("tlsprofiles").
+		Name(tLSProfile.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(tLSProfile).
 		Do(ctx).

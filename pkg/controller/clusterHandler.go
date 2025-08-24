@@ -495,6 +495,48 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().TLSProfiles(tlsProfile.ObjectMeta.Namespace).
 			UpdateStatus(context.TODO(), tlsProfile, metav1.UpdateOptions{})
 
+	case ExternalDNS:
+		informer := ch.getCommonInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var edns *cisv1.ExternalDNS
+		var found bool
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.ednsInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" +
+				rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch ExternalDNS. %v", err)
+				break
+			} else if !exists {
+				return
+			}
+			edns, found = item.(*cisv1.ExternalDNS)
+		} else {
+			var err error
+			edns, err = clusterConfig.kubeCRClient.CisV1().ExternalDNSes(rscStatus.ResourceKey.namespace).
+				Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch ExternalDNS. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			ednsStatus := rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
+			edns.Status = cisv1.ExternalDNSStatus{
+				Status:      ednsStatus.Status,
+				Error:       ednsStatus.Error,
+				LastUpdated: ednsStatus.LastUpdated,
+			}
+		}
+		_, updateErr = clusterConfig.kubeCRClient.CisV1().ExternalDNSes(edns.ObjectMeta.Namespace).
+			UpdateStatus(context.TODO(), edns, metav1.UpdateOptions{})
 	case Service:
 		informer := ch.getCommonInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {

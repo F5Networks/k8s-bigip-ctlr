@@ -121,7 +121,17 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 			}
 		}
 		allowed, errMsg = ctlr.checkValidTLSProfile(tlsProf)
-
+	case ExternalDNS:
+		eDNS := &cisapiv1.ExternalDNS{}
+		if _, _, err := deserializer.Decode(req.Object.Raw, nil, eDNS); err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: fmt.Sprintf("could not decode object: %v", err),
+				},
+			}
+		}
+		allowed, errMsg = ctlr.checkValidExternalDNS(eDNS)
 	case CustomPolicy:
 		pl := &cisapiv1.Policy{}
 		if _, _, err := deserializer.Decode(req.Object.Raw, nil, pl); err != nil {
@@ -825,6 +835,48 @@ func (ctlr *Controller) checkValidIngressLink(
 				return
 			}
 		}(monitor.Name)
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg := <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
+	}
+}
+
+func (ctlr *Controller) checkValidExternalDNS(
+	eDNS *cisapiv1.ExternalDNS,
+) (bool, string) {
+	var wg sync.WaitGroup
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bigiIPSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL,
+		ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
+	validator := &bigiphandler.BigIPHandler{Bigip: bigiIPSession}
+
+	// Validate GTM Servers
+	for _, pool := range eDNS.Spec.Pools {
+		wg.Add(1)
+		go func(dataServer string) {
+			defer wg.Done()
+			if _, err := validator.GetGtmserver(dataServer); err != nil {
+				errChan <- fmt.Sprintf("Referenced Data Server '%s' does not exist on "+
+					"BIGIP for ExternalDNS %s: %v", dataServer, eDNS.Name, err)
+				cancel()
+				return
+			}
+		}(pool.DataServerName)
 	}
 
 	go func() {

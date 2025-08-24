@@ -76,6 +76,27 @@ func (ctlr *Controller) updateTLSProfileStatus(tlsProfile *cisapiv1.TLSProfile, 
 	}
 }
 
+// updateTLSProfileStatus prepares the status update for ExternalDNS
+func (ctlr *Controller) updateExternalDNSStatus(externalDNS *cisapiv1.ExternalDNS, status string, err error) {
+	dnsStatus := cisapiv1.CustomResourceStatus{
+		Status:      status,
+		LastUpdated: metav1.Now(),
+	}
+	if err != nil {
+		dnsStatus.Error = err.Error()
+	}
+	ctlr.multiClusterHandler.statusUpdate.ResourceStatusUpdateChan <- ResourceStatus{
+		ResourceObj: dnsStatus,
+		ResourceKey: resourceRef{
+			kind:        ExternalDNS,
+			name:        externalDNS.Name,
+			namespace:   externalDNS.Namespace,
+			clusterName: ctlr.multiClusterHandler.LocalClusterName,
+		},
+		Timestamp: metav1.Now(),
+	}
+}
+
 // updateILStatus prepares the status update IL
 func (ctlr *Controller) updateILStatus(il *cisapiv1.IngressLink, ip string, status string, err error) {
 	ilStatus := cisapiv1.CustomResourceStatus{

@@ -33,6 +33,12 @@ type TLSProfileStatus struct {
 	Error       string      `json:"error,omitempty"`
 }
 
+type ExternalDNSStatus struct {
+	Status      string      `json:"status,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
+	Error       string      `json:"error,omitempty"`
+}
+
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
 	Host                             string           `json:"host,omitempty"`
@@ -358,13 +364,15 @@ type TransportServerList struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:validation:Optional
+// +kubebuilder:subresource:status
 
 // ExternalDNS defines the DNS resource.
 type ExternalDNS struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ExternalDNSSpec `json:"spec"`
+	Spec   ExternalDNSSpec   `json:"spec"`
+	Status ExternalDNSStatus `json:"status,omitempty"`
 }
 
 type ExternalDNSSpec struct {

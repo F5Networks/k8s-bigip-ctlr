@@ -53,6 +53,7 @@ type BigIPClient interface {
 	GetSSLPersistenceProfile(name string) (*bigip.SSLPersistenceProfile, error)
 	GetAnalyticsProfile(name string) (*bigip.AnalyticsProfile, error)
 	GetMonitor(name string, parent string) (*bigip.Monitor, error)
+	GetGtmserver(name string) (*bigip.Server, error)
 }
 
 func CreateSession(host, token, userAgent, trustedCerts string, insecure, teem bool) *bigip.BigIP {
@@ -589,4 +590,13 @@ func (handler *BigIPHandler) GetMonitor(name string) (*bigip.Monitor, error) {
 
 	// If no monitor found
 	return nil, fmt.Errorf("monitor %s not found", name)
+}
+
+func (handler *BigIPHandler) GetGtmserver(name string) (*bigip.Server, error) {
+	// Get the GTM Server by name
+	server, err := handler.Bigip.GetGtmserver(name)
+	if err != nil {
+		return nil, err
+	}
+	return server, nil
 }

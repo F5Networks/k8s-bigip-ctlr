@@ -12,7 +12,7 @@ rules:
     resources: ["configmaps", "events", "ingresses/status", "services/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "transportservers/status", "ingresslinks", "ingresslinks/status", "externaldnses", "policies"]
+    resources: ["virtualservers","virtualservers/status", "tlsprofiles","tlsprofiles/status", "transportservers", "transportservers/status", "ingresslinks", "ingresslinks/status", "externaldnses","externaldnses/status", "policies"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["fic.f5.com"]
     resources: ["ipams", "ipams/status"]

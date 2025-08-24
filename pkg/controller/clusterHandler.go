@@ -445,6 +445,98 @@ func (ch *ClusterHandler) UpdateResourceStatus(rscStatus ResourceStatus) {
 			il.Status = rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
 		}
 		_, updateErr = clusterConfig.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+	case TLSProfile:
+		informer := ch.getCRInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var tlsProfile *cisv1.TLSProfile
+		var found bool
+		// Get the latest version of the resource.
+		// If status update is for delete event which is indicated by clearKeyFromCache flag, then use kubeclient as it
+		// helps in identifying whether resource is actually deleted or it's label has been removed, otherwise use informers,
+		// which is usually faster.
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.tlsInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" +
+				rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch TLSProfile. %v", err)
+				break
+			} else if !exists {
+				// Object is deleted
+				return
+			}
+			tlsProfile, found = item.(*cisv1.TLSProfile)
+		} else {
+			var err error
+			tlsProfile, err = clusterConfig.kubeCRClient.CisV1().TLSProfiles(rscStatus.ResourceKey.namespace).
+				Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					// Resource is not found indicates it's actually deleted, so it eliminates the case of watch label
+					// removal from the resource. So, no need to go for status update.
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch TLSProfile. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			tlsStatus := rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
+			tlsProfile.Status = cisv1.TLSProfileStatus{
+				Status:      tlsStatus.Status,
+				Error:       tlsStatus.Error,
+				LastUpdated: tlsStatus.LastUpdated,
+			}
+		}
+		_, updateErr = clusterConfig.kubeCRClient.CisV1().TLSProfiles(tlsProfile.ObjectMeta.Namespace).
+			UpdateStatus(context.TODO(), tlsProfile, metav1.UpdateOptions{})
+
+	case ExternalDNS:
+		informer := ch.getCommonInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
+		if informer == nil {
+			updateErr = fmt.Errorf("failed to get informer")
+			break
+		}
+		var edns *cisv1.ExternalDNS
+		var found bool
+		if !rscStatus.ClearKeyFromCache {
+			item, exists, err := informer.ednsInformer.GetIndexer().GetByKey(rscStatus.ResourceKey.namespace + "/" +
+				rscStatus.ResourceKey.name)
+			if err != nil {
+				updateErr = fmt.Errorf("failed to fetch ExternalDNS. %v", err)
+				break
+			} else if !exists {
+				return
+			}
+			edns, found = item.(*cisv1.ExternalDNS)
+		} else {
+			var err error
+			edns, err = clusterConfig.kubeCRClient.CisV1().ExternalDNSes(rscStatus.ResourceKey.namespace).
+				Get(context.Background(), rscStatus.ResourceKey.name, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					return
+				} else {
+					updateErr = fmt.Errorf("failed to fetch ExternalDNS. %v", err)
+					break
+				}
+			}
+			found = true
+		}
+		if found {
+			ednsStatus := rscStatus.ResourceObj.(cisv1.CustomResourceStatus)
+			edns.Status = cisv1.ExternalDNSStatus{
+				Status:      ednsStatus.Status,
+				Error:       ednsStatus.Error,
+				LastUpdated: ednsStatus.LastUpdated,
+			}
+		}
+		_, updateErr = clusterConfig.kubeCRClient.CisV1().ExternalDNSes(edns.ObjectMeta.Namespace).
+			UpdateStatus(context.TODO(), edns, metav1.UpdateOptions{})
 	case Service:
 		informer := ch.getCommonInformerForCluster(rscStatus.ResourceKey.clusterName, rscStatus.ResourceKey.namespace)
 		if informer == nil {

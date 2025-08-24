@@ -111,8 +111,27 @@ func (ctlr *Controller) validateResource(req *admissionv1.AdmissionRequest) *adm
 		}
 		allowed, errMsg = ctlr.checkValidIngressLink(il)
 	case TLSProfile:
-		allowed = true
-
+		tlsProf := &cisapiv1.TLSProfile{}
+		if _, _, err := deserializer.Decode(req.Object.Raw, nil, tlsProf); err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: fmt.Sprintf("could not decode object: %v", err),
+				},
+			}
+		}
+		allowed, errMsg = ctlr.checkValidTLSProfile(tlsProf)
+	case ExternalDNS:
+		eDNS := &cisapiv1.ExternalDNS{}
+		if _, _, err := deserializer.Decode(req.Object.Raw, nil, eDNS); err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: fmt.Sprintf("could not decode object: %v", err),
+				},
+			}
+		}
+		allowed, errMsg = ctlr.checkValidExternalDNS(eDNS)
 	case CustomPolicy:
 		pl := &cisapiv1.Policy{}
 		if _, _, err := deserializer.Decode(req.Object.Raw, nil, pl); err != nil {
@@ -252,21 +271,288 @@ func (ctlr *Controller) checkValidVirtualServer(
 	bigipSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL, ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent, ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
 	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
 
+	// Validate the referenced LTM default pool
+	if vsResource.Spec.DefaultPool.Reference == BIGIP && vsResource.Spec.DefaultPool.Name != "" {
+		wg.Add(1)
+		go func(poolName string) {
+			defer wg.Done()
+			if _, err := validator.GetLTMPool(poolName); err != nil {
+				errChan <- fmt.Sprintf("Referenced LTM pool '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (defaultPool.name: %s): %v", poolName, vsResource.Name, poolName, err)
+				cancel()
+			}
+		}(vsResource.Spec.DefaultPool.Name)
+	}
+
+	// Validate monitors inside the default pool
+	for _, monitor := range vsResource.Spec.DefaultPool.Monitors {
+		if monitor.Reference == BIGIP && monitor.Name != "" {
+			wg.Add(1)
+			go func(monitorName string) {
+				defer wg.Done()
+				if _, err := validator.GetMonitor(monitorName); err != nil {
+					errChan <- fmt.Sprintf("Referenced monitor '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (defaultPool.monitors: %s): %v",
+						monitorName, vsResource.Name, monitorName, err)
+					cancel()
+				}
+			}(monitor.Name)
+		}
+	}
+
+	// Validate Pool Monitors
+	for _, pool := range vsResource.Spec.Pools {
+		for _, monitor := range pool.Monitors {
+			if monitor.Reference == BIGIP && monitor.Name != "" {
+				wg.Add(1)
+				go func(monitorName, poolName string) {
+					defer wg.Done()
+					if _, err := validator.GetMonitor(monitorName); err != nil {
+						errChan <- fmt.Sprintf("Referenced monitor '%s' does not exist on BIGIP "+
+							"for VirtualServer %s (pools[%s].monitors: %s): %v",
+							monitorName, vsResource.Name, poolName, monitorName, err)
+						cancel()
+					}
+				}(monitor.Name, pool.Name)
+			}
+		}
+		if pool.Monitor.Reference == BIGIP && pool.Monitor.Name != "" {
+			wg.Add(1)
+			go func(monitorName, poolName string) {
+				defer wg.Done()
+				if _, err := validator.GetMonitor(monitorName); err != nil {
+					errChan <- fmt.Sprintf("Referenced monitor '%s' does not exist on BIGIP for "+
+						"VirtualServer %s (pools[%s].monitor: %s): %v",
+						monitorName, vsResource.Name, poolName, monitorName, err)
+					cancel()
+				}
+			}(pool.Monitor.Name, pool.Name)
+		}
+	}
+
+	// Validate AllowVLANs
+	for _, vlan := range vsResource.Spec.AllowVLANs {
+		if vlan != "" {
+			wg.Add(1)
+			go func(vlanName string) {
+				defer wg.Done()
+				if _, err := validator.GetVLAN(vlanName); err != nil {
+					errChan <- fmt.Sprintf("Referenced vlan '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (allowVlans: %s): %v", vlanName, vsResource.Name, vlanName, err)
+					cancel()
+				}
+			}(vlan)
+		}
+	}
+
+	// Validate PersistenceProfile
+	if vsResource.Spec.PersistenceProfile != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetPersistenceProfile(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced persistence profile '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (persistenceProfile: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.PersistenceProfile)
+	}
+
+	// Validate HTTPCompressionProfile
+	if vsResource.Spec.HTTPCompressionProfile != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetHTTPCompressionProfile(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced HTTP Compression profile '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (httpCompressionProfile: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.HTTPCompressionProfile)
+	}
+
+	// Validate ProfileMultiplex
+	if vsResource.Spec.ProfileMultiplex != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetMultiplexProfile(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced multiplex profile '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (profileMultiplex: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.ProfileMultiplex)
+	}
+
+	// Validate DOS
+	if vsResource.Spec.DOS != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetDOSProfile(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced dos profile '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (dos: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.DOS)
+	}
+
+	// Validate BotDefense
+	if vsResource.Spec.BotDefense != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetBotDefenseProfile(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced botDefense profile '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (botDefense: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.BotDefense)
+	}
+
+	// Validate WAF
+	if vsResource.Spec.WAF != "" {
+		wg.Add(1)
+		go func(waf string) {
+			defer wg.Done()
+			if _, err := validator.GetWAF(waf); err != nil {
+				errChan <- fmt.Sprintf("Referenced WAF policy '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (waf: %s): %v", waf, vsResource.Name, waf, err)
+				cancel()
+			}
+		}(vsResource.Spec.WAF)
+	}
+
+	// Validate HTMLProfile
+	if vsResource.Spec.HTMLProfile != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetHTMLProfile(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced HTML profile '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (htmlProfile: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.HTMLProfile)
+	}
+
+	// Validate ProfileAccess
+	if vsResource.Spec.ProfileAccess != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetProfileAccess(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced profileAccess '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (profileAccess: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.ProfileAccess)
+	}
+
+	// Validate PolicyPerRequestAccess
+	if vsResource.Spec.PolicyPerRequestAccess != "" {
+		wg.Add(1)
+		go func(profile string) {
+			defer wg.Done()
+			if _, err := validator.GetPolicyPerRequestAccess(profile); err != nil {
+				errChan <- fmt.Sprintf("Referenced policyPerRequestAccess '%s' does not exist on BIGIP "+
+					"for VirtualServer %s (policyPerRequestAccess: %s): %v", profile, vsResource.Name, profile, err)
+				cancel()
+			}
+		}(vsResource.Spec.PolicyPerRequestAccess)
+	}
+
+	// Validate ProfileAdapt (request/response)
+	if !reflect.DeepEqual(vsResource.Spec.ProfileAdapt, cisapiv1.ProfileAdapt{}) {
+		if vsResource.Spec.ProfileAdapt.Request != "" {
+			wg.Add(1)
+			go func(profile string) {
+				defer wg.Done()
+				if _, err := validator.GetProfileAdaptRequest(profile); err != nil {
+					errChan <- fmt.Sprintf("Referenced profileAdapt request '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (profileAdapt.request: %s): %v", profile, vsResource.Name, profile, err)
+					cancel()
+				}
+			}(vsResource.Spec.ProfileAdapt.Request)
+		}
+		if vsResource.Spec.ProfileAdapt.Response != "" {
+			wg.Add(1)
+			go func(profile string) {
+				defer wg.Done()
+				if _, err := validator.GetProfileAdaptResponse(profile); err != nil {
+					errChan <- fmt.Sprintf("Referenced profileAdapt response '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (profileAdapt.response: %s): %v", profile, vsResource.Name, profile, err)
+					cancel()
+				}
+			}(vsResource.Spec.ProfileAdapt.Response)
+		}
+	}
+
+	// Validate TCP profiles
+	if !reflect.DeepEqual(vsResource.Spec.Profiles.TCP, cisapiv1.ProfileTCP{}) {
+		if vsResource.Spec.Profiles.TCP.Client != "" {
+			wg.Add(1)
+			go func(profile string) {
+				defer wg.Done()
+				if _, err := validator.GetTCPProfile(profile); err != nil {
+					errChan <- fmt.Sprintf("Referenced client side tcp profile '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (profiles.tcp.client: %s): %v", profile, vsResource.Name, profile, err)
+					cancel()
+				}
+			}(vsResource.Spec.Profiles.TCP.Client)
+		}
+		if vsResource.Spec.Profiles.TCP.Server != "" {
+			wg.Add(1)
+			go func(profile string) {
+				defer wg.Done()
+				if _, err := validator.GetTCPProfile(profile); err != nil {
+					errChan <- fmt.Sprintf("Referenced server side tcp profile '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (profiles.tcp.server: %s): %v", profile, vsResource.Name, profile, err)
+					cancel()
+				}
+			}(vsResource.Spec.Profiles.TCP.Server)
+		}
+	}
+
+	// Validate HTTP2 profiles
+	if !reflect.DeepEqual(vsResource.Spec.Profiles.HTTP2, cisapiv1.ProfileHTTP2{}) {
+		if vsResource.Spec.Profiles.HTTP2.Client != "" {
+			wg.Add(1)
+			go func(profile string) {
+				defer wg.Done()
+				if _, err := validator.GetHTTP2Profile(profile); err != nil {
+					errChan <- fmt.Sprintf("Referenced client side http2 profile '%s' does not exist on BIGIP"+
+						" for VirtualServer %s (profiles.http2.client: %s): %v", profile, vsResource.Name, profile, err)
+					cancel()
+				}
+			}(vsResource.Spec.Profiles.HTTP2.Client)
+		}
+		if vsResource.Spec.Profiles.HTTP2.Server != "" {
+			wg.Add(1)
+			go func(profile string) {
+				defer wg.Done()
+				if _, err := validator.GetHTTP2Profile(profile); err != nil {
+					errChan <- fmt.Sprintf("Referenced server side http2 profile '%s' does not exist on BIGIP "+
+						"for VirtualServer %s (profiles.http2.server: %s): %v", profile, vsResource.Name, profile, err)
+					cancel()
+				}
+			}(vsResource.Spec.Profiles.HTTP2.Server)
+		}
+	}
+
 	// Validate iRules
 	for _, irule := range vsResource.Spec.IRules {
-		// if Irule is set to none, skip the check
-		if irule == "none" {
-			continue
+		if irule != "" && irule != "none" {
+			wg.Add(1)
+			go func(irule string) {
+				defer wg.Done()
+				if _, err := validator.GetIRule(irule); err != nil {
+					errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s "+
+						"(iRules: %s): %v", irule, vsResource.Name, irule, err)
+					cancel()
+				}
+			}(irule)
 		}
-		wg.Add(1)
-		go func(irule string) {
-			defer wg.Done()
-			if _, err := validator.GetIRule(irule); err != nil {
-				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on BIGIP for VirtualServer %s (iRules: %v): %v", irule, vsName, vsResource.Spec.IRules, err)
-				cancel()
-				return
-			}
-		}(irule)
 	}
 
 	go func() {
@@ -485,6 +771,72 @@ func (ctlr *Controller) checkValidIngressLink(
 		}
 	}()
 
+	bigiIPSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL,
+		ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
+	validator := &bigiphandler.BigIPHandler{Bigip: bigiIPSession}
+
+	// Validate ClientSSL Profile if TLSProfileName is set
+	if il.Spec.TLS.Reference == BIGIP {
+		for _, clientSSL := range il.Spec.TLS.ClientSSLs {
+			wg.Add(1)
+			go func(clientSSL string) {
+				defer wg.Done()
+				if _, err := validator.GetClientSSLProfile(clientSSL); err != nil {
+					errChan <- fmt.Sprintf("Referenced ClientSSL Profile '%s' does not exist on "+
+						"BIGIP for IngressLink %s: %v", clientSSL, il.Name, err)
+					cancel()
+					return
+				}
+			}(clientSSL)
+		}
+
+		// Validate ServerSSL Profile if TLSProfileName is set
+		for _, serverSSL := range il.Spec.TLS.ServerSSLs {
+			wg.Add(1)
+			go func(serverSSL string) {
+				defer wg.Done()
+				if _, err := validator.GetServerSSLProfile(serverSSL); err != nil {
+					errChan <- fmt.Sprintf("Referenced ServerSSL Profile '%s' does not exist on "+
+						"BIGIP for IngressLink %s: %v", serverSSL, il.Name, err)
+					cancel()
+					return
+				}
+			}(serverSSL)
+		}
+	}
+
+	// Validate iRules
+	for _, iRule := range il.Spec.IRules {
+		wg.Add(1)
+		go func(iRule string) {
+			defer wg.Done()
+			if _, err := validator.GetIRule(iRule); err != nil {
+				errChan <- fmt.Sprintf("Referenced iRule '%s' does not exist on "+
+					"BIGIP for IngressLink %s: %v", iRule, il.Name, err)
+				cancel()
+				return
+			}
+		}(iRule)
+	}
+
+	// Validate monitors
+	for _, monitor := range il.Spec.Monitors {
+		if monitor.Reference != BIGIP {
+			continue
+		}
+		wg.Add(1)
+		go func(monitor string) {
+			defer wg.Done()
+			if _, err := validator.GetMonitor(monitor); err != nil {
+				errChan <- fmt.Sprintf("Referenced monitor '%s' does not exist on "+
+					"BIGIP for IngressLink %s: %v", monitor, il.Name, err)
+				cancel()
+				return
+			}
+		}(monitor.Name)
+	}
+
 	go func() {
 		wg.Wait()
 		close(doneChan)
@@ -496,6 +848,137 @@ func (ctlr *Controller) checkValidIngressLink(
 	case <-doneChan:
 		close(errChan)
 		return true, ""
+	}
+}
+
+func (ctlr *Controller) checkValidExternalDNS(
+	eDNS *cisapiv1.ExternalDNS,
+) (bool, string) {
+	var wg sync.WaitGroup
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bigiIPSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL,
+		ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
+	validator := &bigiphandler.BigIPHandler{Bigip: bigiIPSession}
+
+	// Validate GTM Servers
+	for _, pool := range eDNS.Spec.Pools {
+		wg.Add(1)
+		go func(dataServer string) {
+			defer wg.Done()
+			if _, err := validator.GetGtmserver(dataServer); err != nil {
+				errChan <- fmt.Sprintf("Referenced Data Server '%s' does not exist on "+
+					"BIGIP for ExternalDNS %s: %v", dataServer, eDNS.Name, err)
+				cancel()
+				return
+			}
+		}(pool.DataServerName)
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg := <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
+	}
+}
+
+func (ctlr *Controller) checkValidTLSProfile(tlsProfile *cisapiv1.TLSProfile) (bool, string) {
+	isValid, err := validateTLSProfile(tlsProfile)
+	if !isValid {
+		return false, err.Error()
+	}
+
+	if tlsProfile.Spec.TLS.Reference == Secret {
+		return true, ""
+	}
+
+	bigipSession := bigiphandler.CreateSession(
+		ctlr.agentParams.PrimaryParams.BIGIPURL,
+		ctlr.PrimaryBigIPWorker.getPostManager().GetToken(),
+		ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts,
+		ctlr.agentParams.PrimaryParams.SSLInsecure,
+		false,
+	)
+	var wg sync.WaitGroup
+	errChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
+
+	// Collect serverSSLs and clientSSLs into arrays, giving precedence to plural forms
+	var serverSSLs []string
+	if len(tlsProfile.Spec.TLS.ServerSSLs) > 0 {
+		serverSSLs = append(serverSSLs, tlsProfile.Spec.TLS.ServerSSLs...)
+	} else if tlsProfile.Spec.TLS.ServerSSL != "" {
+		serverSSLs = append(serverSSLs, tlsProfile.Spec.TLS.ServerSSL)
+	}
+
+	var clientSSLs []string
+	if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
+		clientSSLs = append(clientSSLs, tlsProfile.Spec.TLS.ClientSSLs...)
+	} else if tlsProfile.Spec.TLS.ClientSSL != "" {
+		clientSSLs = append(clientSSLs, tlsProfile.Spec.TLS.ClientSSL)
+	}
+
+	if tlsProfile.Spec.TLS.Reference == BIGIP {
+		validateSSLProfiles(clientSSLs, func(name string) (interface{}, error) {
+			return validator.GetClientSSLProfile(name)
+		}, "ClientSSL", errChan, &wg)
+
+		validateSSLProfiles(serverSSLs, func(name string) (interface{}, error) {
+			return validator.GetServerSSLProfile(name)
+		}, "ServerSSL", errChan, &wg)
+	} else if tlsProfile.Spec.TLS.Reference == Hybrid {
+		if tlsProfile.Spec.TLS.ClientSSLParams.ProfileReference == BIGIP {
+			validateSSLProfiles(clientSSLs, func(name string) (interface{}, error) {
+				return validator.GetClientSSLProfile(name)
+			}, "ClientSSL", errChan, &wg)
+		}
+		if tlsProfile.Spec.TLS.ServerSSLParams.ProfileReference == BIGIP {
+			validateSSLProfiles(serverSSLs, func(name string) (interface{}, error) {
+				return validator.GetServerSSLProfile(name)
+			}, "ServerSSL", errChan, &wg)
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case errMsg := <-errChan:
+		return false, errMsg
+	case <-doneChan:
+		close(errChan)
+		return true, ""
+	}
+}
+
+func validateSSLProfiles(profiles []string, validateFunc func(string) (interface{}, error),
+	profileType string, errChan chan<- string, wg *sync.WaitGroup) {
+	for _, profile := range profiles {
+		wg.Add(1)
+		go func(p string) {
+			defer wg.Done()
+			if _, err := validateFunc(p); err != nil {
+				errChan <- fmt.Sprintf("%s Profile '%s' does not exist on BIG-IP: %v", profileType, p, err)
+			}
+		}(profile)
 	}
 }
 

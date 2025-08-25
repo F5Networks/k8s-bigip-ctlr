@@ -49,7 +49,7 @@ func NewResourceStore() *ResourceStore {
 
 func newMultiClusterResourceStore() *MultiClusterResourceStore {
 	var rs MultiClusterResourceStore
-	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]struct{})
 	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	return &rs
 }
@@ -653,8 +653,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 					}
 					if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 						for svc, config := range svcs {
-							// update the clusterSvcMap
-							ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+							for portConfig, _ := range config {
+								// update the clusterSvcMap
+								ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+							}
 						}
 					}
 					pool.MultiClusterServices = pl.MultiClusterServices
@@ -2531,8 +2533,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 				}
 				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 					for svc, config := range svcs {
-						// update the clusterSvcMap
-						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+						for portConfig, _ := range config {
+							// update the clusterSvcMap
+							ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+						}
 					}
 				}
 				pool.MultiClusterServices = pl.MultiClusterServices
@@ -2739,8 +2743,10 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 			}
 			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 				for svc, config := range svcs {
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					for portConfig, _ := range config {
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					}
 				}
 			}
 			pool.MultiClusterServices = multiClusterServices
@@ -2933,8 +2939,10 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			}
 			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 				for svc, config := range svcs {
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					for portConfig, _ := range config {
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					}
 				}
 			}
 			pool.MultiClusterServices = multiClusterServices

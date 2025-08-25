@@ -1,23 +1,30 @@
 package controller
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/leaderelection"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"os"
 	"strings"
 	"time"
-
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 var OsExit = os.Exit
 
 func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, baseAPIHandler *BaseAPIHandler) *RequestHandler {
+	// Calculate refresh token interval
 	var refreshTokenInterval time.Duration
 	if agentParams.RefreshTokenInterval != 0 {
 		refreshTokenInterval = time.Duration(agentParams.RefreshTokenInterval) * time.Hour
 	} else {
 		refreshTokenInterval = 10 * time.Hour
 	}
+
+	// Set the refresh token interval in the shared token manager
+	sharedTM := tokenmanager.GetSharedTokenManager()
+	sharedTM.SetRefreshTokenInterval(refreshTokenInterval)
+
 	reqHandler := &RequestHandler{
 		reqChan:                         make(chan ResourceConfigRequest, 1),
 		respChan:                        ctlr.respChan,
@@ -25,27 +32,22 @@ func (ctlr *Controller) NewRequestHandler(agentParams AgentParams, baseAPIHandle
 		PrimaryClusterHealthProbeParams: ctlr.multiClusterHandler.PrimaryClusterHealthProbeParams,
 	}
 	gtmOnSeparateBigIPServer := isGTMOnSeparateServer(agentParams)
+
 	if (agentParams.PrimaryParams != PostParams{}) {
 		reqHandler.PrimaryBigIPWorker = reqHandler.NewAgentWorker(PrimaryBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		reqHandler.CcclHandler(reqHandler.PrimaryBigIPWorker)
-		// start the token manager
-		go reqHandler.PrimaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.PrimaryBigIPWorker.agentWorker()
 	}
 	if (agentParams.SecondaryParams != PostParams{}) {
 		reqHandler.SecondaryBigIPWorker = reqHandler.NewAgentWorker(SecondaryBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
 		reqHandler.CcclHandler(reqHandler.SecondaryBigIPWorker)
-		// start the token manager
-		go reqHandler.SecondaryBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.SecondaryBigIPWorker.agentWorker()
 	}
 	// Run the GTM Agent only in case of separate server and not in cccl mode
 	if gtmOnSeparateBigIPServer && !agentParams.CCCLGTMAgent {
 		reqHandler.GTMBigIPWorker = reqHandler.NewAgentWorker(GTMBigIP, gtmOnSeparateBigIPServer, baseAPIHandler)
-		// start the token manager
-		go reqHandler.GTMBigIPWorker.getPostManager().TokenManagerInterface.Start(make(chan struct{}), refreshTokenInterval)
 		// start the worker
 		go reqHandler.GTMBigIPWorker.gtmWorker()
 	}
@@ -74,6 +76,12 @@ func (reqHandler *RequestHandler) EnqueueRequestConfig(rsConfig ResourceConfigRe
 func (reqHandler *RequestHandler) requestHandler() {
 	log.Debug("Starting requestHandler")
 	for rsConfig := range reqHandler.reqChan {
+		// Check if leader election is enabled and if this instance is the leader
+		if reqHandler.hasLeaderElection() && !reqHandler.isLeader() {
+			log.Debugf("%s Leader election enabled but this instance is not the leader, skipping request processing", getRequestPrefix(rsConfig.reqMeta.id))
+			continue
+		}
+
 		// If CIS is running in non multi-cluster mode,primary or its the secondary and the Primary CIS status down
 		if reqHandler.PrimaryClusterHealthProbeParams.EndPoint == "" || (reqHandler.PrimaryClusterHealthProbeParams.EndPoint != "" && !reqHandler.PrimaryClusterHealthProbeParams.statusRunning) {
 			// Post LTM config based on HA mode
@@ -236,4 +244,22 @@ func (reqHandler *RequestHandler) NewAgent(kind string, baseAPIHandler *BaseAPIH
 		agent.APIHandler.LTM = NewLTMAPIHandler(reqHandler.agentParams, kind, baseAPIHandler, reqHandler.respChan)
 	}
 	return agent
+}
+
+// hasLeaderElection checks if leader election is enabled
+func (reqHandler *RequestHandler) hasLeaderElection() bool {
+	return reqHandler.leaderElector != nil
+}
+
+// isLeader checks if this instance is currently the leader
+func (reqHandler *RequestHandler) isLeader() bool {
+	if reqHandler.leaderElector == nil {
+		return true // If no leader election, assume we're the leader
+	}
+	return reqHandler.leaderElector.IsLeader()
+}
+
+// setLeaderElector sets the leader elector instance
+func (reqHandler *RequestHandler) setLeaderElector(le *leaderelection.LeaderElector) {
+	reqHandler.leaderElector = le
 }

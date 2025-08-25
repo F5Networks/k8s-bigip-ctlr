@@ -682,7 +682,16 @@ func (m *mockBigIPHandler) GetHTTP2Profile(name string) (any, error) {
 	}
 }
 
-// mock getHTTPProfile method
+// mock CreateInternalDataGroup method - required by BigIPHandlerInterface
+func (m *mockBigIPHandler) CreateInternalDataGroup(config *bigip.DataGroup) error {
+	// Mock implementation - just return nil for successful creation
+	if config.Name == "errorDataGroup" {
+		return errors.New("failed to create data group")
+	}
+	return nil
+}
+
+// Add all the missing mock methods required by BigIPHandlerInterface
 func (m *mockBigIPHandler) GetHTTPProfile(name string) (any, error) {
 	if name != "errorHTTPProfile" {
 		return struct{}{}, nil
@@ -691,7 +700,6 @@ func (m *mockBigIPHandler) GetHTTPProfile(name string) (any, error) {
 	}
 }
 
-// mock getRewriteProfile method
 func (m *mockBigIPHandler) GetRewriteProfile(name string) (any, error) {
 	if name != "errorRewriteProfile" {
 		return struct{}{}, nil
@@ -700,7 +708,6 @@ func (m *mockBigIPHandler) GetRewriteProfile(name string) (any, error) {
 	}
 }
 
-// mock getPersistenceProfile method
 func (m *mockBigIPHandler) GetPersistenceProfile(name string) (any, error) {
 	if name != "errorPersistenceProfile" {
 		return struct{}{}, nil
@@ -709,7 +716,6 @@ func (m *mockBigIPHandler) GetPersistenceProfile(name string) (any, error) {
 	}
 }
 
-// mock getLogProfile method
 func (m *mockBigIPHandler) GetLogProfile(name string) (any, error) {
 	if name != "errorLogProfile" {
 		return struct{}{}, nil
@@ -718,16 +724,14 @@ func (m *mockBigIPHandler) GetLogProfile(name string) (any, error) {
 	}
 }
 
-// mock getL4Profile method
 func (m *mockBigIPHandler) GetL4Profile(name string) (any, error) {
-	if name != "errorProfileL4" {
+	if name != "errorL4Profile" {
 		return struct{}{}, nil
 	} else {
 		return nil, errors.New("invalid-l4-profile")
 	}
 }
 
-// mock getMultiplexProfile method
 func (m *mockBigIPHandler) GetMultiplexProfile(name string) (any, error) {
 	if name != "errorMultiplexProfile" {
 		return struct{}{}, nil
@@ -736,7 +740,6 @@ func (m *mockBigIPHandler) GetMultiplexProfile(name string) (any, error) {
 	}
 }
 
-// mock getAnalyticsProfile method
 func (m *mockBigIPHandler) GetAnalyticsProfile(name string) (any, error) {
 	if name != "errorAnalyticsProfile" {
 		return struct{}{}, nil
@@ -745,7 +748,6 @@ func (m *mockBigIPHandler) GetAnalyticsProfile(name string) (any, error) {
 	}
 }
 
-// mock getProfileWebSocket method
 func (m *mockBigIPHandler) GetProfileWebSocket(name string) (any, error) {
 	if name != "errorWebSocketProfile" {
 		return struct{}{}, nil
@@ -754,7 +756,6 @@ func (m *mockBigIPHandler) GetProfileWebSocket(name string) (any, error) {
 	}
 }
 
-// mock getHTMLProfile method
 func (m *mockBigIPHandler) GetHTMLProfile(name string) (any, error) {
 	if name != "errorHTMLProfile" {
 		return struct{}{}, nil
@@ -763,7 +764,6 @@ func (m *mockBigIPHandler) GetHTMLProfile(name string) (any, error) {
 	}
 }
 
-// mock getFTPProfile method
 func (m *mockBigIPHandler) GetFTPProfile(name string) (any, error) {
 	if name != "errorFTPProfile" {
 		return struct{}{}, nil
@@ -772,11 +772,36 @@ func (m *mockBigIPHandler) GetFTPProfile(name string) (any, error) {
 	}
 }
 
-// mock getHTTPCompressionProfile method
 func (m *mockBigIPHandler) GetHTTPCompressionProfile(name string) (any, error) {
 	if name != "errorHTTPCompressionProfile" {
 		return struct{}{}, nil
 	} else {
 		return nil, errors.New("invalid-http-compression-profile")
 	}
+}
+
+// DataGroup methods for leader election - mock implementations
+func (m *mockBigIPHandler) GetInternalDataGroup(name string) (any, error) {
+	if name != "errorDataGroup" {
+		return &bigip.DataGroup{
+			Name: name,
+			Type: "string",
+		}, nil
+	} else {
+		return nil, errors.New("invalid-data-group")
+	}
+}
+
+func (m *mockBigIPHandler) ModifyInternalDataGroupRecords(config *bigip.DataGroup) error {
+	if config.Name == "errorDataGroup" {
+		return errors.New("failed to modify data group records")
+	}
+	return nil
+}
+
+func (m *mockBigIPHandler) DeleteInternalDataGroup(name string) error {
+	if name == "errorDataGroup" {
+		return errors.New("failed to delete data group")
+	}
+	return nil
 }

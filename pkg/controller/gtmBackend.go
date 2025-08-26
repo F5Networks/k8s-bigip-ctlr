@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
@@ -40,13 +42,33 @@ func (agent *Agent) gtmWorker() {
 	}
 }
 
-func isGTMOnSeparateServer(params AgentParams) bool {
-	var isGTMOnSeparateServer bool
-	if !params.CCCLGTMAgent && len(params.GTMParams.BIGIPURL) != 0 && len(params.GTMParams.BIGIPUsername) != 0 && len(params.GTMParams.BIGIPPassword) != 0 {
-		// Check if GTM parameter is different then LTM parameter
-		if params.PrimaryParams.BIGIPURL != params.GTMParams.BIGIPURL || params.PrimaryParams.BIGIPUsername != params.GTMParams.BIGIPUsername || params.PrimaryParams.BIGIPPassword != params.GTMParams.BIGIPPassword {
-			isGTMOnSeparateServer = true
-		}
+func normalizeURL(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
 	}
-	return isGTMOnSeparateServer
+	u, err := url.Parse(s)
+	if err != nil {
+		return strings.TrimRight(strings.ToLower(s), "/")
+	}
+	u.Scheme = strings.ToLower(u.Scheme)
+	u.Host = strings.ToLower(u.Host)
+	u.Path = strings.TrimRight(u.Path, "/")
+	host := u.Host
+	if u.Scheme == "https" && strings.HasSuffix(host, ":443") {
+		host = strings.TrimSuffix(host, ":443")
+	}
+	u.Host = host
+	return u.Scheme + "://" + u.Host
+}
+
+func isGTMOnSeparateServer(p AgentParams) bool {
+	g, pr := p.GTMParams, p.PrimaryParams
+	if g.BIGIPURL == "" || g.BIGIPUsername == "" || g.BIGIPPassword == "" {
+		return false
+	}
+	sameURL := normalizeURL(pr.BIGIPURL) == normalizeURL(g.BIGIPURL)
+	sameUser := strings.TrimSpace(pr.BIGIPUsername) == strings.TrimSpace(g.BIGIPUsername)
+	samePass := strings.TrimSpace(pr.BIGIPPassword) == strings.TrimSpace(g.BIGIPPassword)
+	return !(sameURL && sameUser && samePass)
 }

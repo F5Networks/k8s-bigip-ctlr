@@ -1601,6 +1601,9 @@ var _ = Describe("Worker Tests", func() {
 			}}, http.MethodPost)
 			mockPM.firstPost = false
 			mockCtlr.RequestHandler.PrimaryBigIPWorker.LTM.PostManager = mockPM.PostManager
+			String := func(s string) *string {
+				return &s
+			}
 
 			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 			_ = mockCtlr.createIPAMResource(DefaultIPAMNamespace)
@@ -1638,8 +1641,8 @@ var _ = Describe("Worker Tests", func() {
 						},
 						HTTP: "/Common/http",
 						HTTP2: cisapiv1.ProfileHTTP2{
-							Client: "/Common/http2",
-							Server: "/Common/http2server",
+							Client: String("/Common/http2"),
+							Server: String("/Common/http2server"),
 						},
 						LogProfiles: []string{
 							"/Common/Log all requests", "/Common/local-dos"},
@@ -3200,6 +3203,9 @@ extendedRouteSpec:
 					},
 				}
 
+				String := func(s string) *string {
+					return &s
+				}
 				//Policy
 				policy = &cisapiv1.Policy{
 					ObjectMeta: metav1.ObjectMeta{
@@ -3230,8 +3236,8 @@ extendedRouteSpec:
 							},
 							HTTP: "/Common/http",
 							HTTP2: cisapiv1.ProfileHTTP2{
-								Client: "/Common/http2",
-								Server: "/Common/http2server",
+								Client: String("/Common/http2"),
+								Server: String("/Common/http2server"),
 							},
 							LogProfiles: []string{
 								"/Common/Log all requests", "/Common/local-dos"},

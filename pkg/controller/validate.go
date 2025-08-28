@@ -22,6 +22,7 @@ import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/bigiphandler"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/tokenmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"io"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -210,30 +211,32 @@ func (ctlr *Controller) checkValidVirtualServer(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if ctlr.discoveryMode == DefaultMode {
-				if pool.MultiClusterServices == nil {
-					errChan <- fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for VirtualServer %s/%s, pool %s but "+
-						"CIS is running with default mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
-					cancel()
-					return
-				}
-				if pool.Service != "" || pool.ServicePort != (intstr.IntOrString{}) ||
-					pool.Weight != nil || pool.AlternateBackends != nil {
-					log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
-						"VirtualServer %s for pool %s as these are not supported in default mode", vsResource.ObjectMeta.Name, pool.Name)
-				}
-			} else {
-				if pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
-					errChan <- fmt.Sprintf("MultiClusterServices is set for VirtualServer %s/%s for pool %s but CIS is not running in "+
-						"multiCluster mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
-					cancel()
-					return
-				}
-				if pool.Service == "" || pool.ServicePort == (intstr.IntOrString{}) {
-					errChan <- fmt.Sprintf("Service/ServicePort is not provided in Pool %s for VirtualServer %s/%s",
-						pool.Name, vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name)
-					cancel()
-					return
+			if ctlr.discoveryMode != "" {
+				if ctlr.discoveryMode == DefaultMode {
+					if pool.MultiClusterServices == nil {
+						errChan <- fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for VirtualServer %s/%s, pool %s but "+
+							"CIS is running with default mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
+						cancel()
+						return
+					}
+					if pool.Service != "" || pool.ServicePort != (intstr.IntOrString{}) ||
+						pool.Weight != nil || pool.AlternateBackends != nil {
+						log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+							"VirtualServer %s for pool %s as these are not supported in default mode", vsResource.ObjectMeta.Name, pool.Name)
+					}
+				} else {
+					if pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
+						errChan <- fmt.Sprintf("MultiClusterServices is set for VirtualServer %s/%s for pool %s but CIS is not running in "+
+							"multiCluster mode", vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name, pool.Name)
+						cancel()
+						return
+					}
+					if pool.Service == "" || pool.ServicePort == (intstr.IntOrString{}) {
+						errChan <- fmt.Sprintf("Service/ServicePort is not provided in Pool %s for VirtualServer %s/%s",
+							pool.Name, vsResource.ObjectMeta.Namespace, vsResource.ObjectMeta.Name)
+						cancel()
+						return
+					}
 				}
 			}
 
@@ -247,10 +250,9 @@ func (ctlr *Controller) checkValidVirtualServer(
 		}()
 	}
 
-	// create a session to BIG-IP
+	// create a session to BIG-IP using shared token manager
 	log.Debugf("Creating session to BIG-IP for VirtualServer %s/%s", vsResource.ObjectMeta.Namespace, vsName)
-	bigipSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL, ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent, ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
-	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
+	validator := ctlr.getBigIPHandlerWithSharedToken()
 
 	// Validate iRules
 	for _, irule := range vsResource.Spec.IRules {
@@ -299,30 +301,32 @@ func (ctlr *Controller) checkValidTransportServer(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if ctlr.discoveryMode == DefaultMode {
-			if tsResource.Spec.Pool.MultiClusterServices == nil {
-				errChan <- fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s when "+
-					"CIS is running in default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-				cancel()
-				return
-			}
-			if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
-				tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
-				log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
-					"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
-			}
-		} else {
-			if tsResource.Spec.Pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
-				errChan <- fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
-					"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-				cancel()
-				return
-			}
-			if tsResource.Spec.Pool.Service == "" || tsResource.Spec.Pool.ServicePort == (intstr.IntOrString{}) {
-				errChan <- fmt.Sprintf("Service/ServicePort is not provided in Pool for TransportServer %s/%s",
-					tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
-				cancel()
-				return
+		if ctlr.discoveryMode != "" {
+			if ctlr.discoveryMode == DefaultMode {
+				if tsResource.Spec.Pool.MultiClusterServices == nil {
+					errChan <- fmt.Sprintf("[MultiCluster] MultiClusterServices is not provided for TransportServer %s/%s when "+
+						"CIS is running in default mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+					cancel()
+					return
+				}
+				if tsResource.Spec.Pool.Service != "" || tsResource.Spec.Pool.ServicePort != (intstr.IntOrString{}) ||
+					tsResource.Spec.Pool.Weight != nil || tsResource.Spec.Pool.AlternateBackends != nil {
+					log.Warningf("[MultiCluster] Ignoring Pool Service/ServicePort/Weight/AlternateBackends provided for "+
+						"TransportServer %s as these are not supported in default mode", tsResource.ObjectMeta.Name)
+				}
+			} else {
+				if tsResource.Spec.Pool.MultiClusterServices != nil && ctlr.multiClusterMode == "" {
+					errChan <- fmt.Sprintf("MultiClusterServices is set for TransportServer %s/%s but CIS is not running in "+
+						"multiCluster mode", tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+					cancel()
+					return
+				}
+				if tsResource.Spec.Pool.Service == "" || tsResource.Spec.Pool.ServicePort == (intstr.IntOrString{}) {
+					errChan <- fmt.Sprintf("Service/ServicePort is not provided in Pool for TransportServer %s/%s",
+						tsResource.ObjectMeta.Namespace, tsResource.ObjectMeta.Name)
+					cancel()
+					return
+				}
 			}
 		}
 	}()
@@ -392,8 +396,7 @@ func (ctlr *Controller) checkValidTransportServer(
 		}
 	}
 	log.Debugf("Creating session to BIG-IP for TransportServer %s/%s", tsResource.ObjectMeta.Name, vsName)
-	bigipSession := bigiphandler.CreateSession(ctlr.agentParams.PrimaryParams.BIGIPURL, ctlr.PrimaryBigIPWorker.getPostManager().GetToken(), ctlr.agentParams.UserAgent, ctlr.agentParams.PrimaryParams.TrustedCerts, ctlr.agentParams.PrimaryParams.SSLInsecure, false)
-	validator := &bigiphandler.BigIPHandler{Bigip: bigipSession}
+	validator := ctlr.getBigIPHandlerWithSharedToken()
 
 	// Validate iRules
 	for _, irule := range tsResource.Spec.IRules {
@@ -1074,4 +1077,44 @@ func IsValidIPOrCIDR(s string) bool {
 		return true // Valid IPv4 or IPv6 CIDR
 	}
 	return false
+}
+
+// getBigIPHandlerWithSharedToken creates a BIG-IP handler using the shared token manager
+func (ctlr *Controller) getBigIPHandlerWithSharedToken() *bigiphandler.BigIPHandler {
+	// Extract host from BIG-IP URL
+	bigipHost := ctlr.agentParams.PrimaryParams.BIGIPURL
+	if strings.HasPrefix(bigipHost, "https://") {
+		bigipHost = strings.TrimPrefix(bigipHost, "https://")
+	} else if strings.HasPrefix(bigipHost, "http://") {
+		bigipHost = strings.TrimPrefix(bigipHost, "http://")
+	}
+
+	// Remove port and path if present to get clean hostname
+	if idx := strings.Index(bigipHost, ":"); idx != -1 {
+		bigipHost = bigipHost[:idx]
+	}
+	if idx := strings.Index(bigipHost, "/"); idx != -1 {
+		bigipHost = bigipHost[:idx]
+	}
+
+	// Get or create token manager using shared token manager
+	sharedTM := tokenmanager.GetSharedTokenManager()
+	tm := sharedTM.GetOrCreateTokenManager(
+		bigipHost,
+		ctlr.agentParams.PrimaryParams.BIGIPUsername,
+		ctlr.agentParams.PrimaryParams.BIGIPPassword,
+		nil, // Use default HTTP client from shared token manager
+	)
+
+	// Create BIG-IP session using shared token manager
+	bigipSession := bigiphandler.CreateSession(
+		ctlr.agentParams.PrimaryParams.BIGIPURL,
+		tm.GetToken(),
+		ctlr.agentParams.UserAgent,
+		ctlr.agentParams.PrimaryParams.TrustedCerts,
+		ctlr.agentParams.PrimaryParams.SSLInsecure,
+		false,
+	)
+
+	return &bigiphandler.BigIPHandler{Bigip: bigipSession}
 }

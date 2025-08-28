@@ -189,6 +189,10 @@ func (ctlr *Controller) setCISIdentifierForRoutes(routes *routeSection) {
 		// For secondary CIS, use the HA pair cluster name
 		// so that static routes are not overwritten from the HA pair during failover
 		routeClusterName = ctlr.multiClusterHandler.HAPairClusterName
+	} else if ctlr.multiClusterMode == ArbitratorCIS {
+		// For Arbitrator CIS, use the fixed cluster name
+		// so that static routes are not overwritten from the Arbitrator during failover
+		routeClusterName = ArbitratorCIS
 	} else {
 		routeClusterName = ctlr.multiClusterHandler.LocalClusterName
 	}

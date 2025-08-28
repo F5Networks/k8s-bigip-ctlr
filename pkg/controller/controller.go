@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/leaderelection"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"os"
 	"strings"
@@ -91,6 +92,7 @@ const (
 	StandAloneCIS = "standalone"
 	SecondaryCIS  = "secondary"
 	PrimaryCIS    = "primary"
+	ArbitratorCIS = "arbitrator"
 
 	PrimaryBigIP   = "primaryBigIP"
 	SecondaryBigIP = "secondaryBigIP"
@@ -282,6 +284,16 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 	}
 
 	if startController {
+		// Initialize leader election if enabled
+		if ctlr.multiClusterMode == ArbitratorCIS {
+			log.Debugf("Initializing leader election for Arbitrator CIS mode")
+			err := ctlr.initializeLeaderElection(params, agentParams)
+			if err != nil {
+				log.Errorf("Failed to initialize leader election: %v", err)
+				// Continue without leader election in case of initialization failure
+			}
+		}
+
 		go ctlr.responseHandler()
 		go ctlr.RequestHandler.requestHandler()
 
@@ -684,4 +696,149 @@ func (ctlr *Controller) checkCalicoRBACPermissions(clusterName string) bool {
 		log.Warning("Role Permissions to watch blockaffinities resource for calico CNI is not provided. Informers are not created for blockaffinities resource. Create proper RBAC for blockaffinities watch for static routing to work properly")
 		return false
 	}
+}
+
+// getCurrentPodUID retrieves the current pod's UID from the Kubernetes API server
+func (ctlr *Controller) getCurrentPodUID() (string, error) {
+	// Get pod name from environment variable (set by Kubernetes)
+	podName := os.Getenv("POD_NAME")
+	if podName == "" {
+		// Fallback to hostname if POD_NAME is not set
+		hostname, err := os.Hostname()
+		if err != nil {
+			return "", fmt.Errorf("failed to get hostname: %v", err)
+		}
+		podName = hostname
+	}
+
+	// Get namespace from environment variable or file
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		// Try to read from the service account namespace file
+		namespaceBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+		if err != nil {
+			namespace = "default" // fallback to default namespace
+			log.Warningf("[Controller] Could not determine pod namespace, using default: %v", err)
+		} else {
+			namespace = strings.TrimSpace(string(namespaceBytes))
+		}
+	}
+
+	// Use the local cluster's kube client to retrieve the Pod
+	clusterConfig := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName)
+	if clusterConfig == nil || clusterConfig.kubeClient == nil {
+		return "", fmt.Errorf("kube client not initialized for local cluster")
+	}
+
+	pod, err := clusterConfig.kubeClient.CoreV1().Pods(namespace).Get(context.Background(), podName, metaV1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get current pod %s/%s: %v", namespace, podName, err)
+	}
+
+	if pod.UID == "" {
+		return "", fmt.Errorf("pod UID is empty for pod %s/%s", namespace, podName)
+	}
+
+	log.Infof("[Controller] Retrieved pod UID: %s for pod %s/%s", pod.UID, namespace, podName)
+	return string(pod.UID), nil
+}
+
+// initializeLeaderElection sets up and starts leader election for the controller
+func (ctlr *Controller) initializeLeaderElection(params Params, agentParams AgentParams) error {
+	// Get current pod UID from Kubernetes API server
+	podUID, err := ctlr.getCurrentPodUID()
+	if err != nil {
+		return fmt.Errorf("failed to get current pod UID: %v", err)
+	}
+
+	// Get cluster name
+	clusterName := ctlr.multiClusterHandler.LocalClusterName
+
+	// Normalize BIG-IP host: ensure scheme present, strip any trailing path, preserve port
+	normalizeBigIPURL := func(raw string) string {
+		val := strings.TrimSpace(raw)
+		if val == "" {
+			return val
+		}
+		// Add default scheme if missing
+		if !strings.HasPrefix(val, "http://") && !strings.HasPrefix(val, "https://") {
+			val = "https://" + val
+		}
+		// Strip trailing path beyond host:port (e.g., https://1.2.3.4:8443/mgmt -> https://1.2.3.4:8443)
+		schemeSep := strings.Index(val, "://")
+		if schemeSep != -1 {
+			start := schemeSep + 3
+			if firstSlash := strings.Index(val[start:], "/"); firstSlash != -1 {
+				val = val[:start+firstSlash]
+			}
+		}
+		// Trim any trailing slash
+		val = strings.TrimRight(val, "/")
+		return val
+	}
+
+	bigipURL := normalizeBigIPURL(agentParams.PrimaryParams.BIGIPURL)
+
+	// Create leader election configuration with retrieved pod UID and cluster name
+	leaderElectionConfig := leaderelection.LeaderElectorConfig{
+		CandidateID:       fmt.Sprintf("%s-%s", clusterName, podUID),
+		DataGroupName:     fmt.Sprintf("%s-leader-election", ctlr.Partition),
+		HeartbeatInterval: time.Duration(params.LeaderHeartbeatInterval) * time.Second,
+		HeartbeatTimeout:  time.Duration(params.LeaderHeartbeatTimeout) * time.Second,
+		BigipHost:         bigipURL,
+		Username:          agentParams.PrimaryParams.BIGIPUsername,
+		Password:          agentParams.PrimaryParams.BIGIPPassword,
+		TrustedCerts:      agentParams.PrimaryParams.TrustedCerts,
+		SslInsecure:       agentParams.PrimaryParams.SSLInsecure,
+		UserAgent:         agentParams.UserAgent,
+		Teem:              false, // Set based on your requirements
+	}
+
+	// Create leader elector
+	leaderElector, err := leaderelection.NewLeaderElector(leaderElectionConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create leader elector: %v", err)
+	}
+
+	// Store leader elector in controller
+	ctlr.leaderElector = leaderElector
+	// Wire into request handler to gate posting based on leadership
+	if ctlr.RequestHandler != nil {
+		ctlr.RequestHandler.setLeaderElector(leaderElector)
+	}
+
+	// Set up leadership callback to trigger config sync when becoming leader
+	leaderElector.SetLeadershipCallback(func(isLeader bool) {
+		if isLeader {
+			log.Infof("[Controller] Became leader, triggering config sync using HACIS event")
+			ctlr.enqueuePrimaryClusterProbeEvent()
+		}
+	})
+
+	// Start leader election in a goroutine
+	go func() {
+		log.Infof("[Controller] Starting leader election for candidate: %s (Pod UID: %s, Cluster: %s)",
+			leaderElector.GetCandidateID(), podUID, clusterName)
+		leaderElector.Start()
+	}()
+
+	log.Infof("[Controller] Leader election initialized successfully with candidate ID: %s", leaderElector.GetCandidateID())
+	return nil
+}
+
+// IsLeader returns whether this controller instance is currently the leader
+func (ctlr *Controller) IsLeader() bool {
+	if ctlr.leaderElector == nil {
+		// If leader election is not enabled, consider this instance as leader
+		return true
+	}
+	return ctlr.leaderElector.IsLeader()
+}
+
+// GetCandidateID returns the candidate ID for this controller instance
+func (ctlr *Controller) GetCandidateID() string {
+	if ctlr.leaderElector == nil {
+		return "no-leader-election"
+	}
+	return ctlr.leaderElector.GetCandidateID()
 }

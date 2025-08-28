@@ -150,7 +150,14 @@ This is used to apply existing BIG-IP profiles and policy with Routes, Virtual S
 | reselectTries       | Integer           | Optional | 0           | Maximum number of attempts to find a responsive member for a connection                                                                 |
 | reference           | String            | Required | NA          | Allowed values are **bigip** or **service**                                                                                             |
 | name                | String            | Optional | NA          | pool name or reference to the pool name existing on bigip                                                                               |
+| staticPoolMembers   | Object            | Optional | NA          | List of static pool member objects specifying fixed IP addresses and ports for default pool                                             |
 
+### Static Pool Member Object Components
+
+| PARAMETER   | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                      |
+|-------------|---------|----------|---------|--------------------------------------------------|
+| address     | String  | Required | NA      | IP address of the pool member                    |
+| port        | Integer | Required | NA      | Port number for the pool member                  |
 
 **Adapt Profile Components**
 | PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                   |

@@ -4466,7 +4466,8 @@ extendedRouteSpec:
 
 		It("processes staticPoolMembers for normal pool", func() {
 			vs := test.NewVirtualServer("vs-normal", "default", cisapiv1.VirtualServerSpec{
-				Host: "test.com",
+				Host:                 "test.com",
+				VirtualServerAddress: "10.0.0.1",
 				Pools: []cisapiv1.VSPool{
 					{
 						Service:     "foo-service",
@@ -4494,10 +4495,13 @@ extendedRouteSpec:
 
 		It("processes staticPoolMembers for both named pool and default pool", func() {
 			vs := test.NewVirtualServer("vs-combo", "default", cisapiv1.VirtualServerSpec{
-				Host: "test.com",
+				Host:                 "test.com",
+				VirtualServerAddress: "10.0.0.1",
 				Pools: []cisapiv1.VSPool{
 					{
-						Name: "named-pool",
+						Name:        "named-pool",
+						Service:     "test",
+						ServicePort: intstr.IntOrString{IntVal: 80},
 						StaticPoolMembers: []cisapiv1.StaticPoolMember{
 							{Address: "192.168.10.1", Port: 8080},
 							{Address: "192.168.10.2", Port: 8080},
@@ -4558,8 +4562,9 @@ extendedRouteSpec:
 
 			// Scenario 1: VS without DefaultPool, should use Policy's DefaultPool
 			vs1 := test.NewVirtualServer("vs-policy", namespace, cisapiv1.VirtualServerSpec{
-				Host:       "test.com",
-				PolicyName: "test-policy",
+				Host:                 "test.com",
+				PolicyName:           "test-policy",
+				VirtualServerAddress: "10.0.0.1",
 			})
 			mockCtlr.addVirtualServer(vs1)
 			mockCtlr.addPolicy(policy)
@@ -4574,8 +4579,9 @@ extendedRouteSpec:
 
 			// Scenario 2: VS with its own DefaultPool, should use VS's DefaultPool
 			vs2 := test.NewVirtualServer("vs-vsdefault", namespace, cisapiv1.VirtualServerSpec{
-				Host:       "test.com",
-				PolicyName: "test-policy",
+				Host:                 "test1.com",
+				PolicyName:           "test-policy",
+				VirtualServerAddress: "10.0.0.2",
 				DefaultPool: cisapiv1.DefaultPool{
 					StaticPoolMembers: []cisapiv1.StaticPoolMember{
 						{Address: "20.2.2.1", Port: 8080},
@@ -4597,7 +4603,8 @@ extendedRouteSpec:
 
 		It("processes staticPoolMembers for alternateBackend", func() {
 			vs := test.NewVirtualServer("vs-alt", "default", cisapiv1.VirtualServerSpec{
-				Host: "test.com",
+				Host:                 "test.com",
+				VirtualServerAddress: "10.0.0.1",
 				Pools: []cisapiv1.VSPool{
 					{
 						Service:     "foo-service",

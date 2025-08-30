@@ -167,6 +167,8 @@ var (
 	bigIPUsername               *string
 	bigIPPassword               *string
 	bigIPPartitions             *[]string
+	allowedPartitions           *[]string
+	deniedPartitions            *[]string
 	credsDir                    *string
 	as3Validation               *bool
 	sslInsecure                 *bool
@@ -225,6 +227,8 @@ var (
 	userAgentInfo      string
 	multiClusterMode   *string
 	localClusterName   *string
+	allowedList        []string
+	deniedList         []string
 )
 
 func _init() {
@@ -309,6 +313,10 @@ func _init() {
 		"Required, password for the Big-IP user account.")
 	bigIPPartitions = bigIPFlags.StringArray("bigip-partition", []string{},
 		"Required, partition(s) for the Big-IP kubernetes objects.")
+	allowedPartitions = bigIPFlags.StringSlice("allowed-partitions", []string{},
+		"Optional, allowed partition(s) for the Big-IP kubernetes objects.")
+	deniedPartitions = bigIPFlags.StringSlice("denied-partitions", []string{},
+		"Required, denied partition(s) for the Big-IP kubernetes objects.")
 	credsDir = bigIPFlags.String("credentials-directory", "",
 		"Optional, directory that contains the BIG-IP username, password, and/or "+
 			"url files. To be used instead of username, password, and/or url arguments.")
@@ -587,6 +595,37 @@ func verifyArgs() error {
 		if false != err {
 			return fmt.Errorf("Common cannot be one of the specified partitions.")
 		}
+	}
+
+	deniedList = nil
+	allowedList = nil
+
+	// Process denied partitions first as it takes precedence over allowed partitions
+	if deniedPartitions != nil && len(*deniedPartitions) != 0 {
+		defaultPartition := (*bigIPPartitions)[0]
+		for _, p := range *deniedPartitions {
+			trimmedPartition := strings.TrimSpace(strings.Trim(strings.TrimSpace(p), "'")) // ex: deniedPartition=   ' test '-> ' test ' -> 'test' -> test
+			if defaultPartition == trimmedPartition {
+				return fmt.Errorf("Default Partition %s cannot be specified in denied partitions list. "+
+					"Please remove it from denied list and run CIS again.", defaultPartition)
+			}
+			deniedList = append(deniedList, trimmedPartition)
+		}
+		log.Debugf("denied-partitions list: %v", deniedList)
+		if allowedPartitions != nil && len(*allowedPartitions) != 0 {
+			log.Warningf("denied-partitions is set to %v, ignoring allowed-partitions", deniedList)
+		}
+	} else if allowedPartitions != nil && len(*allowedPartitions) != 0 {
+		for _, p := range *allowedPartitions {
+			trimmedPartition := strings.TrimSpace(strings.Trim(strings.TrimSpace(p), "'")) // ex: allowedPartition=   ' test '-> ' test ' -> 'test' -> test
+			if controller.CommonPartition == trimmedPartition {
+				return fmt.Errorf("Common cannot be specified in allowed partitions list. " +
+					"Please remove it from allowed list and run CIS again.")
+			}
+			allowedList = append(allowedList, trimmedPartition)
+		}
+		allowedList = append(allowedList, (*bigIPPartitions)[0])
+		log.Debugf("allowed-partitions list: %v", allowedList)
 	}
 
 	if len(*bigIPURL) == 0 && len(*credsDir) == 0 {
@@ -1011,6 +1050,8 @@ func initController(
 			LoadBalancerClass:           *loadBalancerClass,
 			ManageLoadBalancerClassOnly: *manageLoadBalancerClassOnly,
 			CustomResourceLabel:         *customResourceLabel,
+			AllowedPartitions:           allowedList,
+			DeniedPartitions:            deniedList,
 		},
 		true,
 		agentParams,

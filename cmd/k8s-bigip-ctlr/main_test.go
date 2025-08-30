@@ -1214,5 +1214,105 @@ var _ = Describe("Main Tests", func() {
 			Expect(err).To(BeNil())
 			Expect(getSDNType(config)).To(Equal("openshiftSDN"), "SDNType should be other")
 		})
+
+		It("processes partition lists correctly", func() {
+			defer _init()
+
+			// Test denied partitions
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--bigip-password=admin",
+				"--denied-partitions=partition1,partition2",
+			}
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).To(BeNil())
+			Expect(deniedList).To(ConsistOf("partition1", "partition2"))
+			Expect(allowedList).To(BeNil())
+
+			// Test allowed partitions
+			_init() // Reset
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--bigip-password=admin",
+				"--allowed-partitions=partition1,partition2",
+			}
+			flags.Parse(os.Args)
+			err = verifyArgs()
+			Expect(err).To(BeNil())
+			Expect(allowedList).To(ContainElements("partition1", "partition2", "velcro1"))
+			Expect(deniedList).To(BeNil())
+
+			// Test denied takes precedence over allowed
+			_init() // Reset
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--bigip-password=admin",
+				"--denied-partitions=partition1,partition2",
+				"--allowed-partitions=partition3,partition4",
+			}
+			flags.Parse(os.Args)
+			err = verifyArgs()
+			Expect(err).To(BeNil())
+			Expect(deniedList).To(ConsistOf("partition1", "partition2"))
+			Expect(allowedList).To(BeNil())
+		})
+
+		It("validates partition error conditions", func() {
+			defer _init()
+
+			// Test error when default partition is in denied list
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--bigip-password=admin",
+				"--denied-partitions=velcro1,partition2",
+			}
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(ContainSubstring("Default Partition velcro1 cannot be specified in denied partitions list"))
+
+			// Test error when Common is in allowed list
+			_init() // Reset
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--bigip-password=admin",
+				"--allowed-partitions=partition1,Common",
+			}
+			flags.Parse(os.Args)
+			err = verifyArgs()
+			Expect(err).ToNot(BeNil())
+			Expect(err.Error()).To(ContainSubstring("Common cannot be specified in allowed partitions list"))
+
+			// Test with whitespace and quotes in partition names
+			_init() // Reset
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--bigip-password=admin",
+				"--denied-partitions= ' partition1 '  ,'   partition2'",
+			}
+			flags.Parse(os.Args)
+			err = verifyArgs()
+			Expect(err).To(BeNil())
+			Expect(deniedList).To(ConsistOf("partition1", "partition2"))
+		})
 	})
 })

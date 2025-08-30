@@ -23,12 +23,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
@@ -4424,10 +4425,18 @@ func (ctlr *Controller) processIngressLink(
 				continue
 			}
 		}
-		rsName := "ingress_link_" + formatVirtualServerName(
-			ip,
-			port.Port,
-		)
+		var rsName string
+		if ingLink.Spec.VirtualServerName != "" {
+			rsName = formatCustomVirtualServerName(
+				AS3NameFormatter(ingLink.Spec.VirtualServerName),
+				port.Port,
+			)
+		} else {
+			rsName = "ingress_link_" + formatVirtualServerName(
+				ip,
+				port.Port,
+			)
+		}
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = partition

@@ -105,6 +105,8 @@ type (
 		clusterAdminState           map[string]clustermanager.AdminState
 		ResourceStatusVSAddressMap  map[resourceRef]string
 		respChan                    chan *agentPostConfig
+		allowedPartitions           map[string]struct{}
+		deniedPartitions            map[string]struct{}
 		resourceContext
 	}
 	resourceContext struct {
@@ -222,6 +224,8 @@ type (
 		IpamNamespace               string
 		LocalClusterName            string
 		CustomResourceLabel         string
+		AllowedPartitions           []string
+		DeniedPartitions            []string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer

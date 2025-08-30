@@ -172,6 +172,34 @@ var _ = Describe("Worker Tests", func() {
 			ingresslinksForService := filterIngressLinkForService(IngressLinks, foo)
 			Expect(ingresslinksForService[0]).To(Equal(IngressLink1), "Should return the Ingresslink1 object")
 		})
+
+		It("Validating IngressLink with VirtualServerName set", func() {
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 8080,
+					Name: "port0",
+				},
+			}
+			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
+			label1 := make(map[string]string)
+			label1["app"] = "ingresslink"
+			foo.ObjectMeta.Labels = label1
+			selctor := &metav1.LabelSelector{
+				MatchLabels: label1,
+			}
+			var iRules []string
+			IngressLinkWithVSName := test.NewIngressLink("ingresslink-vsname", namespace, "1",
+				cisapiv1.IngressLinkSpec{
+					VirtualServerAddress: "1.2.3.4",
+					VirtualServerName:    "my-virtual-server",
+					Selector:             selctor,
+					IRules:               iRules,
+				})
+			IngressLinks := []*cisapiv1.IngressLink{IngressLinkWithVSName}
+			ingresslinksForService := filterIngressLinkForService(IngressLinks, foo)
+			Expect(ingresslinksForService[0]).To(Equal(IngressLinkWithVSName), "Should return the IngressLinkWithVSName object")
+			Expect(ingresslinksForService[0].Spec.VirtualServerName).To(Equal("my-virtual-server"), "Should have the correct VirtualServerName")
+		})
 		It("Validating service are sorted properly", func() {
 			fooPorts := []v1.ServicePort{
 				{

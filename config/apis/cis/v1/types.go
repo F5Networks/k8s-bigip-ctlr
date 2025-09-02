@@ -221,9 +221,11 @@ type TLSProfileCipher struct {
 }
 
 type TLSTransportServer struct {
-	ClientSSLs []string `json:"clientSSLs,omitempty"`
-	ServerSSLs []string `json:"serverSSLs,omitempty"`
-	Reference  string   `json:"reference,omitempty"`
+	ClientSSLs      []string        `json:"clientSSLs,omitempty"`
+	ServerSSLs      []string        `json:"serverSSLs,omitempty"`
+	Reference       string          `json:"reference,omitempty"`
+	ClientSSLParams ClientSSLParams `json:"clientSSLParams,omitempty"`
+	ServerSSLParams ServerSSLParams `json:"serverSSLParams,omitempty"`
 }
 
 // TLS contains required fields for TLS termination
@@ -281,6 +283,7 @@ type IngressLinkSpec struct {
 	IPAMLabel            string                         `json:"ipamLabel"`
 	BigIPRouteDomain     int32                          `json:"bigipRouteDomain,omitempty"`
 	Partition            string                         `json:"partition,omitempty"`
+	PolicyName           string                         `json:"policyName,omitempty"`
 	MultiClusterServices []MultiClusterServiceReference `json:"multiClusterServices,omitempty"`
 	TLS                  TLSTransportServer             `json:"tls,omitempty"`
 	Monitors             []Monitor                      `json:"monitors,omitempty"`

@@ -10,6 +10,7 @@ Added Functionality
     * Multi Cluster
     * CRD
         * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
+        * Issue 3927 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3927>`_: feature request: customized virtualServerName for IngressLink resource
 
 Bug Fixes
 ````````````

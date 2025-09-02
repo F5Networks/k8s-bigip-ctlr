@@ -27,7 +27,7 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// RoleBindingApplyConfiguration represents an declarative configuration of the RoleBinding type for use
+// RoleBindingApplyConfiguration represents a declarative configuration of the RoleBinding type for use
 // with apply.
 type RoleBindingApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
@@ -36,7 +36,7 @@ type RoleBindingApplyConfiguration struct {
 	RoleRef                          *RoleRefApplyConfiguration  `json:"roleRef,omitempty"`
 }
 
-// RoleBinding constructs an declarative configuration of the RoleBinding type for use with
+// RoleBinding constructs a declarative configuration of the RoleBinding type for use with
 // apply.
 func RoleBinding(name, namespace string) *RoleBindingApplyConfiguration {
 	b := &RoleBindingApplyConfiguration{}
@@ -50,7 +50,7 @@ func RoleBinding(name, namespace string) *RoleBindingApplyConfiguration {
 // ExtractRoleBinding extracts the applied configuration owned by fieldManager from
 // roleBinding. If no managedFields are found in roleBinding for fieldManager, a
 // RoleBindingApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. Is is possible that no managed fields were found for because other
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
 // field managers have taken ownership of all the fields previously owned by fieldManager, or because
 // the fieldManager never owned fields any fields.
 // roleBinding must be a unmodified RoleBinding API object that was retrieved from the Kubernetes API.
@@ -59,8 +59,19 @@ func RoleBinding(name, namespace string) *RoleBindingApplyConfiguration {
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
 // Experimental!
 func ExtractRoleBinding(roleBinding *rbacv1alpha1.RoleBinding, fieldManager string) (*RoleBindingApplyConfiguration, error) {
+	return extractRoleBinding(roleBinding, fieldManager, "")
+}
+
+// ExtractRoleBindingStatus is the same as ExtractRoleBinding except
+// that it extracts the status subresource applied configuration.
+// Experimental!
+func ExtractRoleBindingStatus(roleBinding *rbacv1alpha1.RoleBinding, fieldManager string) (*RoleBindingApplyConfiguration, error) {
+	return extractRoleBinding(roleBinding, fieldManager, "status")
+}
+
+func extractRoleBinding(roleBinding *rbacv1alpha1.RoleBinding, fieldManager string, subresource string) (*RoleBindingApplyConfiguration, error) {
 	b := &RoleBindingApplyConfiguration{}
-	err := managedfields.ExtractInto(roleBinding, internal.Parser().Type("io.k8s.api.rbac.v1alpha1.RoleBinding"), fieldManager, b)
+	err := managedfields.ExtractInto(roleBinding, internal.Parser().Type("io.k8s.api.rbac.v1alpha1.RoleBinding"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}
@@ -71,12 +82,13 @@ func ExtractRoleBinding(roleBinding *rbacv1alpha1.RoleBinding, fieldManager stri
 	b.WithAPIVersion("rbac.authorization.k8s.io/v1alpha1")
 	return b, nil
 }
+func (b RoleBindingApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithKind(value string) *RoleBindingApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -84,7 +96,7 @@ func (b *RoleBindingApplyConfiguration) WithKind(value string) *RoleBindingApply
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithAPIVersion(value string) *RoleBindingApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -93,7 +105,7 @@ func (b *RoleBindingApplyConfiguration) WithAPIVersion(value string) *RoleBindin
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithName(value string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -102,7 +114,7 @@ func (b *RoleBindingApplyConfiguration) WithName(value string) *RoleBindingApply
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithGenerateName(value string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -111,16 +123,7 @@ func (b *RoleBindingApplyConfiguration) WithGenerateName(value string) *RoleBind
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithNamespace(value string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
-	return b
-}
-
-// WithSelfLink sets the SelfLink field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SelfLink field is set to the value of the last call.
-func (b *RoleBindingApplyConfiguration) WithSelfLink(value string) *RoleBindingApplyConfiguration {
-	b.ensureObjectMetaApplyConfigurationExists()
-	b.SelfLink = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -129,7 +132,7 @@ func (b *RoleBindingApplyConfiguration) WithSelfLink(value string) *RoleBindingA
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithUID(value types.UID) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -138,7 +141,7 @@ func (b *RoleBindingApplyConfiguration) WithUID(value types.UID) *RoleBindingApp
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithResourceVersion(value string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -147,7 +150,7 @@ func (b *RoleBindingApplyConfiguration) WithResourceVersion(value string) *RoleB
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithGeneration(value int64) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
@@ -156,7 +159,7 @@ func (b *RoleBindingApplyConfiguration) WithGeneration(value int64) *RoleBinding
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithCreationTimestamp(value metav1.Time) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
@@ -165,7 +168,7 @@ func (b *RoleBindingApplyConfiguration) WithCreationTimestamp(value metav1.Time)
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -174,7 +177,7 @@ func (b *RoleBindingApplyConfiguration) WithDeletionTimestamp(value metav1.Time)
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *RoleBindingApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -184,11 +187,11 @@ func (b *RoleBindingApplyConfiguration) WithDeletionGracePeriodSeconds(value int
 // overwriting an existing map entries in Labels field with the same key.
 func (b *RoleBindingApplyConfiguration) WithLabels(entries map[string]string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -199,11 +202,11 @@ func (b *RoleBindingApplyConfiguration) WithLabels(entries map[string]string) *R
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *RoleBindingApplyConfiguration) WithAnnotations(entries map[string]string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -217,7 +220,7 @@ func (b *RoleBindingApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerR
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -228,17 +231,8 @@ func (b *RoleBindingApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerR
 func (b *RoleBindingApplyConfiguration) WithFinalizers(values ...string) *RoleBindingApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
-	return b
-}
-
-// WithClusterName sets the ClusterName field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ClusterName field is set to the value of the last call.
-func (b *RoleBindingApplyConfiguration) WithClusterName(value string) *RoleBindingApplyConfiguration {
-	b.ensureObjectMetaApplyConfigurationExists()
-	b.ClusterName = &value
 	return b
 }
 
@@ -267,4 +261,26 @@ func (b *RoleBindingApplyConfiguration) WithSubjects(values ...*SubjectApplyConf
 func (b *RoleBindingApplyConfiguration) WithRoleRef(value *RoleRefApplyConfiguration) *RoleBindingApplyConfiguration {
 	b.RoleRef = value
 	return b
+}
+
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *RoleBindingApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *RoleBindingApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
+// GetName retrieves the value of the Name field in the declarative configuration.
+func (b *RoleBindingApplyConfiguration) GetName() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *RoleBindingApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

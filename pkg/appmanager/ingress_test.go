@@ -42,7 +42,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			FailStyle: test.Success,
 			Sections:  make(map[string]interface{}),
 		}
-		fakeClient := fake.NewSimpleClientset()
+		fakeClient := fake.NewClientset()
 		Expect(fakeClient).ToNot(BeNil())
 
 		mockMgr = newMockAppManager(&Params{

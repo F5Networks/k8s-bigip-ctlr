@@ -27,7 +27,7 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// StatefulSetApplyConfiguration represents an declarative configuration of the StatefulSet type for use
+// StatefulSetApplyConfiguration represents a declarative configuration of the StatefulSet type for use
 // with apply.
 type StatefulSetApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
@@ -36,7 +36,7 @@ type StatefulSetApplyConfiguration struct {
 	Status                           *StatefulSetStatusApplyConfiguration `json:"status,omitempty"`
 }
 
-// StatefulSet constructs an declarative configuration of the StatefulSet type for use with
+// StatefulSet constructs a declarative configuration of the StatefulSet type for use with
 // apply.
 func StatefulSet(name, namespace string) *StatefulSetApplyConfiguration {
 	b := &StatefulSetApplyConfiguration{}
@@ -50,7 +50,7 @@ func StatefulSet(name, namespace string) *StatefulSetApplyConfiguration {
 // ExtractStatefulSet extracts the applied configuration owned by fieldManager from
 // statefulSet. If no managedFields are found in statefulSet for fieldManager, a
 // StatefulSetApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. Is is possible that no managed fields were found for because other
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
 // field managers have taken ownership of all the fields previously owned by fieldManager, or because
 // the fieldManager never owned fields any fields.
 // statefulSet must be a unmodified StatefulSet API object that was retrieved from the Kubernetes API.
@@ -59,8 +59,19 @@ func StatefulSet(name, namespace string) *StatefulSetApplyConfiguration {
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
 // Experimental!
 func ExtractStatefulSet(statefulSet *appsv1beta2.StatefulSet, fieldManager string) (*StatefulSetApplyConfiguration, error) {
+	return extractStatefulSet(statefulSet, fieldManager, "")
+}
+
+// ExtractStatefulSetStatus is the same as ExtractStatefulSet except
+// that it extracts the status subresource applied configuration.
+// Experimental!
+func ExtractStatefulSetStatus(statefulSet *appsv1beta2.StatefulSet, fieldManager string) (*StatefulSetApplyConfiguration, error) {
+	return extractStatefulSet(statefulSet, fieldManager, "status")
+}
+
+func extractStatefulSet(statefulSet *appsv1beta2.StatefulSet, fieldManager string, subresource string) (*StatefulSetApplyConfiguration, error) {
 	b := &StatefulSetApplyConfiguration{}
-	err := managedfields.ExtractInto(statefulSet, internal.Parser().Type("io.k8s.api.apps.v1beta2.StatefulSet"), fieldManager, b)
+	err := managedfields.ExtractInto(statefulSet, internal.Parser().Type("io.k8s.api.apps.v1beta2.StatefulSet"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}
@@ -71,12 +82,13 @@ func ExtractStatefulSet(statefulSet *appsv1beta2.StatefulSet, fieldManager strin
 	b.WithAPIVersion("apps/v1beta2")
 	return b, nil
 }
+func (b StatefulSetApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithKind(value string) *StatefulSetApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -84,7 +96,7 @@ func (b *StatefulSetApplyConfiguration) WithKind(value string) *StatefulSetApply
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithAPIVersion(value string) *StatefulSetApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -93,7 +105,7 @@ func (b *StatefulSetApplyConfiguration) WithAPIVersion(value string) *StatefulSe
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithName(value string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -102,7 +114,7 @@ func (b *StatefulSetApplyConfiguration) WithName(value string) *StatefulSetApply
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithGenerateName(value string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -111,16 +123,7 @@ func (b *StatefulSetApplyConfiguration) WithGenerateName(value string) *Stateful
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithNamespace(value string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
-	return b
-}
-
-// WithSelfLink sets the SelfLink field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SelfLink field is set to the value of the last call.
-func (b *StatefulSetApplyConfiguration) WithSelfLink(value string) *StatefulSetApplyConfiguration {
-	b.ensureObjectMetaApplyConfigurationExists()
-	b.SelfLink = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -129,7 +132,7 @@ func (b *StatefulSetApplyConfiguration) WithSelfLink(value string) *StatefulSetA
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithUID(value types.UID) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -138,7 +141,7 @@ func (b *StatefulSetApplyConfiguration) WithUID(value types.UID) *StatefulSetApp
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithResourceVersion(value string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -147,7 +150,7 @@ func (b *StatefulSetApplyConfiguration) WithResourceVersion(value string) *State
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithGeneration(value int64) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
@@ -156,7 +159,7 @@ func (b *StatefulSetApplyConfiguration) WithGeneration(value int64) *StatefulSet
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithCreationTimestamp(value metav1.Time) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
@@ -165,7 +168,7 @@ func (b *StatefulSetApplyConfiguration) WithCreationTimestamp(value metav1.Time)
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -174,7 +177,7 @@ func (b *StatefulSetApplyConfiguration) WithDeletionTimestamp(value metav1.Time)
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *StatefulSetApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -184,11 +187,11 @@ func (b *StatefulSetApplyConfiguration) WithDeletionGracePeriodSeconds(value int
 // overwriting an existing map entries in Labels field with the same key.
 func (b *StatefulSetApplyConfiguration) WithLabels(entries map[string]string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -199,11 +202,11 @@ func (b *StatefulSetApplyConfiguration) WithLabels(entries map[string]string) *S
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *StatefulSetApplyConfiguration) WithAnnotations(entries map[string]string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -217,7 +220,7 @@ func (b *StatefulSetApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerR
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -228,17 +231,8 @@ func (b *StatefulSetApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerR
 func (b *StatefulSetApplyConfiguration) WithFinalizers(values ...string) *StatefulSetApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
-	return b
-}
-
-// WithClusterName sets the ClusterName field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ClusterName field is set to the value of the last call.
-func (b *StatefulSetApplyConfiguration) WithClusterName(value string) *StatefulSetApplyConfiguration {
-	b.ensureObjectMetaApplyConfigurationExists()
-	b.ClusterName = &value
 	return b
 }
 
@@ -262,4 +256,26 @@ func (b *StatefulSetApplyConfiguration) WithSpec(value *StatefulSetSpecApplyConf
 func (b *StatefulSetApplyConfiguration) WithStatus(value *StatefulSetStatusApplyConfiguration) *StatefulSetApplyConfiguration {
 	b.Status = value
 	return b
+}
+
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *StatefulSetApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *StatefulSetApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
+// GetName retrieves the value of the Name field in the declarative configuration.
+func (b *StatefulSetApplyConfiguration) GetName() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *StatefulSetApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

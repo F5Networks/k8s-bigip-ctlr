@@ -3342,7 +3342,7 @@ extendedRouteSpec:
 						Namespace: namespace,
 					},
 				}
-				Handler := v1.Handler{
+				Handler := v1.ProbeHandler{
 					HTTPGet: &v1.HTTPGetAction{
 						Path: "/health",
 						Port: intstr.IntOrString{IntVal: 8080},
@@ -3353,14 +3353,14 @@ extendedRouteSpec:
 						TimeoutSeconds:      10,
 						PeriodSeconds:       10,
 						SuccessThreshold:    1,
-						Handler:             Handler,
+						ProbeHandler:        Handler,
 						InitialDelaySeconds: 3,
 					},
 					ReadinessProbe: &v1.Probe{
 						TimeoutSeconds:      10,
 						PeriodSeconds:       10,
 						SuccessThreshold:    1,
-						Handler:             Handler,
+						ProbeHandler:        Handler,
 						InitialDelaySeconds: 3,
 					},
 					Ports: []v1.ContainerPort{
@@ -3412,13 +3412,13 @@ extendedRouteSpec:
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Monitors[0].Type).
 					To(Equal("http"), "readiness-based health monitor not processed")
 				// update the readiness probe and liveness probe to tcp based probe
-				HandlerTCP := v1.Handler{
+				HandlerTCP := v1.ProbeHandler{
 					TCPSocket: &v1.TCPSocketAction{
 						Port: intstr.IntOrString{IntVal: 8080},
 					},
 				}
-				cnt.LivenessProbe.Handler = HandlerTCP
-				cnt.ReadinessProbe.Handler = HandlerTCP
+				cnt.LivenessProbe.ProbeHandler = HandlerTCP
+				cnt.ReadinessProbe.ProbeHandler = HandlerTCP
 				mockCtlr.updatePod(pod)
 				mockCtlr.processResources()
 				Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_80"].Monitors[0].Type).
@@ -3452,7 +3452,7 @@ extendedRouteSpec:
 						Namespace: namespace,
 					},
 				}
-				Handler := v1.Handler{
+				Handler := v1.ProbeHandler{
 					Exec: &v1.ExecAction{
 						Command: nil,
 					},
@@ -3463,13 +3463,13 @@ extendedRouteSpec:
 						TimeoutSeconds:   10,
 						PeriodSeconds:    10,
 						SuccessThreshold: 1,
-						Handler:          Handler,
+						ProbeHandler:     Handler,
 					},
 					ReadinessProbe: &v1.Probe{
 						TimeoutSeconds:      10,
 						PeriodSeconds:       10,
 						SuccessThreshold:    1,
-						Handler:             Handler,
+						ProbeHandler:        Handler,
 						InitialDelaySeconds: 3,
 					},
 					Ports: []v1.ContainerPort{
@@ -3605,7 +3605,7 @@ extendedRouteSpec:
 						Namespace: namespace,
 					},
 				}
-				Handler := v1.Handler{
+				Handler := v1.ProbeHandler{
 					HTTPGet: &v1.HTTPGetAction{
 						Path: "/",
 						Port: intstr.IntOrString{
@@ -3620,13 +3620,13 @@ extendedRouteSpec:
 						TimeoutSeconds:   10,
 						PeriodSeconds:    10,
 						SuccessThreshold: 1,
-						Handler:          Handler,
+						ProbeHandler:     Handler,
 					},
 					ReadinessProbe: &v1.Probe{
 						TimeoutSeconds:      10,
 						PeriodSeconds:       10,
 						SuccessThreshold:    1,
-						Handler:             Handler,
+						ProbeHandler:        Handler,
 						InitialDelaySeconds: 3,
 					},
 					Ports: []v1.ContainerPort{
@@ -3735,7 +3735,7 @@ extendedRouteSpec:
 					TimeoutSeconds:   10,
 					PeriodSeconds:    10,
 					SuccessThreshold: 1,
-					Handler: v1.Handler{
+					ProbeHandler: v1.ProbeHandler{
 						Exec: &v1.ExecAction{
 							Command: nil,
 						},

@@ -744,7 +744,7 @@ func getCredentials() error {
 				log.Debug(fmt.Sprintf(
 					"No %s in credentials directory, falling back to CLI argument", fieldType))
 				if len(*field) == 0 {
-					return fmt.Errorf(fmt.Sprintf("BIG-IP %s not specified", fieldType))
+					return fmt.Errorf("BIG-IP %s not specified", fieldType)
 				}
 			} else {
 				*field = strings.TrimSpace(string(fileBytes))

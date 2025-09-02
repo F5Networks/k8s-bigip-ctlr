@@ -37,7 +37,8 @@ type Config struct {
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Preferences holds general information to be use for cli interactions
-	Preferences Preferences `json:"preferences"`
+	// Deprecated: this field is deprecated in v1.34. It is not used by any of the Kubernetes components.
+	Preferences Preferences `json:"preferences,omitzero"`
 	// Clusters is a map of referencable names to cluster configs
 	Clusters []NamedCluster `json:"clusters"`
 	// AuthInfos is a map of referencable names to user configs
@@ -51,6 +52,7 @@ type Config struct {
 	Extensions []NamedExtension `json:"extensions,omitempty"`
 }
 
+// Deprecated: this structure is deprecated in v1.34. It is not used by any of the Kubernetes components.
 type Preferences struct {
 	// +optional
 	Colors bool `json:"colors,omitempty"`
@@ -86,6 +88,11 @@ type Cluster struct {
 	// attach, port forward).
 	// +optional
 	ProxyURL string `json:"proxy-url,omitempty"`
+	// DisableCompression allows client to opt-out of response compression for all requests to the server. This is useful
+	// to speed up requests (specifically lists) when client-server network bandwidth is ample, by saving time on
+	// compression (server-side) and decompression (client-side): https://github.com/kubernetes/kubernetes/issues/112296.
+	// +optional
+	DisableCompression bool `json:"disable-compression,omitempty"`
 	// Extensions holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields
 	// +optional
 	Extensions []NamedExtension `json:"extensions,omitempty"`
@@ -108,13 +115,17 @@ type AuthInfo struct {
 	// Token is the bearer token for authentication to the kubernetes cluster.
 	// +optional
 	Token string `json:"token,omitempty" datapolicy:"token"`
-	// TokenFile is a pointer to a file that contains a bearer token (as described above).  If both Token and TokenFile are present, Token takes precedence.
+	// TokenFile is a pointer to a file that contains a bearer token (as described above).  If both Token and TokenFile are present,
+	// the TokenFile will be periodically read and the last successfully read value takes precedence over Token.
 	// +optional
 	TokenFile string `json:"tokenFile,omitempty"`
-	// Impersonate is the username to imperonate.  The name matches the flag.
+	// Impersonate is the username to impersonate.  The name matches the flag.
 	// +optional
 	Impersonate string `json:"as,omitempty"`
-	// ImpersonateGroups is the groups to imperonate.
+	// ImpersonateUID is the uid to impersonate.
+	// +optional
+	ImpersonateUID string `json:"as-uid,omitempty"`
+	// ImpersonateGroups is the groups to impersonate.
 	// +optional
 	ImpersonateGroups []string `json:"as-groups,omitempty"`
 	// ImpersonateUserExtra contains additional information for impersonated user.
@@ -221,6 +232,18 @@ type ExecConfig struct {
 	// to false. Package k8s.io/client-go/tools/auth/exec provides helper methods for
 	// reading this environment variable.
 	ProvideClusterInfo bool `json:"provideClusterInfo"`
+
+	// InteractiveMode determines this plugin's relationship with standard input. Valid
+	// values are "Never" (this exec plugin never uses standard input), "IfAvailable" (this
+	// exec plugin wants to use standard input if it is available), or "Always" (this exec
+	// plugin requires standard input to function). See ExecInteractiveMode values for more
+	// details.
+	//
+	// If APIVersion is client.authentication.k8s.io/v1alpha1 or
+	// client.authentication.k8s.io/v1beta1, then this field is optional and defaults
+	// to "IfAvailable" when unset. Otherwise, this field is required.
+	//+optional
+	InteractiveMode ExecInteractiveMode `json:"interactiveMode,omitempty"`
 }
 
 // ExecEnvVar is used for setting environment variables when executing an exec-based
@@ -229,3 +252,23 @@ type ExecEnvVar struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
+
+// ExecInteractiveMode is a string that describes an exec plugin's relationship with standard input.
+type ExecInteractiveMode string
+
+const (
+	// NeverExecInteractiveMode declares that this exec plugin never needs to use standard
+	// input, and therefore the exec plugin will be run regardless of whether standard input is
+	// available for user input.
+	NeverExecInteractiveMode ExecInteractiveMode = "Never"
+	// IfAvailableExecInteractiveMode declares that this exec plugin would like to use standard input
+	// if it is available, but can still operate if standard input is not available. Therefore, the
+	// exec plugin will be run regardless of whether stdin is available for user input. If standard
+	// input is available for user input, then it will be provided to this exec plugin.
+	IfAvailableExecInteractiveMode ExecInteractiveMode = "IfAvailable"
+	// AlwaysExecInteractiveMode declares that this exec plugin requires standard input in order to
+	// run, and therefore the exec plugin will only be run if standard input is available for user
+	// input. If standard input is not available for user input, then the exec plugin will not be run
+	// and an error will be returned by the exec plugin runner.
+	AlwaysExecInteractiveMode ExecInteractiveMode = "Always"
+)

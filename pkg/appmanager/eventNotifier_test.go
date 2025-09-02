@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-func NewFakeEventBroadcaster() record.EventBroadcaster {
+func NewFakeEventBroadcaster(...record.BroadcasterOption) record.EventBroadcaster {
 	return &FakeEventBroadcaster{}
 }
 
@@ -95,22 +95,28 @@ type FakeEvent struct {
 
 // record.EventBroadcaster interface methods
 func (feb *FakeEventBroadcaster) StartEventWatcher(eventHandler func(*v1.Event)) watch.Interface {
+	_ = eventHandler // Suppress unused parameter warning
 	return nil
 }
 
 func (feb *FakeEventBroadcaster) StartRecordingToSink(sink record.EventSink) watch.Interface {
+	_ = sink // Suppress unused parameter warning
 	return nil
 }
 
 func (feb *FakeEventBroadcaster) StartLogging(logf func(format string, args ...interface{})) watch.Interface {
+	_ = logf // Suppress unused parameter warning
 	return nil
 }
 
 func (feb *FakeEventBroadcaster) StartStructuredLogging(verbosity klog.Level) watch.Interface {
+	_ = verbosity // Suppress unused parameter warning
 	return nil
 }
 
-func (feb *FakeEventBroadcaster) NewRecorder(scheme *runtime.Scheme, source v1.EventSource) record.EventRecorder {
+func (feb *FakeEventBroadcaster) NewRecorder(scheme *runtime.Scheme, source v1.EventSource) record.EventRecorderLogger {
+	_ = scheme // Suppress unused parameter warning
+	_ = source // Suppress unused parameter warning
 	return &feb.EventRecorder
 }
 
@@ -139,6 +145,12 @@ func (fer *FakeEventRecorder) AnnotatedEventf(obj runtime.Object, annotations ma
 	fer.FEvent = append(fer.FEvent, ev)
 }
 
+// record.EventRecorderLogger interface method
+func (fer *FakeEventRecorder) WithLogger(logger klog.Logger) record.EventRecorderLogger {
+	_ = logger // Suppress unused parameter warning
+	return fer
+}
+
 // Unit tests
 var _ = Describe("Event Notifier Tests", func() {
 	Describe("Using Mock Manager", func() {
@@ -152,7 +164,7 @@ var _ = Describe("Event Notifier Tests", func() {
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
 			}
-			fakeClient := fake.NewSimpleClientset()
+			fakeClient := fake.NewClientset()
 			Expect(fakeClient).ToNot(BeNil())
 
 			mockMgr = newMockAppManager(&Params{
@@ -171,19 +183,31 @@ var _ = Describe("Event Notifier Tests", func() {
 					DefaultIngressClass: "true"}},
 				Spec: netv1.IngressClassSpec{Controller: CISControllerName},
 			}
-			mockMgr.appMgr.kubeClient.NetworkingV1().IngressClasses().Create(context.TODO(), ingClass, metav1.CreateOptions{})
+			_, err := mockMgr.appMgr.kubeClient.NetworkingV1().IngressClasses().Create(context.TODO(), ingClass, metav1.CreateOptions{})
+			if err != nil {
+				// Handle error if needed
+			}
 			namespaces = []string{"ns0", "ns1", "ns2", "ns3", "ns4", "ns5"}
 			mockMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
-			mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
-			err := mockMgr.startNonLabelMode(namespaces)
+			err = mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
+			if err != nil {
+				// Handle error if needed
+			}
+			err = mockMgr.startNonLabelMode(namespaces)
 			Expect(err).To(BeNil())
 			for _, namespace := range namespaces {
 				appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
-				appInf.ingClassInformer.GetStore().Add(ingClass)
+				err = appInf.ingClassInformer.GetStore().Add(ingClass)
+				if err != nil {
+					// Handle error if needed
+				}
 			}
 		})
 		AfterEach(func() {
-			mockMgr.shutdown()
+			err := mockMgr.shutdown()
+			if err != nil {
+				// Handle error if needed
+			}
 		})
 		deployIngress := func(ingNbr int, apiVersion string) {
 			svcName := "service"
@@ -221,7 +245,7 @@ var _ = Describe("Event Notifier Tests", func() {
 
 		It("multiple namespace v1 ingress", func() {
 			// Deploy a Service and Ingress in each namespace
-			for i, _ := range namespaces {
+			for i := range namespaces {
 				deployIngress(i, "netv1")
 			}
 

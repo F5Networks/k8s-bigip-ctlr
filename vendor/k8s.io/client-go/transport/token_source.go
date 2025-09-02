@@ -18,14 +18,15 @@ package transport
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
 
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/klog/v2"
 )
 
@@ -95,6 +96,8 @@ type tokenSourceTransport struct {
 	src  ResettableTokenSource
 }
 
+var _ utilnet.RoundTripperWrapper = &tokenSourceTransport{}
+
 func (tst *tokenSourceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// This is to allow --token to override other bearer token providers.
 	if req.Header.Get("Authorization") != "" {
@@ -119,6 +122,8 @@ func (tst *tokenSourceTransport) CancelRequest(req *http.Request) {
 	tryCancelRequest(tst.ort, req)
 }
 
+func (tst *tokenSourceTransport) WrappedRoundTripper() http.RoundTripper { return tst.base }
+
 type fileTokenSource struct {
 	path   string
 	period time.Duration
@@ -127,7 +132,7 @@ type fileTokenSource struct {
 var _ = oauth2.TokenSource(&fileTokenSource{})
 
 func (ts *fileTokenSource) Token() (*oauth2.Token, error) {
-	tokb, err := ioutil.ReadFile(ts.path)
+	tokb, err := os.ReadFile(ts.path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read token file %q: %v", ts.path, err)
 	}
@@ -177,7 +182,10 @@ func (ts *cachingTokenSource) Token() (*oauth2.Token, error) {
 		if ts.tok == nil {
 			return nil, err
 		}
-		klog.Errorf("Unable to rotate token: %v", err)
+		// Not using a caller-provided logger isn't ideal, but impossible to fix
+		// without new APIs that go up all the way to HTTPWrappersForConfig.
+		// This is currently deemed not worth changing (too much effort, not enough benefit).
+		klog.TODO().Error(err, "Unable to rotate token")
 		return ts.tok, nil
 	}
 

@@ -28,7 +28,7 @@ var _ = Describe("Test AgentResponseHandler", func() {
 				Sections:  make(map[string]interface{}),
 			}
 
-			fakeClient := fake.NewSimpleClientset()
+			fakeClient := fake.NewClientset()
 			Expect(fakeClient).ToNot(BeNil())
 
 			mockMgr = newMockAppManager(&Params{

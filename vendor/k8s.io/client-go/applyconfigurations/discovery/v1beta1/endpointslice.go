@@ -19,7 +19,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	v1beta1 "k8s.io/api/discovery/v1beta1"
+	discoveryv1beta1 "k8s.io/api/discovery/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
@@ -27,17 +27,17 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// EndpointSliceApplyConfiguration represents an declarative configuration of the EndpointSlice type for use
+// EndpointSliceApplyConfiguration represents a declarative configuration of the EndpointSlice type for use
 // with apply.
 type EndpointSliceApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	AddressType                      *v1beta1.AddressType             `json:"addressType,omitempty"`
+	AddressType                      *discoveryv1beta1.AddressType    `json:"addressType,omitempty"`
 	Endpoints                        []EndpointApplyConfiguration     `json:"endpoints,omitempty"`
 	Ports                            []EndpointPortApplyConfiguration `json:"ports,omitempty"`
 }
 
-// EndpointSlice constructs an declarative configuration of the EndpointSlice type for use with
+// EndpointSlice constructs a declarative configuration of the EndpointSlice type for use with
 // apply.
 func EndpointSlice(name, namespace string) *EndpointSliceApplyConfiguration {
 	b := &EndpointSliceApplyConfiguration{}
@@ -51,7 +51,7 @@ func EndpointSlice(name, namespace string) *EndpointSliceApplyConfiguration {
 // ExtractEndpointSlice extracts the applied configuration owned by fieldManager from
 // endpointSlice. If no managedFields are found in endpointSlice for fieldManager, a
 // EndpointSliceApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. Is is possible that no managed fields were found for because other
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
 // field managers have taken ownership of all the fields previously owned by fieldManager, or because
 // the fieldManager never owned fields any fields.
 // endpointSlice must be a unmodified EndpointSlice API object that was retrieved from the Kubernetes API.
@@ -59,9 +59,20 @@ func EndpointSlice(name, namespace string) *EndpointSliceApplyConfiguration {
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
 // Experimental!
-func ExtractEndpointSlice(endpointSlice *v1beta1.EndpointSlice, fieldManager string) (*EndpointSliceApplyConfiguration, error) {
+func ExtractEndpointSlice(endpointSlice *discoveryv1beta1.EndpointSlice, fieldManager string) (*EndpointSliceApplyConfiguration, error) {
+	return extractEndpointSlice(endpointSlice, fieldManager, "")
+}
+
+// ExtractEndpointSliceStatus is the same as ExtractEndpointSlice except
+// that it extracts the status subresource applied configuration.
+// Experimental!
+func ExtractEndpointSliceStatus(endpointSlice *discoveryv1beta1.EndpointSlice, fieldManager string) (*EndpointSliceApplyConfiguration, error) {
+	return extractEndpointSlice(endpointSlice, fieldManager, "status")
+}
+
+func extractEndpointSlice(endpointSlice *discoveryv1beta1.EndpointSlice, fieldManager string, subresource string) (*EndpointSliceApplyConfiguration, error) {
 	b := &EndpointSliceApplyConfiguration{}
-	err := managedfields.ExtractInto(endpointSlice, internal.Parser().Type("io.k8s.api.discovery.v1beta1.EndpointSlice"), fieldManager, b)
+	err := managedfields.ExtractInto(endpointSlice, internal.Parser().Type("io.k8s.api.discovery.v1beta1.EndpointSlice"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}
@@ -72,12 +83,13 @@ func ExtractEndpointSlice(endpointSlice *v1beta1.EndpointSlice, fieldManager str
 	b.WithAPIVersion("discovery.k8s.io/v1beta1")
 	return b, nil
 }
+func (b EndpointSliceApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithKind(value string) *EndpointSliceApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -85,7 +97,7 @@ func (b *EndpointSliceApplyConfiguration) WithKind(value string) *EndpointSliceA
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithAPIVersion(value string) *EndpointSliceApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -94,7 +106,7 @@ func (b *EndpointSliceApplyConfiguration) WithAPIVersion(value string) *Endpoint
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithName(value string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -103,7 +115,7 @@ func (b *EndpointSliceApplyConfiguration) WithName(value string) *EndpointSliceA
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithGenerateName(value string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -112,16 +124,7 @@ func (b *EndpointSliceApplyConfiguration) WithGenerateName(value string) *Endpoi
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithNamespace(value string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
-	return b
-}
-
-// WithSelfLink sets the SelfLink field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SelfLink field is set to the value of the last call.
-func (b *EndpointSliceApplyConfiguration) WithSelfLink(value string) *EndpointSliceApplyConfiguration {
-	b.ensureObjectMetaApplyConfigurationExists()
-	b.SelfLink = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -130,7 +133,7 @@ func (b *EndpointSliceApplyConfiguration) WithSelfLink(value string) *EndpointSl
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithUID(value types.UID) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -139,7 +142,7 @@ func (b *EndpointSliceApplyConfiguration) WithUID(value types.UID) *EndpointSlic
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithResourceVersion(value string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -148,7 +151,7 @@ func (b *EndpointSliceApplyConfiguration) WithResourceVersion(value string) *End
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithGeneration(value int64) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
@@ -157,7 +160,7 @@ func (b *EndpointSliceApplyConfiguration) WithGeneration(value int64) *EndpointS
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithCreationTimestamp(value metav1.Time) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
@@ -166,7 +169,7 @@ func (b *EndpointSliceApplyConfiguration) WithCreationTimestamp(value metav1.Tim
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -175,7 +178,7 @@ func (b *EndpointSliceApplyConfiguration) WithDeletionTimestamp(value metav1.Tim
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *EndpointSliceApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -185,11 +188,11 @@ func (b *EndpointSliceApplyConfiguration) WithDeletionGracePeriodSeconds(value i
 // overwriting an existing map entries in Labels field with the same key.
 func (b *EndpointSliceApplyConfiguration) WithLabels(entries map[string]string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -200,11 +203,11 @@ func (b *EndpointSliceApplyConfiguration) WithLabels(entries map[string]string) 
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *EndpointSliceApplyConfiguration) WithAnnotations(entries map[string]string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -218,7 +221,7 @@ func (b *EndpointSliceApplyConfiguration) WithOwnerReferences(values ...*v1.Owne
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -229,17 +232,8 @@ func (b *EndpointSliceApplyConfiguration) WithOwnerReferences(values ...*v1.Owne
 func (b *EndpointSliceApplyConfiguration) WithFinalizers(values ...string) *EndpointSliceApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
-	return b
-}
-
-// WithClusterName sets the ClusterName field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ClusterName field is set to the value of the last call.
-func (b *EndpointSliceApplyConfiguration) WithClusterName(value string) *EndpointSliceApplyConfiguration {
-	b.ensureObjectMetaApplyConfigurationExists()
-	b.ClusterName = &value
 	return b
 }
 
@@ -252,7 +246,7 @@ func (b *EndpointSliceApplyConfiguration) ensureObjectMetaApplyConfigurationExis
 // WithAddressType sets the AddressType field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the AddressType field is set to the value of the last call.
-func (b *EndpointSliceApplyConfiguration) WithAddressType(value v1beta1.AddressType) *EndpointSliceApplyConfiguration {
+func (b *EndpointSliceApplyConfiguration) WithAddressType(value discoveryv1beta1.AddressType) *EndpointSliceApplyConfiguration {
 	b.AddressType = &value
 	return b
 }
@@ -281,4 +275,26 @@ func (b *EndpointSliceApplyConfiguration) WithPorts(values ...*EndpointPortApply
 		b.Ports = append(b.Ports, *values[i])
 	}
 	return b
+}
+
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *EndpointSliceApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *EndpointSliceApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
+// GetName retrieves the value of the Name field in the declarative configuration.
+func (b *EndpointSliceApplyConfiguration) GetName() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *EndpointSliceApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

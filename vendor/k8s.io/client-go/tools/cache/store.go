@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Store is a generic object storage and processing interface.  A
@@ -85,6 +86,11 @@ func (k KeyError) Error() string {
 	return fmt.Sprintf("couldn't create key for object %+v: %v", k.Obj, k.Err)
 }
 
+// Unwrap implements errors.Unwrap
+func (k KeyError) Unwrap() error {
+	return k.Err
+}
+
 // ExplicitKey can be passed to MetaNamespaceKeyFunc if you have the key for
 // the object but not the object itself.
 type ExplicitKey string
@@ -94,20 +100,38 @@ type ExplicitKey string
 // The key uses the format <namespace>/<name> unless <namespace> is empty, then
 // it's just <name>.
 //
-// TODO: replace key-as-string with a key-as-struct so that this
-// packing/unpacking won't be necessary.
+// Clients that want a structured alternative can use ObjectToName or MetaObjectToName.
+// Note: this would not be a client that wants a key for a Store because those are
+// necessarily strings.
+//
+// TODO maybe some day?: change Store to be keyed differently
 func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
 	if key, ok := obj.(ExplicitKey); ok {
 		return string(key), nil
 	}
+	objName, err := ObjectToName(obj)
+	if err != nil {
+		return "", err
+	}
+	return objName.String(), nil
+}
+
+// ObjectToName returns the structured name for the given object,
+// if indeed it can be viewed as a metav1.Object.
+func ObjectToName(obj interface{}) (ObjectName, error) {
 	meta, err := meta.Accessor(obj)
 	if err != nil {
-		return "", fmt.Errorf("object has no meta: %v", err)
+		return ObjectName{}, fmt.Errorf("object has no meta: %v", err)
 	}
-	if len(meta.GetNamespace()) > 0 {
-		return meta.GetNamespace() + "/" + meta.GetName(), nil
+	return MetaObjectToName(meta), nil
+}
+
+// MetaObjectToName returns the structured name for the given object
+func MetaObjectToName(obj metav1.Object) ObjectName {
+	if len(obj.GetNamespace()) > 0 {
+		return ObjectName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
 	}
-	return meta.GetName(), nil
+	return ObjectName{Namespace: "", Name: obj.GetName()}
 }
 
 // SplitMetaNamespaceKey returns the namespace and name that
@@ -137,6 +161,8 @@ type cache struct {
 	// keyFunc is used to make the key for objects stored in and retrieved from items, and
 	// should be deterministic.
 	keyFunc KeyFunc
+	// Called with every object put in the cache.
+	transformer TransformFunc
 }
 
 var _ Store = &cache{}
@@ -147,6 +173,12 @@ func (c *cache) Add(obj interface{}) error {
 	if err != nil {
 		return KeyError{obj, err}
 	}
+	if c.transformer != nil {
+		obj, err = c.transformer(obj)
+		if err != nil {
+			return fmt.Errorf("transforming: %w", err)
+		}
+	}
 	c.cacheStorage.Add(key, obj)
 	return nil
 }
@@ -156,6 +188,12 @@ func (c *cache) Update(obj interface{}) error {
 	key, err := c.keyFunc(obj)
 	if err != nil {
 		return KeyError{obj, err}
+	}
+	if c.transformer != nil {
+		obj, err = c.transformer(obj)
+		if err != nil {
+			return fmt.Errorf("transforming: %w", err)
+		}
 	}
 	c.cacheStorage.Update(key, obj)
 	return nil
@@ -194,8 +232,11 @@ func (c *cache) Index(indexName string, obj interface{}) ([]interface{}, error) 
 	return c.cacheStorage.Index(indexName, obj)
 }
 
-func (c *cache) IndexKeys(indexName, indexKey string) ([]string, error) {
-	return c.cacheStorage.IndexKeys(indexName, indexKey)
+// IndexKeys returns the storage keys of the stored objects whose set of
+// indexed values for the named index includes the given indexed value.
+// The returned keys are suitable to pass to GetByKey().
+func (c *cache) IndexKeys(indexName, indexedValue string) ([]string, error) {
+	return c.cacheStorage.IndexKeys(indexName, indexedValue)
 }
 
 // ListIndexFuncValues returns the list of generated values of an Index func
@@ -203,8 +244,10 @@ func (c *cache) ListIndexFuncValues(indexName string) []string {
 	return c.cacheStorage.ListIndexFuncValues(indexName)
 }
 
-func (c *cache) ByIndex(indexName, indexKey string) ([]interface{}, error) {
-	return c.cacheStorage.ByIndex(indexName, indexKey)
+// ByIndex returns the stored objects whose set of indexed values
+// for the named index includes the given indexed value.
+func (c *cache) ByIndex(indexName, indexedValue string) ([]interface{}, error) {
+	return c.cacheStorage.ByIndex(indexName, indexedValue)
 }
 
 func (c *cache) AddIndexers(newIndexers Indexers) error {
@@ -238,6 +281,13 @@ func (c *cache) Replace(list []interface{}, resourceVersion string) error {
 		if err != nil {
 			return KeyError{item, err}
 		}
+
+		if c.transformer != nil {
+			item, err = c.transformer(item)
+			if err != nil {
+				return fmt.Errorf("transforming: %w", err)
+			}
+		}
 		items[key] = item
 	}
 	c.cacheStorage.Replace(items, resourceVersion)
@@ -249,12 +299,24 @@ func (c *cache) Resync() error {
 	return nil
 }
 
+type StoreOption = func(*cache)
+
+func WithTransformer(transformer TransformFunc) StoreOption {
+	return func(c *cache) {
+		c.transformer = transformer
+	}
+}
+
 // NewStore returns a Store implemented simply with a map and a lock.
-func NewStore(keyFunc KeyFunc) Store {
-	return &cache{
+func NewStore(keyFunc KeyFunc, opts ...StoreOption) Store {
+	c := &cache{
 		cacheStorage: NewThreadSafeStore(Indexers{}, Indices{}),
 		keyFunc:      keyFunc,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // NewIndexer returns an Indexer implemented simply with a map and a lock.

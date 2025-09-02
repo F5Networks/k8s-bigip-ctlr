@@ -36,7 +36,7 @@ var _ = Describe("Routing Tests", func() {
 			Sections:  make(map[string]interface{}),
 		}
 
-		fakeClient := fake.NewSimpleClientset()
+		fakeClient := fake.NewClientset()
 		Expect(fakeClient).ToNot(BeNil(), "Mock client should not be nil.")
 
 		appMgr := newMockAppManager(&Params{

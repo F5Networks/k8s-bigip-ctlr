@@ -34,21 +34,21 @@ var _ = Describe("OtherSDNType", func() {
 	It("Check the SDNType Cilium", func() {
 		pod = test.NewPod("cilium-node1", "default", 8080, selectors)
 		pod.Status.Phase = "Running"
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(pod)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewClientset(pod)}
 		mockCtlr.setOtherSDNType()
 		Expect(mockCtlr.TeemData.SDNType).To(Equal("cilium"), "SDNType should be cilium")
 	})
 	It("Check the SDNType Calico", func() {
 		pod = test.NewPod("calico-node1", "default", 8080, selectors)
 		pod.Status.Phase = "Running"
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(pod)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewClientset(pod)}
 		mockCtlr.setOtherSDNType()
 		Expect(mockCtlr.TeemData.SDNType).To(Equal("calico"), "SDNType should be calico")
 	})
 	It("Check the SDNType other", func() {
 		pod = test.NewPod("node1", "default", 8080, selectors)
 		pod.Status.Phase = "Running"
-		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewSimpleClientset(pod)}
+		mockCtlr.multiClusterHandler.ClusterConfigs[""] = &ClusterConfig{kubeClient: k8sfake.NewClientset(pod)}
 		mockCtlr.setOtherSDNType()
 		Expect(mockCtlr.TeemData.SDNType).To(Equal("other"), "SDNType should be other")
 	})

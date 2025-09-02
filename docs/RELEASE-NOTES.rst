@@ -14,6 +14,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: Improve logging when BIG-IP is not reachable during pod initialization
 
 Upgrade notes
 ``````````````

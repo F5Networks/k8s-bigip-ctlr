@@ -9,11 +9,13 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+        * Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: support for static pool members in VirtualServer
         * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
 
 Bug Fixes
 ````````````
-* `Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
+* Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
+* Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: Improve logging when BIG-IP is not reachable during pod initialization
 
 Upgrade notes
 ``````````````

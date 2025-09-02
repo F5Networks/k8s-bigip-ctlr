@@ -403,6 +403,16 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		for _, virtual := range virtuals {
+			if rKey.event == Create {
+				rscKey := resourceRef{
+					kind:      VirtualServer,
+					name:      virtual.Name,
+					namespace: virtual.Namespace,
+				}
+				if _, ok := ctlr.resources.processedNativeResources[rscKey]; ok {
+					continue
+				}
+			}
 			err := ctlr.processVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
@@ -461,6 +471,16 @@ func (ctlr *Controller) processResources() bool {
 					break
 				}
 				for _, virtual := range virtuals {
+					if rKey.event == Create {
+						rscKey := resourceRef{
+							kind:      VirtualServer,
+							name:      virtual.Name,
+							namespace: virtual.Namespace,
+						}
+						if _, ok := ctlr.resources.processedNativeResources[rscKey]; ok {
+							continue
+						}
+					}
 					err := ctlr.processVirtualServers(virtual, false)
 					if err != nil {
 						// TODO
@@ -560,6 +580,16 @@ func (ctlr *Controller) processResources() bool {
 				virtuals := ctlr.getVirtualsForCustomPolicy(cp)
 				//Sync Custompolicy for Virtual Servers
 				for _, virtual := range virtuals {
+					if rKey.event == Create {
+						rscKey := resourceRef{
+							kind:      VirtualServer,
+							name:      virtual.Name,
+							namespace: virtual.Namespace,
+						}
+						if _, ok := ctlr.resources.processedNativeResources[rscKey]; ok {
+							continue
+						}
+					}
 					err := ctlr.processVirtualServers(virtual, false)
 					if err != nil {
 						// TODO
@@ -2536,6 +2566,9 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 		pms := ctlr.fetchPoolMembersForService(pool.ServiceName, pool.ServiceNamespace, pool.ServicePort,
 			pool.NodeMemberLabel, ctlr.multiClusterHandler.LocalClusterName, pool.ConnectionLimit, pool.BigIPRouteDomain)
 		poolMembers = append(poolMembers, pms...)
+		if len(pool.StaticPoolMembers) > 0 {
+			poolMembers = ctlr.processStaticPoolMembers(pool.StaticPoolMembers, poolMembers)
+		}
 		if len(ctlr.clusterRatio) > 0 {
 			pool.Members = pms
 			return
@@ -2609,6 +2642,9 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 			pms := ctlr.fetchPoolMembersForService(svc.Service, svc.ServiceNamespace, pool.ServicePort,
 				pool.NodeMemberLabel, pool.Cluster, pool.ConnectionLimit, pool.BigIPRouteDomain)
 			poolMembers = append(poolMembers, pms...)
+			if len(svc.StaticPoolMembers) > 0 {
+				poolMembers = ctlr.processStaticPoolMembers(svc.StaticPoolMembers, poolMembers)
+			}
 
 			// for HA cluster pair service
 			// Skip adding the pool members for the HA peer cluster if adding pool member is restricted for HA peer cluster in multi cluster mode
@@ -2639,6 +2675,39 @@ func (ctlr *Controller) updatePoolMembersForResources(pool *Pool) {
 	}
 
 	pool.Members = poolMembers
+}
+
+func (ctlr *Controller) processStaticPoolMembers(staticPoolMembers []StaticPoolMember, members []PoolMember) []PoolMember {
+	// not supported in multi cluster mode
+	if ctlr.multiClusterMode != "" {
+		return members
+	}
+	// currently supported for
+	// - virtual server
+
+	// Build a set of existing member addresses and ports to avoid duplicates
+	existing := make(map[string]struct{})
+	for _, m := range members {
+		key := fmt.Sprintf("%s:%d", m.Address, m.Port)
+		existing[key] = struct{}{}
+	}
+
+	for _, v := range staticPoolMembers {
+		if v.Address != "" {
+			key := fmt.Sprintf("%s:%d", v.Address, v.Port)
+			if _, found := existing[key]; found {
+				log.Warningf("Static pool member %s:%d already exists in the pool, skipping addition", v.Address, v.Port)
+				continue
+			}
+			member := PoolMember{
+				Address: v.Address,
+				Port:    v.Port,
+			}
+			members = append(members, member)
+			existing[key] = struct{}{}
+		}
+	}
+	return members
 }
 
 func (ctlr *Controller) updatePoolMembersForResourcesForDefaultMode(pool *Pool) {

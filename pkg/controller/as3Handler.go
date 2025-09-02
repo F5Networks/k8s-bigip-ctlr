@@ -357,6 +357,7 @@ func (am *AS3Handler) handleResponseStatusOK(responseMap map[string]interface{},
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					log.Infof("[AS3][POST] SUCCESS: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 					am.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration), "")
 				} else {
 					unknownResponse = true
@@ -384,9 +385,11 @@ func (am *AS3Handler) handleMultiStatus(responseMap map[string]interface{}, cfg 
 					if code != 200 {
 						am.updateTenantResponseCode(int(code), cfg, tenant, false, fmt.Sprintf("Big-IP Responded with error code: %v -- verify the logs for detailed error", v["code"]))
 						log.Errorf("%v[AS3]%v Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+						log.Infof("[AS3][POST] FAILURE: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 					} else {
 						am.updateTenantResponseCode(int(code), cfg, tenant, updateTenantDeletion(tenant, declaration), "")
 						log.Debugf("[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+						log.Infof("[AS3][POST] SUCCESS: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 					}
 				} else {
 					unknownResponse = true
@@ -483,6 +486,7 @@ func (am *AS3Handler) handleResponseOthers(responseMap map[string]interface{}, c
 				tenant, ok2 := v["tenant"].(string)
 				if ok1 && ok2 {
 					log.Errorf("%v[AS3]%v Response from BIG-IP: code: %v --- tenant:%v --- message: %v", getRequestPrefix(cfg.reqMeta.id), am.postManagerPrefix, v["code"], v["tenant"], v["message"])
+					log.Infof("[AS3][POST] FAILURE: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 					// increase the timeout to recover the BigIP
 					cfg.increaseTimeout()
 					log.Debugf("[AS3]%v waiting %v for BigIP to recover and re-posting the declaration", am.postManagerPrefix, cfg.timeout)

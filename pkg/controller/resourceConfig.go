@@ -3076,6 +3076,9 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
 	}
+	if plc.Spec.Profiles.RequestLogProfile != "" {
+		rsCfg.Virtual.RequestLogProfile = plc.Spec.Profiles.RequestLogProfile
+	}
 	var iRule []string
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP

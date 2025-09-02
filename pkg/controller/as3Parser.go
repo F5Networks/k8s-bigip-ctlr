@@ -1235,6 +1235,13 @@ func (ap *AS3Parser) processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 		}
 	}
 
+	//Attach request logging profile
+	if cfg.Virtual.RequestLogProfile != "" {
+		svc.ProfileTrafficLog = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.RequestLogProfile),
+		}
+	}
+
 	//Attach adapt profile
 	if (cfg.Virtual.ProfileAdapt != ProfileAdapt{}) {
 		if cfg.Virtual.ProfileAdapt.Request != "" {

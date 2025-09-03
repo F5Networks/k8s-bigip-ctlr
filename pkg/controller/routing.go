@@ -1057,10 +1057,22 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
 
 	clientSSL := "\n" + fmt.Sprintf(`
 		 when CLIENTSSL_HANDSHAKE {
-					SSL::collect
+				#Detect negotiated ALPN (returns "h2" for HTTP/2, "http/1.1" for HTTP/1.x)
+				set is_h2 0
+				if { [catch { set alpn [SSL::alpn] } ] == 0 } {
+					  if { $alpn eq "h2" } {
+						set is_h2 1
+					  }
 				}
+				SSL::collect
+		}
 
 		 when CLIENTSSL_DATA {
+            # For HTTP/2, do not attempt to derive the path from TLS payload; handle in HTTP_REQUEST.
+            if { [info exists is_h2] && $is_h2 } {
+              SSL::release
+              return
+            }
 			if { [llength [split [SSL::payload]]] < 1 }{
 				reject ; event disable all; return;
 				}
@@ -1193,8 +1205,115 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
         		# Unset the variable
         		unset static::http_status_503
     		}
+            # HTTP/2 (including gRPC) path-based routing
+            if { [HTTP::version] starts_with "2" } {
+              set servername_lower [string tolower [getfield [HTTP::host] ":" 1]]
+              set path [HTTP::path]
+              set domainpath $path
+        
+              # Compute routepath and wildcard routepath to match existing DG semantics
+              set domain_length [llength [split $servername_lower "."]]
+              set domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]
+              set wc_host ".$domain_wc"
+        
+              set routepath "${servername_lower}$path"
+              set wc_routepath "${wc_host}$path"
+        
+              # Expose sslpath for SERVER_CONNECTED to pick correct serverssl profile
+              set sslpath $routepath
+              # Find the number of "/" in the routepath
+				set rc 0
+				foreach x [split $routepath {}] {
+				   if {$x eq "/"} {
+					   incr rc
+				   }
+				}
+
+				set reencrypt_class "/%[1]s/%[2]s_ssl_reencrypt_servername_dg"
+				set edge_class "/%[1]s/%[2]s_ssl_edge_servername_dg"
+				if { [class exists $reencrypt_class] || [class exists $edge_class] } {
+					# Compares the routepath with the entries in ssl_reencrypt_servername_dg and
+					# ssl_edge_servername_dg.
+					for {set i $rc} {$i >= 0} {incr i -1} {
+						if { [class exists $reencrypt_class] } {
+							set reen_pool [class match -value $routepath equals $reencrypt_class]
+							# Check for wildcard domain
+							if { $reen_pool equals "" } {
+								if { [class match $wc_routepath equals $reencrypt_class] } {
+									set reen_pool [class match -value $wc_routepath equals $reencrypt_class]
+								}
+							}
+							# Disable serverside ssl and enable only for reencrypt routes with valid pool
+							if { not ($reen_pool equals "") } {
+								set dflt_pool $reen_pool
+								SSL::enable serverside
+							}
+						}
+						if { [class exists $edge_class] } {
+							set edge_pool [class match -value $routepath equals $edge_class]
+							# Check for wildcard domain
+							if { $edge_pool equals "" } {
+								if { [class match $wc_routepath equals $edge_class] } {
+									set edge_pool [class match -value $wc_routepath equals $edge_class]
+								}
+							}
+							if { not ($edge_pool equals "") } {
+								# Disable serverside ssl for edge routes
+								SSL::disable serverside
+								set dflt_pool $edge_pool
+							}
+						}
+						if { not [info exists dflt_pool] } {
+							set routepath [
+								string range $routepath 0 [
+									expr {[string last "/" $routepath]-1}
+								]
+							]
+							set wc_routepath [
+								string range $wc_routepath 0 [
+									expr {[string last "/" $wc_routepath]-1}
+								]
+							]
+						}
+						else {
+							break
+						}
+					}
+				}
+				else {
+					# Disable serverside ssl for passthrough routes as well
+					SSL::disable serverside
+				}
+				# handle the default pool for virtual server
+				set default_class "/%[1]s/%[2]s_default_pool_servername_dg"
+				 if { [class exists $default_class] } {
+					set dflt_pool [class match -value "defaultPool" equals $default_class]
+				 }
+
+				# Handle requests sent to unknown hosts.
+				# For valid hosts, Send the request to respective pool.
+				if { not [info exists dflt_pool] } then {
+					 # Allowing HTTP2 traffic to be handled by policies and closing the connection for HTTP/1.1 unknown hosts.
+					 if { not ([SSL::payload] starts_with "PRI * HTTP/2.0") } {
+						reject ; event disable all;
+						log local0.debug "Failed to find pool for $servername_lower"
+						return;
+					}
+				} else {
+					pool $dflt_pool
+				}
+				set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+				if { [class exists $ab_class] } {
+					set selected_pool [call select_ab_pool $routepath $dflt_pool $domainpath]
+					if { $selected_pool == "" } then {
+						log local0.debug "Unable to find pool for $servername_lower"
+					} else {
+						pool $selected_pool
+					}
+				}
+			}
 		}
-	`)
+	`, dgPath, rsVSName)
 
 	// TODO: need to handle the api version generically instead specifically mentioning the AS3 as shown below
 	if ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.APIHandler.getApiHandler().AS3VersionInfo.bigIPAS3Version >= 3.52 && passthroughVSGrp {

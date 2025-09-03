@@ -1,0 +1,21 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: grpc-vs-non-mc
+  namespace: default
+spec:
+  host: grpctest.example.com
+  virtualServerAddress: 10.8.1.49
+  tlsProfileName: grpc-tls
+  httpMrfRoutingEnabled: true
+  profiles:
+    http2:
+      client: /Common/http2
+      server: /Common/http2-server
+  pools:
+    - path: /helloworld.Greeter/SayHello
+      service: go-grpc-greeter-server
+      serviceNamespace: default
+      servicePort: 80

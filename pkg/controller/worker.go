@@ -223,7 +223,7 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName 
 		// Following checks are only done in default mode
 		// check if the service is a multiClusterSvcLB and the cluster is not the local cluster
 		if _, ok := svc.Annotations[LBServiceMultiClusterServicesAnnotation]; ok && ctlr.multiClusterMode != "" &&
-			clusterName != ctlr.multiClusterHandler.LocalClusterName && !forPoolOrStatusUpdate {
+			clusterName != ctlr.multiClusterHandler.LocalClusterName {
 			err = fmt.Errorf("skipping loadBalancer service '%s/%s' of cluster '%s' as CIS loadBalancer service with multiCluster "+
 				"annotation is only processed if it exists in the local cluster where CIS is active. However it will be processed for Pool if any local "+
 				"MultiCluster Loadbalancer service references it in the  multiClusterServices annotation", svc.Namespace, svc.Name, clusterName)
@@ -232,14 +232,17 @@ func (ctlr *Controller) shouldProcessServiceTypeLB(svc *v1.Service, clusterName 
 		// The following check handles any misconfiguration with multiCluster SvcLB and non-multiCluster SvcLB
 		// If cluster1 and cluster2 have MultiClusterSvcLB and both have Discovery set to true. Now if MultiClusterSvcLB in cluster2 is converted to
 		// Non-multiCluster svcLB then the existing L4 app should not be deleted.
-		if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) && !forPoolOrStatusUpdate {
-			// same service can be updated but event is rejected if another service with the same key .
-			if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
-				if val.timestamp.Before(&svc.CreationTimestamp) {
-					err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label while processing service '%s/%s' of cluster %s. "+
-						"However it will be processed for Pool if any local MultiCluster Loadbalancer service references it in the multiClusterServices annotation.",
-						appConfig, svc.Namespace, svc.Name, clusterName)
-					return err, false
+		appConfigs := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain)
+		for _, appConfig := range appConfigs {
+			if (appConfig != l4AppConfig{}) {
+				// same service can be updated but event is rejected if another service with the same key .
+				if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+					if val.timestamp.Before(&svc.CreationTimestamp) {
+						err = fmt.Errorf("l4 app '%v' already exists with given ip-address/ipam-label while processing service '%s/%s' of cluster %s. "+
+							"However it will be processed for Pool if any local MultiCluster Loadbalancer service references it in the multiClusterServices annotation.",
+							appConfig, svc.Namespace, svc.Name, clusterName)
+						return err, false
+					}
 				}
 			}
 		}
@@ -644,25 +647,28 @@ func (ctlr *Controller) processResources() bool {
 				ctlr.deleteResourceExternalClusterSvcRouteReference(rsRef)
 			} else {
 				//For creation of service check for duplicate ip on serviceTypeLB Resource
-				if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) {
-					//same service can be updated but event is created.
-					if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
-						if val.timestamp.Before(&svc.CreationTimestamp) {
-							log.Warningf("l4 app already exists with given ip-address/ipam-label while processing service %s", appConfig, svcKey)
-							break
-						} else {
-							delete(ctlr.resources.processedL4Apps, appConfig)
-							ctlr.deleteVirtualsForResourceRef(val)
-							ctlr.deleteResourceExternalClusterSvcRouteReference(val)
-							mcsKey := MultiClusterServiceKey{
-								serviceName: val.name,
-								namespace:   val.namespace,
-								clusterName: val.clusterName,
-							}
-							// Remove the status of the Service Type LB that got processed earlier
-							if err, prevSvc := ctlr.fetchService(mcsKey); err == nil {
-								// It needs to be checked for IPAM key
-								ctlr.updateLBServiceStatus(prevSvc, appConfig.ipOrIPAMKey, val.clusterName, false)
+				appConfigs := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain)
+				for _, appConfig := range appConfigs {
+					if (appConfig != l4AppConfig{}) {
+						//same service can be updated but event is created.
+						if val, ok := ctlr.resources.processedL4Apps[appConfig]; ok {
+							if val.timestamp.Before(&svc.CreationTimestamp) {
+								log.Warningf("l4 app already exists with given ip-address/ipam-label while processing service %s", appConfig, svcKey)
+								break
+							} else {
+								delete(ctlr.resources.processedL4Apps, appConfig)
+								ctlr.deleteVirtualsForResourceRef(val)
+								ctlr.deleteResourceExternalClusterSvcRouteReference(val)
+								mcsKey := MultiClusterServiceKey{
+									serviceName: val.name,
+									namespace:   val.namespace,
+									clusterName: val.clusterName,
+								}
+								// Remove the status of the Service Type LB that got processed earlier
+								if err, prevSvc := ctlr.fetchService(mcsKey); err == nil {
+									// It needs to be checked for IPAM key
+									ctlr.updateLBServiceStatus(prevSvc, appConfig.ipOrIPAMKey, val.clusterName, false)
+								}
 							}
 						}
 					}
@@ -3608,8 +3614,11 @@ func (ctlr *Controller) processLBServices(
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
 			// deletet the entry from the L4 store
-			if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) {
-				delete(ctlr.resources.processedL4Apps, appConfig)
+			appConfigs := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain)
+			for _, appConfig := range appConfigs {
+				if (appConfig != l4AppConfig{}) {
+					delete(ctlr.resources.processedL4Apps, appConfig)
+				}
 			}
 			continue
 		}
@@ -3695,15 +3704,18 @@ func (ctlr *Controller) processLBServices(
 		if len(rsCfg.MetaData.hosts) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
 		}
-		if appConfig := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain); (appConfig != l4AppConfig{}) {
-			if _, ok := ctlr.resources.processedL4Apps[appConfig]; !ok {
-				//Update svcLB store
-				ctlr.resources.processedL4Apps[appConfig] = resourceRef{
-					kind:        Service,
-					name:        svc.Name,
-					namespace:   svc.Namespace,
-					clusterName: clusterName,
-					timestamp:   svc.CreationTimestamp,
+		appConfigs := getL4AppConfigForService(svc, ctlr.ipamClusterLabel, ctlr.defaultRouteDomain)
+		for _, appConfig := range appConfigs {
+			if (appConfig != l4AppConfig{}) {
+				if _, ok := ctlr.resources.processedL4Apps[appConfig]; !ok {
+					//Update svcLB store
+					ctlr.resources.processedL4Apps[appConfig] = resourceRef{
+						kind:        Service,
+						name:        svc.Name,
+						namespace:   svc.Namespace,
+						clusterName: clusterName,
+						timestamp:   svc.CreationTimestamp,
+					}
 				}
 			}
 		}

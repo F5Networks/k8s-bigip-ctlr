@@ -547,11 +547,16 @@ type (
 		SlowRampTime             int32                                   `json:"slowRampTime,omitempty"`
 		Weight                   int32                                   `json:"weight,omitempty"`
 		AlternateBackends        []AlternateBackend                      `json:"alternateBackends"`
+		StaticPoolMembers        []StaticPoolMember                      `json:"staticPoolMembers,omitempty"`
 		MultiClusterServices     []cisapiv1.MultiClusterServiceReference `json:"_"`
 		Cluster                  string                                  `json:"-"`
 		ConnectionLimit          int32                                   `json:"-"`
 		ImplicitSvcSearchEnabled bool                                    `json:"-"`
 		BigIPRouteDomain         int32                                   `json:"bigipRouteDomain,omitempty"`
+	}
+	StaticPoolMember struct {
+		Address string `json:"address"`
+		Port    int32  `json:"port"`
 	}
 	CacheIPAM struct {
 		IPAM *ficV1.IPAM
@@ -559,9 +564,10 @@ type (
 	}
 	// AlternateBackends lists backend svc of A/B
 	AlternateBackend struct {
-		Service          string `json:"service"`
-		ServiceNamespace string `json:"serviceNamespace,omitempty"`
-		Weight           int32  `json:"weight,omitempty"`
+		Service           string             `json:"service"`
+		ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
+		Weight            int32              `json:"weight,omitempty"`
+		StaticPoolMembers []StaticPoolMember `json:"staticPoolMembers,omitempty"`
 	}
 
 	// Pools is slice of pool
@@ -831,11 +837,12 @@ type (
 		SvcNamespace string
 	}
 	SvcBackendCxt struct {
-		Weight       float64
-		Name         string
-		SvcNamespace string `json:"svcNamespace,omitempty"`
-		Cluster      string
-		SvcPort      intstr.IntOrString
+		Weight            float64
+		Name              string
+		SvcNamespace      string `json:"svcNamespace,omitempty"`
+		Cluster           string
+		SvcPort           intstr.IntOrString
+		StaticPoolMembers []StaticPoolMember
 	}
 )
 
@@ -1599,7 +1606,7 @@ type (
 	}
 
 	MultiClusterResourceStore struct {
-		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig
+		rscSvcMap     map[resourceRef]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]struct{}
 		clusterSvcMap map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{}
 		sync.Mutex
 	}

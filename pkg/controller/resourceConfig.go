@@ -49,7 +49,7 @@ func NewResourceStore() *ResourceStore {
 
 func newMultiClusterResourceStore() *MultiClusterResourceStore {
 	var rs MultiClusterResourceStore
-	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]MultiClusterServiceConfig)
+	rs.rscSvcMap = make(map[resourceRef]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]struct{})
 	rs.clusterSvcMap = make(map[string]map[MultiClusterServiceKey]map[MultiClusterServiceConfig]map[PoolIdentifier]struct{})
 	return &rs
 }
@@ -626,6 +626,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				ImplicitSvcSearchEnabled: true,
 				MonitorNames:             monitorNames,
 				Description:              rsCfg.getPoolDescription(),
+				StaticPoolMembers:        SvcBackend.StaticPoolMembers,
 			}
 
 			if ctlr.multiClusterMode != "" {
@@ -653,8 +654,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 					}
 					if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 						for svc, config := range svcs {
-							// update the clusterSvcMap
-							ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+							for portConfig, _ := range config {
+								// update the clusterSvcMap
+								ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+							}
 						}
 					}
 					pool.MultiClusterServices = pl.MultiClusterServices
@@ -851,6 +854,27 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	return nil
 }
 
+func convertStaticPoolMembers(members []cisapiv1.StaticPoolMember) []StaticPoolMember {
+	staticMembersMap := make(map[string]struct{})
+	var staticMembers []StaticPoolMember
+	for _, member := range members {
+		if member.Address != "" {
+			key := fmt.Sprintf("%s:%d", member.Address, member.Port)
+			if _, exists := staticMembersMap[key]; exists {
+				log.Warningf("Static pool member %s:%d already exists in the pool, skipping addition",
+					member.Address, member.Port)
+				continue
+			}
+			staticMembersMap[key] = struct{}{}
+			staticMembers = append(staticMembers, StaticPoolMember{
+				Address: member.Address,
+				Port:    member.Port,
+			})
+		}
+	}
+	return staticMembers
+}
+
 func (ctlr *Controller) createVirtualServerMonitor(monitor cisapiv1.Monitor, rsCfg *ResourceConfig,
 	formatPort intstr.IntOrString, host, path, vsName string, vsAddress string, rscNamespace string) MonitorName {
 	var monitorRefName MonitorName
@@ -1019,6 +1043,7 @@ func (ctlr *Controller) handleDefaultPool(
 				ServiceDownAction: vs.Spec.DefaultPool.ServiceDownAction,
 				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 				Description:       rsCfg.getPoolDescription(),
+				StaticPoolMembers: convertStaticPoolMembers(vs.Spec.DefaultPool.StaticPoolMembers),
 			}
 			if vs.Spec.DefaultPool.Monitors != nil {
 				for _, mtr := range vs.Spec.DefaultPool.Monitors {
@@ -1098,6 +1123,7 @@ func (ctlr *Controller) handleDefaultPoolForPolicy(
 				ServiceDownAction: plc.Spec.DefaultPool.ServiceDownAction,
 				BigIPRouteDomain:  rsCfg.Virtual.BigIPRouteDomain,
 				Description:       rsCfg.getPoolDescription(),
+				StaticPoolMembers: convertStaticPoolMembers(plc.Spec.DefaultPool.StaticPoolMembers),
 			}
 			if plc.Spec.DefaultPool.Monitors != nil {
 				for _, mtr := range plc.Spec.DefaultPool.Monitors {
@@ -2531,8 +2557,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 				}
 				if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 					for svc, config := range svcs {
-						// update the clusterSvcMap
-						ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+						for portConfig, _ := range config {
+							// update the clusterSvcMap
+							ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, pl.Path)
+						}
 					}
 				}
 				pool.MultiClusterServices = pl.MultiClusterServices
@@ -2739,8 +2767,10 @@ func (ctlr *Controller) prepareRSConfigFromIngressLink(
 			}
 			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 				for svc, config := range svcs {
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					for portConfig, _ := range config {
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					}
 				}
 			}
 			pool.MultiClusterServices = multiClusterServices
@@ -2933,8 +2963,10 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			}
 			if svcs, ok := ctlr.multiClusterResources.rscSvcMap[rsRef]; ok {
 				for svc, config := range svcs {
-					// update the clusterSvcMap
-					ctlr.updatePoolIdentifierForService(svc, rsRef, config.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					for portConfig, _ := range config {
+						// update the clusterSvcMap
+						ctlr.updatePoolIdentifierForService(svc, rsRef, portConfig.svcPort, pool.Name, pool.Partition, rsCfg.Virtual.Name, "")
+					}
 				}
 			}
 			pool.MultiClusterServices = multiClusterServices
@@ -3800,6 +3832,7 @@ func (ctlr *Controller) GetPoolBackendsForVS(pool *cisapiv1.VSPool, rscNamespace
 		}
 		sbcs[beIdx].SvcNamespace = svcNamespace
 		sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
+		sbcs[beIdx].StaticPoolMembers = convertStaticPoolMembers(pool.StaticPoolMembers)
 		if pool.AlternateBackends != nil {
 			for _, svc := range pool.AlternateBackends {
 				beIdx = beIdx + 1
@@ -3816,6 +3849,7 @@ func (ctlr *Controller) GetPoolBackendsForVS(pool *cisapiv1.VSPool, rscNamespace
 					sbcs[beIdx].SvcNamespace = rscNamespace
 				}
 				sbcs[beIdx].Cluster = ctlr.multiClusterHandler.LocalClusterName
+				sbcs[beIdx].StaticPoolMembers = convertStaticPoolMembers(svc.StaticPoolMembers)
 			}
 		}
 	case Ratio:

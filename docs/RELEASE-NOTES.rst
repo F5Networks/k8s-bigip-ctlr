@@ -11,13 +11,17 @@ Added Functionality
     * CRD
         * `Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
         * `Issue 3892 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3892>`_: GRPC support for VirtualServer CRD
+        * Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: support for static pool members in VirtualServer
+        * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
 
 Bug Fixes
 ````````````
+* Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
+* Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: Improve logging when BIG-IP is not reachable during pod initialization
 
 Upgrade notes
 ``````````````
-
+* Upgrading to CIS 2.21, static routes are deleted and recreated with new description added to fix the issue(`Github#3719`) of static routes overriding each other with multiple CIS instances writing to Common Partition. This may cause a brief disruption in traffic while the routes are being recreated.
 2.20.1
 -------------
 

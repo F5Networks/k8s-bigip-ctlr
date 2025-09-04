@@ -120,7 +120,6 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			log.Infof("[AS3][ConfigMap] Added staging AS3 ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 		}
 	}
-	log.Debugf("[AS3] Exiting prepareResourceAS3ConfigMaps")
 	return as3Cfgmaps, overriderAS3CfgmapData, nil
 }
 

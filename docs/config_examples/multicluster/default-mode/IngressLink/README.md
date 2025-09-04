@@ -126,6 +126,7 @@ metadata:
   namespace: nginx-ingress
 spec:
   host: '*.example.com'
+  policyName: cr-policy
   multiClusterServices:
   - clusterName: cluster1
     namespace: nginx-ingress

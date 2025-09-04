@@ -1328,6 +1328,24 @@ func (ap *AS3Parser) createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp
 		svc.Pool = &poolPointer
 	}
 
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else {
+			//Attach Service Address
+			serviceAddressName := ap.createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			svc.VirtualPort = port
+		}
+	}
+
 	svc.Layer4 = cfg.Virtual.IpProtocol
 	svc.Source = "0.0.0.0/0"
 	svc.TranslateServerAddress = true
@@ -1418,7 +1436,7 @@ func (ap *AS3Parser) createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp
 			BigIP: cfg.Virtual.ProfileMultiplex,
 		}
 	}
-	
+
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
@@ -1441,29 +1459,11 @@ func (ap *AS3Parser) createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp
 		}
 	}
 
-	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
-	// verify that ip address and port exists.
-	if virtualAddress != "" && port != 0 {
-		if len(cfg.ServiceAddress) == 0 {
-			va := append(svc.VirtualAddresses, virtualAddress)
-			svc.VirtualAddresses = va
-			svc.VirtualPort = port
-		} else {
-			//Attach Service Address
-			serviceAddressName := ap.createServiceAddressDecl(cfg, virtualAddress, sharedApp)
-			sa := &as3ResourcePointer{
-				Use: serviceAddressName,
-			}
-			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
-			svc.VirtualPort = port
-		}
-	}
-
 	if cfg.Virtual.HttpMrfRoutingEnabled != nil {
 		//set HttpMrfRoutingEnabled
 		svc.HttpMrfRoutingEnabled = *cfg.Virtual.HttpMrfRoutingEnabled
 	}
-	
+
 	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile != "" {
 		svc.HttpAnalyticsProfile = &as3ResourcePointer{
 			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile,

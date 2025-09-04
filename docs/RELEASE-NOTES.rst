@@ -8,6 +8,7 @@ Added Functionality
 ```````````````````
 **What's new:**
     * Multi Cluster
+        * Policy CR support for IngressLink in multicluster default mode. See `Example <./config_examples/multicluster/default-mode/IngressLink/sample-multicluster-ingresslink-with-policy.yaml>`_
     * CRD
         * Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: support for static pool members in VirtualServer
         * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD

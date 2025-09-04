@@ -258,7 +258,6 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string, e
 	} else {
 		log.Infof("[AS3][POST] AS3 declaration POST failed. URL: %v", url)
 	}
-	log.Debugf("[AS3] Exiting postAS3Declaration")
 	return posted, url, nil
 }
 

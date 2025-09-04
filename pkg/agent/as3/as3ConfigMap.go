@@ -32,16 +32,6 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 	am.as3LogLevel = nil
 	// Process rscCfgMap if present in Resource Request
 	for _, rscCfgMap := range am.ResourceRequest.AgentCfgmaps {
-		log.Debugf("[AS3] Processing AgentCfgMap: %+v", rscCfgMap)
-		// Log detection of AS3 ConfigMap events at INFO level
-		switch rscCfgMap.Operation {
-		case OprTypeCreate:
-			log.Infof("[AS3][ConfigMap] Detected new AS3 ConfigMap: %v in Namespace: %v", rscCfgMap.Name, rscCfgMap.Namespace)
-		case OprTypeUpdate:
-			log.Infof("[AS3][ConfigMap] Detected update to AS3 ConfigMap: %v in Namespace: %v", rscCfgMap.Name, rscCfgMap.Namespace)
-		case OprTypeDelete:
-			log.Infof("[AS3][ConfigMap] Detected delete of AS3 ConfigMap: %v in Namespace: %v", rscCfgMap.Name, rscCfgMap.Namespace)
-		}
 		cfgmapType, ok := am.isValidConfigmap(rscCfgMap)
 		log.Debugf("[AS3] isValidConfigmap result: cfgmapType=%v, ok=%v", cfgmapType, ok)
 		if !ok {

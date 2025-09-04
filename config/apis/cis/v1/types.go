@@ -275,6 +275,7 @@ type IngressLink struct {
 // IngressLinkSpec is Spec for IngressLink
 type IngressLinkSpec struct {
 	VirtualServerAddress string                         `json:"virtualServerAddress,omitempty"`
+	VirtualServerName    string                         `json:"virtualServerName,omitempty"`
 	Host                 string                         `json:"host,omitempty"`
 	Selector             *metav1.LabelSelector          `json:"selector"`
 	IRules               []string                       `json:"iRules,omitempty"`

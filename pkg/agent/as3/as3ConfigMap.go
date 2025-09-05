@@ -33,7 +33,9 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 	// Process rscCfgMap if present in Resource Request
 	for _, rscCfgMap := range am.ResourceRequest.AgentCfgmaps {
 		cfgmapType, ok := am.isValidConfigmap(rscCfgMap)
+		log.Debugf("[AS3] isValidConfigmap result: cfgmapType=%v, ok=%v", cfgmapType, ok)
 		if !ok {
+			log.Debugf("[AS3] Skipping invalid ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 			continue
 		}
 
@@ -43,6 +45,7 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			// So that the tenants will be configured with empty config
 			// while preparing unified declaration so that these partitions will deleted
 			if rscCfgMap.Operation == OprTypeDelete {
+				log.Debugf("[AS3] Skipping deleted AS3 ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 				continue
 			}
 			cfgmap := &AS3ConfigMap{
@@ -59,7 +62,9 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 					// Adding this condition as cfgmap.Validated flag is only used in filter-tenant case
 					if am.FilterTenants {
 						cfgmap.Validated = false
+						log.Debugf("[AS3] Validation failed, marking ConfigMap as not validated: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 					} else {
+						log.Debugf("[AS3] Validation failed, skipping ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 						continue
 					}
 
@@ -67,17 +72,21 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			}
 
 			tenantMap, endPoints, err := am.processCfgMap(rscCfgMap)
+			log.Debugf("[AS3] processCfgMap result: tenantMap=%+v, endPoints=%+v, err=%v", tenantMap, endPoints, err)
 			// Skip processing further if error encountered while processing configMap
 			if err != nil {
+				log.Errorf("[AS3] Error processing ConfigMap: %v/%v: %v", rscCfgMap.Namespace, rscCfgMap.Name, err)
 				return nil, "", err
 			}
 			if tenantMap == nil {
+				log.Debugf("[AS3] No tenantMap found, skipping ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 				continue
 			}
 
 			cfgmap.config = tenantMap
 			cfgmap.endPoints = endPoints
 			as3Cfgmaps = append(as3Cfgmaps, cfgmap)
+			log.Infof("[AS3][ConfigMap] Added AS3 ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 
 		case OverrideAS3Label:
 			if rscCfgMap.Operation == OprTypeDelete {
@@ -87,8 +96,10 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 				overriderAS3CfgmapData = ""
 			} else {
 				overriderAS3CfgmapData = rscCfgMap.Data
+				log.Debugf("[AS3] Set overriderAS3CfgmapData for: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 			}
 		case StagingAS3Label:
+			log.Debugf("[AS3] Processing StagingAS3Label for: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 			tenants := getTenants(as3Declaration(rscCfgMap.Data), true)
 			cfgmap := &AS3ConfigMap{
 				Name:      rscCfgMap.Name,
@@ -97,13 +108,16 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			}
 			rscCfgMap.Data = am.getTenantObjects(tenants)
 			tenantMap, endPoints, err := am.processCfgMap(rscCfgMap)
+			log.Debugf("[AS3] processCfgMap (staging) result: tenantMap=%+v, endPoints=%+v, err=%v", tenantMap, endPoints, err)
 			// Skip processing further if error encountered while processing configMap
 			if err != nil {
+				log.Errorf("[AS3] Error processing staging ConfigMap: %v/%v: %v", rscCfgMap.Namespace, rscCfgMap.Name, err)
 				return nil, "", err
 			}
 			cfgmap.config = tenantMap
 			cfgmap.endPoints = endPoints
 			as3Cfgmaps = append(as3Cfgmaps, cfgmap)
+			log.Infof("[AS3][ConfigMap] Added staging AS3 ConfigMap: %v/%v", rscCfgMap.Namespace, rscCfgMap.Name)
 		}
 	}
 	return as3Cfgmaps, overriderAS3CfgmapData, nil

@@ -234,20 +234,30 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string, e
 
 	// Process Route or Ingress
 	as3Config.resourceConfig = am.prepareAS3ResourceConfig()
+	log.Debugf("[AS3] Prepared AS3 resource config: %+v", as3Config.resourceConfig)
 
 	var err error
 	// Process all Configmaps (including overrideAS3)
 	as3Config.configmaps, as3Config.overrideConfigmapData, err = am.prepareResourceAS3ConfigMaps()
+	log.Debugf("[AS3] Prepared AS3 configmaps: %+v, overrideConfigmapData: %v", as3Config.configmaps, as3Config.overrideConfigmapData)
 	// Skip posting AS3 declaration if error encountered while processing configMap to avoid possible wrong declaration
 	// getting posted as the pool members may be empty if error is encountered while connecting with api server
 	if err != nil {
+		log.Errorf("[AS3] Error preparing AS3 ConfigMaps: %v", err)
 		return false, "", err
 	}
 	if am.FilterTenants {
+		log.Debugf("[AS3] Updating tenant map for filtered tenants")
 		updateTenantMap(*as3Config)
 	}
 
 	posted, url := am.postAS3Config(*as3Config)
+	log.Debugf("[AS3] postAS3Config result: posted=%v, url=%v", posted, url)
+	if posted {
+		log.Infof("[AS3][POST] AS3 declaration POST succeeded. URL: %v", url)
+	} else {
+		log.Infof("[AS3][POST] AS3 declaration POST failed. URL: %v", url)
+	}
 	return posted, url, nil
 }
 

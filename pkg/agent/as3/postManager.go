@@ -320,7 +320,7 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 	for _, value := range results {
 		v := value.(map[string]interface{})
 		// log result with code, tenant and message
-		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+		log.Infof("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 	}
 	return true, responseStatusOk
 }
@@ -380,7 +380,7 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 		for _, value := range results {
 			v := value.(map[string]interface{})
 			// log result with code, tenant and message
-			log.Errorf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+			log.Infof("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])

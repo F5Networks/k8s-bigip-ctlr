@@ -119,10 +119,10 @@ spec:
                       properties:
                         client:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                         server:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -1386,10 +1386,10 @@ spec:
                       properties:
                         client:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                         server:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                     persistenceProfile:
                       type: string
                       pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'

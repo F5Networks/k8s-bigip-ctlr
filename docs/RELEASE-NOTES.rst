@@ -14,6 +14,7 @@ Added Functionality
         * Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: support for static pool members in VirtualServer
         * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
         * Issue 3927 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3927>`_: feature request: customized virtualServerName for IngressLink resource
+        * Issue 3907 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3907>`_: support to set HTTP/2 Profile/Server to None
         * Support request log profile in policy CRD
 
 Bug Fixes

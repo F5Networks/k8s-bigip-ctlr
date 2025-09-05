@@ -776,8 +776,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
 	}
 
-	if len(vs.Spec.Profiles.HTTP2.Client) > 0 || len(vs.Spec.Profiles.HTTP2.Server) > 0 {
+	if vs.Spec.Profiles.HTTP2.Client != nil {
 		rsCfg.Virtual.HTTP2.Client = vs.Spec.Profiles.HTTP2.Client
+	}
+	if vs.Spec.Profiles.HTTP2.Server != nil {
 		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
 	}
 

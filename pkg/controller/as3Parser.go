@@ -357,31 +357,39 @@ func (ap *AS3Parser) createServiceDecl(cfg *ResourceConfig, sharedApp as3Applica
 	}
 
 	if cfg.MetaData.Protocol == HTTPS {
-		if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
-			if cfg.Virtual.HTTP2.Client == "" {
+		if cfg.Virtual.HTTP2.Client != nil || cfg.Virtual.HTTP2.Server != nil {
+			if cfg.Virtual.HTTP2.Client == nil {
 				log.Errorf("[AS3] resetting ProfileHTTP2 as client profile doesnt co-exist with HTTP2 Server Profile, Please include client HTTP2 Profile ")
 			}
-			if cfg.Virtual.HTTP2.Server == "" {
-				svc.ProfileHTTP2 = &as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+			if cfg.Virtual.HTTP2.Server == nil {
+				if cfg.Virtual.HTTP2.Client != nil && *cfg.Virtual.HTTP2.Client != "" {
+					svc.ProfileHTTP2 = &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", *cfg.Virtual.HTTP2.Client),
+					}
 				}
 			}
-			if cfg.Virtual.HTTP2.Client == "" && cfg.Virtual.HTTP2.Server != "" {
-				svc.ProfileHTTP2 = as3ProfileHTTP2{
-					Egress: &as3ResourcePointer{
-						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
-					},
+			if cfg.Virtual.HTTP2.Client == nil && cfg.Virtual.HTTP2.Server != nil {
+				if *cfg.Virtual.HTTP2.Server != "" {
+					svc.ProfileHTTP2 = as3ProfileHTTP2{
+						Egress: &as3ResourcePointer{
+							BigIP: fmt.Sprintf("%v", *cfg.Virtual.HTTP2.Server),
+						},
+					}
 				}
 			}
-			if cfg.Virtual.HTTP2.Client != "" && cfg.Virtual.HTTP2.Server != "" {
-				svc.ProfileHTTP2 = as3ProfileHTTP2{
-					Ingress: &as3ResourcePointer{
-						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
-					},
-					Egress: &as3ResourcePointer{
-						BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
-					},
+			if cfg.Virtual.HTTP2.Client != nil && cfg.Virtual.HTTP2.Server != nil {
+				var http2Prof = as3ProfileHTTP2{}
+				if *cfg.Virtual.HTTP2.Client != "" {
+					http2Prof.Ingress = &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", *cfg.Virtual.HTTP2.Client),
+					}
 				}
+				if *cfg.Virtual.HTTP2.Server != "" {
+					http2Prof.Egress = &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", *cfg.Virtual.HTTP2.Server),
+					}
+				}
+				svc.ProfileHTTP2 = http2Prof
 			}
 		}
 	}

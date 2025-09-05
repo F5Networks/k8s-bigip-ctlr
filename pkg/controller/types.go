@@ -316,6 +316,7 @@ type (
 		WAF                        string                `json:"waf,omitempty"`
 		Firewall                   string                `json:"firewallPolicy,omitempty"`
 		LogProfiles                []string              `json:"logProfiles,omitempty"`
+		RequestLogProfile          string                `json:"requestLogProfile,omitempty"`
 		ProfileL4                  string                `json:"profileL4,omitempty"`
 		ProfileMultiplex           string                `json:"profileMultiplex,omitempty"`
 		HTTPCompressionProfile     string                `json:"profileHTTPCompression,omitempty"`
@@ -1208,6 +1209,7 @@ type (
 		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
 		Firewall               as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
 		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
+		ProfileTrafficLog      as3MultiTypeParam    `json:"profileTrafficLog,omitempty"`
 		ProfileL4              as3MultiTypeParam    `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
 		PersistenceMethods     *[]as3MultiTypeParam `json:"persistenceMethods,omitempty"`

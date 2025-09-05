@@ -1,0 +1,33 @@
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-policy1
+  namespace: default
+spec:
+  iRuleList: []
+  iRules:
+    insecure: /Common/test_rule1
+    priority: high
+    secure: /Common/test_rule1
+  l3Policies:
+    allowVlans:
+      - /Common/external
+    firewallPolicy: /Common/firewallPolicy1
+    ipIntelligencePolicy: /Common/ipIntelligencePolicy1
+  l7Policies:
+    waf: /Common/WAF_Policy1
+  profiles:
+    ftpProfile: /Common/ftpProfile1
+    htmlProfile: /Common/htmlProfile1
+    http: /Common/httpProfile1
+    http2:
+      client: /Common/http2Profile1
+    logProfiles:
+      - /Common/logProfile2
+    persistenceProfile: /Common/customPersistence1
+    requestLogProfile: /Common/request-log
+    rewriteProfile: /Common/rewriteProfile1
+    tcp:
+      client: /Common/tcpProfile1

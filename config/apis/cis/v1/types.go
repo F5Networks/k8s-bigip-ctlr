@@ -457,6 +457,7 @@ type ProfileSpec struct {
 	RewriteProfile         string            `json:"rewriteProfile,omitempty"`
 	PersistenceProfile     string            `json:"persistenceProfile,omitempty"`
 	LogProfiles            []string          `json:"logProfiles,omitempty"`
+	RequestLogProfile      string            `json:"requestLogProfile,omitempty"`
 	ProfileL4              string            `json:"profileL4,omitempty"`
 	ProfileMultiplex       string            `json:"profileMultiplex,omitempty"`
 	HttpMrfRoutingEnabled  *bool             `json:"httpMrfRoutingEnabled,omitempty"`

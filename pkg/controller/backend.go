@@ -56,7 +56,7 @@ func (agent *Agent) PostConfig(rsConfigRequest ResourceConfigRequest) {
 		}
 		log.Debugf("%s[%s]%v Posting ResourceConfigRequest: %+v\n", getRequestPrefix(rsConfigRequest.reqMeta.id), agent.APIHandler.LTM.apiType, agent.APIHandler.LTM.postManagerPrefix, rsConfigRequest)
 	} else {
-		log.Debugf("%s[%s]%v Posting ResourceConfigRequest: %+v\n", getRequestPrefix(rsConfigRequest.reqMeta.id), agent.APIHandler.LTM.apiType, agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
+		log.Debugf("%s[%s]%v Posting ResourceConfigRequest: %+v\n", getRequestPrefix(rsConfigRequest.reqMeta.id), agent.APIHandler.GTM.apiType, agent.APIHandler.GTM.postManagerPrefix, rsConfigRequest)
 		agentConfig = agent.GTM.APIHandler.createAPIConfig(rsConfigRequest, false, agent.userAgent, agent.gtmOnSeparateServer)
 		agentConfig.as3APIURL = agent.GTM.APIHandler.getAPIURL([]string{})
 		agentConfig.agentKind = GTMBigIP

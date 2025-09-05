@@ -488,8 +488,8 @@ type ProfileTCP struct {
 }
 
 type ProfileHTTP2 struct {
-	Client string `json:"client,omitempty"`
-	Server string `json:"server,omitempty"`
+	Client *string `json:"client,omitempty"`
+	Server *string `json:"server,omitempty"`
 }
 
 type HTTPProfiles struct {

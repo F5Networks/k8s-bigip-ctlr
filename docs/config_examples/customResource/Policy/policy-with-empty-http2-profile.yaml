@@ -1,0 +1,30 @@
+apiVersion: cis.f5.com/v1
+kind: Policy
+metadata:
+  labels:
+    f5cr: "true"
+  name: sample-policy
+  namespace: default
+spec:
+  snat: auto
+  l7Policies:
+    waf: /Common/WAF_Policy
+  l3Policies:
+    firewallPolicy: /Common/AFM_Policy
+    dos: /Common/dos
+    botDefense: /Common/bot-defense
+    ipIntelligencePolicy: /Common/IP_Intelligence_Policy
+    allowVlans:
+      - /Common/external
+    allowSourceRange:
+      - 1.1.1.0/24
+      - 2.2.2.0/24
+  profiles:
+    tcp:
+      client: /Common/f5-tcp-lan
+      server: /Common/f5-tcp-wan
+    udp: /Common/udp
+    http: /Common/http
+    http2:
+      client: ""
+      server: ""

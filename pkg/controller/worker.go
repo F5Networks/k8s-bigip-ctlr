@@ -1369,6 +1369,12 @@ func (ctlr *Controller) processVirtualServers(
 				vkey)
 			return nil
 		}
+	} else if !ctlr.validateVSPartitionAccess(virtual, true) {
+		// If partition is not allowed, skip processing the VS deletion request
+		// This is to avoid deletion of VS in BIG-IP when partition is not allowed
+		log.Warningf("VirtualServer %s/%s: Skipping processing as partition %s is not allowed",
+			virtual.Namespace, virtual.Name, virtual.Spec.Partition)
+		return nil
 	}
 
 	var allVirtuals []*cisapiv1.VirtualServer

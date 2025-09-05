@@ -176,6 +176,8 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		respChan:                    make(chan *agentPostConfig, 1),
 		multiClusterHandler:         NewClusterHandler(params.LocalClusterName),
 		TeemData:                    td,
+		allowedPartitions:           make(map[string]struct{}),
+		deniedPartitions:            make(map[string]struct{}),
 	}
 	if handler == nil {
 		ctlr.RequestHandler = ctlr.NewRequestHandler(agentParams, baseAPIHandler)
@@ -183,6 +185,14 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		ctlr.RequestHandler = handler
 	}
 	log.Debug("Controller Created")
+
+	// Set allowed and denied partitions
+	for _, ap := range params.AllowedPartitions {
+		ctlr.allowedPartitions[ap] = struct{}{}
+	}
+	for _, dp := range params.DeniedPartitions {
+		ctlr.deniedPartitions[dp] = struct{}{}
+	}
 
 	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")

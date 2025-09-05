@@ -98,4 +98,119 @@ var _ = Describe("Validation Tests", func() {
 			//	"HA clusters to be defined in extendedServiceReference")))
 		})
 	})
+
+	Describe("getKeysFromSet", func() {
+		It("should return an empty string for an empty map", func() {
+			emptyMap := map[string]struct{}{}
+			Expect(getKeysFromSet(emptyMap)).To(Equal(""))
+		})
+
+		It("should return the key for a single-entry map", func() {
+			singleMap := map[string]struct{}{"partition1": {}}
+			Expect(getKeysFromSet(singleMap)).To(Equal("partition1"))
+		})
+
+		It("should return comma-separated keys for a multi-entry map", func() {
+			// Create map with multiple entries
+			multiMap := map[string]struct{}{
+				"partition1": {},
+				"partition2": {},
+				"partition3": {},
+			}
+
+			// Get the result
+			result := getKeysFromSet(multiMap)
+
+			// Since map iteration order is non-deterministic, we need to check all keys are present
+			Expect(result).To(ContainSubstring("partition1"))
+			Expect(result).To(ContainSubstring("partition2"))
+			Expect(result).To(ContainSubstring("partition3"))
+			Expect(result).To(HaveLen(len("partition1,partition2,partition3")))
+		})
+	})
+
+	Describe("validateVSPartitionAccess", func() {
+		var vsResource *cisapiv1.VirtualServer
+
+		BeforeEach(func() {
+			vsResource = &cisapiv1.VirtualServer{
+				Spec: cisapiv1.VirtualServerSpec{
+					Partition: "test-partition",
+				},
+			}
+			mockCtlr.deniedPartitions = make(map[string]struct{})
+			mockCtlr.allowedPartitions = make(map[string]struct{})
+		})
+
+		It("should return false for nil VirtualServer", func() {
+			Expect(mockCtlr.validateVSPartitionAccess(nil, false)).To(BeFalse())
+		})
+
+		It("should allow when partition is empty", func() {
+			vsResource.Spec.Partition = ""
+			Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeTrue())
+		})
+
+		It("should allow when no allowed/denied partitions configured", func() {
+			Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeTrue())
+		})
+
+		Context("with denied partitions", func() {
+			BeforeEach(func() {
+				mockCtlr.deniedPartitions = map[string]struct{}{
+					"denied-partition": {},
+				}
+			})
+
+			It("should deny when partition is in denied list", func() {
+				vsResource.Spec.Partition = "denied-partition"
+				Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeFalse())
+			})
+
+			It("should allow when partition is not in denied list", func() {
+				Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeTrue())
+			})
+
+			It("should not update status when deleted flag is true", func() {
+				vsResource.Spec.Partition = "denied-partition"
+				// We can't directly test status updates, but we can verify the function behavior
+				Expect(mockCtlr.validateVSPartitionAccess(vsResource, true)).To(BeFalse())
+			})
+		})
+
+		Context("with allowed partitions", func() {
+			BeforeEach(func() {
+				mockCtlr.allowedPartitions = map[string]struct{}{
+					"allowed-partition": {},
+				}
+			})
+
+			It("should allow when partition is in allowed list", func() {
+				vsResource.Spec.Partition = "allowed-partition"
+				Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeTrue())
+			})
+
+			It("should deny when partition is not in allowed list", func() {
+				Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeFalse())
+			})
+		})
+
+		Context("with both allowed and denied partitions", func() {
+			BeforeEach(func() {
+				mockCtlr.deniedPartitions = map[string]struct{}{
+					"denied-partition": {},
+					"common-partition": {},
+				}
+				mockCtlr.allowedPartitions = map[string]struct{}{
+					"allowed-partition": {},
+					"common-partition":  {},
+				}
+			})
+
+			It("should prioritize denied over allowed partitions", func() {
+				vsResource.Spec.Partition = "common-partition"
+				Expect(mockCtlr.validateVSPartitionAccess(vsResource, false)).To(BeFalse())
+			})
+		})
+	})
 })

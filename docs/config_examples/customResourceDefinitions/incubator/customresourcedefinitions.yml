@@ -1410,6 +1410,9 @@ spec:
                         type: string
                         pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([-A-z0-9._\s]+\/?)*$'
                       type: array
+                    requestLogProfile:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     httpMrfRoutingEnabled:
                       type: boolean
                     sslProfiles:

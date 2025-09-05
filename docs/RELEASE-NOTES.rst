@@ -15,6 +15,7 @@ Added Functionality
         * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
         * Issue 3927 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3927>`_: feature request: customized virtualServerName for IngressLink resource
         * Support request log profile in policy CRD
+        * Issue 3932 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3932>`_: support for allowed and denied partitions lists for Virtual Server CRD
 
 Bug Fixes
 ````````````

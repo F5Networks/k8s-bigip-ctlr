@@ -59,6 +59,10 @@ func (ctlr *Controller) checkValidVirtualServer(
 		return false
 	}
 
+	if !ctlr.validateVSPartitionAccess(vsResource, false) {
+		return false
+	}
+
 	// Check if HTTPTraffic is set for insecure VS
 	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
 		err = fmt.Sprintf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
@@ -374,4 +378,56 @@ func getL4AppConfigForService(svc *v1.Service, ipamClusterLabel string, routeDom
 		})
 	}
 	return l4AppConfigs
+}
+
+// getKeysFromSet returns a comma-separated string of keys from a map used as a set(map[string]struct{})
+func getKeysFromSet(m map[string]struct{}) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return strings.Join(keys, ",")
+}
+
+// validateVSPartitionAccess checks if the partition of the VirtualServer is allowed or denied and
+// updates the status accordingly if needed (only for non-delete operations)
+func (ctlr *Controller) validateVSPartitionAccess(vsResource *cisapiv1.VirtualServer, deleted bool) bool {
+	// If vsResource is nil, return false
+	// This is a safety check, in practice this should not happen
+	if vsResource == nil {
+		return false
+	}
+	// If both allowed and denied partitions are empty, allow all partitions
+	partition := vsResource.Spec.Partition
+	if partition == "" {
+		return true
+	}
+	vsName := vsResource.ObjectMeta.Name
+	// Check if Partition is present in allowed/denied list
+	// Denied partition list takes precedence over allowed list
+	if len(ctlr.deniedPartitions) > 0 {
+		if _, ok := ctlr.deniedPartitions[partition]; ok {
+			// If operation is delete, simply return false without updating status, otherwise update status
+			if !deleted {
+				err := fmt.Sprintf("VirtualServer %s cannot be created in partition %s. Denied partitions are: %s",
+					vsName, partition, getKeysFromSet(ctlr.deniedPartitions))
+				log.Errorf(err)
+				ctlr.updateVSStatus(vsResource, "", StatusError, errors.New(err))
+			}
+			return false
+		}
+	} else if len(ctlr.allowedPartitions) > 0 {
+		if _, ok := ctlr.allowedPartitions[partition]; !ok {
+			// If operation is delete, simply return false without updating status, otherwise update status
+			if !deleted {
+				err := fmt.Sprintf("VirtualServer %s cannot be created in partition %s. Allowed partitions are: %s",
+					vsName, partition, getKeysFromSet(ctlr.allowedPartitions))
+				log.Errorf(err)
+				ctlr.updateVSStatus(vsResource, "", StatusError, errors.New(err))
+			}
+			return false
+		}
+	}
+	// If we reach here, partition is valid
+	return true
 }

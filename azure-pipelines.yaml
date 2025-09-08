@@ -115,18 +115,6 @@ stages:
           command: login
           containerRegistry: $(quayConnection)
       - task: Docker@2
-        displayName: Login to docker registry
-        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-        inputs:
-          command: login
-          containerRegistry: $(dockerConnection)
-      - task: Docker@2
-        displayName: Login to scan registry
-        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-        inputs:
-          command: login
-          containerRegistry: $(scanConnection)
-      - task: Docker@2
         displayName: Build from Red Hat Universal Base Image
         inputs:
           command: build
@@ -136,39 +124,6 @@ stages:
           buildContext: .
           tags: $(Build.SourceVersion)
           arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS) --build-arg COVERALLS_TOKEN=$(COVERALLS_TOKEN)"
-      - task: Docker@2
-        displayName: Push image to Quay
-        inputs:
-          command: push
-          containerRegistry: $(quayConnection)
-          repository: $(imageName)
-          tags: $(Build.SourceVersion)
-      - script: |
-          set -ex
-          podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
-          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
-          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
-        condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
-        displayName: 'Push image to Redhat'
-        continueOnError: true
-      - script: |
-          set -ex
-          docker pull $(quay_path):$(Build.SourceVersion)
-          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
-          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(BUILD_VERSION)
-          patch_version=`echo $(BUILD_VERSION) | awk -F '.'  '{print $3}'`
-          if [ "${patch_version}" == "0" ] ; then
-            stripped_version=`echo $(BUILD_VERSION) | rev | cut -c3- | rev`
-            docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):${stripped_version}
-            docker push $(docker_repo):${stripped_version}
-          fi
-          docker push $(docker_repo):latest
-          docker push $(docker_repo):$(BUILD_VERSION)
-        displayName: 'Push image to DockerHub'
-        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-  - job: ScanContainerImage
-    dependsOn: BuildContainerImage
-    steps:
       - task: CmdLine@2
         displayName: Install Trivy
         inputs:
@@ -324,4 +279,3 @@ stages:
         podman push quay.io/$(operatorIndexImage):$(Build.SourceVersion)
       displayName: Updating the operator index image
       condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
-      

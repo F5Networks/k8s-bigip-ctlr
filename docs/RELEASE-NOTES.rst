@@ -17,6 +17,9 @@ Added Functionality
         * Issue 3907 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3907>`_: support to set HTTP/2 Profile/Server to None
         * Support request log profile in policy CRD
         * Issue 3932 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3932>`_: support for allowed and denied partitions lists for Virtual Server CRD
+   * Add support for AS3 3.55.0
+   * CIS validated with Kubernetes 1.33
+
 
 Bug Fixes
 ````````````

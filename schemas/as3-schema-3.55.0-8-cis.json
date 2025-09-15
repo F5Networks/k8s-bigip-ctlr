@@ -1,5 +1,5 @@
 {
-  "$id": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/main/schema/latest/as3-schema.json",
+  "$id": "urn:uuid:85626792-9ee7-46bb-8fc8-4ba708cfdc1d",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AS3 API Request",
   "description": "BIG-IP AS3 API request body",
@@ -54,11 +54,11 @@
           "anyOf": [
             {
               "description": "Any version of AS3.",
-              "pattern": "^3[.]([0-9]|[1234][0-9]|5[0-2])($|[.][0-9]+$)"
+              "pattern": "^3[.]([0-9]|[1234][0-9]|5[0-5])($|[.][0-9]+$)"
             },
             {
               "description": "The current version of AS3.",
-              "const": "3.52.0"
+              "const": "3.55.0"
             }
           ]
         },
@@ -119,6 +119,12 @@
               "description": "Date+time (this version of) declaration was created (optional but recommended)",
               "type": "string",
               "format": "date-time"
+            },
+            "maskConstants": {
+              "title": "Mask constants",
+              "description": "If true, then the declaration will mask all constant values in the output (default false)",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": {
@@ -735,6 +741,7 @@
               "Cipher_Rule",
               "Cipher_Group",
               "iFile",
+              "PPTP_Profile",
               "Firewall_Address_List",
               "Firewall_Port_List",
               "Firewall_Rule_List",
@@ -743,6 +750,9 @@
               "NAT_Source_Translation",
               "Protocol_Inspection_Profile",
               "SSH_Proxy_Profile",
+              "Ping_Access_Agent_Properties",
+              "Ping_Access_Profile",
+              "IP_Intelligence_Policy",
               "Data_Group",
               "DNS_Cache",
               "DNS_Profile",
@@ -1273,6 +1283,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "PPTP_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/PPTP_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "Firewall_Address_List"
                 }
               }
@@ -1363,6 +1385,42 @@
             },
             "then": {
               "$ref": "#/definitions/SSH_Proxy_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Ping_Access_Agent_Properties"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Ping_Access_Agent_Properties"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Ping_Access_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Ping_Access_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "IP_Intelligence_Policy"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/IP_Intelligence_Policy"
             }
           },
           {
@@ -2223,6 +2281,50 @@
         }
       }
     },
+    "Pointer_Access_Profile_Ping": {
+      "description": "Reference to a Access Profile Ping",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Access Profile Ping declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "Ping_Access_Profile"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Access Profile Ping",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query apm profile ping-access"
+            ]
+          }
+        }
+      ]
+    },
     "Service_HTTP": {
       "title": "Service_HTTP",
       "description": "HTTP virtual server",
@@ -2278,6 +2380,11 @@
             },
             {
               "required": [
+                "profilePingAccess"
+              ]
+            },
+            {
+              "required": [
                 "policyIAM"
               ]
             }
@@ -2288,6 +2395,11 @@
             {
               "required": [
                 "profileAccess"
+              ]
+            },
+            {
+              "required": [
+                "profilePingAccess"
               ]
             },
             {
@@ -2586,6 +2698,22 @@
             },
             {
               "$ref": "#/definitions/Pointer_Access_Profile"
+            }
+          ]
+        },
+        "profilePingAccess": {
+          "title": "Profile ping access",
+          "allOf": [
+            {
+              "f5PostProcess": {
+                "tag": "modules",
+                "data": [
+                  "apm"
+                ]
+              }
+            },
+            {
+              "$ref": "#/definitions/Pointer_Access_Profile_Ping"
             }
           ]
         },
@@ -3045,12 +3173,12 @@
               "type": "object"
             },
             "then": {
-              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+              "$ref": "#/definitions/Pointer_TLS_Server"
             },
             "else": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+                "$ref": "#/definitions/Pointer_TLS_Server"
               }
             }
           }
@@ -3082,12 +3210,12 @@
               "type": "object"
             },
             "then": {
-              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+              "$ref": "#/definitions/Pointer_TLS_Client"
             },
             "else": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+                "$ref": "#/definitions/Pointer_TLS_Client"
               }
             }
           }
@@ -4394,6 +4522,12 @@
           "type": "boolean",
           "default": true
         },
+        "serversslUseSni": {
+          "title": "Server SSL with SNI",
+          "description": "If false (default), connects using server's service port without SNI. If true, sends SNI using virtual server port. ",
+          "type": "boolean",
+          "default": false
+        },
         "nat64Enabled": {
           "title": "Translate IPv6 to IPv4",
           "description": "If true, translate IPv6 traffic into IPv4 (default false)",
@@ -4795,6 +4929,12 @@
           "description": "Specifies the traffic group which the Service_Address belongs.",
           "type": "string",
           "default": "default"
+        },
+        "autoDelete": {
+          "title": "Auto Delete",
+          "description": "If this is true, MCPD deletes the virtual address if it is not linked to any virtual. This option applies only to the Common Tenant.",
+          "type": "boolean",
+          "default": true
         }
       },
       "dependencies": {
@@ -6111,9 +6251,17 @@
         "minimumMonitors": {
           "title": "Minimum monitors",
           "description": "Member is down when fewer than minimum monitors report it healthy",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 63
+          "oneOf": [
+            {
+              "type": "string",
+              "const": "all"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 63
+            }
+          ]
         },
         "metadata": {
           "$ref": "#/definitions/Metadata"
@@ -6985,6 +7133,12 @@
               "$ref": "#/definitions/Pointer_Data_Group"
             }
           ]
+        },
+        "hybrid": {
+          "title": "Hybrid Client-SSL Proflie",
+          "description": "Forces all certificates to be part of a single Client-SSL profile. Requires that all certificates are of different types (e.g. RSA, ECDSA).",
+          "type": "boolean",
+          "default": false
         },
         "ldapStartTLS": {
           "title": "Client-LDAP Profile",
@@ -10839,12 +10993,89 @@
               }
             }
           ]
+        },
+        "ignoreChanges": {
+          "title": "Ignore changes",
+          "description": "If true(default), BIG-IP AS3 creates the ifile on first deployment, and leaves it untouched afterwards. If false, the system updates the iFile in every BIG-IP AS3 declaration deployment.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false,
       "required": [
         "class",
         "iFile"
+      ]
+    },
+    "PPTP_Profile": {
+      "title": "PPTP_Profile",
+      "type": "object",
+      "description": "Point-to-Point Tunneling Protocol (PPTP) profile",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "PPTP_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "description": {
+          "description": "Description of the profile",
+          "type": "string"
+        },
+        "defaultsFrom": {
+          "description": "Parent profile to inherit settings from (none or another pptp profile)",
+          "type": "object",
+          "properties": {
+            "bigip": {
+              "title": "BIG-IP resolver",
+              "description": "Parent profile to inherit settings from (none or another pptp profile)",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "default": {
+            "bigip": "/Common/pptp"
+          },
+          "required": [
+            "bigip"
+          ]
+        },
+        "csvFormat": {
+          "description": "Enables/disables CSV format logging",
+          "type": "boolean",
+          "default": false
+        },
+        "includeDestinationIp": {
+          "description": "Enables/disables using destination IP in call ID hash",
+          "type": "boolean",
+          "default": false
+        },
+        "publisherName": {
+          "title": "Analytics publisher for logging events",
+          "description": "BIG-IP AS3 pointer to analytics publisher for logging events",
+          "type": "object",
+          "properties": {
+            "bigip": {
+              "title": "BIG-IP resolver",
+              "description": "Pathname of existing analytics publisher for logging events",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "bigip"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class"
       ]
     },
     "Firewall_Address_List": {
@@ -11459,6 +11690,22 @@
               "query net vlan"
             ]
           }
+        },
+        "addresses": {
+          "type": "array",
+          "description": "A list of IPv4 and IPv6 addresses and address ranges. You can specify a network with CIDR slash notation.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "ports": {
+          "type": "array",
+          "description": "A list of ports and port ranges.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
         }
       },
       "additionalProperties": false
@@ -11517,6 +11764,22 @@
               ]
             }
           }
+        },
+        "addresses": {
+          "type": "array",
+          "description": "A list of IPv4 and IPv6 addresses and address ranges. You can specify a network with CIDR slash notation.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "ports": {
+          "type": "array",
+          "description": "A list of ports and port ranges.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
         }
       },
       "additionalProperties": false
@@ -13176,6 +13439,311 @@
         }
       },
       "additionalProperties": false
+    },
+    "Ping_Access_Agent_Properties": {
+      "title": "Ping_Access_Agent_Properties",
+      "description": "Ping access agent properties used for ping access",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Ping_Access_Agent_Properties"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "propertiesData": {
+          "$ref": "#/definitions/F5string"
+        },
+        "ignoreChanges": {
+          "title": "Ignore changes",
+          "description": "If false (default), the system updates the ping access agent properties in every BIG-IP AS3 declaration deployment. If true, BIG-IP AS3 creates the properties on first deployment, and leaves it untouched afterwards",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "class",
+        "propertiesData"
+      ],
+      "additionalProperties": false
+    },
+    "Ping_Access_Profile": {
+      "title": "Ping_Access_Profile",
+      "description": "Ping access profile",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Ping_Access_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "pingAccessProperties": {
+          "type": "object",
+          "description": "Specifies the name of the Ping Access Properties (by BIG-IP AS3 pointer or BIG-IP pathname)",
+          "properties": {
+            "use": {
+              "title": "Use",
+              "description": "BIG-IP AS3 pointer to Ping Access Properties",
+              "type": "string",
+              "minLength": 1,
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "properties": {
+                    "class": {
+                      "const": "Ping_Access_Agent_Properties"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
+              }
+            },
+            "bigip": {
+              "title": "BIG-IP Ping Access Agent Properties",
+              "description": "Pathname of existing BIG-IP Ping Access Properties",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1
+        },
+        "pool": {
+          "type": "object",
+          "description": "Specifies the name of the Pool (by BIG-IP AS3 pointer or BIG-IP pathname)",
+          "properties": {
+            "use": {
+              "title": "Use",
+              "description": "BIG-IP AS3 pointer to Pool declaration",
+              "type": "string",
+              "minLength": 1,
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "properties": {
+                    "class": {
+                      "const": "Pool"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
+              }
+            },
+            "bigip": {
+              "title": "BIG-IP Pool",
+              "description": "Pathname of existing BIG-IP Pool",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1
+        },
+        "useHTTPS": {
+          "title": "use HTTPS",
+          "description": "If true, use server SSL profile else ignore",
+          "type": "boolean",
+          "default": false
+        },
+        "serversslProfile": {
+          "type": "object",
+          "description": "Specifies the name of the server ssl profile (by BIG-IP AS3 pointer or BIG-IP pathname)",
+          "properties": {
+            "use": {
+              "title": "Use",
+              "description": "BIG-IP AS3 pointer to server ssl profile",
+              "type": "string",
+              "minLength": 1,
+              "f5PostProcess": {
+                "tag": "pointer",
+                "data": {
+                  "properties": {
+                    "class": {
+                      "const": "TLS_Client"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
+              }
+            },
+            "bigip": {
+              "title": "BIG-IP Server SSL Profile",
+              "description": "Pathname of existing BIG-IP server ssl profile",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1
+        }
+      },
+      "if": {
+        "properties": {
+          "useHTTPS": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "serversslProfile"
+        ]
+      },
+      "required": [
+        "class",
+        "pingAccessProperties",
+        "pool"
+      ],
+      "additionalProperties": false
+    },
+    "IP_Intelligence_Policy": {
+      "title": "IP_Intelligence_Policy",
+      "description": "Configures a IP Intelligence (Dynamic White/Black List) policy",
+      "type": "object",
+      "f5PostProcess": {
+        "tag": "modules",
+        "data": [
+          "afm",
+          "asm"
+        ]
+      },
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "IP_Intelligence_Policy"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "description": {
+          "description": "Description for the IP Intelligence Policy.",
+          "type": "string"
+        },
+        "defaultAction": {
+          "type": "string",
+          "description": "Specifies the default enforcement action.",
+          "enum": [
+            "drop",
+            "accept"
+          ],
+          "default": "drop"
+        },
+        "defaultLogBlacklistHitOnly": {
+          "type": "string",
+          "description": "Specifies the default blacklist hit only logging action.",
+          "enum": [
+            "no",
+            "yes",
+            "limited"
+          ],
+          "default": "no"
+        },
+        "defaultLogBlacklistWhitelistHit": {
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "modules",
+            "data": [
+              "afm",
+              "dos"
+            ]
+          },
+          "description": "Specifies the default blacklist and whitelist hit logging action.",
+          "enum": [
+            "no",
+            "yes"
+          ]
+        },
+        "blacklistCategories": {
+          "type": "array",
+          "description": "Specifies List of IP Intelligence blacklist categories with the enforcement and logging settings per category.",
+          "items": {
+            "$ref": "#/definitions/Blacklist_Categories"
+          }
+        },
+        "feedLists": {
+          "type": "array",
+          "f5PostProcess": {
+            "tag": "modules",
+            "data": [
+              "afm"
+            ]
+          },
+          "description": "Specifies IP Intelligence feed lists that are applied to all.",
+          "items": {
+            "$ref": "#/definitions/Pointer_IP_Intelligence_Feed_List"
+          }
+        }
+      },
+      "required": [
+        "class"
+      ]
+    },
+    "Blacklist_Categories": {
+      "description": "IP Intelligence blacklist categories with the enforcement and logging settings per category.",
+      "type": "object",
+      "properties": {
+        "blacklistCategory": {
+          "$ref": "#/definitions/Pointer_Denylist_Category"
+        },
+        "action": {
+          "type": "string",
+          "description": "Specifies the default enforcement action.",
+          "enum": [
+            "accept",
+            "drop"
+          ]
+        },
+        "logBlacklistHitOnly": {
+          "type": "string",
+          "description": "Specifies the default blacklist hit only logging action.",
+          "enum": [
+            "limited",
+            "yes",
+            "no"
+          ]
+        },
+        "logBlacklistWhitelistHit": {
+          "type": "string",
+          "description": "Specifies the default blacklist and whitelist hit logging action.",
+          "enum": [
+            "yes",
+            "no"
+          ]
+        },
+        "matchDirectionOverride": {
+          "type": "string",
+          "description": "Specifies the source/destination IP match direction setting",
+          "enum": [
+            "match-source",
+            "match-destination",
+            "match-source-and-destination"
+          ]
+        }
+      }
     },
     "Data_Group": {
       "title": "Data_Group",
@@ -15135,6 +15703,11 @@
           "description": "Enables tls signature detection before the connection establishment. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
+        },
+        "useTlsPatternsForHostIdentification": {
+          "description": "Enables use tls patterns as part of host identification detection before the connection establishment.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -16622,24 +17195,6 @@
           }
         }
       },
-      "if": {
-        "properties": {
-          "pools": {}
-        },
-        "required": [
-          "pools"
-        ]
-      },
-      "then": {
-        "not": {
-          "properties": {
-            "poolsCname": {}
-          },
-          "required": [
-            "poolsCname"
-          ]
-        }
-      },
       "required": [
         "resourceRecordType",
         "domainName"
@@ -16717,6 +17272,19 @@
         "iRule"
       ]
     },
+    "Property_Passphrase": {
+      "title": "Property Passphrase",
+      "description": "A passphrase (passphrase property)",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Secret"
+        }
+      ],
+      "f5PostProcess": {
+        "tag": "secret",
+        "errSchemaPath": "#/definitions/Property_Passphrase"
+      }
+    },
     "GSLB_Monitor": {
       "title": "GSLB_Monitor",
       "description": "Declares a monitor that verifies the availability and/or performance status of a particular protocol, service, or application",
@@ -16742,8 +17310,13 @@
             "https",
             "gateway-icmp",
             "tcp-half-open",
+            "mysql",
+            "sip",
+            "ldap",
+            "smtp",
             "tcp",
             "udp",
+            "bigip",
             "external"
           ]
         },
@@ -16844,6 +17417,54 @@
           "if": {
             "properties": {
               "monitorType": {
+                "const": "mysql"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/GSLB_Monitor_MySQL"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "sip"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/GSLB_Monitor_SIP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "ldap"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/GSLB_Monitor_LDAP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "smtp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/GSLB_Monitor_SMTP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
                 "const": "udp"
               }
             }
@@ -16875,12 +17496,43 @@
           "then": {
             "$ref": "#/definitions/GSLB_Monitor_External"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "bigip"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/GSLB_Monitor_BIGIP"
+          }
         }
       ],
       "required": [
         "class",
         "monitorType"
       ]
+    },
+    "GSLB_Monitor_BIGIP": {
+      "description": "Additional Monitor class properties available when monitorType = bigip",
+      "type": "object",
+      "properties": {
+        "aggregateDynamicRatios": {
+          "title": "Aggregate Dynamic Ratios",
+          "description": "Specifies how the system combines the module values to create the proportion (score) for the load balancing operation.",
+          "type": "string",
+          "enum": [
+            "average-members",
+            "average-nodes",
+            "none",
+            "sum-members",
+            "sum-nodes"
+          ],
+          "default": "none"
+        }
+      }
     },
     "GSLB_Monitor_External": {
       "description": "Additional Monitor class properties available when monitorType = external",
@@ -17103,6 +17755,428 @@
           "default": false
         }
       }
+    },
+    "GSLB_Monitor_MySQL": {
+      "title": "GSLB Monitor MySQL",
+      "description": "GSLB Monitor MySQL definition",
+      "type": "object",
+      "properties": {
+        "count": {
+          "title": "Count",
+          "description": "Number of monitor probes after which the connection to the database will be terminated.  Count value of zero indicates that the connection will never be terminated.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 0
+        },
+        "database": {
+          "title": "Database",
+          "description": "The name of the database with which the monitor attempts to communicate.",
+          "type": "string"
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_MySQL/properties/passphrase"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_MySQL/properties/receive"
+          }
+        },
+        "receiveColumn": {
+          "title": "Receive Column",
+          "description": "Specifies the column in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Receive properties.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "receiveRow": {
+          "title": "Receive Row",
+          "description": "Specifies the row in the database where the system expects the specified Receive String to be located.  Specify this property only if you configure the Send and Recieve properties.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "f5PostProcess": {
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_MySQL/properties/send"
+          }
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "dependencies": {
+        "receiveColumn": {
+          "required": [
+            "send",
+            "receive"
+          ]
+        },
+        "receiveRow": {
+          "required": [
+            "send",
+            "receive"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "GSLB_Monitor_SIP": {
+      "title": "GSLB Monitor SIP",
+      "description": "GSLB Monitor SIP definition",
+      "type": "object",
+      "properties": {
+        "ciphers": {
+          "title": "Ciphers",
+          "description": "Ciphersuite selection string",
+          "type": "string",
+          "default": "DEFAULT"
+        },
+        "clientCertificate": {
+          "title": "Client certificate",
+          "description": "BIG-IP AS3 pointer to client Certificate declaration, for TLS authentication (optional)",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "type": "object",
+              "properties": {
+                "class": {
+                  "const": "Certificate"
+                }
+              },
+              "required": [
+                "class"
+              ]
+            },
+            "errSchemaPath": "#/definitions/Monitor_SIP/properties/clientCertificate"
+          }
+        },
+        "codesDown": {
+          "title": "Codes = down",
+          "description": "List of status codes meaning service is down (0 matches any code)",
+          "type": "array",
+          "items": {
+            "title": "Code = down",
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "codesUp": {
+          "title": "Codes = up",
+          "description": "List of additional (to all 1/2/3xx) status codes meaning service is up (0 matches any code)",
+          "type": "array",
+          "items": {
+            "title": "Code = up",
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "headers": {
+          "title": "Headers",
+          "description": "SIP headers to send in probes (if any)--separate by newlines (backquote-expanded)",
+          "type": "string",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_SIP/properties/headers"
+          }
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "description": "SIP transport protocol",
+          "type": "string",
+          "enum": [
+            "sips",
+            "tcp",
+            "tls",
+            "udp"
+          ],
+          "default": "udp"
+        },
+        "request": {
+          "title": "Request",
+          "description": "SIP request to send in probes (default empty)",
+          "type": "string",
+          "default": ""
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "dependencies": {
+        "clientCertificate": {
+          "properties": {
+            "protocol": {
+              "enum": [
+                "sips",
+                "tls"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "GSLB_Monitor_LDAP": {
+      "title": "GSLB Monitor LDAP",
+      "description": "GSLB Monitor LDAP definition",
+      "type": "object",
+      "properties": {
+        "base": {
+          "title": "Base",
+          "description": "Specifies the location in the LDAP tree from which the monitor starts the health check",
+          "type": "string"
+        },
+        "chaseReferrals": {
+          "title": "Chase Referrals",
+          "description": "Specifies, whether, upon receipt of an LDAP referral entry, the referral is followed",
+          "type": "boolean",
+          "default": true
+        },
+        "filter": {
+          "title": "Filter",
+          "description": "Specifies an LDAP key which the monitor searches",
+          "type": "string"
+        },
+        "mandatoryAttributes": {
+          "title": "Mandatory Attributes",
+          "description": "Specifies whether the target must include attributes in its response to be considered up",
+          "type": "boolean",
+          "default": false
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase if any for query authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "f5PostProcess": {
+            "tag": "fetch",
+            "data": "object",
+            "errSchemaPath": "#/definitions/Monitor_LDAP/properties/passphrase"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Property_Passphrase"
+            }
+          ]
+        },
+        "security": {
+          "title": "Security",
+          "description": "Specifies the secure protocol type for communications with the target",
+          "type": "string",
+          "enum": [
+            "none",
+            "ssl",
+            "tls"
+          ],
+          "default": "none"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        },
+        "username": {
+          "title": "Username",
+          "description": "Username if any for query authentication",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "GSLB_Monitor_SMTP": {
+      "title": "GSLB Monitor SMTP",
+      "description": "GSLB Monitor SMTP definition",
+      "type": "object",
+      "properties": {
+        "domain": {
+          "title": "Domain",
+          "description": "Mail domain to check, if any (backquote-expanded)",
+          "type": "string",
+          "format": "hostname",
+          "default": "",
+          "f5PostProcess": {
+            "tag": "expand",
+            "errSchemaPath": "#/definitions/Monitor_SMTP/properties/domain"
+          }
+        },
+        "monitorType": {
+          "title": "Monitor Type",
+          "description": "Specifies the type of monitor",
+          "type": "string"
+        },
+        "targetAddress": {
+          "title": "Address",
+          "description": "IP address monitor should probe; if empty (default) then pool member address",
+          "type": "string",
+          "format": "f5ip",
+          "default": ""
+        },
+        "targetPort": {
+          "title": "Port",
+          "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        },
+        "timeUntilUp": {
+          "title": "Time until up",
+          "description": "Delay between successful probe and sending traffic to node (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 0
+        },
+        "upInterval": {
+          "title": "Up-Interval",
+          "description": "Poll interval when service is already up (seconds)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "default": 0
+        }
+      },
+      "additionalProperties": true
     },
     "GSLB_Monitor_TCP": {
       "description": "Additional Monitor class properties available when monitorType = tcp",
@@ -18103,6 +19177,13 @@
             "$ref": "#/definitions/Pointer_GSLB_Monitor"
           }
         },
+        "minimumMonitors": {
+          "title": "Minimum monitors",
+          "description": "Member is down when fewer than minimum monitors report it healthy.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 63
+        },
         "bpsLimit": {
           "title": "Maximum Bits Per Second",
           "description": "Specifies the maximum allowable data throughput rate, in bits per second, for the virtual servers on the server. If the network traffic volume exceeds this limit, the system marks the server as unavailable",
@@ -18276,9 +19357,6 @@
           },
           "then": {
             "properties": {
-              "devices": {
-                "maxItems": 1
-              },
               "cpuUsageLimit": {
                 "default": 0
               },
@@ -18500,6 +19578,13 @@
           "items": {
             "$ref": "#/definitions/Pointer_GSLB_Monitor"
           }
+        },
+        "minimumMonitors": {
+          "title": "Minimum monitors",
+          "description": "Member is down when fewer than minimum monitors report it healthy.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 63
         },
         "name": {
           "title": "Name",
@@ -21378,7 +22463,8 @@
             "clientSsl",
             "persist",
             "tcl",
-            "log"
+            "log",
+            "l7dos"
           ]
         }
       },
@@ -21537,6 +22623,18 @@
           },
           "then": {
             "$ref": "#/definitions/Policy_Action_Log"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "l7dos"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Policy_Action_L7_Dos"
           }
         }
       ],
@@ -22471,6 +23569,26 @@
       "required": [
         "write"
       ]
+    },
+    "Policy_Action_L7_Dos": {
+      "type": "object",
+      "description": "Enable or disable L7 Dos processing",
+      "properties": {
+        "event": {
+          "type": "string",
+          "description": "When to run this event in the request-response cycle",
+          "enum": [
+            "client-accepted",
+            "proxy-request",
+            "request"
+          ],
+          "default": "request"
+        },
+        "profile": {
+          "$ref": "#/definitions/Pointer_DOS_Profile"
+        }
+      },
+      "required": []
     },
     "Policy_Condition": {
       "type": "object",
@@ -28513,6 +29631,26 @@
       "description": "Reference to a IP Intelligence Policy",
       "type": "object",
       "properties": {
+        "use": {
+          "description": "AS3 pointer to IP Intelligence Policy declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "IP_Intelligence_Policy"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
         "bigip": {
           "description": "Pathname of existing BIG-IP IP Intelligence Policy",
           "type": "string",
@@ -28528,6 +29666,30 @@
             "tag": "bigComponent",
             "data": [
               "query security ip-intelligence policy"
+            ]
+          }
+        }
+      ]
+    },
+    "Pointer_IP_Intelligence_Feed_List": {
+      "description": "Reference to a IP Intelligence Feed List",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP IP Intelligence Feed List",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query security ip-intelligence feed-list"
             ]
           }
         }
@@ -29253,6 +30415,26 @@
       "description": "Reference to a PPTP_Profile",
       "type": "object",
       "properties": {
+        "use": {
+          "description": "AS3 pointer to PPTP_Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "PPTP_Profile"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
         "bigip": {
           "description": "Pathname of existing BIG-IP PPTP_Profile",
           "type": "string",
@@ -29444,6 +30626,50 @@
             "tag": "bigComponent",
             "data": [
               "query ltm profile tcp"
+            ]
+          }
+        }
+      ]
+    },
+    "Pointer_TLS_Server": {
+      "description": "Reference to a TLS Server",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to TLS Server declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5PostProcess": {
+            "tag": "pointer",
+            "data": {
+              "properties": {
+                "class": {
+                  "enum": [
+                    "TLS_Server"
+                  ]
+                }
+              },
+              "required": [
+                "class"
+              ]
+            }
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP TLS Server",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5PostProcess": {
+            "tag": "bigComponent",
+            "data": [
+              "query ltm profile client-ssl"
             ]
           }
         }
@@ -32066,6 +33292,13 @@
         "remark": {
           "$ref": "#/definitions/Remark"
         },
+        "multiplexStatusReuse": {
+          "title": "Multiplex Status Reuse",
+          "description": "Specifies what status codes will reuse connections from Multiplex. Default value is 200 206.",
+          "type": "string",
+          "pattern": "^([24]\\d\\d\\s?)+$",
+          "default": "200 206"
+        },
         "allowBlankSpaceAfterHeaderName": {
           "default": false,
           "description": "Specifies whether to allow blank space in an HTTP header between the header name and the separator colon in an HTTP request or response. Requires TMOS version 16.1 or newer.",
@@ -32316,7 +33549,6 @@
           "type": "boolean"
         },
         "proxyType": {
-          "default": "reverse",
           "description": "Default value 'reverse' is usually appropriate.  You may use 'transparent' when virtual server will handle a mix of HTTP and non-HTTP traffic.  You may use 'explicit' when clients will ask ADC to proxy connections to arbitrary remote services",
           "enum": [
             "reverse",
@@ -32324,7 +33556,8 @@
             "explicit"
           ],
           "title": "Proxy type",
-          "type": "string"
+          "type": "string",
+          "default": "reverse"
         },
         "whiteOutHeader": {
           "title": "White-out header",
@@ -32568,12 +33801,12 @@
       "if": {
         "properties": {
           "proxyType": {
-            "const": "reverse"
+            "const": "explicit"
           }
         }
       },
       "then": {
-        "$ref": "#/definitions/HTTP_Profile_Reverse"
+        "$ref": "#/definitions/HTTP_Profile_Explicit"
       },
       "else": {
         "if": {
@@ -32590,12 +33823,12 @@
           "if": {
             "properties": {
               "proxyType": {
-                "const": "explicit"
+                "const": "reverse"
               }
             }
           },
           "then": {
-            "$ref": "#/definitions/HTTP_Profile_Explicit"
+            "$ref": "#/definitions/HTTP_Profile_Reverse"
           }
         }
       }
@@ -32667,14 +33900,14 @@
               }
             ]
           },
+          "uniqueItems": true,
           "default": [
             "none"
-          ],
-          "uniqueItems": true
+          ]
         },
         "tunnelName": {
           "title": "Tunnel name",
-          "description": "Name of tunnel used for outbound CONNECT requests (default 'http-tunnel')",
+          "description": "Name of tunnel used for outbound CONNECT requests",
           "type": "string",
           "minLength": 1,
           "maxLength": 63,
@@ -32735,14 +33968,14 @@
         },
         "badRequestMessage": {
           "title": "Bad-request message",
-          "description": "Message returned to client when proxy request is erroneous.  May include iRules TCL expressions",
+          "description": "Message returned to client when proxy request is erroneous. May include iRules TCL expressions",
           "type": "string",
           "maxLength": 65279,
           "default": "<html><head><title>Bad Request</title></head><body><h2>Invalid proxy request</h2></body></html>"
         },
         "badResponseMessage": {
           "title": "Bad-response message",
-          "description": "Message returned to client when response to proxy request is erroneous.  May include iRules TCL expressions",
+          "description": "Message returned to client when proxy request is erroneous. May include iRules TCL expressions",
           "type": "string",
           "maxLength": 65279,
           "default": "<html><head><title>Bad Response</title></head><body><h2>Proxy request provoked invalid response</h2></body></html>"
@@ -34544,24 +35777,26 @@
           "type": "string"
         },
         "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "f5PostProcess": {
-            "tag": "fetch",
-            "data": "object",
-            "errSchemaPath": "#/definitions/Monitor_HTTP2/properties/passphrase"
-          },
           "allOf": [
             {
               "$ref": "#/definitions/Property_Passphrase"
+            },
+            {
+              "title": "Passphrase",
+              "description": "Passphrase if any for query authentication",
+              "type": "object",
+              "properties": {
+                "allowReuse": {
+                  "description": "If true, other declaration objects may reuse this value",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "f5PostProcess": {
+                "tag": "fetch",
+                "data": "object",
+                "errSchemaPath": "#/definitions/Monitor_HTTP2/properties/passphrase/allOf/1"
+              }
             }
           ]
         },
@@ -34776,24 +36011,26 @@
           "type": "string"
         },
         "passphrase": {
-          "title": "Passphrase",
-          "description": "Passphrase if any for query authentication",
-          "type": "object",
-          "properties": {
-            "allowReuse": {
-              "description": "If true, other declaration objects may reuse this value",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "f5PostProcess": {
-            "tag": "fetch",
-            "data": "object",
-            "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/passphrase"
-          },
           "allOf": [
             {
               "$ref": "#/definitions/Property_Passphrase"
+            },
+            {
+              "title": "Passphrase",
+              "description": "Passphrase if any for query authentication",
+              "type": "object",
+              "properties": {
+                "allowReuse": {
+                  "description": "If true, other declaration objects may reuse this value",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "f5PostProcess": {
+                "tag": "fetch",
+                "data": "object",
+                "errSchemaPath": "#/definitions/Monitor_HTTPS/properties/passphrase/allOf/1"
+              }
             }
           ]
         },
@@ -36234,11 +37471,11 @@
           "title": "Receive = up",
           "description": "Mark node up upon receipt of this (backquote-expanded) string",
           "type": "string",
+          "default": "none",
           "f5PostProcess": {
             "tag": "expand",
             "errSchemaPath": "#/definitions/Monitor_UDP/properties/receive"
-          },
-          "default": "none"
+          }
         },
         "receiveDown": {
           "title": "Receive = down",
@@ -37124,19 +38361,6 @@
       "title": "Loose initialization",
       "description": "When true, system initializes a connection when it receives any TCP packet, rather than requiring a SYN packet for connection initiation",
       "type": "boolean"
-    },
-    "Property_Passphrase": {
-      "title": "Property Passphrase",
-      "description": "A passphrase (passphrase property)",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Secret"
-        }
-      ],
-      "f5PostProcess": {
-        "tag": "secret",
-        "errSchemaPath": "#/definitions/Property_Passphrase"
-      }
     },
     "Property_PVA_Acceleration": {
       "title": "PVA acceleration",

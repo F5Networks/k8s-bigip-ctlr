@@ -209,7 +209,7 @@ func (ctlr *Controller) setCISIdentifierForRoutes(routes *routeSection) {
 		} else {
 			// Don't set CIS identifier when no cluster name or no nodelabelselctor is configured
 			routes.CISIdentifier = ""
-			log.Warningf("Local cluster name not set. Multiple CIS instances across clusters may still cause route conflicts with shared-static-routes writing to same BIGIP instance!")
+			log.Debugf("Local cluster name not set. Multiple CIS instances across clusters may still cause route conflicts with shared-static-routes writing to same BIGIP instance!")
 		}
 	}
 }

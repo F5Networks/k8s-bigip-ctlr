@@ -1205,6 +1205,9 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSour
         		# Unset the variable
         		unset static::http_status_503
     		}
+            if { [HTTP::has_responded] } {
+                    return
+            }
             # HTTP/2 (including gRPC) path-based routing
             if { [HTTP::version] starts_with "2" } {
               set servername_lower [string tolower [getfield [HTTP::host] ":" 1]]

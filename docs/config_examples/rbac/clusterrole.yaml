@@ -1,3 +1,7 @@
+# NOTE: This cluster-wide RBAC example is intentionally broad and grants wide read/update rights.
+# For production least-privilege deployments scope permissions to only watched namespaces and restrict
+# secrets access. See: ../Namespaced-RBAC for guidance on using the namespace-scoped variant.
+# Adjust or remove rules here if you choose not to use the namespace-scoped variant.
 # for reference only
 # Should be changed as per your cluster requirements
 kind: ClusterRole

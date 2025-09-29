@@ -1,0 +1,38 @@
+# ClusterRole: only unavoidable cluster-scoped reads (optional pieces annotated)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bigip-ctlr-cluster-min
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get","list","watch"]
+  # Needed only if using namespace label selector / dynamic namespace discovery
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get","list","watch"]
+  # Calico static route (blockaffinities) support (optional)
+  - apiGroups: ["crd.projectcalico.org"]
+    resources: ["blockaffinities"]
+    verbs: ["get","list","watch"]
+  # OpenShift cluster network CIDR detection (optional / OpenShift only)
+  - apiGroups: ["config.openshift.io/v1"]
+    resources: ["network"]
+    verbs: ["list"]
+  - apiGroups: [ "apiextensions.k8s.io" ]
+    resources: [ "customresourcedefinitions" ]
+    verbs: [ "get", "list", "watch", "update", "create", "patch" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bigip-ctlr-cluster-min-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bigip-ctlr-cluster-min
+subjects:
+  - kind: ServiceAccount
+    name: bigip-ctlr
+    namespace: kube-system
+---

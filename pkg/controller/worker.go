@@ -407,16 +407,6 @@ func (ctlr *Controller) processResources() bool {
 			break
 		}
 		for _, virtual := range virtuals {
-			if rKey.event == Create {
-				rscKey := resourceRef{
-					kind:      VirtualServer,
-					name:      virtual.Name,
-					namespace: virtual.Namespace,
-				}
-				if _, ok := ctlr.resources.processedNativeResources[rscKey]; ok {
-					continue
-				}
-			}
 			err := ctlr.processVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
@@ -475,16 +465,6 @@ func (ctlr *Controller) processResources() bool {
 					break
 				}
 				for _, virtual := range virtuals {
-					if rKey.event == Create {
-						rscKey := resourceRef{
-							kind:      VirtualServer,
-							name:      virtual.Name,
-							namespace: virtual.Namespace,
-						}
-						if _, ok := ctlr.resources.processedNativeResources[rscKey]; ok {
-							continue
-						}
-					}
 					err := ctlr.processVirtualServers(virtual, false)
 					if err != nil {
 						// TODO
@@ -584,16 +564,6 @@ func (ctlr *Controller) processResources() bool {
 				virtuals := ctlr.getVirtualsForCustomPolicy(cp)
 				//Sync Custompolicy for Virtual Servers
 				for _, virtual := range virtuals {
-					if rKey.event == Create {
-						rscKey := resourceRef{
-							kind:      VirtualServer,
-							name:      virtual.Name,
-							namespace: virtual.Namespace,
-						}
-						if _, ok := ctlr.resources.processedNativeResources[rscKey]; ok {
-							continue
-						}
-					}
 					err := ctlr.processVirtualServers(virtual, false)
 					if err != nil {
 						// TODO

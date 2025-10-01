@@ -1,0 +1,10 @@
+{{- /*
+Abort if rbac.namespaced=true and args.namespaces is not a non-empty list.
+This template produces no manifest output on success.
+*/ -}}
+{{- if .Values.rbac.namespaced }}
+  {{- $ns := .Values.args.namespaces | default nil }}
+  {{- if or (not $ns) (not (kindIs "slice" $ns)) (eq (len $ns) 0) }}
+    {{- fail "rbac.namespaced=true requires args.namespaces to be a non-empty list, e.g.\nargs:\n  namespaces: [\"foo\", \"bar\"]" }}
+  {{- end }}
+{{- end }}

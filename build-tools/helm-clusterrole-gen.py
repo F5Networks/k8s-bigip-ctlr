@@ -7,7 +7,7 @@ class MyDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super(MyDumper, self).increase_indent(flow, False)
 
-cls_templt = """{{- if .Values.rbac.create -}}
+cls_templt = """{{- if and .Values.rbac.create (not .Values.rbac.namespaced) -}}
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:

@@ -5,7 +5,7 @@ metadata:
   namespace: default
 rules:
   - apiGroups: [ "", "extensions", "networking.k8s.io", "route.openshift.io" ]
-    resources: [ "services", "endpoints", "ingresses", "pods", "ingressclasses", "policies", "routes" ]
+    resources: [ "services", "endpoints", "ingresses", "pods", "policies", "routes" ]
     verbs: [ "get", "list", "watch" ]
   - apiGroups: [ "", "extensions", "networking.k8s.io", "route.openshift.io" ]
     resources: [ "configmaps", "events", "ingresses/status", "services/status", "routes/status" ]
@@ -13,9 +13,6 @@ rules:
   - apiGroups: [ "cis.f5.com" ]
     resources: [ "virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "transportservers/status", "ingresslinks", "ingresslinks/status", "externaldnses", "policies" ]
     verbs: [ "get", "list", "watch", "update", "patch" ]
-  - apiGroups: [ "fic.f5.com" ]
-    resources: [ "ipams", "ipams/status" ]
-    verbs: [ "get", "list", "watch", "update", "create", "patch", "delete" ]
   - apiGroups: [ "", "extensions" ]
     resources: [ "secrets" ]
     verbs: [ "get", "list", "watch" ]

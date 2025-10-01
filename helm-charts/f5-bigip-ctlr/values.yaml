@@ -14,6 +14,14 @@ bigip_secret:
 
 rbac:
   create: true
+  # When set to true, create namespaced Roles/RoleBindings (one per namespace in args.namespaces)
+  # granting only ConfigMap and Secret access instead of a cluster-wide ClusterRole.
+  # Ensure args.namespaces is defined as a non-empty list when enabling this.
+  #
+  # IMPORTANT: When upgrading from cluster-wide RBAC (namespaced: false) to namespaced RBAC (namespaced: true),
+  # you must manually clean up the old ClusterRole and ClusterRoleBinding resources before upgrading.
+  # See RBAC-UPGRADE-GUIDE.md for detailed instructions.
+  namespaced: false
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
@@ -60,6 +68,7 @@ args:
   # gtm-bigip-url
   # gtm-bigip-username
   # ipam : true
+  # ipam_namespace: kube-system
 
 image:
   # Use the tag to target a specific version of the Controller

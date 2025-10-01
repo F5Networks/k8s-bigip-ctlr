@@ -1,0 +1,177 @@
+{{- /*
+Namespaced RBAC template for F5 BIG-IP Controller
+
+This template creates namespace-scoped Roles and RoleBindings when rbac.namespaced=true.
+It provides minimal permissions per namespace instead of cluster-wide access.
+
+Creates three types of RBAC:
+1. Controller namespace: ConfigMap-only permissions (if not in watched namespaces)
+2. Watched namespaces: Full CIS resource permissions for each namespace in args.namespaces
+3. IPAM namespace: IPAM resource permissions in the namespace specified by args.ipam_namespace
+
+A minimal ClusterRole is created separately (see f5-bigip-ctlr-minimal-clusterscope.yaml).
+*/ -}}
+{{- if and .Values.rbac.create .Values.rbac.namespaced }}
+{{- $saName := include "f5-bigip-ctlr.serviceAccountName" . -}}
+{{- $controllerNs := include "f5-bigip-ctlr.namespace" . -}}
+{{- $namespaces := .Values.args.namespaces | default list -}}
+
+{{- if not (has $controllerNs $namespaces) }}
+---
+# Controller namespace limited RBAC (configmaps only)
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ printf "configmap-%s-%s" (include "f5-bigip-ctlr.fullname" $) $controllerNs | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $controllerNs }}
+  labels:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" $ }}
+    app: {{ template "f5-bigip-ctlr.name" $ }}
+    chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+    release: {{ $.Release.Name }}
+    heritage: {{ $.Release.Service }}
+rules:
+  - apiGroups: ['']
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ printf "configmap-%s-%s" (include "f5-bigip-ctlr.fullname" $) $controllerNs | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $controllerNs }}
+  labels:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" $ }}
+    app: {{ template "f5-bigip-ctlr.name" $ }}
+    chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+    release: {{ $.Release.Name }}
+    heritage: {{ $.Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $controllerNs }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ printf "configmap-%s-%s" (include "f5-bigip-ctlr.fullname" $) $controllerNs | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- range $i, $ns := $namespaces }}
+---
+# Namespaced RBAC for managed namespace {{ $ns }}
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ printf "%s-%s" (include "f5-bigip-ctlr.fullname" $) $ns | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" $ }}
+    app: {{ template "f5-bigip-ctlr.name" $ }}
+    chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+    release: {{ $.Release.Name }}
+    heritage: {{ $.Release.Service }}
+rules:
+  - apiGroups: ['']
+    resources: ["services", "endpoints", "pods", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["", "apps", "extensions", "networking.k8s.io", "route.openshift.io"]
+    resources: ["ingresses", "routes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ['']
+    resources: ["configmaps", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ['']
+    resources: ["services/status"]
+    verbs: ["get", "list", "watch", "update", "create", "patch"]
+  - apiGroups: ["cis.f5.com"]
+    resources: ["virtualservers", "tlsprofiles", "transportservers", "externaldnses", "ingresslinks", "virtualservers/status", "transportservers/status", "ingresslinks/status", "policies"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ printf "%s-%s" (include "f5-bigip-ctlr.fullname" $) $ns | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" $ }}
+    app: {{ template "f5-bigip-ctlr.name" $ }}
+    chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+    release: {{ $.Release.Name }}
+    heritage: {{ $.Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $controllerNs }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ printf "%s-%s" (include "f5-bigip-ctlr.fullname" $) $ns | trunc 63 | trimSuffix "-" }}
+{{ end }}
+{{ end }}
+
+{{- /*
+IPAM namespace RBAC - when IPAM is enabled and using namespaced RBAC,
+create additional Role/RoleBinding for the IPAM namespace.
+This is always created when IPAM is enabled, regardless of whether the
+IPAM namespace is already included in the watched namespaces list.
+*/ -}}
+{{- if and .Values.rbac.create .Values.rbac.namespaced .Values.args.ipam }}
+{{- $ipamNamespace := .Values.args.ipam_namespace | default "kube-system" -}}
+{{- $controllerNs := include "f5-bigip-ctlr.namespace" . -}}
+{{- $saName := include "f5-bigip-ctlr.serviceAccountName" . -}}
+---
+# IPAM namespace RBAC for namespace {{ $ipamNamespace }}
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ printf "ipam-%s" (include "f5-bigip-ctlr.fullname" .) | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $ipamNamespace }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
+    app: {{ template "f5-bigip-ctlr.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+rules:
+  - apiGroups: ["fic.f5.com"]
+    resources: ["ipams", "ipams/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ printf "ipam-%s" (include "f5-bigip-ctlr.fullname" .) | trunc 63 | trimSuffix "-" }}
+  namespace: {{ $ipamNamespace }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
+    app: {{ template "f5-bigip-ctlr.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $controllerNs }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ printf "ipam-%s" (include "f5-bigip-ctlr.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}

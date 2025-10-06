@@ -12,6 +12,7 @@ COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
 
+# FROM docker.io/redhat/ubi9-minimal
 FROM registry.redhat.io/ubi9/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
@@ -49,6 +50,25 @@ RUN microdnf update -y && \
     microdnf remove perl-Error perl-File-Find perl-lib libedit openssh openssh-clients  perl-TermReadKey git-core git-core-doc less shadow-utils pip git-core-doc cracklib cracklib-dicts emacs-filesystem git-core-doc git-core groff-base gzip less libcbor libdb libeconf libedit libfdisk util-linux util-linux-core libfido2 libpwquality libsemanage libutempter ncurses openssh openssh-clients openssh-8.7p1 pam perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Pod-Perldoc perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Pod-Usage perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader  -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
+# Stage 1: Build expat from source
+# FROM docker.io/redhat/ubi9-minimal AS build-expat
+FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat
+
+RUN microdnf install -y gcc gcc-c++ make tar wget bzip2 autoconf libtool diffutils findutils && microdnf clean all
+WORKDIR /tmp
+RUN wget https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.7.2.tar.bz2 && \
+    tar -xjf expat-2.7.2.tar.bz2 && \
+    cd expat-2.7.2 && \
+    ./configure --prefix=/usr/local && \
+    make && \
+    make install
+
+# Stage 2: Final image, only needed runtime stuff
+# FROM docker.io/redhat/ubi9-minimal
+FROM registry.redhat.io/ubi9/ubi-minimal
+
+# Copy expat libs and binaries from build stage
+COPY --from=build-expat /usr/local /usr/local
 # Remove shell access
 RUN rm -f /bin/sh /bin/bash
 

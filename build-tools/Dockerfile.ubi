@@ -72,7 +72,6 @@ COPY --from=build-expat /usr/local /usr/local
 # Remove shell access
 RUN rm -f /bin/sh /bin/bash
 
-USER ctlr
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
 COPY LICENSE /licenses/
 
@@ -86,6 +85,7 @@ LABEL name="F5 Container Ingress Services" \
 RUN ls -l /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 
+USER ctlr
 # Enable CN Certificate validation
 ENV GODEBUG x509ignoreCN=0
 

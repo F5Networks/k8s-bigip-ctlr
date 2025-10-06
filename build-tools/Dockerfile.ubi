@@ -70,7 +70,7 @@ FROM registry.redhat.io/ubi9/ubi-minimal
 # Copy expat libs and binaries from build stage
 COPY --from=build-expat /usr/local /usr/local
 # Remove shell access
-RUN rm -f /bin/sh /bin/bash
+# RUN rm -f /bin/sh /bin/bash
 
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
 COPY LICENSE /licenses/

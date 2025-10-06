@@ -11,6 +11,8 @@ ENV GO111MODULE on
 COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
+RUN ls -l /go/src/github.com/F5Networks/k8s-bigip-ctlr/
+RUN ls -l /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/
 
 # FROM docker.io/redhat/ubi9-minimal
 FROM registry.redhat.io/ubi9/ubi-minimal
@@ -26,6 +28,7 @@ LABEL name="f5networks/k8s-bigip-ctlr" \
       io.k8s.display-name="F5 BIG-IP Controller for Kubernetes" \
       io.openshift.expose-services="" \
       io.openshift.tags="f5,f5networks,bigip,openshift,router"
+
 
 ENV APPPATH /app
 
@@ -82,7 +85,6 @@ LABEL name="F5 Container Ingress Services" \
 
 #COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
 # COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
-RUN ls -l /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 
 USER ctlr

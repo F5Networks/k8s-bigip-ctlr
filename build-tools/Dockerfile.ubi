@@ -82,7 +82,10 @@ LABEL name="F5 Container Ingress Services" \
     summary="Container Ingress Services for F5 BIG-IP"
 
 #COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
-COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
+# COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
+RUN ls -l /bin/
+RUN ls -l /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/
+COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 
 # Enable CN Certificate validation
 ENV GODEBUG x509ignoreCN=0

@@ -49,6 +49,9 @@ WORKDIR $APPPATH
 
 COPY requirements.txt /tmp/requirements.txt
 
+RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
+ && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
+
 # Install runtime dependencies
 RUN microdnf update -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
@@ -70,13 +73,6 @@ COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 # Copy Python config driver
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py
 RUN chmod +x /usr/local/bin/bigipconfigdriver.py
-
-# Set up directories and version info
-RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
- && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \
- && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json \
- && chown -R ctlr "$APPPATH" \
- && chmod -R 755 "$APPPATH"
 
  # Remove shell access for security
 RUN rm -f /bin/sh /bin/bash

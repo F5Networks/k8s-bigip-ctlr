@@ -51,7 +51,6 @@ RUN microdnf update -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip shadow-utils -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
     pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
-    ln -s /usr/bin/python3 /usr/bin/python && \
     adduser ctlr && \
     microdnf clean all
 

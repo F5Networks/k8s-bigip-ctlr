@@ -11,9 +11,8 @@ ENV GO111MODULE on
 COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
-RUN find /go/src/github.com/F5Networks/k8s-bigip-ctlr -type f -name '*k8s-bigip-ctlr*'
-RUN find /go -type f -name '*k8s-bigip-ctlr*'
-RUN ls -l /go/src/github.com/F5Networks/k8s-bigip-ctlr/
+RUN find /  -type f -name '*k8s-bigip-ctlr*'
+RUN find /  -type f -name 'k8s-bigip-ctlr'
 
 # FROM docker.io/redhat/ubi9-minimal
 FROM registry.redhat.io/ubi9/ubi-minimal

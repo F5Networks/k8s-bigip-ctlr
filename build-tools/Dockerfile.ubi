@@ -59,7 +59,7 @@ RUN microdnf update -y && \
 COPY --from=build-expat /usr/local /usr/local
 
 # Copy Go binary (update this path if your rel-build.sh outputs elsewhere!)
-COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
+COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 
 # Copy Python config driver
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py

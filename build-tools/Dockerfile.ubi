@@ -76,7 +76,7 @@ COPY --from=build-expat /usr/local /usr/local
 # Remove shell access
 # RUN rm -f /bin/sh /bin/bash
 
-COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
+COPY schemas/*.json /app/vendor/src/f5/schemas/
 COPY LICENSE /licenses/
 
 LABEL name="F5 Container Ingress Services" \
@@ -87,7 +87,7 @@ LABEL name="F5 Container Ingress Services" \
 #COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
 # COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 # COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
-COPY --from=builder /usr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
+COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 
 USER ctlr
 # Enable CN Certificate validation

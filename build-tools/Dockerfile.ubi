@@ -30,6 +30,7 @@ FROM registry.redhat.io/ubi9/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \
+      # version - should be passed in via docker build
       url="https://clouddocs.f5.com/containers/latest/" \
       summary="F5 BIG-IP Controller for Kubernetes" \
       description="Manages F5 BIG-IP from Kubernetes" \
@@ -46,13 +47,19 @@ ARG BUILD_INFO
 
 WORKDIR $APPPATH
 
+COPY requirements.txt /tmp/requirements.txt
+
 # Install runtime dependencies
 RUN microdnf update -y && \
-    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip shadow-utils -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
     pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
+    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
+    python3 -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf clean all
+    microdnf remove git perl-Git -y && \
+    microdnf remove perl-Error perl-File-Find perl-lib libedit openssh openssh-clients  perl-TermReadKey git-core git-core-doc less shadow-utils pip git-core-doc cracklib cracklib-dicts emacs-filesystem git-core-doc git-core groff-base gzip less libcbor libdb libeconf libedit libfdisk util-linux util-linux-core libfido2 libpwquality libsemanage libutempter ncurses openssh openssh-clients openssh-8.7p1 pam perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Pod-Perldoc perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Pod-Usage perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader  -y && \
+    microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 # Copy Expat 2.7.2 built from source
 COPY --from=build-expat /usr/local /usr/local
@@ -64,11 +71,6 @@ COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py
 RUN chmod +x /usr/local/bin/bigipconfigdriver.py
 
-# Copy other assets
-COPY schemas/*.json /app/vendor/src/f5/schemas/
-COPY LICENSE /licenses/
-COPY requirements.txt /tmp/requirements.txt
-
 # Set up directories and version info
 RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \
@@ -76,8 +78,16 @@ RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && chown -R ctlr "$APPPATH" \
  && chmod -R 755 "$APPPATH"
 
+ # Remove shell access for security
+RUN rm -f /bin/sh /bin/bash
+
 # Switch to non-root user
 USER ctlr
+
+# Copy other assets
+COPY schemas/*.json /app/vendor/src/f5/schemas/
+COPY LICENSE /licenses/
+
 
 # Enable CN Certificate validation
 ENV GODEBUG=x509ignoreCN=0

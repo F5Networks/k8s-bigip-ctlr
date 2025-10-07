@@ -92,6 +92,8 @@ LABEL name="F5 Container Ingress Services" \
 # COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 # COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
+COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py
+RUN chmod +x /usr/local/bin/bigipconfigdriver.py
 
 USER ctlr
 # Enable CN Certificate validation

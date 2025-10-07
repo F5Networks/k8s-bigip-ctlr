@@ -11,9 +11,9 @@ ENV GO111MODULE on
 COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
-RUN ls /
-RUN find /  -type f -name '*k8s-bigip-ctlr*'
-RUN find /  -type f -name 'k8s-bigip-ctlr'
+# RUN ls /
+# RUN find /  -type f -name '*k8s-bigip-ctlr*'
+# RUN find /  -type f -name 'k8s-bigip-ctlr'
 
 # FROM docker.io/redhat/ubi9-minimal
 FROM registry.redhat.io/ubi9/ubi-minimal
@@ -86,7 +86,8 @@ LABEL name="F5 Container Ingress Services" \
 
 #COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
 # COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
-COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
+# COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
+COPY --from=builder /usr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
 
 USER ctlr
 # Enable CN Certificate validation

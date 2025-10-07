@@ -71,6 +71,8 @@ RUN wget https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.
 # FROM docker.io/redhat/ubi9-minimal
 FROM registry.redhat.io/ubi9/ubi-minimal
 
+ENV APPPATH /app
+WORKDIR $APPPATH
 # Copy expat libs and binaries from build stage
 COPY --from=build-expat /usr/local /usr/local
 # Remove shell access

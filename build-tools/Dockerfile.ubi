@@ -1,3 +1,4 @@
+# Stage 1: Build Go binary
 FROM golang:1.23 as builder
 
 ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
@@ -7,58 +8,13 @@ ARG BUILD_VERSION
 ARG BUILD_INFO
 
 WORKDIR $REPOPATH
-ENV GO111MODULE on
+ENV GO111MODULE=on
 COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
-RUN find / -name "bigipconfigdriver.py"
-RUN find . -name "bigipconfigdriver.py"
-# RUN ls /
-# RUN find /  -type f -name '*k8s-bigip-ctlr*'
-# RUN find /  -type f -name 'k8s-bigip-ctlr'
 
-FROM docker.io/redhat/ubi9-minimal
-# FROM registry.redhat.io/ubi9/ubi-minimal
-
-LABEL name="f5networks/k8s-bigip-ctlr" \
-      vendor="F5 Networks" \
-      # version - should be passed in via docker build
-      url="https://clouddocs.f5.com/containers/latest/" \
-      summary="F5 BIG-IP Controller for Kubernetes" \
-      description="Manages F5 BIG-IP from Kubernetes" \
-      run='docker run --name ${NAME} ${IMAGE} /app/bin/k8s-bigip-ctlr' \
-      io.k8s.description="Manages F5 BIG-IP from Kubernetes" \
-      io.k8s.display-name="F5 BIG-IP Controller for Kubernetes" \
-      io.openshift.expose-services="" \
-      io.openshift.tags="f5,f5networks,bigip,openshift,router"
-
-
-ENV APPPATH /app
-
-ARG BUILD_VERSION
-ARG BUILD_INFO
-
-WORKDIR $APPPATH
-
-COPY requirements.txt /tmp/requirements.txt
-
-RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
- && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
-
-RUN microdnf update -y && \
-    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
-    microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
-    pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
-    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
-    python3 -m pip uninstall -y pip && \
-    adduser ctlr && \
-    microdnf remove git perl-Git -y && \
-    microdnf remove perl-Error perl-File-Find perl-lib libedit openssh openssh-clients  perl-TermReadKey git-core git-core-doc less shadow-utils pip git-core-doc cracklib cracklib-dicts emacs-filesystem git-core-doc git-core groff-base gzip less libcbor libdb libeconf libedit libfdisk util-linux util-linux-core libfido2 libpwquality libsemanage libutempter ncurses openssh openssh-clients openssh-8.7p1 pam perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Pod-Perldoc perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Pod-Usage perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader  -y && \
-    microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
-
-# Stage 1: Build expat from source
-FROM docker.io/redhat/ubi9-minimal AS build-expat
-# FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat
+# Stage 2: Build Expat from source
+FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat
 
 RUN microdnf install -y gcc gcc-c++ make tar wget bzip2 autoconf libtool diffutils findutils && microdnf clean all
 WORKDIR /tmp
@@ -69,39 +25,62 @@ RUN wget https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.
     make && \
     make install
 
-# Stage 2: Final image, only needed runtime stuff
-FROM docker.io/redhat/ubi9-minimal
-# FROM registry.redhat.io/ubi9/ubi-minimal
+# Stage 3: Final runtime image
+FROM registry.redhat.io/ubi9/ubi-minimal
 
-ENV APPPATH /app
+LABEL name="f5networks/k8s-bigip-ctlr" \
+      vendor="F5 Networks" \
+      url="https://clouddocs.f5.com/containers/latest/" \
+      summary="F5 BIG-IP Controller for Kubernetes" \
+      description="Manages F5 BIG-IP from Kubernetes" \
+      run='docker run --name ${NAME} ${IMAGE} /app/bin/k8s-bigip-ctlr' \
+      io.k8s.description="Manages F5 BIG-IP from Kubernetes" \
+      io.k8s.display-name="F5 BIG-IP Controller for Kubernetes" \
+      io.openshift.expose-services="" \
+      io.openshift.tags="f5,f5networks,bigip,openshift,router"
+
+ENV APPPATH=/app
+
+ARG BUILD_VERSION
+ARG BUILD_INFO
+
 WORKDIR $APPPATH
-# Copy expat libs and binaries from build stage
+
+# Install runtime dependencies
+RUN microdnf update -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip shadow-utils -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
+    pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    adduser ctlr && \
+    microdnf clean all
+
+# Copy Expat 2.7.2 built from source
 COPY --from=build-expat /usr/local /usr/local
-# Remove shell access
-# RUN rm -f /bin/sh /bin/bash
 
-COPY schemas/*.json /app/vendor/src/f5/schemas/
-COPY LICENSE /licenses/
+# Copy Go binary (update this path if your rel-build.sh outputs elsewhere!)
+COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 
-LABEL name="F5 Container Ingress Services" \
-    maintainer="F5 Networks <automation_toolchain_pm@f5.com>" \
-    vendor="F5 Networks Inc." \
-    summary="Container Ingress Services for F5 BIG-IP"
-
-#COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
-# COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
-# COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr
-COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
+# Copy Python config driver
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py
 RUN chmod +x /usr/local/bin/bigipconfigdriver.py
 
-USER ctlr
-# Enable CN Certificate validation
-ENV GODEBUG x509ignoreCN=0
+# Copy other assets
+COPY schemas/*.json /app/vendor/src/f5/schemas/
+COPY LICENSE /licenses/
+COPY requirements.txt /tmp/requirements.txt
 
-# entrypoint to enable scl python at runtime
-#RUN echo $'#!/bin/sh\n\
-#    exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
-#    chmod +x $APPPATH/bin/k8s-bigip-ctlr
+# Set up directories and version info
+RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
+ && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \
+ && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json \
+ && chown -R ctlr "$APPPATH" \
+ && chmod -R 755 "$APPPATH"
+
+# Switch to non-root user
+USER ctlr
+
+# Enable CN Certificate validation
+ENV GODEBUG=x509ignoreCN=0
 
 CMD ["/app/bin/k8s-bigip-ctlr"]

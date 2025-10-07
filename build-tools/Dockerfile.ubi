@@ -11,12 +11,14 @@ ENV GO111MODULE on
 COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
+RUN find / -name "bigipconfigdriver.py"
+RUN find . -name "bigipconfigdriver.py"
 # RUN ls /
 # RUN find /  -type f -name '*k8s-bigip-ctlr*'
 # RUN find /  -type f -name 'k8s-bigip-ctlr'
 
-# FROM docker.io/redhat/ubi9-minimal
-FROM registry.redhat.io/ubi9/ubi-minimal
+FROM docker.io/redhat/ubi9-minimal
+# FROM registry.redhat.io/ubi9/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \
@@ -55,8 +57,8 @@ RUN microdnf update -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 # Stage 1: Build expat from source
-# FROM docker.io/redhat/ubi9-minimal AS build-expat
-FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat
+FROM docker.io/redhat/ubi9-minimal AS build-expat
+# FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat
 
 RUN microdnf install -y gcc gcc-c++ make tar wget bzip2 autoconf libtool diffutils findutils && microdnf clean all
 WORKDIR /tmp
@@ -68,8 +70,8 @@ RUN wget https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.
     make install
 
 # Stage 2: Final image, only needed runtime stuff
-# FROM docker.io/redhat/ubi9-minimal
-FROM registry.redhat.io/ubi9/ubi-minimal
+FROM docker.io/redhat/ubi9-minimal
+# FROM registry.redhat.io/ubi9/ubi-minimal
 
 ENV APPPATH /app
 WORKDIR $APPPATH

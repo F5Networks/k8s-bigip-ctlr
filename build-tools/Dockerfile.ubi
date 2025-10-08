@@ -24,7 +24,7 @@ RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,BUILD,BUILDROOT,RPMS,SRPMS}
 COPY . .
 RUN ls *
 COPY build-tools/expat.spec /root/rpmbuild/SPECS/expat.spec
-COPY expat.spec /root/rpmbuild/SPECS/expat.spec
+# COPY expat.spec /root/rpmbuild/SPECS/expat.spec
 RUN curl -L -o /root/rpmbuild/SOURCES/expat-2.7.2.tar.gz https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.7.2.tar.gz
 WORKDIR /root/rpmbuild
 RUN rpmbuild -ba SPECS/expat.spec

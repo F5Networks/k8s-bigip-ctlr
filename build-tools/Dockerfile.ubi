@@ -21,6 +21,7 @@ FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat-rpm
 RUN microdnf install -y rpm-build gcc gcc-c++ make tar bzip2 python3 shadow-utils autoconf libtool && microdnf clean all
 WORKDIR /root
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,BUILD,BUILDROOT,RPMS,SRPMS}
+COPY . .
 RUN ls *
 COPY build-tools/expat.spec /root/rpmbuild/SPECS/expat.spec
 COPY expat.spec /root/rpmbuild/SPECS/expat.spec

@@ -15,6 +15,8 @@ RUN $REPOPATH/build-tools/rel-build.sh
 # Stage 2: Build expat RPM (not from source!)
 FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat-rpm
 
+ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
+
 RUN microdnf install -y rpm-build gcc gcc-c++ make tar bzip2 python3 shadow-utils autoconf libtool && microdnf clean all
 WORKDIR /root
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,BUILD,BUILDROOT,RPMS,SRPMS}

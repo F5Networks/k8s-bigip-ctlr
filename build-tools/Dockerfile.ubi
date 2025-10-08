@@ -12,7 +12,6 @@ ENV GO111MODULE=on
 
 COPY . .
 
-RUN ls *
 RUN $REPOPATH/build-tools/rel-build.sh
 
 # Stage 2: Build expat RPM (not from source!)
@@ -21,10 +20,7 @@ FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat-rpm
 RUN microdnf install -y rpm-build gcc gcc-c++ make tar bzip2 python3 shadow-utils autoconf libtool && microdnf clean all
 WORKDIR /root
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,BUILD,BUILDROOT,RPMS,SRPMS}
-COPY . .
-RUN ls *
 COPY build-tools/expat.spec /root/rpmbuild/SPECS/expat.spec
-# COPY expat.spec /root/rpmbuild/SPECS/expat.spec
 RUN curl -L -o /root/rpmbuild/SOURCES/expat-2.7.2.tar.gz https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.7.2.tar.gz
 WORKDIR /root/rpmbuild
 RUN rpmbuild -ba SPECS/expat.spec
@@ -50,7 +46,7 @@ WORKDIR $APPPATH
 
 # Install expat 2.7.2 RPM first!
 COPY --from=build-expat-rpm /root/rpmbuild/RPMS/x86_64/expat-2.7.2-*.rpm /tmp/
-RUN microdnf remove expat -y && \
+RUN microdnf remove expat -y || true && \
     rpm -Uvh /tmp/expat-2.7.2-*.rpm && \
     microdnf clean all
 

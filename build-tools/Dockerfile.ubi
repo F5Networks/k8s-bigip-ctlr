@@ -9,7 +9,10 @@ ARG BUILD_INFO
 
 WORKDIR $REPOPATH
 ENV GO111MODULE=on
+
 COPY . .
+
+RUN ls *
 RUN $REPOPATH/build-tools/rel-build.sh
 
 # Stage 2: Build expat RPM (not from source!)

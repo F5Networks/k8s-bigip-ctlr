@@ -68,7 +68,7 @@ RUN microdnf update -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 # Copy Go binary (correct path!)
-COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
+COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 
 # Copy Python config driver
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py

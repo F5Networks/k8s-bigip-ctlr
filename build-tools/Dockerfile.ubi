@@ -67,6 +67,9 @@ RUN microdnf update -y && \
 # Copy Expat 2.7.2 built from source
 COPY --from=build-expat /usr/local /usr/local
 
+# Remove system expat RPM to pass Trivy scan
+RUN microdnf remove expat -y && microdnf clean all
+
 # Copy Go binary (update this path if your rel-build.sh outputs elsewhere!)
 COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 

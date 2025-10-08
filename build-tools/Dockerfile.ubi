@@ -10,27 +10,24 @@ ARG BUILD_INFO
 WORKDIR $REPOPATH
 ENV GO111MODULE=on
 COPY . .
-
 RUN $REPOPATH/build-tools/rel-build.sh
 
-# Stage 2: Build Expat from source
-FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat
+# Stage 2: Build expat RPM (not from source!)
+FROM registry.redhat.io/ubi9/ubi-minimal AS build-expat-rpm
 
-RUN microdnf install -y gcc gcc-c++ make tar wget bzip2 autoconf libtool diffutils findutils && microdnf clean all
-WORKDIR /tmp
-RUN wget https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.7.2.tar.bz2 && \
-    tar -xjf expat-2.7.2.tar.bz2 && \
-    cd expat-2.7.2 && \
-    ./configure --prefix=/usr/local && \
-    make && \
-    make install
+RUN microdnf install -y rpm-build gcc gcc-c++ make tar bzip2 python3 shadow-utils autoconf libtool && microdnf clean all
+WORKDIR /root
+RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,BUILD,BUILDROOT,RPMS,SRPMS}
+COPY $REPOPATH/build-tools/expat.spec /root/rpmbuild/SPECS/expat.spec
+RUN curl -L -o /root/rpmbuild/SOURCES/expat-2.7.2.tar.gz https://github.com/libexpat/libexpat/releases/download/R_2_7_2/expat-2.7.2.tar.gz
+WORKDIR /root/rpmbuild
+RUN rpmbuild -ba SPECS/expat.spec
 
 # Stage 3: Final runtime image
 FROM registry.redhat.io/ubi9/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \
-      # version - should be passed in via docker build
       url="https://clouddocs.f5.com/containers/latest/" \
       summary="F5 BIG-IP Controller for Kubernetes" \
       description="Manages F5 BIG-IP from Kubernetes" \
@@ -41,11 +38,15 @@ LABEL name="f5networks/k8s-bigip-ctlr" \
       io.openshift.tags="f5,f5networks,bigip,openshift,router"
 
 ENV APPPATH=/app
-
 ARG BUILD_VERSION
 ARG BUILD_INFO
-
 WORKDIR $APPPATH
+
+# Install expat 2.7.2 RPM first!
+COPY --from=build-expat-rpm /root/rpmbuild/RPMS/x86_64/expat-2.7.2-*.rpm /tmp/
+RUN microdnf remove expat -y && \
+    rpm -Uvh /tmp/expat-2.7.2-*.rpm && \
+    microdnf clean all
 
 COPY requirements.txt /tmp/requirements.txt
 
@@ -64,31 +65,22 @@ RUN microdnf update -y && \
     microdnf remove perl-Error perl-File-Find perl-lib libedit openssh openssh-clients  perl-TermReadKey git-core git-core-doc less shadow-utils pip git-core-doc cracklib cracklib-dicts emacs-filesystem git-core-doc git-core groff-base gzip less libcbor libdb libeconf libedit libfdisk util-linux util-linux-core libfido2 libpwquality libsemanage libutempter ncurses openssh openssh-clients openssh-8.7p1 pam perl-Digest perl-Digest-MD5 perl-FileHandle perl-B perl-Data-Dumper perl-libnet perl-base perl-AutoLoader perl-URI perl-Mozilla-CA perl-if perl-IO-Socket-IP perl-Time-Local perl-File-Path perl-Pod-Escapes perl-Text-Tabs+Wrap perl-Net-SSLeay perl-IO-Socket-SSL perl-Class-Struct perl-POSIX perl-Term-ANSIColor perl-IPC-Open3 perl-subs perl-File-Temp perl-Term-Cap perl-HTTP-Tiny perl-Pod-Simple perl-Socket perl-SelectSaver perl-Symbol perl-File-stat perl-podlators perl-Pod-Perldoc perl-Fcntl perl-Text-ParseWords perl-mro perl-IO perl-overloading perl-Pod-Usage perl-Errno perl-File-Basename perl-Getopt-Std perl-MIME-Base64 perl-Scalar-List-Utils perl-constant perl-Storable perl-overload perl-parent perl-vars perl-Getopt-Long perl-Carp perl-Exporter perl-NDBM_File perl-PathTools perl-Encode perl-libs perl-interpreter perl-DynaLoader  -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
-# Copy Expat 2.7.2 built from source
-COPY --from=build-expat /usr/local /usr/local
-
-# Remove system expat RPM to pass Trivy scan
-RUN microdnf remove expat -y && microdnf clean all
-
-# Copy Go binary (update this path if your rel-build.sh outputs elsewhere!)
-COPY --from=builder /usr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
+# Copy Go binary (correct path!)
+COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/bin/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr
 
 # Copy Python config driver
 COPY --from=builder /go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test/bigipconfigdriver.py /usr/local/bin/bigipconfigdriver.py
 RUN chmod +x /usr/local/bin/bigipconfigdriver.py
 
- # Remove shell access for security
+# Remove shell access for security
 RUN rm -f /bin/sh /bin/bash
 
 # Switch to non-root user
 USER ctlr
 
-# Copy other assets
 COPY schemas/*.json /app/vendor/src/f5/schemas/
 COPY LICENSE /licenses/
 
-
-# Enable CN Certificate validation
 ENV GODEBUG=x509ignoreCN=0
 
 CMD ["/app/bin/k8s-bigip-ctlr"]

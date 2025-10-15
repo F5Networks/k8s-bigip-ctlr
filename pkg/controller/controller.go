@@ -19,12 +19,13 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/client-go/dynamic"
@@ -36,6 +37,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/clustermanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -297,8 +299,26 @@ func NewController(params Params, startController bool, agentParams AgentParams,
 		go ctlr.Start()
 
 		go ctlr.setOtherSDNType()
-		// Start the CIS health check
-		go ctlr.CISHealthCheck()
+
+		if agentParams.HttpsAddress != "" {
+			clusterConfigKubeClient := ctlr.multiClusterHandler.getClusterConfig(ctlr.multiClusterHandler.LocalClusterName).kubeClient
+			_, _, _, err := ctlr.RequestHandler.PrimaryBigIPWorker.APIHandler.LTM.GetBigIPAPIVersion()
+			hc := health.HealthChecker{
+				KubeClient:              ctlr.kubeClient,
+				CustomResourceMode:      true,
+				ClusterConfigKubeClient: clusterConfigKubeClient,
+				ApiVersionError:         err,
+				HttpsAddress:            agentParams.HttpsAddress,
+				HttpClientMetrics:       ctlr.agentParams.PrimaryParams.HTTPClientMetrics,
+			}
+			if ctlr.RequestHandler.PrimaryBigIPWorker.PythonDriverPID != 0 {
+				hc.SubPID = ctlr.RequestHandler.PrimaryBigIPWorker.PythonDriverPID
+			}
+			// Start the CIS health check
+			go hc.CISHealthCheckSecured()
+		} else {
+			go ctlr.CISHealthCheck()
+		}
 		// Start the Resource Event Watcher
 		go ctlr.multiClusterHandler.ResourceEventWatcher()
 		// Handles the resource status updates

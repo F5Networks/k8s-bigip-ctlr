@@ -53,6 +53,7 @@ bigip_secret.create | Optional | Create kubernetes secret using username and pas
 bigip_secret.username | Optional | bigip username to create the kubernetes secret | empty
 bigip_secret.password | Optional | bigip password to create the kubernetes secret | empty
 rbac.create | Optional | Create ClusterRole and ClusterRoleBinding | true
+rbac.namespaced | Optional | Enable namespaced RBAC: per-namespace Roles plus a minimal cluster-scope Role (nodes, namespaces, ingressclasses) | false
 serviceAccount.name | Optional | name of the ServiceAccount for CIS controller | f5-bigip-ctlr-serviceaccount
 serviceAccount.create | Optional | Create service account for the CIS controller | true
 namespace | Optional | name of namespace CIS will use to create deployment and other resources | kube-system
@@ -91,3 +92,8 @@ Run the following command to uninstall the chart.
 
 ```helm uninstall <new-chart-name>```
 
+Note: When rbac.namespaced=true the chart:
+- Skips the default broad ClusterRole/Binding.
+- Creates a minimal cluster-scope ClusterRole granting get/list/watch on nodes, namespaces, ingressclasses (and CRDs if ipam enabled).
+- Creates a limited Role in the controller namespace (configmaps + secrets only).
+- Creates Roles/RoleBindings in each args.namespaces granting required namespace-scoped permissions.

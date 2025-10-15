@@ -17,3 +17,7 @@ CIS supports referencing secrets in additional namespaces like cis deployment na
 ### Create Role and RoleBinding for CIS to access configmaps in additional namespaces
 CIS supports referencing configmaps in additional namespaces like cis deployment namespace for configuring global config like multicluster requirements.You can tune this by creating configmap rbac for additional namespaces required
 [configmap_rbac.yaml](./configmap_namespace_rbac.yaml) file contains the configmap Role and RoleBinding that can be created  for namespace . Use this to create Role and RoleBinding for additional namespaces other than cis watched namespaces where configmap reference is used.
+
+### Create Roles and Rolebinding to access ipam cr in specified namespace
+CIS creates ipam cr in the namespace specified in the -- ipam-namespace filed of the deployment arg or by default in kube-system namespace if not specified. Create the following Role and RoleBinding in the ipam namespace to allow CIS to access ipam cr
+[ipam-ns-rbac.yaml](./ipam-ns-rbac.yaml) file contains the Role and RoleBinding that can be created  for ipam namespace . Use this to create Role and RoleBinding for the namespace specified in --ipam-namespace field of the deployment arg or kube-system if not specified.

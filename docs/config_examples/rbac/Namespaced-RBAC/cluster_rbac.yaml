@@ -15,6 +15,9 @@ rules:
   - apiGroups: ["crd.projectcalico.org"]
     resources: ["blockaffinities"]
     verbs: ["get","list","watch"]
+  - apiGroups: [ "networking.k8s.io" ]
+    resources: [ "ingressclasses" ]
+    verbs: [ "get", "list", "watch" ]
   # OpenShift cluster network CIDR detection (optional / OpenShift only)
   - apiGroups: ["config.openshift.io/v1"]
     resources: ["network"]

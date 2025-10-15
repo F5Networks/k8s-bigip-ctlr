@@ -1,0 +1,60 @@
+{{- /*
+Minimal cluster-scoped RBAC when rbac.namespaced=true.
+Provides only the cluster-scoped resources required by the controller.
+*/ -}}
+{{- if and .Values.rbac.create .Values.rbac.namespaced }}
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "f5-bigip-ctlr.fullname" . }}-clusterscope
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
+    app: {{ template "f5-bigip-ctlr.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+rules:
+  - apiGroups: ['']
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [ "crd.projectcalico.org" ]
+    resources: [ "blockaffinities" ]
+    verbs: [ "get", "watch", "list" ]
+{{- if .Values.args.namespace_label }}
+  - apiGroups: ['']
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+{{- end }}
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingressclasses"]
+    verbs: ["get", "list", "watch"]
+{{- if .Values.args.ipam }}
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+{{- end }}
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "f5-bigip-ctlr.fullname" . }}-clusterscope
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
+    app: {{ template "f5-bigip-ctlr.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "f5-bigip-ctlr.fullname" . }}-clusterscope
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "f5-bigip-ctlr.serviceAccountName" . }}
+    namespace: {{ template "f5-bigip-ctlr.namespace" . }}
+{{- end }}

@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bigip-ctlr-ipam-role
+  namespace: ipam-namespace
+rules:
+  - apiGroups: [ "fic.f5.com" ]
+    resources: [ "ipams", "ipams/status" ]
+    verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bigip-ctlr-ipam-role-binding
+  namespace: ipam-namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: bigip-ctlr-ipam-role
+subjects:
+  - kind: ServiceAccount
+    name: bigip-ctlr
+    namespace: kube-system

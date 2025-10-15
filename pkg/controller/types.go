@@ -888,6 +888,7 @@ type (
 		EventChan           chan interface{}
 		userAgent           string
 		HttpAddress         string
+		HttpsAddress        string
 		EnableIPV6          bool
 		ccclGTMAgent        bool
 		gtmOnSeparateServer bool
@@ -930,6 +931,7 @@ type (
 		PythonBaseDir        string
 		UserAgent            string
 		HttpAddress          string
+		HttpsAddress         string
 		EnableIPV6           bool
 		DisableARP           bool
 		CCCLGTMAgent         bool

@@ -104,6 +104,7 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 	agent.Partition = reqHandler.agentParams.Partition
 	agent.EventChan = make(chan interface{})
 	agent.HttpAddress = reqHandler.agentParams.HttpAddress
+	agent.HttpsAddress = reqHandler.agentParams.HttpsAddress
 	agent.disableARP = reqHandler.agentParams.DisableARP
 
 	// If running in VXLAN mode, extract the partition name from the tunnel
@@ -179,7 +180,7 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 			gtmBigIPPassword,
 			reqHandler.agentParams.PythonBaseDir,
 		)
-	} else {
+	} else if reqHandler.agentParams.HttpsAddress != "" {
 		// we only enable metrics as pythondriver is not initialized for ipv6
 		go agent.enableMetrics()
 	}

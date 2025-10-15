@@ -137,6 +137,7 @@ var (
 	syncInterval         *int
 	printVersion         *bool
 	httpAddress          *string
+	httpsAddress         *string
 	dgPath               string
 	disableTeems         *bool
 	enableIPV6           *bool
@@ -277,6 +278,8 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
+	httpsAddress = globalFlags.String("https-listen-address", "",
+		"Optional, address to serve https based informations (/metrics and /health).")
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	staticRoutingMode = globalFlags.Bool("static-routing-mode", false, "Optional, flag to enable configuration of static routes on bigip for pod network subnets")
@@ -997,6 +1000,7 @@ func initController(
 		VXLANName:            vxlanName,
 		PythonBaseDir:        *pythonBaseDir,
 		HttpAddress:          *httpAddress,
+		HttpsAddress:         *httpsAddress,
 		EnableIPV6:           *enableIPV6,
 		CCCLGTMAgent:         *ccclGtmAgent,
 		StaticRoutingMode:    *staticRoutingMode,
@@ -1209,6 +1213,14 @@ func main() {
 		disableARP = true
 	}
 
+	hc := &health.HealthChecker{
+		PoolMode:           *poolMemberType,
+		ControllerMode:     *controllerMode,
+		CustomResourceMode: *customResourceMode,
+		HttpClientMetrics:  *httpClientMetrics,
+		Agent:              *agent,
+	}
+
 	// Python driver disable for the nodeport and nodeportlocal mode
 	if *poolMemberType == "cluster" || !disableLTM {
 		gs := globalSection{
@@ -1250,13 +1262,27 @@ func main() {
 		}(subPid)
 
 		// Add health check e.g. is Python process still there?
-		hc := &health.HealthChecker{
-			SubPID: subPid,
-		}
-		http.Handle("/health", hc.HealthCheckHandler())
+		hc.SubPID = subPid
 	} else { // a new health checker for nodeport and nodeportlocal mode for AS3
-		hc := &health.HealthChecker{}
-		http.Handle("/health", hc.CISHealthCheckHandler(kubeClient))
+		hc.KubeClient = kubeClient
+	}
+
+	if *httpsAddress != "" {
+		hc.HttpsAddress = *httpsAddress
+		go hc.CISHealthCheckSecured()
+	} else {
+		if *poolMemberType == "cluster" || !disableLTM {
+			http.Handle("/health", hc.HealthCheckHandler())
+		} else {
+			http.Handle("/health", hc.CISHealthCheckHandler())
+		}
+		// Expose Prometheus metrics
+		http.Handle("/metrics", promhttp.Handler())
+
+		bigIPPrometheus.RegisterMetrics(*httpClientMetrics)
+		go func() {
+			log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
+		}()
 	}
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
@@ -1310,13 +1336,6 @@ func main() {
 	GetNamespaces(appMgr)
 
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
-	// Expose Prometheus metrics
-	http.Handle("/metrics", promhttp.Handler())
-
-	bigIPPrometheus.RegisterMetrics(*httpClientMetrics)
-	go func() {
-		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
-	}()
 
 	stopCh := make(chan struct{})
 

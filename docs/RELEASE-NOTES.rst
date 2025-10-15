@@ -23,6 +23,7 @@ Bug Fixes
 * Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
 * Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: Improve logging when BIG-IP is not reachable during pod initialization
 * Issue 3887 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3887>`_: RFE: change log level of certain messages
+* SR - Fix for CIS deleting unmanaged routes in common partition with static routing mode disabled
 
 Upgrade notes
 ``````````````

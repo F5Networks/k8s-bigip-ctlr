@@ -207,9 +207,8 @@ func (ctlr *Controller) setCISIdentifierForRoutes(routes *routeSection) {
 			routes.CISIdentifier = strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")
 			routes.CISIdentifier += "_" + nodeLabelSelector
 		} else {
-			// Don't set CIS identifier when no cluster name or no nodelabelselctor is configured
-			routes.CISIdentifier = ""
-			log.Debugf("Local cluster name not set. Multiple CIS instances across clusters may still cause route conflicts with shared-static-routes writing to same BIGIP instance!")
+			// set CIS identifier when no cluster name or no nodelabelselctor is configured
+			routes.CISIdentifier = strings.TrimPrefix(ctlr.RequestHandler.PrimaryBigIPWorker.getPostManager().BIGIPURL, "https://")
 		}
 	}
 }

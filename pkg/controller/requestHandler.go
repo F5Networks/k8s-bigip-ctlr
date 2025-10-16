@@ -180,7 +180,7 @@ func (reqHandler *RequestHandler) CcclHandler(agent *Agent) {
 			gtmBigIPPassword,
 			reqHandler.agentParams.PythonBaseDir,
 		)
-	} else if reqHandler.agentParams.HttpsAddress != "" {
+	} else if reqHandler.agentParams.HttpsAddress == "" {
 		// we only enable metrics as pythondriver is not initialized for ipv6
 		go agent.enableMetrics()
 	}

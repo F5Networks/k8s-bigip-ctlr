@@ -124,6 +124,13 @@ stages:
           buildContext: .
           tags: $(Build.SourceVersion)
           arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS) --build-arg COVERALLS_TOKEN=$(COVERALLS_TOKEN)"
+      - task: Docker@2
+        displayName: Push image to Quay
+        inputs:
+           command: push
+           containerRegistry: $(quayConnection)
+           repository: $(imageName)
+           tags: $(Build.SourceVersion)
       - task: CmdLine@2
         displayName: Install Trivy
         inputs:

@@ -238,7 +238,6 @@ func (api *BaseAPIHandler) GetBigIPAPIVersion() (string, string, string, error) 
 	}
 
 	return api.APIHandler.getVersionsFromResponse(httpResp, responseMap)
-
 }
 
 func (api *BaseAPIHandler) GetBigipRegKey() (string, error) {

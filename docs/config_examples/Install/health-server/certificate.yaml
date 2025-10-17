@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cis-health-cert
+  namespace: kube-system
+spec:
+  secretName: cis-health-tls
+  duration: 8760h # 1y
+  renewBefore: 360h # 15d
+  subject:
+    organizations:
+      - f5.com
+  commonName: cis-health.kube-system.svc
+  dnsNames:
+    - cis-health.kube-system.svc
+    - cis-health.kube-system.svc.cluster.local
+  issuerRef:
+    name: cis-health-selfsigned
+    kind: Issuer

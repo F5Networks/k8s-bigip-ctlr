@@ -191,8 +191,11 @@ func (agent *Agent) startPythonDriver(
 
 	subPid := <-subPidCh
 	agent.PythonDriverPID = subPid
-	//Enable "/health" and "/metrics" endpoint with controller
-	go agent.healthCheckPythonDriver()
+
+	if agent.HttpsAddress == "" {
+		//Enable "/health" and "/metrics" endpoint with controller
+		go agent.healthCheckPythonDriver()
+	}
 
 	return
 }

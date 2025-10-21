@@ -52,7 +52,7 @@ route-vserver-addr - vserver address
 ```
 
 
-In nextgen controller, we can provide the same servername and address in baseRouteSpec using defaultRouteGroup as follows:
+In nextgen route, we can provide the same servername and address in baseRouteSpec using defaultRouteGroup as follows:
 ```
 data:
   extendedSpec: |

@@ -12,7 +12,7 @@ Added Functionality
 
 Bug Fixes
 ````````````````
-
+* `Issue 3949 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3949>`_: Issues with Transport Server with a TLS certificate with secret updated
 Upgrade notes
 ```````````````
 
@@ -22,7 +22,6 @@ CIS 2.20.2
 Added Functionality
 ```````````````````
 **What's new:**
-    * Multi Cluster
     * CRD
         * `Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
         * `Issue 3892 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3892>`_: GRPC support for VirtualServer CRD

@@ -483,6 +483,16 @@ func (ctlr *Controller) processResources() bool {
 					isRetryableError = true
 				}
 			}
+			//process affected transportserver resources with secret
+			transportServers := ctlr.getTransportServersForSecret(secret)
+			for _, ts := range transportServers {
+				err := ctlr.processTransportServers(ts, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+					isRetryableError = true
+				}
+			}
 		}
 
 	case TransportServer:
@@ -5384,6 +5394,52 @@ func (ctlr *Controller) getIngressLinkForSecret(secret *v1.Secret) []*cisapiv1.I
 		allIngLInk = append(allIngLInk, ingLink)
 	}
 	return allIngLInk
+}
+
+// fetch list of transport servers for given secret.
+func (ctlr *Controller) getTransportServersForSecret(secret *v1.Secret) []*cisapiv1.TransportServer {
+	var allTS []*cisapiv1.TransportServer
+	uniqueTS := make(map[string]*cisapiv1.TransportServer)
+	crInf, ok := ctlr.getNamespacedCRInformer(secret.Namespace, ctlr.multiClusterHandler.LocalClusterName)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", secret.Namespace)
+		return nil
+	}
+
+	var orderedTS []interface{}
+	var err error
+	orderedTS, err = crInf.tsInformer.GetIndexer().ByIndex("namespace", secret.Namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of TransportServers for namespace '%v': %v",
+			secret.Namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedTS {
+		ts := obj.(*cisapiv1.TransportServer)
+		// Check if the TransportServer references the secret
+		if ts.Spec.TLS.Reference == Secret {
+			key := fmt.Sprintf("%s/%s", ts.Namespace, ts.Name)
+			if len(ts.Spec.TLS.ClientSSLs) > 0 {
+				for _, name := range ts.Spec.TLS.ClientSSLs {
+					if name == secret.Name {
+						uniqueTS[key] = ts
+					}
+				}
+			}
+			if len(ts.Spec.TLS.ServerSSLs) > 0 {
+				for _, name := range ts.Spec.TLS.ServerSSLs {
+					if name == secret.Name {
+						uniqueTS[key] = ts
+					}
+				}
+			}
+		}
+	}
+	for _, ts := range uniqueTS {
+		allTS = append(allTS, ts)
+	}
+	return allTS
 }
 
 func createLabel(label string) (labels.Selector, error) {

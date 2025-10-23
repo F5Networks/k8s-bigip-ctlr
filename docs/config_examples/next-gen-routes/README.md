@@ -1,6 +1,6 @@
-# NextGenControllerGuide
+# NextGenRouteGuide
 
-This page documents the behaviour of NextGenController. Check the Known Issues section for more information on features not supported.
+This page documents the behaviour of NextGenRoute. Check the Known Issues section for more information on features not supported.
 ## Contents
 
 [Overview](#overview)
@@ -21,8 +21,8 @@ This page documents the behaviour of NextGenController. Check the Known Issues s
 
 ## Overview
 
-NextGen Controller uses extendedConfigMap for extending the native resources (routes). Routes are extended using ConfigMap in this release. NextGen Routes implementation also support for multi-partition, policy CR and externalDNS CR.
-**Note**: CIS supports processing of routes in traditional way as well as with NextGen Controller.
+NextGen Route uses extendedConfigMap for extending the native resources (routes). Routes are extended using ConfigMap in this release. NextGen Routes implementation also support for multi-partition, policy CR and externalDNS CR.
+**Note**: CIS supports processing of routes in traditional way as well as with NextGen Route.
 
 ###RouteGroup
 All the routes are grouped by namespaces or namespace-labels into RouteGroups.
@@ -127,8 +127,8 @@ Follow  [Migration Guide](./migration-guide.md)
 * Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedSpec through ConfigMap.
 * Extended ConfigMap can be set using CIS deployment argument --extended-spec-configmap="namespace/configmap-name"
 * Controller mode should be set to Openshift to enable multiple VIP support(--controller-mode="openshift")
-* NextGen Route controller deployment parameters (--controller-mode="openshift") takes precedence over legacy route deployment parameters (--manage-routes)
-* Recommendation is to avoid using legacy Route deployment parameters while using NextGen Route controller.
+* Controller deployment parameters (--controller-mode="openshift") takes precedence over legacy route deployment parameters (--manage-routes)
+* Recommendation is to avoid using legacy Route deployment parameters while using NextGen Route.
 
 ## Extended Spec ConfigMap:
 

@@ -14,7 +14,7 @@
 
 
 ## Overview
-NextGenRoute Controller uses extendedConfigMap for extending the native resources (routes). All the routes are group by namespaces or namespace-labels into RouteGroups. Each RouteGroup shares the same vsAddress, vsName and policy CR  which is specified in extendedConfigMap. 
+NextGenRoute Route uses extendedConfigMap for extending the native resources (routes). All the routes are group by namespaces or namespace-labels into RouteGroups. Each RouteGroup shares the same vsAddress, vsName and policy CR  which is specified in extendedConfigMap. 
 In order to migrate to nextGen we first need to create an extended ConfigMap and policy CR then modify the CIS deployment accordingly. Refer [NextGen Route Documentation](./README.md) for more details
 
 ## Migration using defaultRouteGroup
@@ -52,7 +52,7 @@ route-vserver-addr - vserver address
 ```
 
 
-In nextgen controller, we can provide the same servername and address in baseRouteSpec using defaultRouteGroup as follows:
+In nextgen route, we can provide the same servername and address in baseRouteSpec using defaultRouteGroup as follows:
 ```
 data:
   extendedSpec: |

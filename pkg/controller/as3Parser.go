@@ -1331,18 +1331,41 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 // Create AS3 Service for il multicluster CRD
 func (ap *AS3Parser) createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant string) {
 	svc := &as3Service{}
+	
+	if cfg.Virtual.PoolName != "" {
+		var poolPointer as3ResourcePointer
+		ps := strings.Split(cfg.Virtual.PoolName, "/")
+		poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
+			tenant,
+			as3SharedApplication,
+			ps[len(ps)-1],
+		)
+		svc.Pool = &poolPointer
+	}
+
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else {
+			//Attach Service Address
+			serviceAddressName := ap.createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			svc.VirtualPort = port
+		}
+	}
+
 	svc.Layer4 = cfg.Virtual.IpProtocol
 	svc.Source = "0.0.0.0/0"
 	svc.TranslateServerAddress = true
 	svc.TranslateServerPort = true
 	svc.Class = "Service_HTTP"
-
-	svc.ProfileL4 = "basic"
-	if len(cfg.Virtual.ProfileL4) > 0 {
-		svc.ProfileL4 = &as3ResourcePointer{
-			BigIP: cfg.Virtual.ProfileL4,
-		}
-	}
 
 	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
 
@@ -1355,6 +1378,50 @@ func (ap *AS3Parser) createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp
 	if len(cfg.Virtual.ProfileBotDefense) > 0 {
 		svc.ProfileBotDefense = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
+
+	if len(cfg.Virtual.HTMLProfile) > 0 {
+		svc.ProfileHTML = &as3ResourcePointer{
+			BigIP: cfg.Virtual.HTMLProfile,
+		}
+	}
+
+	if len(cfg.Virtual.HTTPCompressionProfile) > 0 {
+		if cfg.Virtual.HTTPCompressionProfile == "basic" || cfg.Virtual.HTTPCompressionProfile == "wan" {
+			svc.HTTPCompressionProfile = cfg.Virtual.HTTPCompressionProfile
+		} else {
+			svc.HTTPCompressionProfile = &as3ResourcePointer{
+				BigIP: cfg.Virtual.HTTPCompressionProfile,
+			}
+		}
+	}
+
+	if len(cfg.Virtual.HTTP2.Client) > 0 || len(cfg.Virtual.HTTP2.Server) > 0 {
+		if cfg.Virtual.HTTP2.Client == "" {
+			log.Errorf("[AS3] resetting ProfileHTTP2 as client profile doesnt co-exist with HTTP2 Server Profile, Please include client HTTP2 Profile ")
+		}
+		if cfg.Virtual.HTTP2.Server == "" {
+			svc.ProfileHTTP2 = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+			}
+		}
+		if cfg.Virtual.HTTP2.Client == "" && cfg.Virtual.HTTP2.Server != "" {
+			svc.ProfileHTTP2 = as3ProfileHTTP2{
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+				},
+			}
+		}
+		if cfg.Virtual.HTTP2.Client != "" && cfg.Virtual.HTTP2.Server != "" {
+			svc.ProfileHTTP2 = as3ProfileHTTP2{
+				Ingress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Client),
+				},
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.HTTP2.Server),
+				},
+			}
 		}
 	}
 
@@ -1379,57 +1446,52 @@ func (ap *AS3Parser) createIngressLinkServiceDecl(cfg *ResourceConfig, sharedApp
 		}
 	}
 
+	if len(cfg.Virtual.ProfileMultiplex) > 0 {
+		svc.ProfileMultiplex = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileMultiplex,
+		}
+	}
+
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
-		case "udp":
+		case "http":
 			if !profile.BigIPProfile {
-				svc.ProfileUDP = name
+				svc.ProfileHTTP = name
 			} else {
-				svc.ProfileUDP = &as3ResourcePointer{
+				svc.ProfileHTTP = &as3ResourcePointer{
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
 		}
 	}
 
-	if cfg.Virtual.TranslateServerAddress == true {
-		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
-	}
-	if cfg.Virtual.TranslateServerPort == true {
-		svc.TranslateServerPort = cfg.Virtual.TranslateServerPort
-	}
-	if cfg.Virtual.Source != "" {
-		svc.Source = cfg.Virtual.Source
-	}
-	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
-	// verify that ip address and port exists.
-	if virtualAddress != "" && port != 0 {
-		if len(cfg.ServiceAddress) == 0 {
-			va := append(svc.VirtualAddresses, virtualAddress)
-			svc.VirtualAddresses = va
-			svc.VirtualPort = port
-		} else {
-			//Attach Service Address
-			serviceAddressName := ap.createServiceAddressDecl(cfg, virtualAddress, sharedApp)
-			sa := &as3ResourcePointer{
-				Use: serviceAddressName,
-			}
-			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
-			svc.VirtualPort = port
+	//Attaching WAF policy
+	if cfg.Virtual.WAF != "" {
+		svc.WAF = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
 		}
 	}
-	if cfg.Virtual.PoolName != "" {
-		var poolPointer as3ResourcePointer
-		ps := strings.Split(cfg.Virtual.PoolName, "/")
-		poolPointer.Use = fmt.Sprintf("/%s/%s/%s",
-			tenant,
-			as3SharedApplication,
-			ps[len(ps)-1],
-		)
-		svc.Pool = &poolPointer
+
+	if cfg.Virtual.HttpMrfRoutingEnabled != nil {
+		//set HttpMrfRoutingEnabled
+		svc.HttpMrfRoutingEnabled = *cfg.Virtual.HttpMrfRoutingEnabled
 	}
+
+	if cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile != "" {
+		svc.HttpAnalyticsProfile = &as3ResourcePointer{
+			BigIP: cfg.Virtual.AnalyticsProfiles.HTTPAnalyticsProfile,
+		}
+	}
+
+	//set websocket profile
+	if cfg.Virtual.ProfileWebSocket != "" {
+		svc.ProfileWebSocket = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileWebSocket,
+		}
+	}
+
 	ap.processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

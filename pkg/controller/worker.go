@@ -581,6 +581,15 @@ func (ctlr *Controller) processResources() bool {
 						isRetryableError = true
 					}
 				}
+				ils := ctlr.getIngressLinksForCustomPolicy(cp)
+				for _, il := range ils {
+					err := ctlr.processIngressLink(il, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("[ERROR] Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
 			}
 		}
 		//Sync Custompolicy for Services of type LB in all modes
@@ -1069,6 +1078,22 @@ func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy)
 		plcVSNames, plc.Name)
 
 	return plcVSs
+}
+
+// getIngressLinksForCustomPolicy gets all ingresslinks affected by the policy
+func (ctlr *Controller) getIngressLinksForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.IngressLink {
+	var plcILs []*cisapiv1.IngressLink
+	var plcILNames []string
+	orderedILs := ctlr.getAllIngressLinks(plc.Namespace)
+	for _, il := range orderedILs {
+		if il.Spec.PolicyName == plc.Name {
+			plcILs = append(plcILs, il)
+			plcILNames = append(plcILNames, il.Name)
+		}
+	}
+	log.Debugf("IngressLinks %v are affected with Custom Policy %s: ",
+		plcILNames, plc.Name)
+	return plcILs
 }
 
 // getLBServicesForCustomPolicy gets all services of type LB affected by the policy
@@ -2032,6 +2057,20 @@ func (ctlr *Controller) getPolicyFromTransportServer(virtual *cisapiv1.Transport
 		return nil, nil
 	}
 	ns := virtual.Namespace
+	return ctlr.getPolicy(ns, plcName)
+}
+
+func (ctlr *Controller) getPolicyFromIngressLink(il *cisapiv1.IngressLink) (*cisapiv1.Policy, error) {
+	if il == nil {
+		log.Errorf("No ingress link to extract policy from")
+		return nil, nil
+	}
+
+	plcName := il.Spec.PolicyName
+	if plcName == "" {
+		return nil, nil
+	}
+	ns := il.Namespace
 	return ctlr.getPolicy(ns, plcName)
 }
 
@@ -4555,6 +4594,20 @@ func (ctlr *Controller) processIngressLink(
 		_ = ctlr.prepareRSConfigFromIngressLink(rsCfg, ingLink, port, ingLink.Spec.MultiClusterServices, svc)
 		if ctlr.multiClusterMode != "" && ctlr.discoveryMode == DefaultMode {
 			rsCfg.MetaData.ResourceType = IngressLink
+			plc, err := ctlr.getPolicyFromIngressLink(ingLink)
+			if plc != nil {
+				err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+				if err != nil {
+					log.Errorf("%v", err)
+					ctlr.updateILStatus(ingLink, "", StatusError, err)
+					return nil
+				}
+			}
+			if err != nil {
+				log.Errorf("%v", err)
+				ctlr.updateILStatus(ingLink, "", StatusError, err)
+				return nil
+			}
 			if !reflect.DeepEqual(ingLink.Spec.TLS, cisapiv1.TLSTransportServer{}) {
 				bigIPSSLProfiles := BigIPSSLProfiles{}
 				if len(ingLink.Spec.TLS.ClientSSLs) > 0 {
@@ -4562,6 +4615,12 @@ func (ctlr *Controller) processIngressLink(
 				}
 				if len(ingLink.Spec.TLS.ServerSSLs) > 0 {
 					bigIPSSLProfiles.serverSSLs = ingLink.Spec.TLS.ServerSSLs
+				}
+				if !reflect.DeepEqual(ingLink.Spec.TLS.ClientSSLParams, cisapiv1.ClientSSLParams{}) {
+					bigIPSSLProfiles.clientSSlParams = ingLink.Spec.TLS.ClientSSLParams
+				}
+				if !reflect.DeepEqual(ingLink.Spec.TLS.ServerSSLParams, cisapiv1.ServerSSLParams{}) {
+					bigIPSSLProfiles.serverSSlParams = ingLink.Spec.TLS.ServerSSLParams
 				}
 				processed := ctlr.handleTransportServerTLS(rsCfg, TLSContext{
 					name:             ingLink.ObjectMeta.Name,
@@ -4580,6 +4639,15 @@ func (ctlr *Controller) processIngressLink(
 					ctlr.updateILStatus(ingLink, "", StatusError, errors.New("error while handling TLS IngressLink"))
 					return nil
 				}
+			}
+		} else {
+			if ingLink.Spec.PolicyName != "" {
+				log.Warningf("Policy %s specified in IngressLink %s is ignored. Policy is not supported when multiClusterMode is empty",
+					ingLink.Spec.PolicyName, ingLink.Name)
+			}
+			if !reflect.DeepEqual(ingLink.Spec.TLS, cisapiv1.TLSTransportServer{}) {
+				log.Warningf("TLS spec specified in IngressLink %s is ignored. TLS is not supported when multiClusterMode is empty",
+					ingLink.Spec.TLS, ingLink.Name)
 			}
 		}
 		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals

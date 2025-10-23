@@ -3092,7 +3092,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			BigIPProfile: true,
 		})
 	} else {
-		if rsCfg.MetaData.Protocol == HTTPS && plc.Spec.Profiles.HTTPProfiles.Secure != "" {
+		if (rsCfg.MetaData.Protocol == HTTPS || rsCfg.MetaData.ResourceType == IngressLink) && plc.Spec.Profiles.HTTPProfiles.Secure != "" {
 			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 				Name:         plc.Spec.Profiles.HTTPProfiles.Secure,
 				Context:      "http",
@@ -3114,6 +3114,14 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		}
 		if plc.Spec.L7Policies.ProfileAdapt.Response != "" {
 			rsCfg.Virtual.ProfileAdapt.Response = plc.Spec.L7Policies.ProfileAdapt.Response
+		}
+	}
+
+	if rsCfg.MetaData.ResourceType == IngressLink {
+		if len(plc.Spec.IRuleList) > 0 {
+			iRule = plc.Spec.IRuleList
+		} else if plc.Spec.IRules.Secure != "" {
+			iRule = append(iRule, plc.Spec.IRules.Secure)
 		}
 	}
 

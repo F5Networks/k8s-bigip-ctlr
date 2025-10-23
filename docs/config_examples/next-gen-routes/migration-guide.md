@@ -14,7 +14,7 @@
 
 
 ## Overview
-NextGenRoute Route uses extendedConfigMap for extending the native resources (routes). All the routes are group by namespaces or namespace-labels into RouteGroups. Each RouteGroup shares the same vsAddress, vsName and policy CR  which is specified in extendedConfigMap. 
+NextGenRoute uses extendedConfigMap for extending the native resources (routes). All the routes are group by namespaces or namespace-labels into RouteGroups. Each RouteGroup shares the same vsAddress, vsName and policy CR  which is specified in extendedConfigMap. 
 In order to migrate to nextGen we first need to create an extended ConfigMap and policy CR then modify the CIS deployment accordingly. Refer [NextGen Route Documentation](./README.md) for more details
 
 ## Migration using defaultRouteGroup

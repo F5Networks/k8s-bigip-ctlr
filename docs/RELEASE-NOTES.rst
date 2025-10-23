@@ -2,6 +2,21 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
 Next Release
+--------------
+
+Added Functionality
+```````````````````
+**What's new:**
+    * Multi Cluster
+    * CRD
+
+Bug Fixes
+````````````````
+
+Upgrade notes
+```````````````
+
+CIS 2.20.2
 -------------
 
 Added Functionality
@@ -27,7 +42,8 @@ Bug Fixes
 
 Upgrade notes
 ``````````````
-* Upgrading to CIS 2.21, static routes are deleted and recreated with new description added to fix the issue(`Github#3719`) of static routes overriding each other with multiple CIS instances writing to Common Partition. This may cause a brief disruption in traffic while the routes are being recreated.
+* Upgrading to CIS 2.20.2, static routes are deleted and recreated with new description added to fix the issue(`Github#3719`) of static routes overriding each other with multiple CIS instances writing to Common Partition. This may cause a brief disruption in traffic while the routes are being recreated.
+
 2.20.1
 -------------
 

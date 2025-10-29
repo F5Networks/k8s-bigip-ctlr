@@ -26,19 +26,27 @@ Added Functionality
     * CRD
         * `Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
         * `Issue 3892 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3892>`_: GRPC support for VirtualServer CRD
-        * Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: support for static pool members in VirtualServer
-        * Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
-        * Issue 3927 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3927>`_: feature request: customized virtualServerName for IngressLink resource
-        * Issue 3907 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3907>`_: support to set HTTP/2 Profile/Server to None
+        * `Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: support for static pool members in VirtualServer
+        * `Issue 3865 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3865>`_: support for secured and unsecured httpProfiles in policy CRD
+        * `Issue 3927 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3927>`_: feature request: customized virtualServerName for IngressLink resource
+        * `Issue 3907 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3907>`_: support to set HTTP/2 Profile/Server to None
+        * `Issue 3932 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3932>`_: support for allowed and denied partitions lists for Virtual Server CRD
+        * `<./config_examples/rbac/k8s_rbac.yml>`_: Examples: Helm changes for namespaced rbac
         * Support request log profile in policy CRD
-        * Issue 3932 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3932>`_: support for allowed and denied partitions lists for Virtual Server CRD
+        * Https support for metrics endpoint
+    * Support
+        * CIS is validated with Kubernetes 1.33 version
 
 Bug Fixes
 ````````````
-* Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
-* Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: Improve logging when BIG-IP is not reachable during pod initialization
-* Issue 3887 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3887>`_: RFE: change log level of certain messages
+* `Issue 3719 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3719>`_: Fix shared static routes override each other with multiple CIS instances writing to Common Partition
+* `Issue 3852 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3852>`_: Improve logging when BIG-IP is not reachable during pod initialization
+* `Issue 3887 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/3887>`_: RFE: change log level of certain messages
 * SR - Fix for CIS deleting unmanaged routes in common partition with static routing mode disabled
+
+Vulnerability Fixes
+```````````````````
+CVE-2025-59375
 
 Upgrade notes
 ``````````````

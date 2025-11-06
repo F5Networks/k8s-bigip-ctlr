@@ -435,6 +435,14 @@ func (ctlr *Controller) processResources() bool {
 					}
 				} else if rKey.event == Update {
 					log.Debugf("kubeconfig updated for cluster %s.Updating informers with new client", mcc.ClusterName)
+					// Added API server reachability check before tearing down and recreating informers
+					if clusterConfig := ctlr.multiClusterHandler.getClusterConfig(mcc.ClusterName); clusterConfig != nil {
+						if _, err := clusterConfig.kubeClient.Discovery().RESTClient().Get().AbsPath(clusterHealthPath).DoRaw(context.TODO()); err != nil {
+							log.Warningf("[MultiCluster] kube-api server is not reachable for cluster %v due to error: %v. Skipping informer refresh; will retry.", mcc.ClusterName, err)
+							isRetryableError = true
+							break
+						}
+					}
 					ctlr.stopMultiClusterPoolInformers(mcc.ClusterName, true)
 					ctlr.stopMultiClusterNodeInformer(mcc.ClusterName)
 					ctlr.stopMultiClusterDynamicInformer(mcc.ClusterName)

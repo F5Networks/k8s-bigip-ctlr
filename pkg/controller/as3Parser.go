@@ -3,12 +3,13 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -1279,6 +1280,13 @@ func (ap *AS3Parser) processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 			svc.ProfileResponseAdapt = &as3ResourcePointer{
 				BigIP: fmt.Sprintf("%v", cfg.Virtual.ProfileAdapt.Response),
 			}
+		}
+	}
+
+	//set protocol inspection profile
+	if cfg.Virtual.ProfileProtocolInspection != "" {
+		svc.ProfileProtocolInspection = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileProtocolInspection,
 		}
 	}
 

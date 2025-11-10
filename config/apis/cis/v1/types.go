@@ -29,44 +29,45 @@ type CustomResourceStatus struct {
 
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
-	Host                             string           `json:"host,omitempty"`
-	HostAliases                      []string         `json:"hostAliases,omitempty"`
-	HostGroup                        string           `json:"hostGroup,omitempty"`
-	HostGroupVirtualServerName       string           `json:"hostGroupVirtualServerName,omitempty"`
-	VirtualServerAddress             string           `json:"virtualServerAddress,omitempty"`
-	AdditionalVirtualServerAddresses []string         `json:"additionalVirtualServerAddresses,omitempty"`
-	IPAMLabel                        string           `json:"ipamLabel,omitempty"`
-	BigIPRouteDomain                 int32            `json:"bigipRouteDomain,omitempty"`
-	VirtualServerName                string           `json:"virtualServerName,omitempty"`
-	VirtualServerHTTPPort            int32            `json:"virtualServerHTTPPort,omitempty"`
-	VirtualServerHTTPSPort           int32            `json:"virtualServerHTTPSPort,omitempty"`
-	DefaultPool                      DefaultPool      `json:"defaultPool,omitempty"`
-	Pools                            []VSPool         `json:"pools,omitempty"`
-	TLSProfileName                   string           `json:"tlsProfileName,omitempty"`
-	HTTPTraffic                      string           `json:"httpTraffic,omitempty"`
-	SNAT                             string           `json:"snat,omitempty"`
-	ConnectionMirroring              string           `json:"connectionMirroring,omitempty"`
-	WAF                              string           `json:"waf,omitempty"`
-	RewriteAppRoot                   string           `json:"rewriteAppRoot,omitempty"`
-	AllowVLANs                       []string         `json:"allowVlans,omitempty"`
-	IRules                           []string         `json:"iRules,omitempty"`
-	ServiceIPAddress                 []ServiceAddress `json:"serviceAddress,omitempty"`
-	PolicyName                       string           `json:"policyName,omitempty"`
-	PersistenceProfile               string           `json:"persistenceProfile,omitempty"`
-	HTTPCompressionProfile           string           `json:"httpCompressionProfile,omitempty"`
-	ProfileMultiplex                 string           `json:"profileMultiplex,omitempty"`
-	DOS                              string           `json:"dos,omitempty"`
-	BotDefense                       string           `json:"botDefense,omitempty"`
-	Profiles                         ProfileVSSpec    `json:"profiles,omitempty"`
-	AllowSourceRange                 []string         `json:"allowSourceRange,omitempty"`
-	HttpMrfRoutingEnabled            *bool            `json:"httpMrfRoutingEnabled,omitempty"`
-	Partition                        string           `json:"partition,omitempty"`
-	HTMLProfile                      string           `json:"htmlProfile,omitempty"`
-	HostPersistence                  HostPersistence  `json:"hostPersistence,omitempty"`
-	ProfileAccess                    string           `json:"profileAccess,omitempty"`
-	PolicyPerRequestAccess           string           `json:"policyPerRequestAccess,omitempty"`
-	ProfileAdapt                     ProfileAdapt     `json:"profileAdapt,omitempty"`
-	ProfileAnalyticsTcp              string           `json:"profileAnalyticsTcp,omitempty"`
+	Host                             string                    `json:"host,omitempty"`
+	HostAliases                      []string                  `json:"hostAliases,omitempty"`
+	HostGroup                        string                    `json:"hostGroup,omitempty"`
+	HostGroupVirtualServerName       string                    `json:"hostGroupVirtualServerName,omitempty"`
+	VirtualServerAddress             string                    `json:"virtualServerAddress,omitempty"`
+	AdditionalVirtualServerAddresses []string                  `json:"additionalVirtualServerAddresses,omitempty"`
+	IPAMLabel                        string                    `json:"ipamLabel,omitempty"`
+	BigIPRouteDomain                 int32                     `json:"bigipRouteDomain,omitempty"`
+	VirtualServerName                string                    `json:"virtualServerName,omitempty"`
+	VirtualServerHTTPPort            int32                     `json:"virtualServerHTTPPort,omitempty"`
+	VirtualServerHTTPSPort           int32                     `json:"virtualServerHTTPSPort,omitempty"`
+	DefaultPool                      DefaultPool               `json:"defaultPool,omitempty"`
+	Pools                            []VSPool                  `json:"pools,omitempty"`
+	TLSProfileName                   string                    `json:"tlsProfileName,omitempty"`
+	HTTPTraffic                      string                    `json:"httpTraffic,omitempty"`
+	SNAT                             string                    `json:"snat,omitempty"`
+	ConnectionMirroring              string                    `json:"connectionMirroring,omitempty"`
+	WAF                              string                    `json:"waf,omitempty"`
+	RewriteAppRoot                   string                    `json:"rewriteAppRoot,omitempty"`
+	AllowVLANs                       []string                  `json:"allowVlans,omitempty"`
+	IRules                           []string                  `json:"iRules,omitempty"`
+	ServiceIPAddress                 []ServiceAddress          `json:"serviceAddress,omitempty"`
+	PolicyName                       string                    `json:"policyName,omitempty"`
+	PersistenceProfile               string                    `json:"persistenceProfile,omitempty"`
+	HTTPCompressionProfile           string                    `json:"httpCompressionProfile,omitempty"`
+	ProfileMultiplex                 string                    `json:"profileMultiplex,omitempty"`
+	DOS                              string                    `json:"dos,omitempty"`
+	BotDefense                       string                    `json:"botDefense,omitempty"`
+	Profiles                         ProfileVSSpec             `json:"profiles,omitempty"`
+	AllowSourceRange                 []string                  `json:"allowSourceRange,omitempty"`
+	HttpMrfRoutingEnabled            *bool                     `json:"httpMrfRoutingEnabled,omitempty"`
+	Partition                        string                    `json:"partition,omitempty"`
+	HTMLProfile                      string                    `json:"htmlProfile,omitempty"`
+	HostPersistence                  HostPersistence           `json:"hostPersistence,omitempty"`
+	ProfileAccess                    string                    `json:"profileAccess,omitempty"`
+	PolicyPerRequestAccess           string                    `json:"policyPerRequestAccess,omitempty"`
+	ProfileAdapt                     ProfileAdapt              `json:"profileAdapt,omitempty"`
+	ProfileProtocolInspection        ProfileProtocolInspection `json:"profileProtocolInspection,omitempty"`
+	ProfileAnalyticsTcp              string                    `json:"profileAnalyticsTcp,omitempty"`
 }
 
 type HostPersistence struct {
@@ -473,8 +474,9 @@ type ProfileSpec struct {
 }
 
 type ProfileVSSpec struct {
-	TCP   ProfileTCP   `json:"tcp,omitempty"`
-	HTTP2 ProfileHTTP2 `json:"http2,omitempty"`
+	TCP                       ProfileTCP                `json:"tcp,omitempty"`
+	HTTP2                     ProfileHTTP2              `json:"http2,omitempty"`
+	ProfileProtocolInspection ProfileProtocolInspection `json:"profileProtocolInspection,omitempty"`
 }
 
 type ProfileTSSpec struct {
@@ -493,6 +495,10 @@ type ProfileTCP struct {
 type ProfileHTTP2 struct {
 	Client *string `json:"client,omitempty"`
 	Server *string `json:"server,omitempty"`
+}
+
+type ProfileProtocolInspection struct {
+	BigIP string `json:"bigip,omitempty"`
 }
 
 type HTTPProfiles struct {

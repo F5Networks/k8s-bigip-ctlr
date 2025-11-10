@@ -123,6 +123,12 @@ spec:
                         server:
                           type: string
                           pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    profileProtocolInspection:
+                      type: object
+                      properties:
+                        bigip:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -156,6 +162,12 @@ spec:
                     response:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                profileProtocolInspection:
+                  type: object
+                  properties:
+                    bigip:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 allowVlans:
                   items:
                     type: string

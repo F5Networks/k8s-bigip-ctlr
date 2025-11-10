@@ -783,6 +783,12 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
 	}
 
+	if (vs.Spec.Profiles.ProfileProtocolInspection != cisapiv1.ProfileProtocolInspection{}) {
+		if vs.Spec.Profiles.ProfileProtocolInspection.BigIP != "" {
+			rsCfg.Virtual.ProfileProtocolInspection = vs.Spec.Profiles.ProfileProtocolInspection.BigIP
+		}
+	}
+
 	if vs.Spec.ProfileAccess != "" {
 		rsCfg.Virtual.ProfileAccess = vs.Spec.ProfileAccess
 		if vs.Spec.PolicyPerRequestAccess != "" {
@@ -796,6 +802,12 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		}
 		if vs.Spec.ProfileAdapt.Response != "" {
 			rsCfg.Virtual.ProfileAdapt.Response = vs.Spec.ProfileAdapt.Response
+		}
+	}
+
+	if (vs.Spec.ProfileProtocolInspection != cisapiv1.ProfileProtocolInspection{}) {
+		if vs.Spec.ProfileProtocolInspection.BigIP != "" {
+			rsCfg.Virtual.ProfileProtocolInspection = vs.Spec.ProfileProtocolInspection.BigIP
 		}
 	}
 

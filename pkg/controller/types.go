@@ -341,6 +341,7 @@ type (
 		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
 		AutoLastHop                string                `json:"lastHop,omitempty"`
 		AnalyticsProfiles          AnalyticsProfiles     `json:"analyticsProfiles,omitempty"`
+		ProfileProtocolInspection  string                `json:"profileProtocolInspection,omitempty"`
 		MultiPoolPersistence       MultiPoolPersistence  `json:"multiPoolPersistence,omitempty"`
 		HTMLProfile                string                `json:"htmlProfile,omitempty"`
 		ProfileAccess              string                `json:"profileAccess,omitempty"`
@@ -1196,47 +1197,48 @@ type (
 	// - Service_TCP
 	// - Service_UDP
 	as3Service struct {
-		Layer4                 string               `json:"layer4,omitempty"`
-		Source                 string               `json:"source,omitempty"`
-		TranslateServerAddress bool                 `json:"translateServerAddress,omitempty"`
-		TranslateServerPort    bool                 `json:"translateServerPort,omitempty"`
-		Class                  string               `json:"class,omitempty"`
-		VirtualAddresses       []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
-		VirtualPort            int                  `json:"virtualPort,omitempty"`
-		AutoLastHop            string               `json:"lastHop,omitempty"`
-		SNAT                   as3MultiTypeParam    `json:"snat,omitempty"`
-		Mirroring              string               `json:"mirroring,omitempty"`
-		PolicyEndpoint         as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
-		ClientTLS              as3MultiTypeParam    `json:"clientTLS,omitempty"`
-		ServerTLS              as3MultiTypeParam    `json:"serverTLS,omitempty"`
-		IRules                 as3MultiTypeParam    `json:"iRules,omitempty"`
-		Redirect80             *bool                `json:"redirect80,omitempty"`
-		Pool                   *as3ResourcePointer  `json:"pool,omitempty"`
-		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
-		Firewall               as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
-		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
-		ProfileTrafficLog      as3MultiTypeParam    `json:"profileTrafficLog,omitempty"`
-		ProfileL4              as3MultiTypeParam    `json:"profileL4,omitempty"`
-		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
-		PersistenceMethods     *[]as3MultiTypeParam `json:"persistenceMethods,omitempty"`
-		ProfileTCP             as3MultiTypeParam    `json:"profileTCP,omitempty"`
-		ProfileUDP             as3MultiTypeParam    `json:"profileUDP,omitempty"`
-		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`
-		ProfileHTTP2           as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
-		ProfileMultiplex       as3MultiTypeParam    `json:"profileMultiplex,omitempty"`
-		ProfileDOS             as3MultiTypeParam    `json:"profileDOS,omitempty"`
-		ProfileBotDefense      as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
-		HttpMrfRoutingEnabled  bool                 `json:"httpMrfRoutingEnabled,omitempty"`
-		IpIntelligencePolicy   as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
-		HttpAnalyticsProfile   *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
-		ProfileWebSocket       as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
-		ProfileHTML            as3MultiTypeParam    `json:"profileHTML,omitempty"`
-		HTTPCompressionProfile as3MultiTypeParam    `json:"profileHTTPCompression,omitempty"`
-		ProfileAccess          as3MultiTypeParam    `json:"profileAccess,omitempty"`
-		PolicyPerRequestAccess as3MultiTypeParam    `json:"policyPerRequestAccess,omitempty"`
-		ProfileFTP             as3MultiTypeParam    `json:"profileFTP,omitempty"`
-		ProfileRequestAdapt    as3MultiTypeParam    `json:"profileRequestAdapt,omitempty"`
-		ProfileResponseAdapt   as3MultiTypeParam    `json:"profileResponseAdapt,omitempty"`
+		Layer4                    string               `json:"layer4,omitempty"`
+		Source                    string               `json:"source,omitempty"`
+		TranslateServerAddress    bool                 `json:"translateServerAddress,omitempty"`
+		TranslateServerPort       bool                 `json:"translateServerPort,omitempty"`
+		Class                     string               `json:"class,omitempty"`
+		VirtualAddresses          []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
+		VirtualPort               int                  `json:"virtualPort,omitempty"`
+		AutoLastHop               string               `json:"lastHop,omitempty"`
+		SNAT                      as3MultiTypeParam    `json:"snat,omitempty"`
+		Mirroring                 string               `json:"mirroring,omitempty"`
+		PolicyEndpoint            as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
+		ClientTLS                 as3MultiTypeParam    `json:"clientTLS,omitempty"`
+		ServerTLS                 as3MultiTypeParam    `json:"serverTLS,omitempty"`
+		IRules                    as3MultiTypeParam    `json:"iRules,omitempty"`
+		Redirect80                *bool                `json:"redirect80,omitempty"`
+		Pool                      *as3ResourcePointer  `json:"pool,omitempty"`
+		WAF                       as3MultiTypeParam    `json:"policyWAF,omitempty"`
+		Firewall                  as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
+		LogProfiles               []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
+		ProfileTrafficLog         as3MultiTypeParam    `json:"profileTrafficLog,omitempty"`
+		ProfileL4                 as3MultiTypeParam    `json:"profileL4,omitempty"`
+		AllowVLANs                []as3ResourcePointer `json:"allowVlans,omitempty"`
+		PersistenceMethods        *[]as3MultiTypeParam `json:"persistenceMethods,omitempty"`
+		ProfileTCP                as3MultiTypeParam    `json:"profileTCP,omitempty"`
+		ProfileUDP                as3MultiTypeParam    `json:"profileUDP,omitempty"`
+		ProfileHTTP               as3MultiTypeParam    `json:"profileHTTP,omitempty"`
+		ProfileHTTP2              as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
+		ProfileMultiplex          as3MultiTypeParam    `json:"profileMultiplex,omitempty"`
+		ProfileDOS                as3MultiTypeParam    `json:"profileDOS,omitempty"`
+		ProfileBotDefense         as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
+		HttpMrfRoutingEnabled     bool                 `json:"httpMrfRoutingEnabled,omitempty"`
+		IpIntelligencePolicy      as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
+		HttpAnalyticsProfile      *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
+		ProfileProtocolInspection as3MultiTypeParam    `json:"profileProtocolInspection,omitempty"`
+		ProfileWebSocket          as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
+		ProfileHTML               as3MultiTypeParam    `json:"profileHTML,omitempty"`
+		HTTPCompressionProfile    as3MultiTypeParam    `json:"profileHTTPCompression,omitempty"`
+		ProfileAccess             as3MultiTypeParam    `json:"profileAccess,omitempty"`
+		PolicyPerRequestAccess    as3MultiTypeParam    `json:"policyPerRequestAccess,omitempty"`
+		ProfileFTP                as3MultiTypeParam    `json:"profileFTP,omitempty"`
+		ProfileRequestAdapt       as3MultiTypeParam    `json:"profileRequestAdapt,omitempty"`
+		ProfileResponseAdapt      as3MultiTypeParam    `json:"profileResponseAdapt,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

@@ -10,6 +10,9 @@ Added Functionality
     * Multi Cluster
     * CRD
         * Support for Profile Analytics TCP in VirtualServer, TransportServer, and Policy CRD. See `Example <./config_examples/customResource/VirtualServer/profileAnalyticsTcp>`_, `Example <./config_examples/customResource/TransportServer/profileAnalyticsTcp>`_ and `Example <./config_examples/customResource/Policy/policy-with-profileAnalyticsTcp.yaml>`_.
+        * Support Protocol Inspection Profile in VirtualServer CR
+        * Support Protocol Inspection Profile in Policy CR
+        * Support Protocol Inspection Profile in TransportServer CR
 
 Bug Fixes
 ````````````````

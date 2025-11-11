@@ -109,11 +109,20 @@ devel-image:
 
 # Enable certain funtionalities only on a developer build
 dev-patch:
-	git apply --check build-tools/golang/0001-Enable-AS3-Declaration-logging.patch
-	git apply build-tools/golang/0001-Enable-AS3-Declaration-logging.patch
+	@if git apply --check build-tools/golang/0001-Enable-AS3-Declaration-logging.patch 2>/dev/null; then \
+		git apply build-tools/golang/0001-Enable-AS3-Declaration-logging.patch; \
+		echo "Applied AS3 Declaration logging patch"; \
+	else \
+		echo "AS3 Declaration logging patch already applied or not applicable"; \
+	fi
 
 reset-dev-patch:
-	git apply -R $(CURDIR)/build-tools/golang/0001-Enable-AS3-Declaration-logging.patch
+	@if git apply --check -R $(CURDIR)/build-tools/golang/0001-Enable-AS3-Declaration-logging.patch 2>/dev/null; then \
+		git apply -R $(CURDIR)/build-tools/golang/0001-Enable-AS3-Declaration-logging.patch; \
+		echo "Reverted AS3 Declaration logging patch"; \
+	else \
+		echo "AS3 Declaration logging patch not applied or already reverted"; \
+	fi
 
 # Build devloper image
 dev: dev-patch prod-quick reset-dev-patch

@@ -1,13 +1,17 @@
-apiVersion: cis.f5.com/v1
+apiVersion: "cis.f5.com/v1"
 kind: Policy
 metadata:
+  name: my-policy-with-websocket-profile
   labels:
     f5cr: "true"
-  name: cr-policy1
-  namespace: test
 spec:
-  iRules: {}
-  l3Policies: {}
-  l7Policies: {}
   profiles:
-    profileWebSocket: /Common/websocket
+    tcp:
+      client: "/Common/tcp"
+      server: "/Common/tcp"
+    profileWebSocket: "/Common/websocket"
+    persistenceProfile: "/Common/cookie"
+  l7Policies:
+    waf: "/Common/waf_policy"
+  l3Policies:
+    dos: "/Common/dos_profile"

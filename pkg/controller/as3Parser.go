@@ -1137,13 +1137,20 @@ func (ap *AS3Parser) createTransportServiceDecl(cfg *ResourceConfig, sharedApp a
 			}
 		}
 		if cfg.Virtual.TCP.Client != "" && cfg.Virtual.TCP.Server != "" {
-			svc.ProfileTCP = as3ProfileTCP{
-				Ingress: &as3ResourcePointer{
+			// If client and server profiles are the same, use simple ProfileTCP reference
+			if cfg.Virtual.TCP.Client == cfg.Virtual.TCP.Server {
+				svc.ProfileTCP = &as3ResourcePointer{
 					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
-				},
-				Egress: &as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
-				},
+				}
+			} else {
+				svc.ProfileTCP = as3ProfileTCP{
+					Ingress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+					},
+					Egress: &as3ResourcePointer{
+						BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
+					},
+				}
 			}
 		}
 	}

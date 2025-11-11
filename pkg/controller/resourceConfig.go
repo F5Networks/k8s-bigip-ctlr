@@ -783,10 +783,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.HTTP2.Server = vs.Spec.Profiles.HTTP2.Server
 	}
 
-	if (vs.Spec.Profiles.ProfileProtocolInspection != cisapiv1.ProfileProtocolInspection{}) {
-		if vs.Spec.Profiles.ProfileProtocolInspection.BigIP != "" {
-			rsCfg.Virtual.ProfileProtocolInspection = vs.Spec.Profiles.ProfileProtocolInspection.BigIP
-		}
+	if vs.Spec.Profiles.ProfileProtocolInspection != "" {
+		rsCfg.Virtual.ProfileProtocolInspection = vs.Spec.Profiles.ProfileProtocolInspection
 	}
 
 	if vs.Spec.ProfileAccess != "" {
@@ -802,12 +800,6 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		}
 		if vs.Spec.ProfileAdapt.Response != "" {
 			rsCfg.Virtual.ProfileAdapt.Response = vs.Spec.ProfileAdapt.Response
-		}
-	}
-
-	if (vs.Spec.ProfileProtocolInspection != cisapiv1.ProfileProtocolInspection{}) {
-		if vs.Spec.ProfileProtocolInspection.BigIP != "" {
-			rsCfg.Virtual.ProfileProtocolInspection = vs.Spec.ProfileProtocolInspection.BigIP
 		}
 	}
 
@@ -2656,6 +2648,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
 	}
 
+	if vs.Spec.Profiles.ProfileProtocolInspection != "" {
+		rsCfg.Virtual.ProfileProtocolInspection = vs.Spec.Profiles.ProfileProtocolInspection
+	}
+
 	if len(rsCfg.ServiceAddress) == 0 {
 		for _, sa := range vs.Spec.ServiceIPAddress {
 			rsCfg.ServiceAddress = append(rsCfg.ServiceAddress, ServiceAddress(sa))
@@ -3069,6 +3065,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 	rsCfg.Virtual.HTTP2.Client = plc.Spec.Profiles.HTTP2.Client
 	rsCfg.Virtual.HTTP2.Server = plc.Spec.Profiles.HTTP2.Server
+	rsCfg.Virtual.ProfileProtocolInspection = plc.Spec.Profiles.ProfileProtocolInspection
 	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
@@ -3182,6 +3179,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.FTPProfile = plc.Spec.Profiles.FTPProfile
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.ProfileProtocolInspection = plc.Spec.Profiles.ProfileProtocolInspection
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
 	rsCfg.Virtual.ProfileAnalyticsTcp = plc.Spec.Profiles.ProfileAnalyticsTcp

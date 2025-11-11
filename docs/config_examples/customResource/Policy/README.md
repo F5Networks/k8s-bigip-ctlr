@@ -88,6 +88,7 @@ This is used to apply existing BIG-IP profiles and policy with Routes, Virtual S
 | ftpProfile             | String         | Optional | N/A                                                               | Reference to existing BIG-IP FTP profile and is supported only for Transport Server                                                                                                                                                      |
 | httpCompressionProfile | String         | Optional | N/A                                                               | Reference to existing BIG-IP HTTP Compression profile and is supported only for Virtual Server                                                                                                                                           |
 | profileAnalyticsTcp | String         | Optional | N/A                                                               | Reference to existing BIG-IP TCP Analytics                                                                                                                                           |
+| profileProtocolInspection | String      | Optional | N/A                                                               | Reference to existing BIG-IP Protocol Inspection profile. Supported for both Virtual Server and Transport Server                                                                                                                         |
 
 **Note**:
 * sslProfiles is only applicable to NextGen routes

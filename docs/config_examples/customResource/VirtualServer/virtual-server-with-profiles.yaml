@@ -1,0 +1,29 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  name: my-virtual-server
+  namespace: myns
+spec:
+  host: example.com
+  virtualServerAddress: 1.2.3.4
+  virtualServerHTTPSPort: 443
+  tlsProfileName: tls-profile
+  profiles:
+    tcp:
+      client: /Common/tcp-wan-optimized
+      server: /Common/tcp-lan-optimized
+    http2:
+      client: /Common/http2
+      server: /Common/http2
+    profileProtocolInspection: /Common/protocol_inspection_app_nginx
+  pools:
+    - name: web-pool
+      service: web-service
+      servicePort: 80
+      serviceNamespace: myns
+  defaultPool:
+    name: default-pool
+    service: default-service
+    servicePort: 80
+    serviceNamespace: myns
+    reference: service

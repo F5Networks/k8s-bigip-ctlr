@@ -1230,7 +1230,7 @@ type (
 		HttpMrfRoutingEnabled     bool                 `json:"httpMrfRoutingEnabled,omitempty"`
 		IpIntelligencePolicy      as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
 		HttpAnalyticsProfile      *as3ResourcePointer  `json:"profileAnalytics,omitempty"`
-		ProfileProtocolInspection as3MultiTypeParam    `json:"profileProtocolInspection,omitempty"`
+		ProfileProtocolInspection *as3ResourcePointer  `json:"profileProtocolInspection,omitempty"`
 		ProfileWebSocket          as3MultiTypeParam    `json:"profileWebSocket,omitempty"`
 		ProfileHTML               as3MultiTypeParam    `json:"profileHTML,omitempty"`
 		HTTPCompressionProfile    as3MultiTypeParam    `json:"profileHTTPCompression,omitempty"`

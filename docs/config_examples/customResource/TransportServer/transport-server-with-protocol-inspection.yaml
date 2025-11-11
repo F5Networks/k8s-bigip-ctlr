@@ -1,0 +1,19 @@
+apiVersion: "cis.f5.com/v1"
+kind: TransportServer
+metadata:
+  name: my-transport-server-with-protocol-inspection
+  labels:
+    f5cr: "true"
+spec:
+  virtualServerAddress: "172.16.3.10"
+  virtualServerPort: 8080
+  mode: standard
+  type: tcp
+  profiles:
+    tcp:
+      client: "/Common/tcp"
+      server: "/Common/tcp"
+    profileProtocolInspection: "/Common/protocol_inspection_app_nginx"
+  pool:
+    service: tcp-service
+    servicePort: 8080

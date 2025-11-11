@@ -9,6 +9,9 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
+        * Support Protocol Inspection Profile in VirtualServer CR
+        * Support Protocol Inspection Profile in Policy CR
+        * Support Protocol Inspection Profile in TransportServer CR
 
 Bug Fixes
 ````````````````

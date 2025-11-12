@@ -347,6 +347,7 @@ type (
 		PolicyPerRequestAccess     string                `json:"policyPerRequestAccess,omitempty"`
 		FTPProfile                 string                `json:"ftpProfile,omitempty"`
 		ProfileAdapt               ProfileAdapt          `json:"profileAdapt,omitempty"`
+		ProfileAnalyticsTcp        string                `json:"profileAnalyticsTcp,omitempty"`
 	}
 	MultiPoolPersistence struct {
 		Method  string `json:"method,omitempty"`
@@ -1237,6 +1238,7 @@ type (
 		ProfileFTP             as3MultiTypeParam    `json:"profileFTP,omitempty"`
 		ProfileRequestAdapt    as3MultiTypeParam    `json:"profileRequestAdapt,omitempty"`
 		ProfileResponseAdapt   as3MultiTypeParam    `json:"profileResponseAdapt,omitempty"`
+		ProfileAnalyticsTcp    as3MultiTypeParam    `json:"profileAnalyticsTcp,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

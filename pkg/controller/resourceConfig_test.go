@@ -2086,13 +2086,20 @@ var _ = Describe("Resource Config Tests", func() {
 			plc = test.NewPolicy("plc1", namespace, cisapiv1.PolicySpec{})
 		})
 
-		It("Verifies FTP Profile for VirtualServer", func() {
+		It("Verify FTP Profile for VirtualServer", func() {
 			plc.Spec.Profiles.HTMLProfile = "/Common/htmlProfile1"
 			plc.Spec.Profiles.FTPProfile = "/Common/ftpProfile1"
 			err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
 			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
 			Expect(rsCfg.Virtual.FTPProfile).To(BeEmpty(), "FTP Profile should not be set for Virtual Server")
 			Expect(rsCfg.Virtual.HTMLProfile).To(Equal("/Common/htmlProfile1"), "FTP Profile should not be set for Virtual Server")
+		})
+
+		It("Verify Profile Analytics TCP for VirtualServer", func() {
+			plc.Spec.Profiles.ProfileAnalyticsTcp = "/Common/tcp-analytics"
+			err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.ProfileAnalyticsTcp).To(Equal("/Common/tcp-analytics"), "Profile Analytics TCP should be set for Virtual Server")
 		})
 
 		It("Verify HTTP Compression Profile for VirtualServer", func() {
@@ -2114,6 +2121,12 @@ var _ = Describe("Resource Config Tests", func() {
 			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
 			Expect(rsCfg.Virtual.FTPProfile).To(Equal("/Common/ftpProfile1"), "FTP Profile should be set for Transport Server")
+		})
+		It("Verify Profile Analytics TCP for TransportServer", func() {
+			plc.Spec.Profiles.ProfileAnalyticsTcp = "/Common/tcp-analytics"
+			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.ProfileAnalyticsTcp).To(Equal("/Common/tcp-analytics"), "Profile Analytics TCP should be set for Transport Server")
 		})
 		Context("Verify Adapt Profiles", func() {
 			It("Verify Adapt Profile supported in Policy CR for VirtualServer", func() {

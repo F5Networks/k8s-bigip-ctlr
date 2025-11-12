@@ -356,6 +356,12 @@ func (ap *AS3Parser) createServiceDecl(cfg *ResourceConfig, sharedApp as3Applica
 		}
 	}
 
+	if cfg.Virtual.ProfileAnalyticsTcp != "" {
+		svc.ProfileAnalyticsTcp = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileAnalyticsTcp,
+		}
+	}
+
 	if cfg.MetaData.Protocol == HTTPS {
 		if cfg.Virtual.HTTP2.Client != nil || cfg.Virtual.HTTP2.Server != nil {
 			if cfg.Virtual.HTTP2.Client == nil {
@@ -1075,6 +1081,12 @@ func (ap *AS3Parser) createTransportServiceDecl(cfg *ResourceConfig, sharedApp a
 					BigIP: cfg.Virtual.FTPProfile,
 				}
 			}
+			//set tcp analytics profile for only TCP in standard mode
+			if cfg.Virtual.ProfileAnalyticsTcp != "" {
+				svc.ProfileAnalyticsTcp = &as3ResourcePointer{
+					BigIP: cfg.Virtual.ProfileAnalyticsTcp,
+				}
+			}
 		}
 	} else if cfg.Virtual.Mode == "performance" {
 		svc.Class = "Service_L4"
@@ -1084,6 +1096,12 @@ func (ap *AS3Parser) createTransportServiceDecl(cfg *ResourceConfig, sharedApp a
 			svc.Layer4 = "sctp"
 		} else {
 			svc.Layer4 = "tcp"
+			//set tcp analytics profile for only TCP
+			if cfg.Virtual.ProfileAnalyticsTcp != "" {
+				svc.ProfileAnalyticsTcp = &as3ResourcePointer{
+					BigIP: cfg.Virtual.ProfileAnalyticsTcp,
+				}
+			}
 		}
 	}
 

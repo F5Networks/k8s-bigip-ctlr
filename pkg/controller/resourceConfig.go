@@ -819,6 +819,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.HTTPCompressionProfile = vs.Spec.HTTPCompressionProfile
 	}
 
+	if vs.Spec.ProfileAnalyticsTcp != "" {
+		rsCfg.Virtual.ProfileAnalyticsTcp = vs.Spec.ProfileAnalyticsTcp
+	}
+
 	// check if custom http port set on virtual
 	if vs.Spec.VirtualServerHTTPPort != 0 {
 		httpPort = vs.Spec.VirtualServerHTTPPort
@@ -2654,6 +2658,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
 
+	if vs.Spec.ProfileAnalyticsTcp != "" {
+		rsCfg.Virtual.ProfileAnalyticsTcp = vs.Spec.ProfileAnalyticsTcp
+	}
+
 	// Attach user specified iRules
 	if len(vs.Spec.IRules) > 0 {
 		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
@@ -3053,6 +3061,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
 	rsCfg.Virtual.AutoLastHop = plc.Spec.AutoLastHop
+	rsCfg.Virtual.ProfileAnalyticsTcp = plc.Spec.Profiles.ProfileAnalyticsTcp
 	if plc.Spec.Profiles.FTPProfile != "" {
 		log.Warningf("FTP Profile is not supported for Virtual Server")
 	}
@@ -3163,6 +3172,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 	rsCfg.Virtual.IpIntelligencePolicy = plc.Spec.L3Policies.IpIntelligencePolicy
+	rsCfg.Virtual.ProfileAnalyticsTcp = plc.Spec.Profiles.ProfileAnalyticsTcp
 	if plc.Spec.Profiles.HTTPCompressionProfile != "" {
 		log.Warningf("HTTP Compression Profile is not supported for Transport Server")
 	}

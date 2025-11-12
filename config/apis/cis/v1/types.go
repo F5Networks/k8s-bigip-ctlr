@@ -66,6 +66,7 @@ type VirtualServerSpec struct {
 	ProfileAccess                    string           `json:"profileAccess,omitempty"`
 	PolicyPerRequestAccess           string           `json:"policyPerRequestAccess,omitempty"`
 	ProfileAdapt                     ProfileAdapt     `json:"profileAdapt,omitempty"`
+	ProfileAnalyticsTcp              string           `json:"profileAnalyticsTcp,omitempty"`
 }
 
 type HostPersistence struct {
@@ -336,6 +337,7 @@ type TransportServerSpec struct {
 	Profiles             ProfileTSSpec      `json:"profiles,omitempty"`
 	Partition            string             `json:"partition,omitempty"`
 	TLS                  TLSTransportServer `json:"tls,omitempty"`
+	ProfileAnalyticsTcp  string             `json:"profileAnalyticsTcp,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -467,6 +469,7 @@ type ProfileSpec struct {
 	HTMLProfile            string            `json:"htmlProfile,omitempty"`
 	FTPProfile             string            `json:"ftpProfile,omitempty"`
 	HTTPCompressionProfile string            `json:"httpCompressionProfile,omitempty"`
+	ProfileAnalyticsTcp    string            `json:"profileAnalyticsTcp,omitempty"`
 }
 
 type ProfileVSSpec struct {

@@ -88,3 +88,4 @@ version: latest
 #   runAsUser: 1000
 #   runAsGroup: 1000
 #   privileged: true
+#   readOnlyRootFilesystem: true

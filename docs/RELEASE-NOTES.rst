@@ -9,9 +9,7 @@ Added Functionality
 **What's new:**
     * Multi Cluster
     * CRD
-        * Support Protocol Inspection Profile in VirtualServer CR
-        * Support Protocol Inspection Profile in Policy CR
-        * Support Protocol Inspection Profile in TransportServer CR
+        * Support for Protocol Inspection Profile in VirtualServer, TransportServer, and Policy CRD. See `Example <./config_examples/customResource/VirtualServer/virtual-server-with-protocol-inspection.yaml>`_, `Example <./config_examples/customResource/TransportServer/transport-server-with-protocol-inspection.yaml>`_ and `Example <./config_examples/customResource/Policy/policy-with-protocol-inspection.yaml>`_.
 
 Bug Fixes
 ````````````````

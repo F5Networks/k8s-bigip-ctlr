@@ -87,6 +87,7 @@ This is used to apply existing BIG-IP profiles and policy with Routes, Virtual S
 | htmlProfile            | String         | Optional | NA                                                                | Pathname of existing BIG-IP HTML profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP HTML profiles.                                                                                 |
 | ftpProfile             | String         | Optional | N/A                                                               | Reference to existing BIG-IP FTP profile and is supported only for Transport Server                                                                                                                                                      |
 | httpCompressionProfile | String         | Optional | N/A                                                               | Reference to existing BIG-IP HTTP Compression profile and is supported only for Virtual Server                                                                                                                                           |
+| profileProtocolInspection | String      | Optional | N/A                                                               | Reference to existing BIG-IP Protocol Inspection profile. Supported for both Virtual Server and Transport Server                                                                                                                         |
 
 **Note**:
 * sslProfiles is only applicable to NextGen routes

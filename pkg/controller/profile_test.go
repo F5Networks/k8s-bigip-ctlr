@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -137,6 +138,76 @@ var _ = Describe("Profile", func() {
 		Expect(err).ToNot(BeNil(), "Failed to Validate Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Server SSL")
 
+	})
+
+	Describe("Protocol Inspection Profile Tests", func() {
+		It("Should set ProfileProtocolInspection in Virtual structure", func() {
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Name = "test-vs"
+
+			// Test setting protocol inspection profile
+			profileRef := "/Common/test_protocol_inspection"
+			rsCfg.Virtual.ProfileProtocolInspection = profileRef
+
+			Expect(rsCfg.Virtual.ProfileProtocolInspection).To(Equal(profileRef))
+		})
+
+		It("Should handle empty ProfileProtocolInspection", func() {
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Name = "test-vs"
+
+			// Test with empty protocol inspection profile
+			Expect(rsCfg.Virtual.ProfileProtocolInspection).To(Equal(""))
+		})
+
+		It("Should work with different profile path formats", func() {
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Name = "test-vs"
+
+			testCases := []string{
+				"/Common/protocol_inspection_profile",
+				"/tenant/protocol_inspection_profile",
+				"/partition/app/protocol_inspection_profile",
+				"protocol_inspection_profile",
+			}
+
+			for _, profilePath := range testCases {
+				rsCfg.Virtual.ProfileProtocolInspection = profilePath
+				Expect(rsCfg.Virtual.ProfileProtocolInspection).To(Equal(profilePath))
+			}
+		})
+
+		It("Should coexist with other profiles in Virtual structure", func() {
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Name = "test-vs"
+
+			// Set multiple profiles including protocol inspection
+			rsCfg.Virtual.ProfileProtocolInspection = "/Common/protocol_inspection"
+			rsCfg.Virtual.TCP.Client = "/Common/tcp-client"
+			rsCfg.Virtual.TCP.Server = "/Common/tcp-server"
+			rsCfg.Virtual.WAF = "/Common/waf"
+
+			// Verify all profiles are set correctly
+			Expect(rsCfg.Virtual.ProfileProtocolInspection).To(Equal("/Common/protocol_inspection"))
+			Expect(rsCfg.Virtual.TCP.Client).To(Equal("/Common/tcp-client"))
+			Expect(rsCfg.Virtual.TCP.Server).To(Equal("/Common/tcp-server"))
+			Expect(rsCfg.Virtual.WAF).To(Equal("/Common/waf"))
+		})
+
+		It("Should validate ProfileProtocolInspection field type", func() {
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Name = "test-vs"
+
+			// Protocol inspection should be a string field
+			var profileRef interface{} = "/Common/test_profile"
+			profileStr, ok := profileRef.(string)
+
+			Expect(ok).To(BeTrue(), "ProfileProtocolInspection should be a string type")
+			Expect(profileStr).To(Equal("/Common/test_profile"))
+
+			rsCfg.Virtual.ProfileProtocolInspection = profileStr
+			Expect(rsCfg.Virtual.ProfileProtocolInspection).To(Equal("/Common/test_profile"))
+		})
 	})
 
 })

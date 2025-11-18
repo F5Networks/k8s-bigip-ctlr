@@ -66,6 +66,7 @@ type VirtualServerSpec struct {
 	ProfileAccess                    string           `json:"profileAccess,omitempty"`
 	PolicyPerRequestAccess           string           `json:"policyPerRequestAccess,omitempty"`
 	ProfileAdapt                     ProfileAdapt     `json:"profileAdapt,omitempty"`
+	ProfileProtocolInspection        string           `json:"profileProtocolInspection,omitempty"`
 }
 
 type HostPersistence struct {
@@ -449,33 +450,36 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                    ProfileTCP        `json:"tcp,omitempty"`
-	UDP                    string            `json:"udp,omitempty"`
-	HTTP                   string            `json:"http,omitempty"`
-	HTTPProfiles           HTTPProfiles      `json:"httpProfiles,omitempty"`
-	HTTP2                  ProfileHTTP2      `json:"http2,omitempty"`
-	RewriteProfile         string            `json:"rewriteProfile,omitempty"`
-	PersistenceProfile     string            `json:"persistenceProfile,omitempty"`
-	LogProfiles            []string          `json:"logProfiles,omitempty"`
-	RequestLogProfile      string            `json:"requestLogProfile,omitempty"`
-	ProfileL4              string            `json:"profileL4,omitempty"`
-	ProfileMultiplex       string            `json:"profileMultiplex,omitempty"`
-	HttpMrfRoutingEnabled  *bool             `json:"httpMrfRoutingEnabled,omitempty"`
-	SSLProfiles            SSLProfiles       `json:"sslProfiles,omitempty"`
-	AnalyticsProfiles      AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
-	ProfileWebSocket       string            `json:"profileWebSocket,omitempty"`
-	HTMLProfile            string            `json:"htmlProfile,omitempty"`
-	FTPProfile             string            `json:"ftpProfile,omitempty"`
-	HTTPCompressionProfile string            `json:"httpCompressionProfile,omitempty"`
+	TCP                       ProfileTCP        `json:"tcp,omitempty"`
+	UDP                       string            `json:"udp,omitempty"`
+	HTTP                      string            `json:"http,omitempty"`
+	HTTPProfiles              HTTPProfiles      `json:"httpProfiles,omitempty"`
+	HTTP2                     ProfileHTTP2      `json:"http2,omitempty"`
+	RewriteProfile            string            `json:"rewriteProfile,omitempty"`
+	PersistenceProfile        string            `json:"persistenceProfile,omitempty"`
+	LogProfiles               []string          `json:"logProfiles,omitempty"`
+	RequestLogProfile         string            `json:"requestLogProfile,omitempty"`
+	ProfileL4                 string            `json:"profileL4,omitempty"`
+	ProfileMultiplex          string            `json:"profileMultiplex,omitempty"`
+	HttpMrfRoutingEnabled     *bool             `json:"httpMrfRoutingEnabled,omitempty"`
+	SSLProfiles               SSLProfiles       `json:"sslProfiles,omitempty"`
+	AnalyticsProfiles         AnalyticsProfiles `json:"analyticsProfiles,omitempty"`
+	ProfileWebSocket          string            `json:"profileWebSocket,omitempty"`
+	HTMLProfile               string            `json:"htmlProfile,omitempty"`
+	FTPProfile                string            `json:"ftpProfile,omitempty"`
+	HTTPCompressionProfile    string            `json:"httpCompressionProfile,omitempty"`
+	ProfileProtocolInspection string            `json:"profileProtocolInspection,omitempty"`
 }
 
 type ProfileVSSpec struct {
-	TCP   ProfileTCP   `json:"tcp,omitempty"`
-	HTTP2 ProfileHTTP2 `json:"http2,omitempty"`
+	TCP                       ProfileTCP   `json:"tcp,omitempty"`
+	HTTP2                     ProfileHTTP2 `json:"http2,omitempty"`
+	ProfileProtocolInspection string       `json:"profileProtocolInspection,omitempty"`
 }
 
 type ProfileTSSpec struct {
-	TCP ProfileTCP `json:"tcp,omitempty"`
+	TCP                       ProfileTCP `json:"tcp,omitempty"`
+	ProfileProtocolInspection string     `json:"profileProtocolInspection,omitempty"`
 }
 
 type MultiPoolPersistence struct {
@@ -491,6 +495,8 @@ type ProfileHTTP2 struct {
 	Client *string `json:"client,omitempty"`
 	Server *string `json:"server,omitempty"`
 }
+
+// ProfileProtocolInspection is now a simple string type for protocol inspection profile reference
 
 type HTTPProfiles struct {
 	Insecure string `json:"insecure,omitempty"`

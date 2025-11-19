@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	"sync"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sync"
 )
 
 var _ = Describe("AS3Handler Tests", func() {
@@ -53,6 +54,7 @@ var _ = Describe("AS3Handler Tests", func() {
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
 			rsCfg.Virtual.HTTPCompressionProfile = "/Common/compressionProfile"
+			rsCfg.Virtual.ProfileAnalyticsTcp = "/Common/tcp-analytics"
 			rsCfg.Virtual.BigIPRouteDomain = 10
 			rsCfg.Virtual.AdditionalVirtualAddresses = []string{"172.13.14.17", "172.13.14.18"}
 			rsCfg.Virtual.ProfileAdapt = ProfileAdapt{"/Common/example-requestadapt", "/Common/example-responseadapt"}
@@ -491,6 +493,7 @@ var _ = Describe("AS3Handler Tests", func() {
 			rsCfg.Virtual.Mode = "standard"
 			rsCfg.Virtual.IpProtocol = "tcp"
 			rsCfg.Virtual.FTPProfile = "/Common/ftpProfile1"
+			rsCfg.Virtual.ProfileAnalyticsTcp = "/Common/tcp-analytics"
 			rsCfg.Virtual.TranslateServerAddress = true
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
@@ -851,6 +854,68 @@ var _ = Describe("AS3Handler Tests", func() {
 			agent.LTM.APIHandler.pollTenantStatus(config)
 			Expect(config.acceptedTaskId).To(BeEmpty(), "Accepted task id should be empty")
 			Expect(config.tenantResponseMap["test"].agentResponseCode).To(Equal(http.StatusUnprocessableEntity), "Response code should be 422")
+		})
+	})
+
+	Describe("AS3 Protocol Inspection Processing", func() {
+		var rsCfg *ResourceConfig
+
+		BeforeEach(func() {
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = "test_vs_80"
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+		})
+
+		It("Should generate proper AS3 object structure for protocol inspection", func() {
+			rsCfg.Virtual.ProfileProtocolInspection = "/Common/test_protocol_inspection"
+
+			// Create AS3 service object
+			as3Obj := &as3Service{}
+
+			// Create AS3 parser and process common declaration
+			ap := &AS3Parser{}
+			ap.processCommonDecl(rsCfg, as3Obj)
+
+			// Verify the protocol inspection profile is properly set
+			Expect(as3Obj.ProfileProtocolInspection).ToNot(BeNil(), "ProfileProtocolInspection should be set")
+			Expect(as3Obj.ProfileProtocolInspection.BigIP).To(Equal("/Common/test_protocol_inspection"), "Protocol inspection profile should match")
+		})
+
+		It("Should not include profileProtocolInspection when not specified", func() {
+			// Leave ProfileProtocolInspection empty
+			rsCfg.Virtual.ProfileProtocolInspection = ""
+
+			// Create AS3 service object
+			as3Obj := &as3Service{}
+
+			// Create AS3 parser and process common declaration
+			ap := &AS3Parser{}
+			ap.processCommonDecl(rsCfg, as3Obj)
+
+			// Verify protocol inspection profile is not set
+			Expect(as3Obj.ProfileProtocolInspection).To(BeNil(), "ProfileProtocolInspection should not be set when empty")
+		})
+
+		It("Should handle protocol inspection with other profiles", func() {
+			rsCfg.Virtual.ProfileProtocolInspection = "/Common/protocol_inspection_profile"
+			rsCfg.Virtual.SNAT = "automap"
+			rsCfg.Virtual.ConnectionMirroring = "enabled"
+
+			// Create AS3 service object
+			as3Obj := &as3Service{}
+
+			// Create AS3 parser and process common declaration
+			ap := &AS3Parser{}
+			ap.processCommonDecl(rsCfg, as3Obj)
+
+			// Verify all profiles are properly set
+			Expect(as3Obj.ProfileProtocolInspection).ToNot(BeNil(), "ProfileProtocolInspection should be set")
+			Expect(as3Obj.ProfileProtocolInspection.BigIP).To(Equal("/Common/protocol_inspection_profile"), "Protocol inspection profile should match")
+			Expect(as3Obj.SNAT).To(Equal(&as3ResourcePointer{BigIP: "automap"}), "SNAT should be set")
+			Expect(as3Obj.Mirroring).To(Equal("enabled"), "Connection mirroring should be set")
 		})
 	})
 

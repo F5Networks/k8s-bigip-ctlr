@@ -123,6 +123,9 @@ spec:
                         server:
                           type: string
                           pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
+                    profileProtocolInspection:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -142,6 +145,9 @@ spec:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([-A-z0-9_.:]+\/?)*$'
                 waf:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                profileAnalyticsTcp:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 profileMultiplex:
@@ -694,9 +700,15 @@ spec:
                         server:
                           type: string
                           pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    profileProtocolInspection:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 persistenceProfile:
                   type: string
                   pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                profileAnalyticsTcp:
+                  type: string
+                  pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -1393,6 +1405,9 @@ spec:
                     persistenceProfile:
                       type: string
                       pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
+                    profileAnalyticsTcp:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     profileL4:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -1443,6 +1458,9 @@ spec:
                     httpCompressionProfile:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    profileProtocolInspection:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 autoLastHop:
                   type: string
                   enum: [ default, auto, disable ]

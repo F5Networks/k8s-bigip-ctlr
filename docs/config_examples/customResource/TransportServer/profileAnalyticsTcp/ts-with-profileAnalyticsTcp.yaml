@@ -1,0 +1,25 @@
+# policyName can be used to attach profiles/policies defined in Policy CRD
+apiVersion: "cis.f5.com/v1"
+kind: TransportServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: tcp-ts-with-policy
+  namespace: default
+spec:
+  virtualServerAddress: "172.16.3.9"
+  virtualServerPort: 8544
+  virtualServerName: svc1-tcp-ts
+  mode: standard
+  snat: auto
+  policyName: sample-policy
+  profileAnalyticsTcp: /Common/tcp-analytics
+  dos: /Common/dos
+  allowVlans: [ "/Common/devtraffic" ]
+  pool:
+    service: svc-1
+    servicePort: 8181
+    monitor:
+      type: tcp
+      interval: 10
+      timeout: 10

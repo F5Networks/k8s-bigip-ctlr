@@ -3,12 +3,13 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -353,6 +354,12 @@ func (ap *AS3Parser) createServiceDecl(cfg *ResourceConfig, sharedApp as3Applica
 			svc.HTTPCompressionProfile = &as3ResourcePointer{
 				BigIP: cfg.Virtual.HTTPCompressionProfile,
 			}
+		}
+	}
+
+	if cfg.Virtual.ProfileAnalyticsTcp != "" {
+		svc.ProfileAnalyticsTcp = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileAnalyticsTcp,
 		}
 	}
 
@@ -1075,6 +1082,12 @@ func (ap *AS3Parser) createTransportServiceDecl(cfg *ResourceConfig, sharedApp a
 					BigIP: cfg.Virtual.FTPProfile,
 				}
 			}
+			//set tcp analytics profile for only TCP in standard mode
+			if cfg.Virtual.ProfileAnalyticsTcp != "" {
+				svc.ProfileAnalyticsTcp = &as3ResourcePointer{
+					BigIP: cfg.Virtual.ProfileAnalyticsTcp,
+				}
+			}
 		}
 	} else if cfg.Virtual.Mode == "performance" {
 		svc.Class = "Service_L4"
@@ -1084,6 +1097,12 @@ func (ap *AS3Parser) createTransportServiceDecl(cfg *ResourceConfig, sharedApp a
 			svc.Layer4 = "sctp"
 		} else {
 			svc.Layer4 = "tcp"
+			//set tcp analytics profile for only TCP
+			if cfg.Virtual.ProfileAnalyticsTcp != "" {
+				svc.ProfileAnalyticsTcp = &as3ResourcePointer{
+					BigIP: cfg.Virtual.ProfileAnalyticsTcp,
+				}
+			}
 		}
 	}
 
@@ -1261,6 +1280,13 @@ func (ap *AS3Parser) processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 			svc.ProfileResponseAdapt = &as3ResourcePointer{
 				BigIP: fmt.Sprintf("%v", cfg.Virtual.ProfileAdapt.Response),
 			}
+		}
+	}
+
+	//set protocol inspection profile
+	if cfg.Virtual.ProfileProtocolInspection != "" {
+		svc.ProfileProtocolInspection = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileProtocolInspection,
 		}
 	}
 

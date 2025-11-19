@@ -914,7 +914,7 @@ var _ = Describe("AS3Handler Tests", func() {
 			// Verify all profiles are properly set
 			Expect(as3Obj.ProfileProtocolInspection).ToNot(BeNil(), "ProfileProtocolInspection should be set")
 			Expect(as3Obj.ProfileProtocolInspection.BigIP).To(Equal("/Common/protocol_inspection_profile"), "Protocol inspection profile should match")
-			Expect(as3Obj.SNAT).To(Equal("automap"), "SNAT should be set")
+			Expect(as3Obj.SNAT).To(Equal(&as3ResourcePointer{BigIP: "automap"}), "SNAT should be set")
 			Expect(as3Obj.Mirroring).To(Equal("enabled"), "Connection mirroring should be set")
 		})
 	})

@@ -60,7 +60,7 @@ RUN microdnf update -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
     microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
     pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
-    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
+    pip3 install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \
     python3 -m pip uninstall -y pip && \
     adduser ctlr && \
     microdnf remove git perl-Git -y && \

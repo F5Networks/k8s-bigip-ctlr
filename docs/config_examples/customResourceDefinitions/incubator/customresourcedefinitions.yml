@@ -119,10 +119,10 @@ spec:
                       properties:
                         client:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                         server:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                 dos:
                   type: string
                   pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -811,25 +811,25 @@ spec:
                       items:
                         type: object
                         properties:
-                            type:
-                              type: string
-                              enum: [ tcp, udp, http, https ]
-                            interval:
-                              type: integer
-                            timeout:
-                              type: integer
-                            targetPort:
-                              type: integer
-                            name:
-                              type: string
-                              pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
-                            reference:
-                              type: string
-                              enum: [bigip]
-                            send:
-                              type: string
-                            recv:
-                              type: string
+                          type:
+                            type: string
+                            enum: [ tcp, udp, http, https ]
+                          interval:
+                            type: integer
+                          timeout:
+                            type: integer
+                          targetPort:
+                            type: integer
+                          name:
+                            type: string
+                            pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          reference:
+                            type: string
+                            enum: [bigip]
+                          send:
+                            type: string
+                          recv:
+                            type: string
                     reselectTries:
                       type: integer
                       minimum: 0
@@ -858,10 +858,10 @@ spec:
                             minimum: 0
                             maximum: 100
                         required:
-                            - clusterName
-                            - service
-                            - namespace
-                            - servicePort
+                          - clusterName
+                          - service
+                          - namespace
+                          - servicePort
               required:
                 - virtualServerPort
                 - pool
@@ -891,37 +891,37 @@ spec:
                 error:
                   type: string
       additionalPrinterColumns:
-      - name: virtualServerAddress
-        type: string
-        description: IP address of virtualServer
-        jsonPath: .spec.virtualServerAddress
-      - name: virtualServerPort
-        type: integer
-        description: Port of virtualServer
-        jsonPath: .spec.virtualServerPort
-      - name: pool
-        type: string
-        description: Name of service
-        jsonPath: .spec.pool.service
-      - name: poolPort
-        type: string
-        description: Port of service
-        jsonPath: .spec.pool.servicePort
-      - name: ipamLabel
-        type: string
-        description: ipamLabel for transport server
-        jsonPath: .spec.ipamLabel
-      - name: IPAMVSAddress
-        type: string
-        description: IP address of transport server
-        jsonPath: .status.vsAddress
-      - name: STATUS
-        type: string
-        description: status of TransportServer
-        jsonPath: .status.status
-      - name: Age
-        type: date
-        jsonPath: .metadata.creationTimestamp
+        - name: virtualServerAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .spec.virtualServerAddress
+        - name: virtualServerPort
+          type: integer
+          description: Port of virtualServer
+          jsonPath: .spec.virtualServerPort
+        - name: pool
+          type: string
+          description: Name of service
+          jsonPath: .spec.pool.service
+        - name: poolPort
+          type: string
+          description: Port of service
+          jsonPath: .spec.pool.servicePort
+        - name: ipamLabel
+          type: string
+          description: ipamLabel for transport server
+          jsonPath: .spec.ipamLabel
+        - name: IPAMVSAddress
+          type: string
+          description: IP address of transport server
+          jsonPath: .status.vsAddress
+        - name: STATUS
+          type: string
+          description: status of TransportServer
+          jsonPath: .status.status
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
       subresources:
         status: { }
 ---
@@ -1080,6 +1080,9 @@ spec:
                 virtualServerAddress:
                   type: string
                   pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+                virtualServerName:
+                  type: string
+                  pattern: '^[a-zA-Z]+([A-z0-9-._+])*([A-z0-9])$'
                 host:
                   type: string
                   pattern: '^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
@@ -1383,10 +1386,10 @@ spec:
                       properties:
                         client:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                         server:
                           type: string
-                          pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                          pattern: ^(\/([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*)?$
                     persistenceProfile:
                       type: string
                       pattern: '^\/?[a-zA-Z]+([-A-z0-9_+]+\/)*([-A-z0-9_.:]+\/?)*$'
@@ -1407,6 +1410,9 @@ spec:
                         type: string
                         pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)*([-A-z0-9._\s]+\/?)*$'
                       type: array
+                    requestLogProfile:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     httpMrfRoutingEnabled:
                       type: boolean
                     sslProfiles:

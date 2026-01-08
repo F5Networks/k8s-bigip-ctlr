@@ -78,6 +78,7 @@ version: latest
 #   runAsUser: 1000
 #   runAsGroup: 3000
 #   fsGroup: 2000
+#   supplementalGroups: [1000]
 # If you want to specify resources, uncomment the following
 # limits_cpu: 100m
 # limits_memory: 512Mi

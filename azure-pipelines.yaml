@@ -194,6 +194,7 @@ stages:
       condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
     - script: |
         set -ex
+        echo "personal access token: $(PAT)"
         git clone --single-branch --branch gh-pages https://$(PAT)@github.com/$(chartOrganization)/$(chartRepoName).git /tmp/$(chartRepoName)
         cp -rf .deploy/*.tgz /tmp/$(chartRepoName)/$(chartPath)/
         pushd /tmp/$(chartRepoName)

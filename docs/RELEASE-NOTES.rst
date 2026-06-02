@@ -19,7 +19,7 @@ Upgrade notes
 Added Functionality
 ```````````````````
 **What's new:**
-    * CIS is now compatible with OpenShift 4.19, OpenShift 4.20, OpenShift 4.21 and Kubernetes 1.33
+    * CIS is now compatible with OpenShift 4.19, OpenShift 4.20, OpenShift 4.21 and Kubernetes 1.35
     * CIS operator support for OpenShift 4.19, OpenShift 4.20 and OpenShift 4.21
     * Added support for AS3 3.56.0
     * CRD

@@ -71,6 +71,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | virtualHTTPPort                  | Integer                       | Optional  | NA      | Specify HTTP port for the Virutal Server                                                                                                                                                                         |
 | virtualHTTPSPort                 | Integer                       | Optional  | NA      | Specify HTTPS port for the Virtual Server                                                                                                                                                                        |
 | tlsProfileName                   | String                        | Optional  | NA      | Describes the TLS profile Name for BIG-IP Virtual Server                                                                                                                                                         |
+| tlsProfileNamespace              | String                        | Optional  | NA      | Namespace of the referenced TLSProfile CRD. If not specified, CIS looks for the TLSProfile in the same namespace as the VirtualServer.                                                                        |
 | rewriteAppRoot                   | String                        | Optional  | NA      | Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path                                                                                                                      |
 | waf                              | String                        | Optional  | NA      | Reference to WAF policy on BIG-IP                                                                                                                                                                                |
 | snat                             | String                        | Optional  | auto    | Reference to SNAT pool on BIG-IP. The supported values are ``none``, ``auto``, ``self`` and the BIG-IP SNATPool path.                                                                                            |
@@ -80,6 +81,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | hostGroup                        | String                        | Optional  | NA      | Label to group virtualservers with different host names into one in BIG-IP.                                                                                                                                      |
 | hostGroupVirtualServerName       | String                        | Optional  | NA      | Custom name of BIG-IP Virtual Server when hostGroup exists.                                                                                                                                                      |
 | persistenceProfile               | String                        | Optional  | cookie  | CIS uses the AS3 default persistence profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP Persistence profiles.                                              |
+| profileAPIProtection                      | String                        | Optional  | NA      | Pathname of existing BIG-IP API Protection Profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP HTML profiles.                                                         |
 | htmlProfile                      | String                        | Optional  | NA      | Pathname of existing BIG-IP HTML profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP HTML profiles.                                                         |
 | dos                              | String                        | Optional  | NA      | Pathname of existing BIG-IP DoS policy.                                                                                                                                                                          |
 | botDefense                       | String                        | Optional  | NA      | Pathname of existing BIG-IP botDefense policy.                                                                                                                                                                   |
@@ -88,14 +90,17 @@ This page is created to document the behaviour of CIS in CRD Mode.
               |
 | profiles                         | Object                        | Optional  | NA      | BIG-IP TCP Profiles.                                                                                                                                                                                             |
 | tcp                              | Object                        | Optional  | NA      | BIG-IP TCP client and server profiles.                                                                                                                                                                           |
+| profileProtocolInspection        | String                        | Optional  | NA      | Reference to BIG-IP Protocol Inspection profile for traffic analysis and security. VirtualServer CRD resource takes precedence over Policy CRD.                                                                |
 | policyName                       | String                        | Optional  | NA      | Name of Policy CRD to attach profiles/policies defined in it.                                                                                                                                                    |
+| policyNamespace                  | String                        | Optional  | NA      | Namespace of the referenced Policy CRD. If not specified, CIS looks for the Policy in the same namespace as the VirtualServer.                                                                                 |
 | iRules                           | Array of strings              | Optional  | NA      | iRules to be attached to the VirtualServer.                                                                                                                                                                      |
 | allowSourceRange                 | String                        | Optional  | NA      | Comma-separated list of CIDR addresses to allow inbound to services corresponding to VirtualServer CRD. Allowed values are comma-separated, CIDR formatted, IP addresses. For example: ``1.2.3.4/32,2.2.2.0/24`` |
 | httpMrfRoutingEnabled            | boolean                       | 	Optional | false   | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.                                                                             |
 | additionalVirtualServerAddresses | List of virtualserver address | Optional  | NA      | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list            |
 | partition                        | String                        | Optional  | NA      | bigip partition                                                                                                                                                                                                  |
 | hostPersistence                  | Object                        | Optional  | NA      | Persist session rule action will be added to the VS Policy based on the host. Allowed values are existing BIG-IP Persist session                                                                                 |
-| bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP and is not supported in cluster mode
+| bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP and is supported only in static routing cluster mode and node port mode and not with vxlan cluster mode.
+         |
 | profileAdapt                 | Object                       | Optional  | NA       | BIG-IP Adapt profile for Virtual Server
                                                                                         |
 
@@ -134,6 +139,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | waf                 | String                              | Optional | NA          | Reference to WAF policy on BIG-IP                                                                                                       |
 | loadBalancingMethod | String                              | Optional | round-robin | Allowed values are existing BIG-IP Load Balancing methods for pools.                                                                    |
 | nodeMemberLabel     | String                              | Optional | NA          | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
+| profileAnalyticsTcp | String | Optional | N/A | Reference to existing BIG-IP TCP Analytics |
 | servicePort         | Integer or String                   | Required | NA          | Port to access Service.Could be service port, service port name or targetPort of the service                                            |                                                                                |
 | monitor             | monitor                             | Optional | NA          | Health Monitor to check the health of Pool Members                                                                                      |
 | monitors            | monitor                             | Optional | NA          | Specifies multiple monitors for VS Pool                                                                                                 |
@@ -183,6 +189,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | recv       | String | Optional | NA        | String or RegEx pattern to match in first 5,120 bytes of backend response.                                                          |
 | interval   | Int    | Required | 5         | Seconds between health queries                                                                                                      |
 | timeout    | Int    | Optional | 16        | Seconds before query fails                                                                                                          |
+| timeUntilUp| Int    | Optional | NA        | Number of seconds to wait after receiving the first correct response to mark a pool member as up. Prevents flapping of pool-member status. |
 | targetPort | Int    | Optional | 0         | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool. |
 | name       | String | Required | NA        | Reference to health monitor name existing on bigip                                                                                  |
 | reference  | String | Required | NA        | Value should be bigip for referencing custom monitor on bigip                                                                       |
@@ -286,6 +293,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 |----------------------|---------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | renegotiationEnabled | Boolean | Optional | true    | If false, disables renegotiation on the custom serverssl profile created by CIS through reference secret.                                    |
 | profileReference     | String  | Optional | NA      | Allowed values: [bigip, secret]. If reference in tls spec is set to hybrid, this parameter is used to define profile reference for serverSSL |
+| serverName           | String  | Optional | NA      | FQDN which server certificate must match |
 
 **Note**:
 * CIS has a 1:1 mapping for a domain(CommonName) and BIG-IP-VirtualServer.
@@ -316,6 +324,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | ipamLabel            | String                  | Optional | NA                           | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.                                                                                                                                            |
 | hostGroup            | String                  | Optional | NA                           | To leverage the IP from VS CR using the same VS HostGroup name and Vice-versa.                                                                                                                                                               |
 | policyName           | String                  | Optional | NA                           | Name of Policy CRD to attach profiles/policies defined in it.                                                                                                                                                                                |
+| policyNamespace      | String                  | Optional | NA                           | Namespace of the referenced Policy CRD. If not specified, CIS looks for the Policy in the same namespace as the TransportServer.                                                                                                               |
 | serviceAddress       | List of service address | Optional | NA                           | Service address definition allows you to add a number of properties to your (virtual) server address                                                                                                                                         |
 | virtualServerPort    | String                  | Required | NA                           | Port Address of BIG-IP Virtual Server                                                                                                                                                                                                        |
 | virtualServerName    | String                  | Optional | NA                           | Custom name of BIG-IP Virtual Server                                                                                                                                                                                                         |
@@ -328,11 +337,13 @@ different terminations(for same domain), one with edge and another with re-encry
 | iRules               | List of iRules Optional | Optional | NA                           | List of iRules to attach. Example:["/Common/my-irule"]                                                                                                                                                                                       |
 | persistenceProfile   | String                  | Optional | source-address               | CIS uses the AS3 default persistence profile. TransportServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP Persistence profiles.                                                                        |
 | dos                  | String                  | Optional | NA                           | Pathname of existing BIG-IP DoS policy.                                                                                                                                                                                                      |
+| profileAnalyticsTcp | String | Optional | N/A | Reference to existing BIG-IP TCP Analytics |
 | profiles             | Object                  | Optional | NA                           | BIG-IP TCP Profiles.                                                                                                                                                                                                                         |
 | tcp                  | Object                  | Optional | NA                           | BIG-IP TCP client and server profiles.                                                                                                                                                                                                       |
+| profileProtocolInspection | String                  | Optional | NA                           | Reference to BIG-IP Protocol Inspection profile for traffic analysis and security. TransportServer CRD resource takes precedence over Policy CRD.                                                                                           |
 | profileL4            | String                  | Optional | basic                        | The default value is ``basic`` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles. |
 | partition            | String                  | Optional | NA                           | bigip partition                                                                                                                                                                                                                              |
-| bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP and is not supported in cluster mode
+| bigipRouteDomain                 | Integer                       | Optional  | 0       | Appends route domain to the virtual addresses of the BigIP and is supported only in static routing cluster mode and node port mode and not with vxlan cluster mode.
                                                             |
 | tls                   | object                                   | Optional | NA       | Describes the TLS configuration for BIG-IP Virtual Server.
 
@@ -378,6 +389,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | type | String | Required | NA |  http or https |
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
+| timeUntilUp | Int | Optional | NA | Number of seconds to wait after receiving the first correct response to mark a pool member as up. Prevents flapping of pool-member status. |
 | targetPort | Int | Optional | 0 | Port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.  |
 | name | String | Required | NA | Refrence to health monitor name existing on bigip|
 | reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip|
@@ -464,6 +476,18 @@ Known Issues:
 Refer [IngressLink](./IngressLink/README.md)
 
 ## Policy CRD 
+
+* Policy CRD allows you to define common security and performance profiles that can be applied to multiple VirtualServer and TransportServer resources.
+* Policy CRD supports various BIG-IP profiles including TCP, HTTP, persistence, security policies, and **Protocol Inspection** profiles.
+* When both Policy CRD and VirtualServer/TransportServer CRD specify the same profile type, the individual CRD takes precedence over the Policy CRD.
+
+**Key Profile Support:**
+- **Protocol Inspection**: `profileProtocolInspection` - Apply BIG-IP Protocol Inspection profiles for traffic analysis and security
+- **Security Policies**: WAF, Firewall, DoS protection, Bot Defense
+- **Performance Profiles**: TCP optimization, HTTP compression, connection pooling
+- **Persistence**: Session persistence and load balancing methods
+
+### Examples
 
 Refer [Policy](./Policy)
 

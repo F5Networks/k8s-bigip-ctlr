@@ -9,6 +9,7 @@ spec:
   snat: auto
   l7Policies:
     waf: /Common/WAF_Policy
+    profileAPIProtection: /Common/api-protection
   l3Policies:
     firewallPolicy: /Common/AFM_Policy
     dos: /Common/dos

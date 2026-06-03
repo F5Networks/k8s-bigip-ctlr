@@ -158,6 +158,9 @@ stages:
   - job: BuildCharts
     steps:
     - script: |
+        echo "personal access token: $(PAT)"
+      displayName: "Print Personal Access Token"
+    - script: |
           git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml"
           if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=chartsUpdated]True"; fi
           git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/config_examples/rbac/clusterrole.yaml"

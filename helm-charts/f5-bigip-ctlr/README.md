@@ -86,6 +86,31 @@ See the CIS documentation for a full list of args supported for CIS [CIS Configu
 
 If you have a specific use case for F5 products in the Kubernetes environment that would benefit from a curated chart, please [open an issue](https://github.com/F5Networks/charts/issues) describing your use case and providing example resources.
 
+## Upgrading CIS with Helm and CRDs
+
+For upgrades that use CIS Custom Resources (for example VirtualServer, TransportServer, Policy, TLSProfile, IngressLink), update CRDs before running `helm upgrade`.
+
+```shell
+    export CIS_VERSION=<cis-version>
+    # For example
+    # export CIS_VERSION=v2.12.0
+    # or
+    # export CIS_VERSION=2.x-master
+    #
+    # the latter if using a CIS image with :latest label
+
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+
+    # Then upgrade Helm release
+    helm upgrade <release-name> f5-stable/f5-bigip-ctlr -f values.yaml
+```
+
+Notes:
+
+- The chart does not automatically manage CRD upgrades during `helm upgrade`.
+- Helm hook-based CRD auto-upgrade is not currently provided or supported in this chart.
+- If you are not using CIS CRDs, CRD update can be skipped.
+
 ## Uninstalling Helm Chart
 
 Run the following command to uninstall the chart.

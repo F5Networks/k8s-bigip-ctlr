@@ -1,6 +1,6 @@
 # Virtual Server with bigipRouteDomain
 
-This section demonstrates the option to configure virtual server using virtual server with bigipRouteDomain. This is optional to use and is not supported in Cluster pool member type.
+This section demonstrates the option to configure virtual server using virtual server with bigipRouteDomain. This is optional to use and is supported only in Static routing Cluster and nodeport pool member type.
 
 Option which can be used to configure is :
     `bigipRouteDomain`

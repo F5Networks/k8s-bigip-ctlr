@@ -17,11 +17,13 @@ spec:
           send: /
           targetPort: 80
           timeout: 10
+          timeUntilUp: 30
           type: tcp
         - interval: 10
           recv: a
           send: /
           timeout: 10
+          timeUntilUp: 10
           type: http
         - name: /Common/http
           reference: bigip

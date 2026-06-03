@@ -1,5 +1,4 @@
-# policyName can be used to attach profiles/policies defined in Policy CRD.
-# Set policyNamespace when the Policy CR is managed in another namespace.
+# policyName can be used to attach profiles/policies defined in Policy CRD
 apiVersion: "cis.f5.com/v1"
 kind: TransportServer
 metadata:
@@ -14,7 +13,7 @@ spec:
   mode: standard
   snat: auto
   policyName: sample-policy
-  policyNamespace: f5-resources
+  profileAnalyticsTcp: /Common/tcp-analytics
   dos: /Common/dos
   allowVlans: [ "/Common/devtraffic" ]
   pool:
@@ -24,4 +23,3 @@ spec:
       type: tcp
       interval: 10
       timeout: 10
-

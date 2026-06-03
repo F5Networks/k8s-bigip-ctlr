@@ -7,6 +7,40 @@ Refer to the [Release Notes](./RELEASE-NOTES.rst) for additional information.
 
 Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/rbac/clusterrole.yaml) and [CR Schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml)
 
+CRD Updates During CIS Helm Upgrades
+------------------------------------
+
+When upgrading CIS with Helm, the supported and recommended approach is to manage CRD schema updates explicitly (outside of `helm upgrade`).
+
+Recommended workflow:
+
+1. Upgrade CRDs first:
+
+  ```shell
+    export CIS_VERSION=<cis-version>
+    # For example
+    # export CIS_VERSION=v2.12.0
+    # or
+    # export CIS_VERSION=2.x-master
+    #
+    # the latter if using a CIS image with :latest label
+
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+  ```
+2. Verify CRDs are established before upgrading CIS:
+
+  ```shell
+    kubectl get crd | grep -E 'cis.f5.com|fic.f5.com'
+  ```
+3. Run `helm upgrade` for the CIS release.
+
+Notes:
+
+* The CIS Helm chart does not automatically update CRDs during `helm upgrade`.
+* Automated CRD upgrades via Helm hooks are not currently provided or supported in this chart.
+* This separation is intentional so operators can control and validate cluster-scoped schema changes before upgrading controller workloads.
+* If your deployment mode does not use CIS Custom Resources, CRD upgrade steps can be skipped.
+
 Compatibility Matrix
 --------------------
 

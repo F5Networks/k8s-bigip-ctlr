@@ -168,6 +168,7 @@ linkcheck_anchors=True
 # 1. Ignore broken links to private/non-existent GitHub issues
 linkcheck_ignore = [
     r'https://github\.com/F5Networks/k8s-bigip-ctlr/issues/\d+',
+    r'https://github\.com/F5Networks/f5-appsvcs-extension/issues/\d+',
 ]
 
 # A list of ignored prefixes for module index sorting.

@@ -161,6 +161,15 @@ pygments_style = 'sphinx'
 
 linkcheck_anchors=True
 
+# ──────────────────────────────────────────────────────────────
+# Linkcheck configuration (fixes doc check failures)
+# ──────────────────────────────────────────────────────────────
+
+# 1. Ignore broken links to private/non-existent GitHub issues
+linkcheck_ignore = [
+    r'https://github\.com/F5Networks/k8s-bigip-ctlr/issues/\d+',
+]
+
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
 

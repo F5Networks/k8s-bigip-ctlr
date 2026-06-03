@@ -1,0 +1,55 @@
+apiVersion: cis.f5.com/v1
+kind: TransportServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: test-ts-with-policy-protocol-inspection
+  namespace: default
+spec:
+  virtualServerAddress: "172.16.3.21"
+  virtualServerPort: 8080
+  mode: standard
+  type: tcp
+  policyName: "sample-policy"
+  pool:
+    service: "tcp-service"
+    servicePort: 8080
+---
+# Service for the TransportServer
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcp-service
+  namespace: default
+  labels:
+    app: tcp-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: tcp-app
+---
+# Sample deployment for TCP service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcp-app
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tcp-app
+  template:
+    metadata:
+      labels:
+        app: tcp-app
+    spec:
+      containers:
+      - name: tcp-server
+        image: nginx:latest
+        ports:
+        - containerPort: 8080

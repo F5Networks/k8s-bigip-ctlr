@@ -19,6 +19,7 @@ spec:
       recv: ""
       interval: 10
       timeout: 10
+      timeUntilUp: 30
   - path: /bar
     service: svc-1
     servicePort: 8082
@@ -28,3 +29,4 @@ spec:
       recv: ""
       interval: 20
       timeout: 10
+      timeUntilUp: 20

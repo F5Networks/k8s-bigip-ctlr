@@ -14,16 +14,18 @@ monitor:
     send: 
     recv:
     interval: 
-    timeout: 
+    timeout:
+    timeUntilUp:
 ```
 * type, send and interval are required fields.
 
 type `tcp` monitor
 ```
 monitor:
-    type: 
-    interval: 
-    timeout: 
+    type:
+    interval:
+    timeout:
+    timeUntilUp:
 ```
 * type and interval are required fields.
 
@@ -33,16 +35,18 @@ monitor:
 You can also provide multiple health monitors for your VS CR as follows:
 ```
 monitors:
--   type: 
-    send: 
+-   type:
+    send:
     recv:
-    interval: 
+    interval:
     timeout:
--   type: 
-    send: 
+    timeUntilUp:
+-   type:
+    send:
     recv:
-    interval: 
-    timeout: 
+    interval:
+    timeout:
+    timeUntilUp:
 ```
 Note: **monitors** take priority over **monitor** if both are provided in VS spec.
 
@@ -62,16 +66,18 @@ monitor:
 monitors:
 -   name:
     reference:
--   type: 
-    send: 
+-   type:
+    send:
     recv:
-    interval: 
+    interval:
     timeout:
--   type: 
-    send: 
+    timeUntilUp:
+-   type:
+    send:
     recv:
-    interval: 
-    timeout: 
+    interval:
+    timeout:
+    timeUntilUp:
 ```
 
 ### health-monitored-pool-virtual-server.yaml

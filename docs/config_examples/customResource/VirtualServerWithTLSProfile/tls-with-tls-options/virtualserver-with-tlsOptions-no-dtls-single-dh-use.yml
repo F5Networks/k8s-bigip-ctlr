@@ -1,0 +1,23 @@
+apiVersion: cis.f5.com/v1
+kind: TLSProfile
+metadata:
+  labels:
+    f5cr: "true"
+  name: cr-pytest-foo
+  namespace: default
+spec:
+  hosts:
+    - foo.com
+  tls:
+    clientSSL: foo-secret
+    clientSSLParams:
+      dtlsEnabled: false # sets no-dtls on BIGIP profile
+      renegotiationEnabled: false
+      singleUseDhEnabled: true # enables single-dh-use  on BIGIP profile
+    reference: secret
+    termination: edge
+  tlsCipher:
+    cipherGroup: /Common/f5-default
+    ciphers: DEFAULT
+    disableTLSVersions: []
+    tlsVersion: "1.3"

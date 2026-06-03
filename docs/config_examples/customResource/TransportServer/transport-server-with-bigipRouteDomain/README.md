@@ -1,6 +1,6 @@
 # Transport Server with BigipRouteDomain
 
-This section demonstrates the option to configure transport server using virtual server address with bigip route domain. This is optional to use and is not supported in Cluster pool member type.
+This section demonstrates the option to configure transport server using virtual server address with bigip route domain. This is optional to use and is supported only in Static routing Cluster and nodeport pool member type.
 
 Option which can be used to configure is :
     `bigipRouteDomain`

@@ -1,0 +1,94 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: test-vs-with-policy-protocol-inspection
+  namespace: default
+spec:
+  host: "test-policy.example.com"
+  virtualServerAddress: "172.16.3.20"
+  policyName: "sample-policy"
+  pools:
+    - path: "/"
+      service: "test-service"
+      servicePort: 80
+    - path: "/api"
+      service: "api-service"
+      servicePort: 8080
+---
+# Service for the VirtualServer
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: default
+  labels:
+    app: test-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: test-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: default
+  labels:
+    app: api-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: api-app
+---
+# Sample deployment for testing
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-app
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-app
+  template:
+    metadata:
+      labels:
+        app: api-app
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 8080

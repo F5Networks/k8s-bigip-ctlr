@@ -90,6 +90,7 @@ stages:
         condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['docsUpdated'], 'True')) )
 
 - stage: Charts
+  condition: false
   dependsOn: []
   jobs:
   - job: BuildCharts

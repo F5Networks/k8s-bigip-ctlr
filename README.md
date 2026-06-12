@@ -2,9 +2,11 @@
 [![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=master) ](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=master)
 [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg) ](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr)
 
-**AS OF April 2026, THIS GITHUB REPOSITORY WILL NO LONGER BE MONITORED OR UPDATED.**
- 
-This repository will remain available, at least temporarily. You can find the latest releases in [RH Container registry](https://catalog.redhat.com/en/software/containers/f5networks/cntr-ingress-svcs/5ec7ad05ecb5246c0903f4cf). Refer to 'Filing Issues and Getting Help' for additional details.
+***Effective April 2026, this GitHub repository will no longer be actively monitored or updated***
+
+For questions, RFEs, bug reports, or other concerns, please contact your F5 representative or email [f5-ingress-services-pm at f5 dot com](mailto:f5-ingress-services-pm@f5.com), including your organisation/company name and contact details.
+
+You can find the latest releases in [RH Container registry](https://catalog.redhat.com/en/software/containers/f5networks/cntr-ingress-svcs/5ec7ad05ecb5246c0903f4cf). Refer to [Filing Issues and Getting Help](#filing-issues-and-getting-help) for additional details
 
 F5 BIG-IP Container Ingress Services for Kubernetes & OpenShift
 ========================================================

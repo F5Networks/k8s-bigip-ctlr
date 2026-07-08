@@ -94,6 +94,10 @@ spec:
         - name: bigip-creds
           mountPath: "/tmp/creds"
           readOnly: true
+        {{- if and .Values.podSecurityContext .Values.podSecurityContext.readOnlyRootFilesystem }}
+        - name: tmp
+          mountPath: /tmp
+        {{- end }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /app/bin/k8s-bigip-ctlr
@@ -135,5 +139,9 @@ spec:
           secretName: f5-bigip-ctlr-login
       {{- else }}
           secretName: {{ .Values.bigip_login_secret }}
+      {{- end }}
+      {{- if and .Values.podSecurityContext .Values.podSecurityContext.readOnlyRootFilesystem }}
+      - name: tmp
+        emptyDir: {}
       {{- end }}
 {{- end }}

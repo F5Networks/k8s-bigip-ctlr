@@ -63,6 +63,10 @@ spec:
         {{- else if (not $oscpOperator) }}
         fsGroup: 1000
         {{- end }}
+        {{- if $securityContext.supplementalGroups }}
+        supplementalGroups:
+{{ toYaml $securityContext.supplementalGroups | indent 10 }}
+        {{- end }}
       containers:
       - name: {{ template "f5-bigip-ctlr.name" . }}
         image: "{{ .Values.image.user }}/{{ .Values.image.repo }}:{{ .Values.version }}"

@@ -67,6 +67,26 @@ image:
   repo: k8s-bigip-ctlr
   pullPolicy: Always
 version: latest
+livenessProbe:
+  failureThreshold: 3
+  httpGet:
+    path: /ready
+    port: 8080
+    scheme: HTTP
+  initialDelaySeconds: 15
+  periodSeconds: 120
+  successThreshold: 1
+  timeoutSeconds: 15
+readinessProbe:
+  failureThreshold: 3
+  httpGet:
+    path: /ready
+    port: 8080
+    scheme: HTTP
+  initialDelaySeconds: 30
+  periodSeconds: 120
+  successThreshold: 1
+  timeoutSeconds: 15
 # affinity:
 #   nodeAffinity:
 #     requiredDuringSchedulingIgnoredDuringExecution:

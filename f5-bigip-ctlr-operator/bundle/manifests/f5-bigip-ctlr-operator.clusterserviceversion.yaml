@@ -316,7 +316,7 @@ spec:
                 image: registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator@sha256:560aff6297fa8d5c13d830b0186035205abb1785d62f310a268054fbfd3ae7d1
                 livenessProbe:
                   httpGet:
-                    path: /healthz
+                    path: /readyz
                     port: 8081
                   initialDelaySeconds: 15
                   periodSeconds: 20

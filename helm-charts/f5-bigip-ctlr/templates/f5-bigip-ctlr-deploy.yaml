@@ -70,26 +70,14 @@ spec:
         securityContext:
 {{ toYaml .Values.podSecurityContext | indent 12 }}
         {{- end }}
+        {{- if .Values.livenessProbe }}
         livenessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /health
-            port: 8080
-            scheme: HTTP
-          initialDelaySeconds: 15
-          periodSeconds: 120
-          successThreshold: 1
-          timeoutSeconds: 15
+{{ toYaml .Values.livenessProbe | indent 10 }}
+        {{- end }}
+        {{- if .Values.readinessProbe }}
         readinessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /health
-            port: 8080
-            scheme: HTTP
-          initialDelaySeconds: 30
-          periodSeconds: 120
-          successThreshold: 1
-          timeoutSeconds: 15
+{{ toYaml .Values.readinessProbe | indent 10 }}
+        {{- end }}
         volumeMounts:
         - name: bigip-creds
           mountPath: "/tmp/creds"

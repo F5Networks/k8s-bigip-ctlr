@@ -471,7 +471,7 @@ Secondary CIS will continuously monitor the health of the primary cluster based 
 Supported Protocols for the primaryEndPoint are HTTP and TCP.
 Generally, it's suggested to use the primaryEndPoint as
   a) any available endpoint to check the health of the primary cluster.
-  b) Primary CIS cluster's health check endpoint (/health) if accessible.
+  b) Primary CIS cluster's health check endpoint (/ready) if accessible.
   c) Primary CIS cluster's kube-api server endpoint if accessible.
 Response code 200 OK is expected from the primaryEndPoint in case of HTTP Protocol.
 Successful TCP connection is expected from the primaryEndPoint in case of TCP Protocol.
@@ -482,20 +482,20 @@ Note: Primary CIS will not monitor the health of the Secondary CIS cluster.
 ### How to configure the primaryEndPoint in Standalone mode?
 The primaryEndPoint is not applicable in Standalone mode. It's only applicable in HA mode.
 
-### How to use CIS /health endpoint to check the health of CIS?
+### How to use CIS /ready endpoint to check the health of CIS?
 Fetch the CIS PodIP and use it in the curl command as shown below from any of the cluster nodes:
 ```
-curl  http://<CIS-PodIP>:8080/health
+curl  http://<CIS-PodIP>:8080/ready
 ```
-Response code 200 OK is expected from the CIS /health endpoint if kube-api server is accessible.
+Response code 200 OK is expected from the CIS /ready endpoint if kube-api server is accessible.
 Example:
 ```
-[root@cluster-1-worker0 ~]# curl http://10.244.1.213:8080/health
-Ok[root@cluster-1-worker0 ~]# curl http://10.244.1.213:8080/health -v
+[root@cluster-1-worker0 ~]# curl http://10.244.1.213:8080/ready
+Ok[root@cluster-1-worker0 ~]# curl http://10.244.1.213:8080/ready -v
 * About to connect() to 10.244.1.213 port 8080 (#0)
 *   Trying 10.244.1.213...
 * Connected to 10.244.1.213 (10.244.1.213) port 8080 (#0)
-> GET /health HTTP/1.1
+> GET /ready HTTP/1.1
 > User-Agent: curl/7.29.0
 > Host: 10.244.1.213:8080
 > Accept: */*

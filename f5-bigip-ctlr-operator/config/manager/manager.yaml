@@ -78,7 +78,7 @@ spec:
               - "ALL"
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /readyz
             port: 8081
           initialDelaySeconds: 15
           periodSeconds: 20

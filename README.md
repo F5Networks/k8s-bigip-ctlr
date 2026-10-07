@@ -2,7 +2,7 @@
 [![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=master) ](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=master)
 [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg) ](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr)
 
-***Effective April 2026, this repository will be archived and maintained for historical reference only. It will no longer receive active code development updates or monitoring.***
+***CIS remains actively developed and fully supported by F5. Effective April 2026, this repository is archived and no longer publishes source code. New releases continue to be delivered through [GitHub Releases](https://github.com/F5Networks/k8s-bigip-ctlr/releases), [Docker Hub](https://hub.docker.com/r/f5networks/k8s-bigip-ctlr), and the [Red Hat Container Registry](https://catalog.redhat.com/en/software/containers/f5networks/cntr-ingress-svcs/5ec7ad05ecb5246c0903f4cf), with support available through standard F5 Support. For more information on reporting issues and getting support, see the [Filing Issues and Getting Help](#filing-issues-and-getting-help) section.***
 
 If you have questions, feature requests, bug reports, or need assistance, please reach out to your F5 representative or contact the F5 Ingress Services product team at [f5-ingress-services-pm at f5 dot com](mailto:f5-ingress-services-pm@f5.com). When contacting us, please include your organization/company name and your contact information.
 

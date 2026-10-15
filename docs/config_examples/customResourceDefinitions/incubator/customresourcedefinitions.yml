@@ -1212,7 +1212,7 @@ spec:
                   properties:
                     waf:
                       type: string
-                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                      pattern: '^\/([A-z0-9-_+]+\/)+([-A-z0-9]+\/?)*$'
                     profileAccess:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
@@ -1257,10 +1257,10 @@ spec:
                   properties:
                     insecure:
                       type: string
-                      pattern: '^\/[a-zA-Z]+([-A-z0-9_+:]+\/)+([A-z0-9]+\/?)*$'
+                      pattern: '^\/[a-zA-Z]+([-A-z0-9_+:]+\/)+([-A-z0-9]+\/?)*$'
                     secure:
                       type: string
-                      pattern: '^\/[a-zA-Z]+([-A-z0-9_+:]+\/)+([A-z0-9]+\/?)*$'
+                      pattern: '^\/[a-zA-Z]+([-A-z0-9_+:]+\/)+([-A-z0-9]+\/?)*$'
                     priority:
                       type: string
                       enum: [low, high]

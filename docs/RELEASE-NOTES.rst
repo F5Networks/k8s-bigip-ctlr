@@ -9,6 +9,7 @@ Added Functionality
 
 Bug Fixes
 ````````````````
+* Allow hyphens, including consecutive hyphens, in Policy CR WAF and secure/insecure LTM policy object paths.
 
 Upgrade notes
 ```````````````

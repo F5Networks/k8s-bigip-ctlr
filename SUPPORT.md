@@ -6,4 +6,4 @@ purchased separately, subject to F5’s support policies available at
 http://www.f5.com/about/guidelines-policies/ and http://askf5.com.
 
 The information required when opening a support case is available at
-https://support.f5.com/csp/article/K60974137
+https://support.f5.com/csp/article/K60974137.

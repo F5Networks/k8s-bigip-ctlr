@@ -55,8 +55,7 @@ CVE-2026-102268, CVE-2026-102266, CVE-2026-102267, CVE-2026-102271, CVE-2026-102
 
 Upgrade notes
 ```````````````
-* Update RBAC for EndpointSlice discovery for Kubernetes 1.21 and later. See `RBAC <./config_examples/rbac/clusterrole.yaml>`_.
-On Kubernetes 1.21 or later, CIS discovers pool members through the ``discovery.k8s.io/v1`` EndpointSlice API. Update your CIS ClusterRole to grant ``get``, ``list`` and ``watch`` on ``endpointslices`` in the ``discovery.k8s.io`` API group.
+* Update RBAC for EndpointSlice discovery for Kubernetes 1.21 and later. See `RBAC <./config_examples/rbac/clusterrole.yaml>`_. On Kubernetes 1.21 or later, CIS discovers pool members through the ``discovery.k8s.io/v1`` EndpointSlice API. Update your CIS ClusterRole to grant ``get``, ``list`` and ``watch`` on ``endpointslices`` in the ``discovery.k8s.io`` API group.
 * The default value for ``bigipRouteDomain`` has been removed from VirtualServer, TransportServer, and IngressLink CRD schemas. Update CRD schemas before upgrading CIS. See the `Upgrade Process <./upgradeProcess.md>`_ for detailed steps.
 * Ingress resources in the ``cattle-system`` namespace are now ignored, regardless of their IngressClass.
 

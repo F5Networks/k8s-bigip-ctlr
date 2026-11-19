@@ -48,10 +48,10 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - endpoints
   - pods
   - services
   - services/finalizers
-  - endpoints
   - persistentvolumeclaims
   - events
   - configmaps
@@ -64,6 +64,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - apps

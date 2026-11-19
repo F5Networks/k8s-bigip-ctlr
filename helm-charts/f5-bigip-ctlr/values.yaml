@@ -14,6 +14,14 @@ bigip_secret:
 
 rbac:
   create: true
+  # When set to true, create namespaced Roles/RoleBindings (one per namespace in args.namespaces)
+  # granting only ConfigMap and Secret access instead of a cluster-wide ClusterRole.
+  # Ensure args.namespaces is defined as a non-empty list when enabling this.
+  #
+  # IMPORTANT: When upgrading from cluster-wide RBAC (namespaced: false) to namespaced RBAC (namespaced: true),
+  # you must manually clean up the old ClusterRole and ClusterRoleBinding resources before upgrading.
+  # See RBAC-UPGRADE-GUIDE.md for detailed instructions.
+  namespaced: false
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
@@ -60,6 +68,7 @@ args:
   # gtm-bigip-url
   # gtm-bigip-username
   # ipam : true
+  # ipam_namespace: kube-system
 
 image:
   # Use the tag to target a specific version of the Controller
@@ -74,10 +83,20 @@ version: latest
 #       - matchExpressions:
 #         - key: kubernetes.io/arch
 #           operator: Exists
+# Pod-level securityContext for the CIS controller deployment.
+# If not set, defaults to runAsUser=1000, runAsGroup=1000, fsGroup=1000.
 # securityContext:
 #   runAsUser: 1000
 #   runAsGroup: 3000
 #   fsGroup: 2000
+#
+# To disable securityContext entirely (useful on OpenShift where SCC manages
+# security settings automatically), set securityContext to one of:
+#   "none", "false", "no", "disable", or an empty map {}
+# Examples:
+#   securityContext: none        # via values.yaml or --set securityContext=none
+#   securityContext: {}          # via values.yaml
+# securityContext: none
 # If you want to specify resources, uncomment the following
 # limits_cpu: 100m
 # limits_memory: 512Mi
@@ -88,3 +107,4 @@ version: latest
 #   runAsUser: 1000
 #   runAsGroup: 1000
 #   privileged: true
+#   readOnlyRootFilesystem: true

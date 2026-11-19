@@ -43,25 +43,55 @@ spec:
         - name: {{ $pullSecret }}
       {{- end }}
 {{- end }}
-      securityContext:
-        {{- $securityContext := .Values.securityContext | default dict }}
         {{- $oscpOperator := .Files.Glob "oscp-operator.txt"  }}
-        {{- if $securityContext.runAsUser }}
-        runAsUser: {{ $securityContext.runAsUser }}
-        {{- else if (not $oscpOperator) }}
+        {{- $scType := kindOf .Values.securityContext }}
+        {{- $scDisabled := false }}
+        {{- $scIsMap := false }}
+        {{- if eq $scType "string" }}
+          {{- $scVal := lower (trim .Values.securityContext) }}
+          {{- if or (eq $scVal "") (eq $scVal "none") (eq $scVal "false") (eq $scVal "no") (eq $scVal "disable") (eq $scVal "{}") }}
+            {{- $scDisabled = true }}
+          {{- end }}
+        {{- else if eq $scType "bool" }}
+          {{- if not .Values.securityContext }}
+            {{- $scDisabled = true }}
+          {{- end }}
+        {{- else if eq $scType "map" }}
+          {{- if eq (len .Values.securityContext) 0 }}
+            {{- $scDisabled = true }}
+          {{- else }}
+            {{- $scIsMap = true }}
+          {{- end }}
+        {{- else if eq $scType "slice" }}
+          {{- $scDisabled = true }}
+        {{- end }}
+        {{- if $scDisabled }}
+        {{- /* securityContext disabled - do not add securityContext to the deployment */ -}}
+        {{- else if $scIsMap }}
+      securityContext:
+          {{- $sc := .Values.securityContext }}
+          {{- if (index $sc "runAsUser") }}
+        runAsUser: {{ index $sc "runAsUser" }}
+          {{- else if (not $oscpOperator) }}
         runAsUser: 1000
-        {{- end }}
-        {{- $securityContext := .Values.securityContext | default dict }}
-        {{- if $securityContext.runAsGroup }}
-        runAsGroup: {{ $securityContext.runAsGroup }}
-        {{- else if (not $oscpOperator) }}
+          {{- end }}
+          {{- if (index $sc "runAsGroup") }}
+        runAsGroup: {{ index $sc "runAsGroup" }}
+          {{- else if (not $oscpOperator) }}
         runAsGroup: 1000
-        {{- end }}
-        {{- $securityContext := .Values.securityContext | default dict }}
-        {{- if $securityContext.fsGroup }}
-        fsGroup: {{ $securityContext.fsGroup }}
-        {{- else if (not $oscpOperator) }}
+          {{- end }}
+          {{- if (index $sc "fsGroup") }}
+        fsGroup: {{ index $sc "fsGroup" }}
+          {{- else if (not $oscpOperator) }}
         fsGroup: 1000
+          {{- end }}
+        {{- else }}
+      securityContext:
+          {{- if (not $oscpOperator) }}
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+          {{- end }}
         {{- end }}
       containers:
       - name: {{ template "f5-bigip-ctlr.name" . }}
@@ -94,6 +124,12 @@ spec:
         - name: bigip-creds
           mountPath: "/tmp/creds"
           readOnly: true
+        {{- if .Values.podSecurityContext }}
+        {{- if .Values.podSecurityContext.readOnlyRootFilesystem }}
+        - name: tmp
+          mountPath: /tmp
+        {{- end }}
+        {{- end }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /app/bin/k8s-bigip-ctlr
@@ -135,5 +171,11 @@ spec:
           secretName: f5-bigip-ctlr-login
       {{- else }}
           secretName: {{ .Values.bigip_login_secret }}
+      {{- end }}
+      {{- if .Values.podSecurityContext }}
+      {{- if .Values.podSecurityContext.readOnlyRootFilesystem }}
+      - name: tmp
+        emptyDir: {}
+      {{- end }}
       {{- end }}
 {{- end }}

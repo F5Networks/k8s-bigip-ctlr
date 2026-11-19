@@ -17,15 +17,14 @@ spec:
   customresourcedefinitions: {}
   description: |
     ## Introduction
-    This Operator installs F5 Container Ingress Services (CIS) for BIG-IP in your OpenShift Cluster. This enables to configure and deploy CIS using Helm Charts.
+    This Operator installs F5 Container Ingress Services (CIS) for BIG-IP in your OpenShift cluster. It enables you to configure and deploy CIS using Helm Charts.
     ## F5 Container Ingress Services for BIG-IP
-    F5 Container Ingress Services (CIS) integrates with container orchestration environments to dynamically create L4/L7 services on F5 BIG-IP systems, and load balance network traffic across the services.
-    Monitoring the orchestration API server, CIS is able to modify the BIG-IP system configuration based on changes made to containerized applications.
+    F5 Container Ingress Services (CIS) integrates with container orchestration environments to dynamically create L4/L7 services on F5 BIG-IP systems and load-balance network traffic across those services. By monitoring the orchestration API server, CIS can modify the BIG-IP system configuration based on changes made to containerized applications.
     ## Documentation
     Refer to F5 documentation
     - CIS on OpenShift (https://clouddocs.f5.com/containers/latest/userguide/openshift/) - OpenShift Routes (https://clouddocs.f5.com/containers/latest/userguide/routes.html)
     ## Prerequisites
-    Create BIG-IP login credentials for use with Operator Helm charts. A basic way be,
+    Create BIG-IP login credentials for use with the Operator Helm charts. The simplest way is:
     ```
     oc create secret generic  <SECRET-NAME>  -n kube-system --from-literal=username=<USERNAME>  --from-literal=password=<PASSWORD>
     ```

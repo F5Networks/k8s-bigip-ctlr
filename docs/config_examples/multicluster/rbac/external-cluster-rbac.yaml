@@ -6,7 +6,10 @@ metadata:
   name: bigip-ctlr-clusterrole
 rules:
   - apiGroups: [""]
-    resources: ["nodes", "services", "endpoints", "namespaces", "pods"]
+    resources: ["endpoints", "nodes", "services", "namespaces", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
     verbs: ["get", "list", "watch"]
 ---
 kind: ClusterRoleBinding

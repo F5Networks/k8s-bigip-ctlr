@@ -1,4 +1,4 @@
-{{- if .Values.rbac.create -}}
+{{- if and .Values.rbac.create (not .Values.rbac.namespaced) }}
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -23,15 +23,23 @@ rules:
       - route.openshift.io
       - networking.k8s.io
     resources:
+      - endpoints
       - nodes
       - services
-      - endpoints
       - namespaces
       - ingresses
       - ingressclasses
       - secrets
       - pods
       - routes
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
   - verbs:
       - get
       - list
@@ -95,4 +103,4 @@ rules:
     resources:
       - customresourcedefinitions
 {{- end }}
-{{- end -}}
+{{- end }}

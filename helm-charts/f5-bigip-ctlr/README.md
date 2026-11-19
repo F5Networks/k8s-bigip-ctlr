@@ -53,6 +53,7 @@ bigip_secret.create | Optional | Create kubernetes secret using username and pas
 bigip_secret.username | Optional | bigip username to create the kubernetes secret | empty
 bigip_secret.password | Optional | bigip password to create the kubernetes secret | empty
 rbac.create | Optional | Create ClusterRole and ClusterRoleBinding | true
+rbac.namespaced | Optional | Enable namespaced RBAC: per-namespace Roles plus a minimal cluster-scope Role (nodes, namespaces, ingressclasses) | false
 serviceAccount.name | Optional | name of the ServiceAccount for CIS controller | f5-bigip-ctlr-serviceaccount
 serviceAccount.create | Optional | Create service account for the CIS controller | true
 namespace | Optional | name of namespace CIS will use to create deployment and other resources | kube-system
@@ -68,8 +69,8 @@ limits_memory | Optional | Memory limits for the pod | 512Mi
 requests_cpu | Optional | CPU request for the pod | 100m
 requests_memory | Optional | Memory request for the pod | 512Mi
 affinity | Optional | Dictionary of affinity | empty
-securityContext | Optional | Dictionary of deployment securityContext | empty
-podSecurityContext | Optional | Dictionary of pod securityContext | empty
+securityContext | Optional | Dictionary of deployment pod securityContext. Set to `none` to disable (useful on OpenShift). See [Disabling securityContext](#disabling-securitycontext) | If not set, defaults to runAsUser=1000, runAsGroup=1000, fsGroup=1000
+podSecurityContext | Optional | Dictionary of container-level securityContext for Pod Security Admission and Pod Security Standards | empty
 ingressClass.ingressClassName | Optional | Name of ingress class | f5
 ingressClass.isDefaultIngressController | Optional | CIS will monitor all the ingresses resource if set true | false
 ingressClass.create | Optional | Create ingress class | true
@@ -85,9 +86,76 @@ See the CIS documentation for a full list of args supported for CIS [CIS Configu
 
 If you have a specific use case for F5 products in the Kubernetes environment that would benefit from a curated chart, please [open an issue](https://github.com/F5Networks/charts/issues) describing your use case and providing example resources.
 
+## Disabling securityContext
+
+By default, the chart applies a pod-level `securityContext` with `runAsUser: 1000`, `runAsGroup: 1000`, and `fsGroup: 1000`. On OpenShift, the Security Context Constraints (SCC) automatically manage these values, so you may need to disable the chart's `securityContext` to avoid conflicts.
+
+To disable `securityContext`, use any of the following methods:
+
+**In values.yaml:**
+```yaml
+securityContext: none
+```
+
+**Via Helm CLI:**
+```shell
+helm install <release-name> f5-stable/f5-bigip-ctlr --set securityContext=none -f values.yaml
+```
+
+**Via OpenShift Operator CR:**
+```yaml
+apiVersion: cis.f5.com/v1
+kind: F5BigIpCtlr
+metadata:
+  name: f5bigipctlr-sample
+spec:
+  securityContext: none
+  # ... other spec fields
+```
+
+Accepted disable values: `none`, `false`, `no`, `disable`, or an empty map `{}`.
+
+To customize specific fields:
+```yaml
+securityContext:
+  runAsUser: 2000
+  runAsGroup: 3000
+  fsGroup: 4000
+```
+
+Any omitted fields will fall back to the default value of `1000`.
+
+## Upgrading CIS with Helm and CRDs
+
+For upgrades that use CIS Custom Resources (for example VirtualServer, TransportServer, Policy, TLSProfile, IngressLink), update CRDs before running `helm upgrade`.
+
+```shell
+    export CIS_VERSION=<cis-version>
+    # For example
+    # export CIS_VERSION=v2.12.0
+    # or
+    # export CIS_VERSION=2.x-master
+    #
+    # the latter if using a CIS image with :latest label
+
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+
+    # Then upgrade Helm release
+    helm upgrade <release-name> f5-stable/f5-bigip-ctlr -f values.yaml
+```
+
+Notes:
+
+- The chart does not automatically manage CRD upgrades during `helm upgrade`.
+- Helm hook-based CRD auto-upgrade is not currently provided or supported in this chart.
+- If you are not using CIS CRDs, CRD update can be skipped.
+
 ## Uninstalling Helm Chart
-
 Run the following command to uninstall the chart.
-
 ```helm uninstall <new-chart-name>```
 
+Note: When rbac.namespaced=true the chart:
+- Skips the default broad ClusterRole/Binding.
+- Creates a minimal cluster-scope ClusterRole granting get/list/watch on nodes, namespaces, ingressclasses (and CRDs if ipam enabled).
+- Creates a limited Role in the controller namespace (configmaps + secrets only).
+- Creates Roles/RoleBindings in each args.namespaces granting required namespace-scoped permissions.

@@ -8,7 +8,6 @@ metadata:
 spec:
   additionalVirtualServerAddresses: []
   allowVlans: []
-  bigipRouteDomain: 0
   host: foo.com
   httpTraffic: allow
   iRules: []

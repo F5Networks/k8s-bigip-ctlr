@@ -418,7 +418,7 @@ Yes. CIS has to be restarted when there is a change in the mode.
 
 ### How do you add a new cluster?
 To add a new cluster, create a kube-config file with read only permissions. Then create a Kubernetes secret using the kube-config file. Refer this in secret in the extended ConfigMap to add the new cluster.
-CIS dynamically reads the new kube-config of the new cluster and starts listening to the services and endpoints in the new cluster when a route refers this new cluster.
+CIS dynamically reads the new kube-config of the new cluster and starts listening to the services and EndpointSlices in the new cluster when a route refers this new cluster.
 
 ### Where do you manage the manifest or Configuration Objects like Routes, CRDs, ExtendedConfigmaps etc.?
 Manifests or Configuration objects are managed centralized in Primary Cluster and if HA is desired the same manifests are expected to be in Secondary Cluster.
@@ -439,10 +439,10 @@ CIS recognizes as Secondary when it starts with a deployment parameter i.e. --mu
 Both of the CIS will communicate with both K8s API servers and prepares the AS3 declaration, but the secondary CIS only sends the declaration when the Primary cluster's health probe fails. As soon as primary cluster comes up, secondary CIS stops sending the declaration.
 
 ### What kind of permission is required for HA or StandAlone deployment of CIS?
-No RBAC change for CIS deployment with multiCluster support. Only additional kube-config configuration with read only permission is required to access the endpoints from external cluster.
+No RBAC change for CIS deployment with multiCluster support. Only additional kube-config configuration with read only permission is required to access EndpointSlices from the external cluster.
 
 ### What kind of permission is required to access external clusters (apart from HA and StandAlone)?
-CIS requires read-only permission in Kubeconfig of external clusters to access resources like Pods/Services/Endpoints/Nodes.
+CIS requires read-only permission in Kubeconfig of external clusters to access resources like Pods/Services/EndpointSlices/Nodes.
 
 ### Can CIS manage multiple BIG-IPs?
 No. CIS can manage only Standalone BIG-IP or HA BIG-IP. In other words, CIS acts as a single point of BIG-IP Orchestrator and supports Multi-Cluster.

@@ -8,7 +8,6 @@ metadata:
 spec:
   additionalVirtualServerAddresses: []
   allowVlans: []
-  bigipRouteDomain: 0
   defaultPool:
     reference: service
     service: pytest-svc-2

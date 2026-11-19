@@ -13,13 +13,13 @@ spec:
     openshift_sdn_name: "</BIGIP_PARTITION/SDN_NAME>"
     bigip_url: "<BIGIP_IP_ADDRESS>"
     insecure: true
-    pool_member_type: "<CLUSTER_OR_NODEPORT_OR_LOADBALANCER>"
+    pool_member_type: "<cluster_or_nodeport_or_loadbalancer>"
     route_label: "<ROUTE_LABEL_F5TYPE>"
   bigip_login_secret: "<BIGIP_LOGIN_K8S_SECRET>"
   image:
     pullPolicy: Always
-    repo: k8s-bigip-ctlr
-    user: f5networks
+    repo: f5networks/cntr-ingress-svcs
+    user: registry.connect.redhat.com
   namespace: kube-system
   rbac:
     create: true
@@ -31,3 +31,12 @@ spec:
     ingressClassName: f5
     defaultController: false
   version: latest
+  # To disable securityContext entirely (useful on OpenShift where it should be
+  # assigned automatically), set securityContext to one of: "none", "false", "no", "disable"
+  # or set it to an empty map: securityContext: {}
+  # securityContext: "none"
+  # Or specify custom values:
+  # securityContext:
+  #   runAsUser: 1000
+  #   runAsGroup: 1000
+  #   fsGroup: 1000

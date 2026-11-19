@@ -13,6 +13,54 @@ Bug Fixes
 Upgrade notes
 ```````````````
 
+
+CIS 2.20.5
+--------------
+
+Important upgrade notes
+```````````````````````
+* **TLS 1.3 on BIG-IP 21.1:** A TLSProfile using TLS 1.3 must specify ``spec.tlsCipher.cipherGroup``. BIG-IP 21.1 and later enable TLS 1.3 by default; CIS does not supply a cipher group when the field is omitted. Without it, the TLS 1.3 SSL profile cannot be configured; do not rely on a silent fallback as AS3 will throw 422. Set it before moving to BIG-IP 21.1 or later:
+
+  .. code-block:: yaml
+
+     spec:
+       tlsCipher:
+         tlsVersion: "1.3"
+         cipherGroup: /Common/f5-default
+
+  See the `TLSProfile TLS 1.3 example <./config_examples/customResource/VirtualServerWithTLSProfile/tls-with-tlsCipher/tlsCipher-with-tls1.3.yml>`_.
+
+Added Functionality
+```````````````````
+**What's new:**
+    * Added ``discovery.k8s.io/v1`` EndpointSlice support for pool member discovery in cluster and multi-cluster deployments. CIS uses EndpointSlices when the API is available and falls back to core ``v1`` Endpoints otherwise.
+    * Added support for AS3 3.57.0.
+    * CIS is now compatible with BIGIP-v21.1, OpenShift 5.0, OpenShift 4.22, Kubernetes 1.36, Kubernetes 1.37 and Rancher-2.14.3 with RKE2-v1.35.6+rke2r1.
+    * Operator support for OpenShift 4.22, and 5.0.
+
+Bug Fixes
+````````````````
+* Removed default value (0) for ``bigipRouteDomain`` field in VirtualServer, TransportServer, and IngressLink CRDs. When the field is omitted, no route domain is appended (default behavior). Specifying ``bigipRouteDomain: 0`` now explicitly applies route domain 0. See `VirtualServer Example <./config_examples/customResource/VirtualServer/virtual-with-bigipRouteDomain>`_, `TransportServer Example <./config_examples/customResource/TransportServer/transport-server-with-bigipRouteDomain>`_ and `IngressLink Example <./config_examples/customResource/IngressLink/ingressLink-with-bigipRouteDomain>`_.
+* Fixed processing of Services of type LoadBalancer with the same port number for different protocols.
+* Fixed missing pool members for OpenShift Routes using a named ``spec.port.targetPort`` when the Service port and pod port differ. CIS now resolves the name to the corresponding Endpoints port. Routes referencing an unknown Service port name now report the Route, Service, missing name and available port names.
+* Fixed load balancing for hostless VirtualServer resources using ``alternateBackends``, including root and path-based routing.
+* Fixed TLS routing for hostless VirtualServer resources, including edge and re-encrypt termination and routing alongside host-based VirtualServers.
+* Fixed IngressLink reconciliation when a matching Service is created or its labels change.
+* Fixed IPAM processing for ServiceTypeLB in multi-cluster standalone mode and supported namespace-scoped discovery for ServiceTypeLB.
+* Fixed GTM list index error when all the pools are removed from GTM.
+
+Vulnerability Fixes
+```````````````````
+CVE-2026-102268, CVE-2026-102266, CVE-2026-102267, CVE-2026-102271, CVE-2026-102272, CVE-2026-102273, GHSA-pxh4-856f-4n89, CVE-2026-101917, CVE-2026-101918, CVE-2026-102265, CVE-2026-102269, CVE-2026-102270, CVE-2026-102274, CVE-2026-102275, CVE-2026-103001, GHSA-6q48-6c7w-9gw2, CVE-2026-97687, CVE-2026-97689, CVE-2026-97688, GHSA-xmj3-9gf7-h52w
+
+Upgrade notes
+```````````````
+* Update RBAC for EndpointSlice discovery for Kubernetes 1.21 and later. See `RBAC <./config_examples/rbac/clusterrole.yaml>`_.
+On Kubernetes 1.21 or later, CIS discovers pool members through the ``discovery.k8s.io/v1`` EndpointSlice API. Update your CIS ClusterRole to grant ``get``, ``list`` and ``watch`` on ``endpointslices`` in the ``discovery.k8s.io`` API group.
+* The default value for ``bigipRouteDomain`` has been removed from VirtualServer, TransportServer, and IngressLink CRD schemas. Update CRD schemas before upgrading CIS. See the `Upgrade Process <./upgradeProcess.md>`_ for detailed steps.
+* Ingress resources in the ``cattle-system`` namespace are now ignored, regardless of their IngressClass.
+
+
 CIS 2.20.4.1
 -------------
 
@@ -28,7 +76,7 @@ CVE-2026-39828, CVE-2026-39832, CVE-2026-39835, CVE-2026-39829, CVE-2026-39830, 
 Added Functionality
 ```````````````````
 **What's new:**
-    * CIS is now compatible with OpenShift 4.19, OpenShift 4.20, OpenShift 4.21 and Kubernetes 1.35
+    * CIS is now compatible with OpenShift 4.19, OpenShift 4.20, OpenShift 4.21 and Kubernetes 1.33
     * CIS operator support for OpenShift 4.19, OpenShift 4.20 and OpenShift 4.21
     * Added support for AS3 3.56.0
     * CRD

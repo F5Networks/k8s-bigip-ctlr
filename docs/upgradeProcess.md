@@ -7,6 +7,40 @@ Refer to the [Release Notes](./RELEASE-NOTES.rst) for additional information.
 
 Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/rbac/clusterrole.yaml) and [CR Schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/2.x-master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml)
 
+CRD Updates During CIS Helm Upgrades
+------------------------------------
+
+When upgrading CIS with Helm, the supported and recommended approach is to manage CRD schema updates explicitly (outside of `helm upgrade`).
+
+Recommended workflow:
+
+1. Upgrade CRDs first:
+
+  ```shell
+    export CIS_VERSION=<cis-version>
+    # For example
+    # export CIS_VERSION=v2.12.0
+    # or
+    # export CIS_VERSION=2.x-master
+    #
+    # the latter if using a CIS image with :latest label
+
+    kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+  ```
+2. Verify CRDs are established before upgrading CIS:
+
+  ```shell
+    kubectl get crd | grep -E 'cis.f5.com|fic.f5.com'
+  ```
+3. Run `helm upgrade` for the CIS release.
+
+Notes:
+
+* The CIS Helm chart does not automatically update CRDs during `helm upgrade`.
+* Automated CRD upgrades via Helm hooks are not currently provided or supported in this chart.
+* This separation is intentional so operators can control and validate cluster-scoped schema changes before upgrading controller workloads.
+* If your deployment mode does not use CIS Custom Resources, CRD upgrade steps can be skipped.
+
 Compatibility Matrix
 --------------------
 
@@ -52,12 +86,15 @@ Compatibility Matrix
 | v2.19.0     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.34           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.19.1     | v17.0          | v1.31              | v4.16.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.34           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.20.0     | v17.0          | v1.32              | v4.18.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.35           | Red Hat Enterprise Linux release 9.1 (Plow)         |
-| v2.20.1     | v17.0          | v1.32              | v4.18.0*                                                      | Yes | Yes                | v3.52       | v0.1.11     | v0.0.5            | v0.0.35           | Red Hat Enterprise Linux release 9.1 (Plow)         |
+| v2.20.1     | v17.0          | v1.32              | v4.18.0*                                                      | Yes | Yes                | v3.52       | v0.1.12     | v0.0.5            | v0.0.35           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.20.2     | v17.0          | v1.32              | v4.18.0*                                                      | Yes | Yes                | v3.52       | v0.1.12     | v0.0.5            | v0.0.36           | Red Hat Enterprise Linux release 9.1 (Plow)         |
 | v2.20.3     | v17.0          | v1.32              | v4.18.0*                                                      | Yes | Yes                | v3.52       | v0.1.12     | v0.0.5            | v0.0.36           | Red Hat Enterprise Linux release 9.1 (Plow)         |
-| v2.20.4     | v17.0          | v1.35              | v4.21.0*                                                      | Yes | Yes                | v3.56       | v0.1.13     | v0.0.5            | v0.0.37           | Red Hat Enterprise Linux release 10.2 (Plow)        |
+| v2.20.4     | v17.0          | v1.35              | v4.21.0*                                                      | Yes | Yes                | v3.56       | v0.1.13     | v0.0.5            | v0.0.38           | Red Hat Enterprise Linux release 10.2 (Plow)        |
 | v2.20.4.1     | v17.0          | v1.35              | v4.21.0*                                                      | Yes | Yes                | v3.56       | v0.1.13.1     | v0.0.5            | v0.0.38           | Red Hat Enterprise Linux release 10.2 (Plow)        |
+| v2.20.5     | v21.1   | v1.37       | v5.0*                                                 | Yes | Yes                | v3.57       | v0.1.14  | v0.0.5            | v0.0.39           | Red Hat Enterprise Linux release 10.2 (Plow)        |
+
 Note: For OCP version 4.12, CIS is compatible with IPv4 and dual stack IPv4.
+For CIS v2.20.5, Rancher 2.14.3 with RKE2 v1.35.6+rke2r1 is also supported.
 
 Compatibility Matrix for Multi Cluster Support
 ----------------------------------------------
@@ -76,8 +113,9 @@ Compatibility Matrix for Multi Cluster Support
 | v2.20.1     | v17.0          | v1.32              | v4.18.0*          | Yes      | No  | Yes                | v3.52       | v0.0.35           |
 | v2.20.2     | v17.0          | v1.32              | v4.18.0*          | Yes      | No  | Yes                | v3.52       | v0.0.36           |
 | v2.20.3     | v17.0          | v1.32              | v4.18.0*          | Yes      | No  | Yes                | v3.52       | v0.0.36           |
-| v2.20.4     | v17.0          | v1.35              | v4.21.0*          | Yes      | No  | Yes                | v3.56       | v0.0.37           |
-| v2.20.4.1     | v17.0          | v1.35              | v4.21.0*          | Yes      | No  | Yes                | v3.56       | v0.0.37           |
+| v2.20.4     | v17.0          | v1.35              | v4.21.0*          | Yes      | No  | Yes                | v3.56       | v0.0.38           |
+| v2.20.4.1     | v17.0          | v1.35              | v4.21.0*          | Yes      | No  | Yes                | v3.56       | v0.0.38           |
+| v2.20.5     | v21.1   | v1.37       | v4.22*, v5.0*    | Yes      | No  | Yes                | v3.57       | v0.0.39           |
 
 CIS Features and Examples
 -------------------------
@@ -436,6 +474,27 @@ Refer Release Notes for [CIS v2.17.0](./RELEASE-NOTES.rst)
   * CIS no longer supports the extendedServiceReferences property for VirtualServer and TransportServer CRs in active-active and ratio modes.
 * CRD
   * You cannot add or delete the serviceAddress property for VS and TS CR after creating the CR.
+
+### **Upgrading from 2.20.4.1 to 2.20.5:**
+
+**_Functionality Changes:_**
+* CRD
+  * The `default: 0` property has been removed from the `bigipRouteDomain` field in VirtualServer, TransportServer, and IngressLink CRDs.
+  * **CRD schema must be updated before upgrading CIS.** Apply the latest CRD schema using:
+    ```shell
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/${CIS_VERSION}/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+    ```
+  * **Behavioral change:** Previously, the CRD schema automatically populated `bigipRouteDomain: 0` when omitted, preventing users from explicitly configuring Route Domain 0. Now, omitting `bigipRouteDomain` defaults to no route domain appended, while specifying `bigipRouteDomain: 0` explicitly applies route domain 0 (appends `%0`).
+* **TLS 1.3 on BIG-IP 21.1:** Before moving to BIG-IP 21.1 or later, set `spec.tlsCipher.cipherGroup` on each TLSProfile using TLS 1.3. BIG-IP 21.1 and later enable TLS 1.3 by default, and CIS does not supply a cipher group when this field is omitted. Without it, the TLS 1.3 SSL profile cannot be configured; do not rely on a silent fallback as AS3 will throw 422 error.
+
+  ```yaml
+  spec:
+    tlsCipher:
+      tlsVersion: "1.3"
+      cipherGroup: /Common/f5-default
+  ```
+
+  See the [TLSProfile TLS 1.3 example](./config_examples/customResource/VirtualServerWithTLSProfile/tls-with-tlsCipher/tlsCipher-with-tls1.3.yml).
 
 ### **Upgrading from 2.19.1 to 2.20.0:**
 

@@ -1,3 +1,7 @@
+# NOTE: This cluster-wide RBAC example is intentionally broad and grants wide read/update rights.
+# For production least-privilege deployments scope permissions to only watched namespaces and restrict
+# secrets access. See: ../Namespaced-RBAC for guidance on using the namespace-scoped variant.
+# Adjust or remove rules here if you choose not to use the namespace-scoped variant.
 # for reference only
 # Should be changed as per your cluster requirements
 kind: ClusterRole
@@ -6,7 +10,10 @@ metadata:
   name: bigip-ctlr-clusterrole
 rules:
   - apiGroups: ["", "extensions", "networking.k8s.io", "route.openshift.io"]
-    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses", "policies", "routes"]
+    resources: ["endpoints", "nodes", "services", "namespaces", "ingresses", "pods", "ingressclasses", "policies", "routes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["", "extensions", "networking.k8s.io", "route.openshift.io"]
     resources: ["configmaps", "events", "ingresses/status", "services/status", "routes/status"]
